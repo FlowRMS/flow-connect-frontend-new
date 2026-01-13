@@ -1,13 +1,19 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  getDeliveryIssueById,
+  fetchDeliveryById,
+  fetchDeliveryIssueById,
+  fetchFactoryById,
+  fetchShippingCarriers,
+  fetchWarehouses,
+  mapDeliveryToShipment,
+  mapIssueFromDelivery,
   updateDeliveryIssue,
-  mockIncomingShipments,
-} from '@/lib/data/warehouse-mock';
+} from './api/warehouseDeliveriesApi';
+import { fetchUserById } from '@/components/lib/api/search';
 import {
   DeliveryIssue,
   DeliveryIssueStatus,
@@ -17,6 +23,7 @@ import {
   deliveryIssueStatusLabels,
   deliveryIssueTypeColors,
   deliveryIssueTypeLabels,
+  IncomingShipment,
 } from '@/lib/types/warehouse';
 
 interface DeliveryIssueDetailContentProps {
@@ -25,27 +32,124 @@ interface DeliveryIssueDetailContentProps {
 
 export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDetailContentProps) {
   const router = useRouter();
-  const [issue, setIssue] = useState<DeliveryIssue | null>(() => getDeliveryIssueById(issueId) || null);
+  const [issue, setIssue] = useState<DeliveryIssue | null>(null);
+  const [shipment, setShipment] = useState<IncomingShipment | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [reportedByName, setReportedByName] = useState('');
+  const [communicatedByName, setCommunicatedByName] = useState('');
+  const [resolvedByName, setResolvedByName] = useState('');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [communicationMessage, setCommunicationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [resolutionMessage, setResolutionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [notes, setNotes] = useState(issue?.notes || '');
   const [communicationNotes, setCommunicationNotes] = useState(issue?.communicationNotes || '');
   const [resolutionNotes, setResolutionNotes] = useState(issue?.resolutionNotes || '');
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [newNote, setNewNote] = useState('');
-  const [itemNotes, setItemNotes] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {};
-    issue?.items.forEach(item => {
-      initial[item.id] = item.notes || '';
-    });
-    return initial;
-  });
+  const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
-  // Get original shipment
-  const shipment = useMemo(() => {
-    if (!issue) return null;
-    return mockIncomingShipments.find(s => s.id === issue.shipmentId);
-  }, [issue]);
+  useEffect(() => {
+    let isActive = true;
+
+    const loadIssue = async () => {
+      setIsLoading(true);
+      try {
+        const issueData = await fetchDeliveryIssueById(issueId);
+        if (!issueData) {
+          if (isActive) {
+            setIssue(null);
+            setShipment(null);
+          }
+          return;
+        }
+
+        const delivery = await fetchDeliveryById(issueData.deliveryId);
+        if (!delivery) {
+          if (isActive) {
+            setIssue(null);
+            setShipment(null);
+          }
+          return;
+        }
+
+        const [warehousesData, carriersData, vendor, reporter] = await Promise.all([
+          fetchWarehouses(),
+          fetchShippingCarriers(true),
+          fetchFactoryById(delivery.vendorId),
+          issueData.createdById ? fetchUserById(issueData.createdById) : Promise.resolve(null),
+        ]);
+
+        const warehouseMap = new Map(warehousesData.map((warehouse) => [warehouse.id, warehouse]));
+        const carrierMap = new Map(carriersData.map((carrier) => [carrier.id, carrier]));
+        const factoryMap = new Map(
+          vendor ? [[vendor.id, vendor]] : []
+        );
+
+        const mappedIssue = mapIssueFromDelivery(issueData, delivery, warehouseMap, factoryMap);
+        const mappedShipment = mapDeliveryToShipment(delivery, warehouseMap, factoryMap, carrierMap);
+
+        if (!isActive) return;
+
+        setIssue(mappedIssue);
+        setShipment(mappedShipment);
+        setNotes(mappedIssue.notes || '');
+        setCommunicationNotes(mappedIssue.communicationNotes || '');
+        setResolutionNotes(mappedIssue.resolutionNotes || '');
+        const isUuid = (value?: string | null) =>
+          Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value));
+        const reporterName =
+          reporter?.fullName ||
+          [reporter?.firstName, reporter?.lastName].filter(Boolean).join(' ').trim() ||
+          reporter?.email ||
+          mappedIssue.reportedBy ||
+          'Unknown';
+        setReportedByName(isUuid(reporterName) ? 'Unknown' : reporterName);
+        const resolveUserName = async (value?: string | null) => {
+          if (!value) return '';
+          if (!isUuid(value)) return value;
+          const user = await fetchUserById(value);
+          return (
+            user?.fullName ||
+            [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
+            user?.email ||
+            value
+          );
+        };
+        const communicatorName = await resolveUserName(mappedIssue.communicatedBy || undefined);
+        setCommunicatedByName(communicatorName);
+        const resolverName = await resolveUserName(mappedIssue.resolvedBy || undefined);
+        setResolvedByName(resolverName);
+        const initialNotes: Record<string, string> = {};
+        mappedIssue.items.forEach((item) => {
+          initialNotes[item.id] = item.notes || '';
+        });
+        setItemNotes(initialNotes);
+      } catch (error) {
+        console.error('Failed to load delivery issue', error);
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadIssue();
+
+    return () => {
+      isActive = false;
+    };
+  }, [issueId]);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center text-[var(--muted-foreground)]">Loading issue details…</div>
+      </div>
+    );
+  }
 
   if (!issue) {
     return (
@@ -74,49 +178,155 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
     });
   };
 
-  const handleMarkCommunicated = () => {
-    const updated = updateDeliveryIssue(issue.id, {
-      status: 'COMMUNICATED',
-      communicatedAt: new Date().toISOString(),
-      communicatedBy: 'Current User', // Would come from auth
-      communicationNotes: communicationNotes,
-    });
-    if (updated) setIssue(updated);
+  const buildIssueInput = (current: DeliveryIssue, overrides: Partial<DeliveryIssue>) => {
+    const item = current.items[0];
+    return {
+      deliveryId: current.shipmentId,
+      deliveryItemId: item?.id || '',
+      issueType: item?.issueType || 'OTHER',
+      customIssueType: item?.customIssueType || null,
+      qty: item?.quantity || 0,
+      status: overrides.status || current.status,
+      description: item?.description || null,
+      notes: overrides.notes ?? current.notes ?? null,
+      communicatedAt: overrides.communicatedAt ?? current.communicatedAt ?? null,
+    };
   };
 
-  const handleMarkResolved = () => {
-    const updated = updateDeliveryIssue(issue.id, {
-      status: 'RESOLVED',
-      resolvedAt: new Date().toISOString(),
-      resolvedBy: 'Current User', // Would come from auth
-      resolutionNotes: resolutionNotes,
-    });
-    if (updated) setIssue(updated);
+  const handleMarkCommunicated = async () => {
+    if (!issue) return;
+    setIsUpdatingStatus(true);
+    setCommunicationMessage(null);
+    setActionMessage(null);
+    const nowIso = new Date().toISOString();
+    try {
+      await updateDeliveryIssue(issue.id, buildIssueInput(issue, {
+        status: 'COMMUNICATED',
+        communicatedAt: nowIso,
+        notes: communicationNotes || issue.notes || null,
+      }));
+      setIssue({
+        ...issue,
+        status: 'COMMUNICATED',
+        communicatedAt: nowIso,
+        communicationNotes,
+      });
+      updateCachedIssue({
+        id: issue.id,
+        status: 'COMMUNICATED',
+        communicatedAt: nowIso,
+        communicationNotes,
+      });
+      setCommunicatedByName(communicatedByName || 'Current User');
+      setCommunicationMessage({ type: 'success', text: 'Marked as communicated.' });
+    } catch (error) {
+      console.error('Failed to mark issue communicated', error);
+      setCommunicationMessage({ type: 'error', text: 'Failed to mark as communicated.' });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
-  const handleClose = () => {
-    const updated = updateDeliveryIssue(issue.id, {
-      status: 'CLOSED',
-    });
-    if (updated) setIssue(updated);
+  const handleMarkResolved = async () => {
+    if (!issue) return;
+    setIsUpdatingStatus(true);
+    setResolutionMessage(null);
+    setActionMessage(null);
+    try {
+      await updateDeliveryIssue(issue.id, buildIssueInput(issue, {
+        status: 'RESOLVED',
+        notes: resolutionNotes || issue.notes || null,
+      }));
+      setIssue({
+        ...issue,
+        status: 'RESOLVED',
+        resolutionNotes,
+      });
+      updateCachedIssue({
+        id: issue.id,
+        status: 'RESOLVED',
+        resolutionNotes,
+      });
+      setResolvedByName(resolvedByName || 'Current User');
+      setResolutionMessage({ type: 'success', text: 'Marked as resolved.' });
+    } catch (error) {
+      console.error('Failed to resolve issue', error);
+      setResolutionMessage({ type: 'error', text: 'Failed to mark as resolved.' });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
-  const handleReopen = () => {
-    const updated = updateDeliveryIssue(issue.id, {
-      status: 'OPEN',
-      communicatedAt: undefined,
-      communicatedBy: undefined,
-      resolvedAt: undefined,
-      resolvedBy: undefined,
-    });
-    if (updated) setIssue(updated);
+  const handleClose = async () => {
+    if (!issue) return;
+    setIsUpdatingStatus(true);
+    setActionMessage(null);
+    try {
+      await updateDeliveryIssue(issue.id, buildIssueInput(issue, { status: 'CLOSED' }));
+      setIssue({ ...issue, status: 'CLOSED' });
+      updateCachedIssue({ id: issue.id, status: 'CLOSED' });
+      setActionMessage({ type: 'success', text: 'Issue closed.' });
+    } catch (error) {
+      console.error('Failed to close issue', error);
+      setActionMessage({ type: 'error', text: 'Failed to close issue.' });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
-  const handleSaveNotes = () => {
-    const updated = updateDeliveryIssue(issue.id, { notes });
-    if (updated) {
-      setIssue(updated);
+  const handleReopen = async () => {
+    if (!issue) return;
+    setIsUpdatingStatus(true);
+    setActionMessage(null);
+    try {
+      await updateDeliveryIssue(issue.id, buildIssueInput(issue, { status: 'OPEN', communicatedAt: null }));
+      setIssue({
+        ...issue,
+        status: 'OPEN',
+        communicatedAt: undefined,
+        communicatedBy: undefined,
+        communicationMethod: undefined,
+        communicationNotes: undefined,
+        resolvedAt: undefined,
+        resolvedBy: undefined,
+        resolutionType: undefined,
+        resolutionNotes: undefined,
+        creditAmount: undefined,
+        replacementShipmentId: undefined,
+      });
+      updateCachedIssue({
+        id: issue.id,
+        status: 'OPEN',
+        communicatedAt: undefined,
+        communicatedBy: undefined,
+        communicationMethod: undefined,
+        communicationNotes: undefined,
+        resolvedAt: undefined,
+        resolvedBy: undefined,
+        resolutionType: undefined,
+        resolutionNotes: undefined,
+        creditAmount: undefined,
+        replacementShipmentId: undefined,
+      });
+      setCommunicatedByName('');
+      setResolvedByName('');
+      setActionMessage({ type: 'success', text: 'Issue reopened.' });
+    } catch (error) {
+      console.error('Failed to reopen issue', error);
+      setActionMessage({ type: 'error', text: 'Failed to reopen issue.' });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    if (!issue) return;
+    try {
+      await updateDeliveryIssue(issue.id, buildIssueInput(issue, { notes }));
+      setIssue({ ...issue, notes });
       setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to update issue notes', error);
     }
   };
 
@@ -311,9 +521,10 @@ ${issue.warehouseName}`;
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="flex-1 overflow-auto">
+      <div className="space-y-6 p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
@@ -331,7 +542,7 @@ ${issue.warehouseName}`;
               </span>
             </div>
             <p className="text-[var(--muted-foreground)]">
-              Reported on {formatDate(issue.reportedAt)} by {issue.reportedBy}
+              Reported on {formatDate(issue.reportedAt)} by {reportedByName || issue.reportedBy}
             </p>
           </div>
         </div>
@@ -339,21 +550,30 @@ ${issue.warehouseName}`;
           {issue.status === 'CLOSED' && (
             <button
               onClick={handleReopen}
-              className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              disabled={isUpdatingStatus}
+              className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Reopen Issue
+              {isUpdatingStatus ? 'Saving...' : 'Reopen Issue'}
             </button>
           )}
           {issue.status === 'RESOLVED' && (
             <button
               onClick={handleClose}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+              disabled={isUpdatingStatus}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Close Issue
+              {isUpdatingStatus ? 'Saving...' : 'Close Issue'}
             </button>
           )}
         </div>
       </div>
+      {actionMessage && (
+        <div className={`text-sm ${
+          actionMessage.type === 'success' ? 'text-green-600' : 'text-red-600'
+        }`}>
+          {actionMessage.text}
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-6">
         {/* Main Content */}
@@ -469,6 +689,13 @@ ${issue.warehouseName}`;
               )}
             </div>
             <div className="p-4 space-y-4">
+              {communicationMessage && (
+                <div className={`text-sm ${
+                  communicationMessage.type === 'success' ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {communicationMessage.text}
+                </div>
+              )}
               {issue.communicatedAt ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-green-600">
@@ -478,7 +705,7 @@ ${issue.warehouseName}`;
                     <span className="font-medium">Communicated on {formatDate(issue.communicatedAt)}</span>
                   </div>
                   <div className="text-sm text-[var(--muted-foreground)]">
-                    By: {issue.communicatedBy} via {issue.communicationMethod || 'N/A'}
+                    By: {communicatedByName || issue.communicatedBy || 'N/A'} via {issue.communicationMethod || 'N/A'}
                   </div>
                   {issue.communicationNotes && (
                     <div className="p-3 bg-[var(--muted)]/30 rounded-lg text-sm text-[var(--foreground)]">
@@ -505,9 +732,10 @@ ${issue.warehouseName}`;
                   </div>
                   <button
                     onClick={handleMarkCommunicated}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                    disabled={isUpdatingStatus}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Mark as Communicated
+                    {isUpdatingStatus ? 'Saving...' : 'Mark as Communicated'}
                   </button>
                 </div>
               )}
@@ -529,7 +757,7 @@ ${issue.warehouseName}`;
                     <span className="font-medium">Resolved on {formatDate(issue.resolvedAt)}</span>
                   </div>
                   <div className="text-sm text-[var(--muted-foreground)]">
-                    By: {issue.resolvedBy}
+                    By: {resolvedByName || issue.resolvedBy || 'N/A'}
                   </div>
                   {issue.resolutionType && (
                     <div className="flex items-center gap-2">
@@ -555,6 +783,13 @@ ${issue.warehouseName}`;
                   <p className="text-sm text-[var(--muted-foreground)]">
                     Issue has not yet been resolved.
                   </p>
+                  {resolutionMessage && (
+                    <div className={`text-sm ${
+                      resolutionMessage.type === 'success' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {resolutionMessage.text}
+                    </div>
+                  )}
                   {issue.status === 'COMMUNICATED' && (
                     <>
                       <div>
@@ -571,9 +806,10 @@ ${issue.warehouseName}`;
                       </div>
                       <button
                         onClick={handleMarkResolved}
+                        disabled={isUpdatingStatus}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
                       >
-                        Mark as Resolved
+                        {isUpdatingStatus ? 'Saving...' : 'Mark as Resolved'}
                       </button>
                     </>
                   )}
@@ -818,6 +1054,19 @@ ${issue.warehouseName}`;
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
+  const updateCachedIssue = (patch: Partial<DeliveryIssue> & { id: string }) => {
+    try {
+      const raw = sessionStorage.getItem('warehouseDeliveryIssuesCache');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { warehouseId?: string; issues?: DeliveryIssue[] };
+      if (!Array.isArray(parsed.issues)) return;
+      const issues = parsed.issues.map((item) => (item.id === patch.id ? { ...item, ...patch } : item));
+      sessionStorage.setItem('warehouseDeliveryIssuesCache', JSON.stringify({ ...parsed, issues }));
+    } catch {
+      // Ignore cache update failures.
+    }
+  };

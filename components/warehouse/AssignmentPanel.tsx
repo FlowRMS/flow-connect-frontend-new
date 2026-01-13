@@ -1,13 +1,25 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AssignedUser, AssignedUserRole } from '@/lib/types/warehouse';
-import { WarehouseUser, getWarehouseManagers, getWarehouseWorkers } from '@/lib/data/warehouse-mock';
+import { fetchWarehouseMembers } from '@/components/warehouse/api/warehouseDeliveriesApi';
+import { fetchUserById } from '@/components/lib/api/search';
+
+type WarehouseUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: AssignedUserRole;
+  warehouseIds: string[];
+  isActive: boolean;
+};
 
 interface AssignmentPanelProps {
   assignedManagers: AssignedUser[];
   assignedWorkers: AssignedUser[];
   warehouseId?: string;
+  availableManagers?: WarehouseUser[];
+  availableWorkers?: WarehouseUser[];
   onAddAssignment: (userId: string, role: AssignedUserRole) => void;
   onRemoveAssignment: (assignmentId: string, role: AssignedUserRole) => void;
   isEditable?: boolean;
@@ -18,6 +30,8 @@ export default function AssignmentPanel({
   assignedManagers,
   assignedWorkers,
   warehouseId,
+  availableManagers,
+  availableWorkers,
   onAddAssignment,
   onRemoveAssignment,
   isEditable = true,
@@ -25,11 +39,157 @@ export default function AssignmentPanel({
 }: AssignmentPanelProps) {
   const [showManagerDropdown, setShowManagerDropdown] = useState(false);
   const [showWorkerDropdown, setShowWorkerDropdown] = useState(false);
+  const [fetchedManagers, setFetchedManagers] = useState<WarehouseUser[]>([]);
+  const [fetchedWorkers, setFetchedWorkers] = useState<WarehouseUser[]>([]);
 
-  const availableManagers = getWarehouseManagers(warehouseId).filter(
+  useEffect(() => {
+    if (!isEditable) {
+      setShowManagerDropdown(false);
+      setShowWorkerDropdown(false);
+    }
+  }, [isEditable]);
+
+  useEffect(() => {
+    if (availableManagers || availableWorkers) return;
+    if (!warehouseId) {
+      setFetchedManagers([]);
+      setFetchedWorkers([]);
+      return;
+    }
+
+    let isActive = true;
+    const cacheKey = `warehouseMembersCache:${warehouseId}`;
+    const cacheMaxAgeMs = 5 * 60 * 1000;
+    let shouldFetch = true;
+
+    try {
+      const cachedRaw = sessionStorage.getItem(cacheKey);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw) as {
+          timestamp: number;
+          managers: WarehouseUser[];
+          workers: WarehouseUser[];
+        };
+        if (cached?.managers) {
+          setFetchedManagers(cached.managers);
+        }
+        if (cached?.workers) {
+          setFetchedWorkers(cached.workers);
+        }
+        if (cached?.timestamp && Date.now() - cached.timestamp < cacheMaxAgeMs) {
+          shouldFetch = false;
+        }
+      }
+    } catch {
+      // Ignore cache parse errors.
+    }
+
+    if (!shouldFetch) {
+      return () => {
+        isActive = false;
+      };
+    }
+
+    const loadMembers = async () => {
+      try {
+        const members = await fetchWarehouseMembers(warehouseId);
+        if (!isActive) return;
+
+        const userIds = new Set<string>();
+        members.forEach((member) => userIds.add(member.userId));
+
+        const users = await Promise.all(
+          Array.from(userIds).map(async (userId) => ({
+            userId,
+            user: await fetchUserById(userId),
+          }))
+        );
+        if (!isActive) return;
+
+        const userLookup = new Map(
+          users.map(({ userId, user }) => {
+            const name =
+              user?.fullName ||
+              [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
+              user?.email ||
+              userId;
+            return [userId, { name, email: user?.email || '' }];
+          })
+        );
+
+        const normalizeRole = (role: string | number) => {
+          if (typeof role === 'number') {
+            if (role === 2) return 'MANAGER';
+            if (role === 3) return 'WORKER';
+            return 'UNKNOWN';
+          }
+          return role.toUpperCase();
+        };
+
+        const managers = members
+          .filter((member) => normalizeRole(member.role) === 'MANAGER')
+          .map((member) => {
+            const userInfo = userLookup.get(member.userId);
+            return {
+              id: member.userId,
+              name: userInfo?.name || member.userId,
+              email: userInfo?.email || '',
+              role: 'manager' as AssignedUserRole,
+              warehouseIds: [warehouseId],
+              isActive: true,
+            };
+          });
+
+        const workers = members
+          .filter((member) => normalizeRole(member.role) === 'WORKER')
+          .map((member) => {
+            const userInfo = userLookup.get(member.userId);
+            return {
+              id: member.userId,
+              name: userInfo?.name || member.userId,
+              email: userInfo?.email || '',
+              role: 'worker' as AssignedUserRole,
+              warehouseIds: [warehouseId],
+              isActive: true,
+            };
+          });
+
+        setFetchedManagers(managers);
+        setFetchedWorkers(workers);
+        try {
+          sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({ timestamp: Date.now(), managers, workers })
+          );
+        } catch {
+          // Ignore cache write failures.
+        }
+      } catch (error) {
+        if (!isActive) return;
+        console.error('Failed to load warehouse members:', error);
+        setFetchedManagers([]);
+        setFetchedWorkers([]);
+      }
+    };
+
+    loadMembers();
+
+    return () => {
+      isActive = false;
+    };
+  }, [availableManagers, availableWorkers, warehouseId]);
+
+  const resolvedManagers = useMemo(() => (
+    availableManagers ?? fetchedManagers
+  ), [availableManagers, fetchedManagers]);
+  const resolvedWorkers = useMemo(() => (
+    availableWorkers ?? fetchedWorkers
+  ), [availableWorkers, fetchedWorkers]);
+
+  const filteredManagers = resolvedManagers.filter(
     m => !assignedManagers.some(am => am.userId === m.id)
   );
-  const availableWorkers = getWarehouseWorkers(warehouseId).filter(
+  const filteredWorkers = resolvedWorkers.filter(
     w => !assignedWorkers.some(aw => aw.userId === w.id)
   );
 
@@ -85,10 +245,10 @@ export default function AssignmentPanel({
       {showDropdown && availableUsers.length > 0 && (
         <>
           <div
-            className="fixed inset-0 z-10"
+            className="fixed inset-0 z-40"
             onClick={() => setShowDropdown(false)}
           />
-          <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-20 max-h-56 overflow-y-auto">
+          <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-50 max-h-56 overflow-y-auto">
             <div className="p-2">
               {availableUsers.map(user => (
                 <button
@@ -118,7 +278,7 @@ export default function AssignmentPanel({
   );
 
   return (
-    <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-hidden">
+    <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-visible">
       {/* Header */}
       <div className="px-5 py-4 border-b border-[var(--border)] bg-[var(--muted)]/30">
         <div className="flex items-center gap-2">
@@ -166,7 +326,7 @@ export default function AssignmentPanel({
             {assignedWorkers.map(user => renderAssignedUser(user, 'worker'))}
             {isEditable && renderAddButton(
               'worker',
-              availableWorkers,
+              filteredWorkers,
               showWorkerDropdown,
               setShowWorkerDropdown,
               assignedWorkers.length > 0 ? 'Add another worker' : 'Assign worker'
@@ -195,7 +355,7 @@ export default function AssignmentPanel({
             )}
             {isEditable && renderAddButton(
               'manager',
-              availableManagers,
+              filteredManagers,
               showManagerDropdown,
               setShowManagerDropdown,
               assignedManagers.length > 0 ? 'Change manager' : 'Assign manager'

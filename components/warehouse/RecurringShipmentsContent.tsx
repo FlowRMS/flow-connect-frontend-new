@@ -2,15 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  getAllRecurringShipments,
-  getShipmentsForRecurring,
-  updateRecurringShipmentStatus,
-  updateRecurringShipment,
-  addRecurringShipment,
-  getRecurrenceDescription,
-  calculateNextDate,
-} from '@/lib/data/warehouse-mock';
+import { calculateNextDate, formatDateOnly, getRecurrenceDescription, parseDateInput } from './utils/recurrence';
 import {
   RecurringShipment,
   RecurringShipmentStatus,
@@ -21,30 +13,47 @@ import {
 import RecurringShipmentDetailModal from './modals/RecurringShipmentDetailModal';
 import CreateRecurringShipmentModal from './modals/CreateRecurringShipmentModal';
 
-export default function RecurringShipmentsContent() {
+type RecurringShipmentCreatePayload = Omit<RecurringShipment, 'id' | 'createdAt' | 'updatedAt'>;
+
+interface RecurringShipmentsContentProps {
+  recurringShipments: RecurringShipment[];
+  deliveries: IncomingShipment[];
+  onCreateRecurring?: (data: RecurringShipmentCreatePayload) => Promise<void> | void;
+  onUpdateRecurring?: (id: string, updates: Partial<RecurringShipment>) => Promise<void> | void;
+  onToggleStatus?: (recurring: RecurringShipment, status: RecurringShipmentStatus) => Promise<void> | void;
+  onCancel?: (recurring: RecurringShipment) => Promise<void> | void;
+}
+
+export default function RecurringShipmentsContent({
+  recurringShipments,
+  deliveries,
+  onCreateRecurring,
+  onUpdateRecurring,
+  onToggleStatus,
+  onCancel,
+}: RecurringShipmentsContentProps) {
   const router = useRouter();
-  const [refreshKey, setRefreshKey] = useState(0);
   const [statusFilter, setStatusFilter] = useState<RecurringShipmentStatus | 'ALL'>('ALL');
   const [selectedRecurring, setSelectedRecurring] = useState<RecurringShipment | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const recurringShipments = useMemo(() => {
-    const all = getAllRecurringShipments();
-    if (statusFilter === 'ALL') return all;
-    return all.filter(rs => rs.status === statusFilter);
-  }, [refreshKey, statusFilter]);
+  const filteredRecurringShipments = useMemo(() => {
+    if (statusFilter === 'ALL') return recurringShipments;
+    return recurringShipments.filter(rs => rs.status === statusFilter);
+  }, [recurringShipments, statusFilter]);
 
   const lateShipments = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return recurringShipments.filter(rs => {
+    return filteredRecurringShipments.filter(rs => {
       if (rs.status !== 'ACTIVE' || !rs.nextExpectedDate) return false;
       const nextDate = new Date(rs.nextExpectedDate);
       nextDate.setHours(0, 0, 0, 0);
       return nextDate < today;
     });
-  }, [recurringShipments]);
+  }, [filteredRecurringShipments]);
 
   const isLate = (rs: RecurringShipment) => {
     return lateShipments.some(late => late.id === rs.id);
@@ -52,9 +61,7 @@ export default function RecurringShipmentsContent() {
 
   const handleToggleStatus = (rs: RecurringShipment) => {
     const newStatus: RecurringShipmentStatus = rs.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
-    updateRecurringShipmentStatus(rs.id, newStatus);
-    setRefreshKey(prev => prev + 1);
-    // Update selected if modal is open
+    onToggleStatus?.(rs, newStatus);
     if (selectedRecurring?.id === rs.id) {
       setSelectedRecurring({ ...rs, status: newStatus });
     }
@@ -62,8 +69,7 @@ export default function RecurringShipmentsContent() {
 
   const handleCancel = (rs: RecurringShipment) => {
     if (confirm(`Are you sure you want to cancel "${rs.name}"? This cannot be undone.`)) {
-      updateRecurringShipmentStatus(rs.id, 'CANCELLED');
-      setRefreshKey(prev => prev + 1);
+      onCancel?.(rs);
       setShowModal(false);
       setSelectedRecurring(null);
     }
@@ -77,31 +83,36 @@ export default function RecurringShipmentsContent() {
     if (updates.recurrencePattern || updates.startDate) {
       const pattern = updates.recurrencePattern || selectedRecurring.recurrencePattern;
       const startDate = updates.startDate || selectedRecurring.startDate;
-      nextExpectedDate = calculateNextDate(pattern, new Date(startDate)).toISOString().split('T')[0];
+      nextExpectedDate = formatDateOnly(calculateNextDate(pattern, parseDateInput(startDate)));
     }
 
-    updateRecurringShipment(selectedRecurring.id, {
+    onUpdateRecurring?.(selectedRecurring.id, {
       ...updates,
       nextExpectedDate,
     });
-
-    setRefreshKey(prev => prev + 1);
     setShowModal(false);
     setSelectedRecurring(null);
   };
 
-  const handleCreate = (data: Omit<RecurringShipment, 'id' | 'createdAt' | 'updatedAt' | 'generatedShipmentIds' | 'lastGeneratedDate' | 'nextExpectedDate'>) => {
+  const handleCreate = async (data: RecurringShipmentCreatePayload) => {
+    if (isCreating) return;
+
     // Calculate the first expected date
-    const nextExpectedDate = calculateNextDate(data.recurrencePattern, new Date(data.startDate)).toISOString().split('T')[0];
+    const nextExpectedDate = formatDateOnly(calculateNextDate(data.recurrencePattern, parseDateInput(data.startDate)));
 
-    addRecurringShipment({
-      ...data,
-      nextExpectedDate,
-      generatedShipmentIds: [],
-    } as Omit<RecurringShipment, 'id' | 'createdAt' | 'updatedAt'>);
-
-    setRefreshKey(prev => prev + 1);
-    setShowCreateModal(false);
+    try {
+      setIsCreating(true);
+      await Promise.resolve(onCreateRecurring?.({
+        ...data,
+        nextExpectedDate,
+        generatedShipmentIds: [],
+      } as Omit<RecurringShipment, 'id' | 'createdAt' | 'updatedAt'>));
+      setShowCreateModal(false);
+    } catch (error) {
+      console.error('Failed to create recurring shipment', error);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleRowClick = (rs: RecurringShipment) => {
@@ -110,14 +121,14 @@ export default function RecurringShipmentsContent() {
   };
 
   const getLinkedShipments = (recurringId: string): IncomingShipment[] => {
-    return getShipmentsForRecurring(recurringId);
+    return deliveries.filter((shipment) => shipment.recurringShipmentId === recurringId);
   };
 
   // Find upcoming delivery for a recurring shipment
   const getUpcomingDelivery = (rs: RecurringShipment): IncomingShipment | undefined => {
     const shipments = getLinkedShipments(rs.id);
     return shipments.find(
-      s => s.status === 'PENDING' || s.status === 'CONFIRMED' || s.status === 'IN_TRANSIT'
+      s => s.status === 'PENDING' || s.status === 'CONFIRMED'
     );
   };
 
@@ -156,7 +167,7 @@ export default function RecurringShipmentsContent() {
 
       {/* Recurring Shipments Table */}
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-        {recurringShipments.length === 0 ? (
+        {filteredRecurringShipments.length === 0 ? (
           <div className="p-8 text-center">
             <div className="w-12 h-12 bg-[var(--muted)] rounded-full flex items-center justify-center mx-auto mb-4">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
@@ -193,7 +204,7 @@ export default function RecurringShipmentsContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
-              {recurringShipments.map(rs => {
+              {filteredRecurringShipments.map(rs => {
                 const late = isLate(rs);
                 const upcomingDelivery = getUpcomingDelivery(rs);
 
@@ -292,8 +303,12 @@ export default function RecurringShipmentsContent() {
       {/* Create Modal */}
       {showCreateModal && (
         <CreateRecurringShipmentModal
-          onClose={() => setShowCreateModal(false)}
+          onClose={() => {
+            if (isCreating) return;
+            setShowCreateModal(false);
+          }}
           onSubmit={handleCreate}
+          isSubmitting={isCreating}
         />
       )}
     </div>

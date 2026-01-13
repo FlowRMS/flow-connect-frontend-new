@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { getWarehouseFactories, mockInventory, mockWarehouses } from '@/lib/data/warehouse-mock';
+import React, { useState, useEffect } from 'react';
+import { fetchFactories, fetchProducts, fetchWarehouses } from '../api/warehouseDeliveriesApi';
 import { ShipmentStatus } from '@/lib/types/warehouse';
 
 interface ShipmentLineItem {
@@ -16,6 +16,7 @@ interface CreateShipmentRecordModalProps {
   onClose: () => void;
   onSubmit: (record: ShipmentRecord) => void;
   initialStatus?: ShipmentStatus;
+  isSubmitting?: boolean;
 }
 
 export interface ShipmentRecord {
@@ -34,12 +35,19 @@ export interface ShipmentRecord {
 
 const carriers = ['UPS', 'FedEx', 'USPS', 'DHL', 'Freight', 'Other'];
 
-export default function CreateShipmentRecordModal({ onClose, onSubmit, initialStatus }: CreateShipmentRecordModalProps) {
-  const factories = useMemo(() => getWarehouseFactories(), []);
+export default function CreateShipmentRecordModal({
+  onClose,
+  onSubmit,
+  initialStatus,
+  isSubmitting = false,
+}: CreateShipmentRecordModalProps) {
+  const [factories, setFactories] = useState<Array<{ id: string; name: string }>>([]);
+  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
+  const [vendorProducts, setVendorProducts] = useState<Array<{ id: string; factoryPartNumber: string; description?: string | null }>>([]);
   const isArrivingNow = initialStatus === 'ARRIVED';
   const [poNumber, setPoNumber] = useState<string>(`PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`);
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(mockWarehouses[0]?.id || '');
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('');
   const [eta, setEta] = useState<string>(
     isArrivingNow
       ? new Date().toISOString().split('T')[0]
@@ -53,23 +61,66 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
   const [showProductSelector, setShowProductSelector] = useState(false);
 
   const selectedVendor = factories.find(f => f.id === selectedVendorId);
-  const selectedWarehouse = mockWarehouses.find(w => w.id === selectedWarehouseId);
+  const selectedWarehouse = warehouses.find(w => w.id === selectedWarehouseId);
 
-  // Get products available from selected vendor
-  const vendorProducts = useMemo(() => {
-    if (!selectedVendorId) return [];
-    return mockInventory.filter(inv => inv.factoryId === selectedVendorId);
+  useEffect(() => {
+    let isActive = true;
+
+    const loadLookups = async () => {
+      try {
+        const [warehouseData, factoryData] = await Promise.all([
+          fetchWarehouses(),
+          fetchFactories('', true, 100),
+        ]);
+        if (!isActive) return;
+        setWarehouses(warehouseData.map((wh) => ({ id: wh.id, name: wh.name })));
+        setFactories(factoryData.map((factory) => ({ id: factory.id, name: factory.title })));
+        setSelectedWarehouseId((current) => current || warehouseData[0]?.id || '');
+      } catch (error) {
+        console.error('Failed to load warehouse lookups', error);
+      }
+    };
+
+    void loadLookups();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadProducts = async () => {
+      if (!selectedVendorId) {
+        setVendorProducts([]);
+        return;
+      }
+      try {
+        const products = await fetchProducts('', selectedVendorId, 200);
+        if (!isActive) return;
+        setVendorProducts(products);
+      } catch (error) {
+        console.error('Failed to load vendor products', error);
+      }
+    };
+
+    void loadProducts();
+
+    return () => {
+      isActive = false;
+    };
   }, [selectedVendorId]);
 
-  const handleAddProduct = (product: typeof mockInventory[0]) => {
-    if (lineItems.some(item => item.productId === product.productId)) {
+  const handleAddProduct = (product: { id: string; factoryPartNumber: string; description?: string | null }) => {
+    if (lineItems.some(item => item.productId === product.id)) {
       return;
     }
     setLineItems(prev => [...prev, {
       id: `line-${Date.now()}`,
-      productId: product.productId,
-      productName: product.productName,
-      partNumber: product.partNumber,
+      productId: product.id,
+      productName: product.description || product.factoryPartNumber,
+      partNumber: product.factoryPartNumber,
       expectedQuantity: 1,
     }]);
     setShowProductSelector(false);
@@ -87,6 +138,7 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     // For arriving now, line items are optional
     const lineItemsRequired = !isArrivingNow;
     if (!selectedWarehouseId || !poNumber) return;
@@ -127,7 +179,8 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+            disabled={isSubmitting}
+            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6L6 18M6 6l12 12"/>
@@ -167,7 +220,6 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
                 >
                   <option value="PENDING">Pending</option>
                   <option value="CONFIRMED">Confirmed</option>
-                  <option value="IN_TRANSIT">In Transit</option>
                   <option value="ARRIVED">Arrived</option>
                 </select>
               )}
@@ -207,7 +259,7 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                 required
               >
-                {mockWarehouses.map((warehouse) => (
+                {warehouses.map((warehouse) => (
                   <option key={warehouse.id} value={warehouse.id}>
                     {warehouse.name}
                   </option>
@@ -391,20 +443,50 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={
+                isSubmitting ||
                 !selectedWarehouseId ||
                 !poNumber ||
                 (!isArrivingNow && (lineItems.length === 0 || !selectedVendorId))
               }
               className="px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isArrivingNow ? 'Create & Start Receiving' : 'Create Record'}
+              <span className="inline-flex items-center gap-2">
+                {isSubmitting && (
+                  <svg
+                    className="h-4 w-4 animate-spin"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                    />
+                  </svg>
+                )}
+                {isSubmitting
+                  ? 'Creating...'
+                  : isArrivingNow
+                    ? 'Create & Start Receiving'
+                    : 'Create Record'}
+              </span>
             </button>
           </div>
         </div>
@@ -433,7 +515,7 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
               ) : (
                 <div className="space-y-2">
                   {vendorProducts.map((product) => {
-                    const isAdded = lineItems.some(item => item.productId === product.productId);
+                    const isAdded = lineItems.some(item => item.productId === product.id);
                     return (
                       <button
                         key={product.id}
@@ -445,9 +527,9 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
                             : 'border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--muted)]/30'
                         }`}
                       >
-                        <div className="font-medium text-sm text-[var(--foreground)]">{product.productName}</div>
+                        <div className="font-medium text-sm text-[var(--foreground)]">{product.factoryPartNumber}</div>
                         <div className="text-xs text-[var(--muted-foreground)] mt-1">
-                          {product.partNumber} | Current Stock: {product.availableQuantity}
+                          {product.description || '-'}
                         </div>
                         {isAdded && (
                           <span className="text-xs text-green-600 mt-1">Already added</span>

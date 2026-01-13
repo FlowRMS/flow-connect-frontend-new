@@ -1,114 +1,100 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  getShipmentById,
-  updateShipmentStatus,
-  updateShipmentDetails,
-  mockWarehouses,
-  mockBins,
-  getWarehouseFactories,
-  convertToRecurringShipment,
-  addIncomingShipmentAssignment,
-  removeIncomingShipmentAssignment,
+  createDeliveryAssignee,
+  createDeliveryDocument,
   createDeliveryIssue,
-} from '@/lib/data/warehouse-mock';
-import { RecurrencePattern, AssignedUserRole, DeliveryIssueType, DeliveryIssueItem, AttachedDocument } from '@/lib/types/warehouse';
+  createDeliveryItem,
+  createDeliveryItemReceipt,
+  createDeliveryStatusHistory,
+  deleteDeliveryAssignee,
+  deleteDeliveryDocument,
+  deleteDeliveryItem,
+  fetchDeliveryById,
+  fetchFactories,
+  fetchShippingCarriers,
+  fetchWarehouseMembers,
+  fetchWarehouseLocations,
+  fetchWarehouses,
+  mapDeliveryToShipment,
+  updateDelivery,
+  updateDeliveryItem,
+  createRecurringShipment,
+} from '@/components/warehouse/api/warehouseDeliveriesApi';
+import type { DeliveryApi } from '@/components/warehouse/api/warehouseDeliveriesApi';
+import { fetchUserById } from '@/components/lib/api/search';
+import { fetchContactsByCompanyId } from '@/components/lib/graphql';
+import { RecurrencePattern, AssignedUser, AssignedUserRole, DeliveryIssueType, AttachedDocument, IncomingShipment } from '@/lib/types/warehouse';
 import RecurringShipmentModal from './modals/RecurringShipmentModal';
-import AssignmentPanel from './AssignmentPanel';
-import DocumentsSection from './DocumentsSection';
+import { useWarehouse } from './WarehouseContext';
 import {
   ShipmentStatus,
-  shipmentStatusColors,
   shipmentStatusLabels,
 } from '@/lib/types/warehouse';
+import AddProductModal from './receiving/modals/AddProductModal';
+import PackingSlipViewerModal from './receiving/modals/PackingSlipViewerModal';
+import ReceivingHeader from './receiving/sections/ReceivingHeader';
+import ReceivingSummarySidebar from './receiving/sections/ReceivingSummarySidebar';
+import LineItemsTable from './receiving/sections/LineItemsTable';
+import PutAwayInterface from './receiving/sections/PutAwayInterface';
+import PackingSlipSection from './receiving/sections/PackingSlipSection';
+import NotesSection from './receiving/sections/NotesSection';
+import {
+  readCachedDelivery,
+  readCachedLookups,
+  readCachedDeliveryDetail,
+  writeCachedDeliveryDetail,
+  updateCachedDeliveriesList,
+  invalidateDeliveryCaches,
+  patchDeliveryCaches,
+} from './receiving/cache';
+import type {
+  BinAssignment,
+  DeliveryDiscrepancy,
+  LineItemReceive,
+  PackingSlipDiscrepancy,
+  PackingSlipLineItem,
+  ScannedPackingSlip,
+  WarehouseUser,
+} from './receiving/types';
+import { receivingSteps, stepInfo } from './receiving/types';
+
+type DeliveryItemReceiptInput = {
+  deliveryItemId: string;
+  receiptType: 'RECEIPT' | 'ADJUSTMENT' | 'RETURN';
+  receivedQty: number;
+  damagedQty: number;
+  locationId: string | null;
+  receivedById: string | null;
+  receivedAt: string | null;
+  note: string | null;
+};
 
 interface ReceivingDetailContentProps {
   shipmentId: string;
 }
 
-// Receiving flow steps - simplified to: Draft -> Expected -> Arrived -> Receiving -> Received
-const receivingSteps: ShipmentStatus[] = ['DRAFT', 'PENDING', 'ARRIVED', 'RECEIVING', 'RECEIVED'];
-
-// Step metadata for display
-const stepInfo: Record<ShipmentStatus, { label: string; icon: string; description: string }> = {
-  DRAFT: { label: 'Draft', icon: 'edit', description: 'Not released yet' },
-  PENDING: { label: 'Expected', icon: 'clock', description: 'Delivery expected' },
-  CONFIRMED: { label: 'Expected', icon: 'clock', description: 'Delivery expected' },
-  IN_TRANSIT: { label: 'Expected', icon: 'clock', description: 'Delivery expected' },
-  ARRIVED: { label: 'Arrived', icon: 'package', description: 'Delivery at dock' },
-  RECEIVING: { label: 'Receiving', icon: 'clipboard', description: 'Validating & counting' },
-  PROCESSING: { label: 'Processing', icon: 'loader', description: 'Processing items' },
-  SHIPPED: { label: 'Shipped', icon: 'send', description: 'Shipped out' },
-  DELIVERED: { label: 'Delivered', icon: 'home', description: 'Delivered' },
-  RECEIVED: { label: 'Received', icon: 'check', description: 'Put away complete' },
-  CANCELLED: { label: 'Cancelled', icon: 'x', description: 'Cancelled' },
-};
-
-// Damage condition types
-type ConditionType = 'good' | 'damaged' | 'missing' | 'overage';
-
-// Bin assignment for multi-bin storage
-interface BinAssignment {
-  id: string;
-  binId: string;
-  quantity: number;
-  isPrimary: boolean;
-}
-
-interface LineItemReceive {
-  id: string;
-  productId: string;
-  productName: string;
-  partNumber: string;
-  expectedQty: number;
-  receivedQty: number;
-  damagedQty: number;
-  binId: string; // Primary bin
-  primaryBinId: string; // Default/suggested bin for this SKU
-  binAssignments: BinAssignment[]; // Multiple bin support - includes primary and alternates
-  showAlternateLocations: boolean; // Toggle for showing multi-location UI
-  condition: ConditionType;
-  notes: string;
-  lotNumber: string;
-  expirationDate: string;
-  verified: boolean;
-  putAway: boolean;
-  packingSlipId?: string; // Reference to the packing slip this item was received from
-}
-
-// Scanned packing slip document
-interface ScannedPackingSlip {
-  id: string;
-  name: string;
-  scannedAt: string;
-  imageUrl: string;
-  lineItemIds: string[]; // Items received from this packing slip
-}
-
-// Packing slip line item from scan/digitization
-interface PackingSlipLineItem {
-  id: string;
-  partNumber: string;
-  description: string;
-  quantity: number;
-  matched: boolean;
-  matchedLineItemId?: string;
-}
-
-const carriers = ['UPS', 'FedEx', 'USPS', 'DHL', 'Freight', 'Other'];
-
 export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailContentProps) {
   const router = useRouter();
+  const { isWorkerView } = useWarehouse();
   const [_, setForceUpdate] = useState(0);
 
-  // Get shipment from mock data
-  const shipment = getShipmentById(shipmentId);
-  const factories = React.useMemo(() => getWarehouseFactories(), []);
+  const [shipment, setShipment] = useState<IncomingShipment | null>(null);
+  const [isLoadingShipment, setIsLoadingShipment] = useState(true);
+  const [shipmentError, setShipmentError] = useState<string | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
+  const [availableManagers, setAvailableManagers] = useState<WarehouseUser[]>([]);
+  const [availableWorkers, setAvailableWorkers] = useState<WarehouseUser[]>([]);
+  const [resolvedManagers, setResolvedManagers] = useState<AssignedUser[]>([]);
+  const [resolvedWorkers, setResolvedWorkers] = useState<AssignedUser[]>([]);
+  const [warehouseOptions, setWarehouseOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [carrierOptions, setCarrierOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [vendorOptions, setVendorOptions] = useState<Array<{ id: string; name: string; email?: string | null }>>([]);
 
   // Editable shipment details state
-  const [isEditingDetails, setIsEditingDetails] = useState(true); // Start in edit mode for new shipments
+  const [isEditingDetails, setIsEditingDetails] = useState(!isWorkerView); // Start in edit mode for managers
   const [editPoNumber, setEditPoNumber] = useState(shipment?.poNumber || '');
   const [editWarehouseId, setEditWarehouseId] = useState(shipment?.warehouseId || '');
   const [editVendorId, setEditVendorId] = useState(shipment?.vendorId || '');
@@ -119,40 +105,349 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   const [editVendorEmail, setEditVendorEmail] = useState(shipment?.vendorEmail || '');
   const [showContactDropdown, setShowContactDropdown] = useState(false);
   const [showEmailDropdown, setShowEmailDropdown] = useState(false);
+  const resolvedWarehouseName = warehouseOptions.find((w) => w.id === shipment?.warehouseId)?.name || shipment?.warehouseName || shipment?.warehouseId;
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  useEffect(() => {
+    setIsEditingDetails(!isWorkerView);
+  }, [isWorkerView]);
+
+  const applyShipmentPatch = (
+    patch: Partial<IncomingShipment>,
+    deliveryPatch?: Partial<DeliveryApi> & { id: string }
+  ) => {
+    setShipment((prev) => (prev ? { ...prev, ...patch } : prev));
+    if (deliveryPatch) {
+      patchDeliveryCaches(deliveryPatch);
+    }
+  };
+
+  useEffect(() => {
+    let isActive = true;
+
+    setIsLoadingShipment(true);
+    setShipmentError(null);
+    setShipment(null);
+    setHasInitialized(false);
+
+    const loadShipment = async () => {
+      try {
+        let usedCachedList = false;
+        const cachedDetail = readCachedDeliveryDetail(shipmentId);
+        if (cachedDetail) {
+          const { carriers, vendors } = readCachedLookups();
+          const carrierMap = new Map((carriers || []).map((carrier) => [carrier.id, carrier]));
+          const factoryMap = new Map((vendors || []).map((vendor) => [vendor.id, vendor]));
+          setShipment(mapDeliveryToShipment(cachedDetail, new Map(), factoryMap, carrierMap));
+          setIsLoadingShipment(false);
+          return;
+        }
+
+        const cached = readCachedDelivery(shipmentId);
+        if (cached) {
+          const { carriers, vendors } = readCachedLookups();
+          const carrierMap = new Map((carriers || []).map((carrier) => [carrier.id, carrier]));
+          const factoryMap = new Map((vendors || []).map((vendor) => [vendor.id, vendor]));
+          setShipment(mapDeliveryToShipment(cached, new Map(), factoryMap, carrierMap));
+          setIsLoadingShipment(false);
+          usedCachedList = true;
+        }
+
+        const delivery = await fetchDeliveryById(shipmentId);
+        if (!isActive) return;
+        if (!delivery) {
+          setShipment(null);
+          setIsLoadingShipment(false);
+          return;
+        }
+        writeCachedDeliveryDetail(delivery);
+        if (usedCachedList) {
+          setHasInitialized(false);
+        }
+        setShipment(mapDeliveryToShipment(delivery, new Map(), new Map(), new Map()));
+        setIsLoadingShipment(false);
+      } catch (error) {
+        if (!isActive) return;
+        setShipmentError(error instanceof Error ? error.message : 'Failed to load delivery');
+        setIsLoadingShipment(false);
+      }
+    };
+
+    loadShipment();
+
+    return () => {
+      isActive = false;
+    };
+  }, [shipmentId]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadOptions = async () => {
+      try {
+        const cached = readCachedLookups();
+        if (cached.warehouses) {
+          setWarehouseOptions(cached.warehouses);
+        }
+        if (cached.carriers && cached.vendors) {
+          setCarrierOptions(cached.carriers.map((carrier) => ({ id: carrier.id, name: carrier.name })));
+          const cachedVendorMap = new Map<string, { id: string; name: string; email?: string | null }>();
+          cached.vendors.forEach((vendor) => {
+            if (!cachedVendorMap.has(vendor.id)) {
+              cachedVendorMap.set(vendor.id, {
+                id: vendor.id,
+                name: vendor.title,
+                email: vendor.email,
+              });
+            }
+          });
+          setVendorOptions(Array.from(cachedVendorMap.values()));
+        }
+
+        const [warehouses, carriersList, vendors] = await Promise.all([
+          cached.warehouses ? Promise.resolve(cached.warehouses) : fetchWarehouses(),
+          cached.carriers ? Promise.resolve(cached.carriers) : fetchShippingCarriers(true),
+          cached.vendors ? Promise.resolve(cached.vendors) : fetchFactories('', true, 200),
+        ]);
+        if (!isActive) return;
+        const warehouseOptionsList = warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.name }));
+        setWarehouseOptions(warehouseOptionsList);
+        if (!cached.warehouses) {
+          try {
+            sessionStorage.setItem('warehouseLookupCache', JSON.stringify({ warehouses: warehouseOptionsList }));
+          } catch {
+            // Ignore cache write failures (private mode / quota).
+          }
+        }
+        setCarrierOptions(carriersList.map((carrier) => ({ id: carrier.id, name: carrier.name })));
+        const uniqueVendors = new Map<string, { id: string; name: string; email?: string | null }>();
+        vendors.forEach((vendor) => {
+          if (!uniqueVendors.has(vendor.id)) {
+            uniqueVendors.set(vendor.id, { id: vendor.id, name: vendor.title, email: vendor.email });
+          }
+        });
+        setVendorOptions(Array.from(uniqueVendors.values()));
+      } catch (error) {
+        if (!isActive) return;
+        console.error('Failed to load delivery options:', error);
+        setWarehouseOptions([]);
+        setCarrierOptions([]);
+        setVendorOptions([]);
+      }
+    };
+
+    loadOptions();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const refreshShipment = async () => {
+    try {
+      const delivery = await fetchDeliveryById(shipmentId);
+      if (!delivery) {
+        setShipment(null);
+        return;
+      }
+      setHasInitialized(false);
+      writeCachedDeliveryDetail(delivery);
+      updateCachedDeliveriesList(delivery);
+      setShipment(mapDeliveryToShipment(delivery, new Map(), new Map(), new Map()));
+    } catch (error) {
+      console.error('Failed to refresh delivery:', error);
+    }
+  };
+
+  useEffect(() => {
+    const membersWarehouseId = editWarehouseId || shipment?.warehouseId;
+    if (!membersWarehouseId) {
+      setAvailableManagers([]);
+      setAvailableWorkers([]);
+      setResolvedManagers(shipment?.assignedManagers || []);
+      setResolvedWorkers(shipment?.assignedWorkers || []);
+      return;
+    }
+
+    let isActive = true;
+
+    const loadMembers = async () => {
+      try {
+        const members = await fetchWarehouseMembers(membersWarehouseId);
+        if (!isActive) return;
+
+        const userIds = new Set<string>();
+        members.forEach((member) => userIds.add(member.userId));
+        (shipment.assignedManagers || []).forEach((manager) => userIds.add(manager.userId));
+        (shipment.assignedWorkers || []).forEach((worker) => userIds.add(worker.userId));
+
+        const users = await Promise.all(
+          Array.from(userIds).map(async (userId) => ({
+            userId,
+            user: await fetchUserById(userId),
+          }))
+        );
+        if (!isActive) return;
+
+        const userLookup = new Map(
+          users.map(({ userId, user }) => {
+            const name =
+              user?.fullName ||
+              [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
+              user?.email ||
+              userId;
+            return [userId, { name, email: user?.email || '' }];
+          })
+        );
+
+        const normalizeRole = (role: string | number) => {
+          if (typeof role === 'number') {
+            if (role === 2) return 'MANAGER';
+            if (role === 3) return 'WORKER';
+            return 'UNKNOWN';
+          }
+          return role.toUpperCase();
+        };
+
+        const managers = members
+          .filter((member) => normalizeRole(member.role) === 'MANAGER')
+          .map((member) => {
+            const userInfo = userLookup.get(member.userId);
+            return {
+              id: member.userId,
+              name: userInfo?.name || member.userId,
+              email: userInfo?.email || '',
+              role: 'manager' as AssignedUserRole,
+              warehouseIds: [membersWarehouseId],
+              isActive: true,
+            };
+          });
+
+        const workers = members
+          .filter((member) => normalizeRole(member.role) === 'WORKER')
+          .map((member) => {
+            const userInfo = userLookup.get(member.userId);
+            return {
+              id: member.userId,
+              name: userInfo?.name || member.userId,
+              email: userInfo?.email || '',
+              role: 'worker' as AssignedUserRole,
+              warehouseIds: [membersWarehouseId],
+              isActive: true,
+            };
+          });
+
+        const assignedManagers = (shipment.assignedManagers || []).map((manager) => {
+          const userInfo = userLookup.get(manager.userId);
+          return {
+            ...manager,
+            userName: userInfo?.name || manager.userName,
+            userEmail: userInfo?.email || manager.userEmail,
+          };
+        });
+
+        const assignedWorkers = (shipment.assignedWorkers || []).map((worker) => {
+          const userInfo = userLookup.get(worker.userId);
+          return {
+            ...worker,
+            userName: userInfo?.name || worker.userName,
+            userEmail: userInfo?.email || worker.userEmail,
+          };
+        });
+
+        setAvailableManagers(managers);
+        setAvailableWorkers(workers);
+        setResolvedManagers(assignedManagers);
+        setResolvedWorkers(assignedWorkers);
+      } catch (error) {
+        if (!isActive) return;
+        console.error('Failed to load warehouse members:', error);
+        setAvailableManagers([]);
+        setAvailableWorkers([]);
+        setResolvedManagers(shipment.assignedManagers || []);
+        setResolvedWorkers(shipment.assignedWorkers || []);
+      }
+    };
+
+    loadMembers();
+
+    return () => {
+      isActive = false;
+    };
+  }, [shipment, editWarehouseId]);
+
+  useEffect(() => {
+    const warehouseId = editWarehouseId || shipment?.warehouseId;
+    if (!warehouseId) {
+      setWarehouseBins([]);
+      return;
+    }
+
+    let isActive = true;
+    const cacheKey = `warehouseBinsCache:${warehouseId}`;
+    const cacheMaxAgeMs = 5 * 60 * 1000;
+    let shouldFetch = true;
+
+    try {
+      const cachedRaw = sessionStorage.getItem(cacheKey);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw) as {
+          timestamp: number;
+          bins: Array<{ id: string; letterCode?: string }>;
+        };
+        if (cached?.bins) {
+          setWarehouseBins(cached.bins);
+        }
+        if (cached?.timestamp && Date.now() - cached.timestamp < cacheMaxAgeMs) {
+          shouldFetch = false;
+        }
+      }
+    } catch {
+      // Ignore cache parse errors.
+    }
+
+    if (!shouldFetch) {
+      return () => {
+        isActive = false;
+      };
+    }
+
+    fetchWarehouseLocations(warehouseId)
+      .then((locations) => {
+        if (!isActive) return;
+        const bins = locations
+          .filter((location) => location.level === 'BIN' && location.isActive)
+          .map((location) => ({
+            id: location.id,
+            letterCode: location.code || location.name,
+          }));
+        setWarehouseBins(bins);
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), bins }));
+        } catch {
+          // Ignore cache write failures.
+        }
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        console.error('Failed to load warehouse bins:', error);
+        setWarehouseBins([]);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [editWarehouseId, shipment?.warehouseId]);
+
 
   // Add expected items state
   const [showAddProductModal, setShowAddProductModal] = useState(false);
 
   // Recurring shipment modal state
   const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const [vendorContacts, setVendorContacts] = useState<Array<{ name: string; email: string }>>([]);
 
-  // Mock contacts per vendor - in real app this would come from CRM data
-  const vendorContacts: Record<string, Array<{ name: string; email: string }>> = {
-    'CO-012': [
-      { name: 'John Vendor', email: 'jvendor@legrand.com' },
-      { name: 'Sarah Sales', email: 'ssales@legrand.com' },
-      { name: 'Mike Manager', email: 'mmanager@legrand.com' },
-    ],
-    'CO-004': [
-      { name: 'Sarah Supplier', email: 'ssupplier@jci.com' },
-      { name: 'Tom Technical', email: 'ttechnical@jci.com' },
-      { name: 'Lisa Logistics', email: 'llogistics@jci.com' },
-    ],
-    'CO-001': [
-      { name: 'Alex Anderson', email: 'aanderson@vendor.com' },
-      { name: 'Beth Brown', email: 'bbrown@vendor.com' },
-    ],
-    'CO-002': [
-      { name: 'Carl Chen', email: 'cchen@vendor.com' },
-      { name: 'Diana Davis', email: 'ddavis@vendor.com' },
-    ],
-    'CO-003': [
-      { name: 'Eric Evans', email: 'eevans@vendor.com' },
-      { name: 'Fiona Foster', email: 'ffoster@vendor.com' },
-    ],
-  };
-
-  const currentVendorContacts = vendorContacts[editVendorId] || vendorContacts[shipment?.vendorId || ''] || [];
+  const currentVendorContacts = vendorContacts;
   // Show all contacts when input is empty, otherwise filter by input
   const filteredContacts = currentVendorContacts.filter(c =>
     editVendorContact === '' || c.name.toLowerCase().includes(editVendorContact.toLowerCase())
@@ -160,6 +455,69 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   const filteredEmails = currentVendorContacts.filter(c =>
     editVendorEmail === '' || c.email.toLowerCase().includes(editVendorEmail.toLowerCase())
   );
+
+  const isUuid = (value: string | undefined) =>
+    Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value));
+
+  useEffect(() => {
+    const vendorId = editVendorId || shipment?.vendorId;
+    if (!vendorId || !isUuid(vendorId)) {
+      setVendorContacts([]);
+      return;
+    }
+
+    let isActive = true;
+    const cacheKey = `vendorContactsCache:${vendorId}`;
+    const cacheMaxAgeMs = 5 * 60 * 1000;
+    let shouldFetch = true;
+
+    try {
+      const cachedRaw = sessionStorage.getItem(cacheKey);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw) as { timestamp: number; contacts: Array<{ name: string; email: string }> };
+        if (cached?.contacts) {
+          setVendorContacts(cached.contacts);
+        }
+        if (cached?.timestamp && Date.now() - cached.timestamp < cacheMaxAgeMs) {
+          shouldFetch = false;
+        }
+      }
+    } catch {
+      // Ignore cache parse errors.
+    }
+
+    if (!shouldFetch) {
+      return () => {
+        isActive = false;
+      };
+    }
+
+    fetchContactsByCompanyId(vendorId)
+      .then((contacts) => {
+        if (!isActive) return;
+        const mapped = contacts
+          .map((contact) => ({
+            name: [contact.firstName, contact.lastName].filter(Boolean).join(' ').trim() || contact.email || 'Unknown',
+            email: contact.email || '',
+          }))
+          .filter((contact) => contact.email || contact.name);
+        setVendorContacts(mapped);
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), contacts: mapped }));
+        } catch {
+          // Ignore cache write failures.
+        }
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        console.error('Failed to load vendor contacts:', error);
+        setVendorContacts([]);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [editVendorId, shipment?.vendorId]);
 
   // View state for step navigation
   const [viewingStatus, setViewingStatus] = useState<ShipmentStatus | null>(null);
@@ -170,12 +528,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   const [packingSlipInputMode, setPackingSlipInputMode] = useState<'scan' | 'manual' | null>(null);
   const [isProcessingPackingSlip, setIsProcessingPackingSlip] = useState(false);
   const [packingSlipLineItems, setPackingSlipLineItems] = useState<PackingSlipLineItem[]>([]);
-  const [packingSlipDiscrepancies, setPackingSlipDiscrepancies] = useState<Array<{
-    field: string;
-    expected: string;
-    actual: string;
-    resolved: boolean;
-  }>>([]);
+  const [packingSlipDiscrepancies, setPackingSlipDiscrepancies] = useState<PackingSlipDiscrepancy[]>([]);
 
   // Scanned packing slip documents
   const [scannedPackingSlips, setScannedPackingSlips] = useState<ScannedPackingSlip[]>([]);
@@ -184,6 +537,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
 
   // Attached documents state
   const [attachedDocuments, setAttachedDocuments] = useState<AttachedDocument[]>(shipment?.documents || []);
+  const [baseDocuments, setBaseDocuments] = useState<AttachedDocument[]>([]);
 
   // Incremental receiving / pallet tracking
   const [currentPalletNumber, setCurrentPalletNumber] = useState(1);
@@ -205,54 +559,135 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   }, []);
 
   // Receiving state - track quantities per line item
-  const [lineItems, setLineItems] = useState<LineItemReceive[]>(() => {
-    if (!shipment) return [];
-    return shipment.items.map((item, index) => {
-      // Assign a default primary bin based on product (mock - in real app this would come from inventory system)
-      const defaultBinId = mockBins[index % mockBins.length]?.id || '';
+  const [lineItems, setLineItems] = useState<LineItemReceive[]>([]);
+  const [baseLineItems, setBaseLineItems] = useState<LineItemReceive[]>([]);
+  const [warehouseBins, setWarehouseBins] = useState<Array<{ id: string; letterCode?: string; currentQuantity?: number; maxCapacity?: number }>>([]);
+  const [baseAssignedManagers, setBaseAssignedManagers] = useState<AssignedUser[]>([]);
+  const [baseAssignedWorkers, setBaseAssignedWorkers] = useState<AssignedUser[]>([]);
+
+  // Discrepancy reporting
+  const [discrepancies, setDiscrepancies] = useState<DeliveryDiscrepancy[]>([]);
+  const [showDiscrepancyForm, setShowDiscrepancyForm] = useState<string | null>(null);
+  const [newDiscrepancy, setNewDiscrepancy] = useState<{ type: 'shortage' | 'overage' | 'damage' | 'wrong_item' | 'other'; quantity: number; description: string }>({ type: 'damage', quantity: 0, description: '' });
+
+  // Collapsed items for detailed entry - all collapsed by default
+  const [collapsedItems, setCollapsedItems] = useState<Set<string>>(new Set());
+
+  const discrepancySummary = React.useMemo(() => {
+    const totals = { total: 0, damage: 0, shortage: 0, overage: 0, wrongItem: 0, other: 0 };
+    const byItem: Record<string, typeof totals> = {};
+    discrepancies.forEach((disc) => {
+      totals.total += disc.quantity;
+      if (!byItem[disc.lineItemId]) {
+        byItem[disc.lineItemId] = { total: 0, damage: 0, shortage: 0, overage: 0, wrongItem: 0, other: 0 };
+      }
+      const bucket = byItem[disc.lineItemId];
+      bucket.total += disc.quantity;
+      if (disc.type === 'damage') {
+        totals.damage += disc.quantity;
+        bucket.damage += disc.quantity;
+      } else if (disc.type === 'shortage') {
+        totals.shortage += disc.quantity;
+        bucket.shortage += disc.quantity;
+      } else if (disc.type === 'overage') {
+        totals.overage += disc.quantity;
+        bucket.overage += disc.quantity;
+      } else if (disc.type === 'wrong_item') {
+        totals.wrongItem += disc.quantity;
+        bucket.wrongItem += disc.quantity;
+      } else {
+        totals.other += disc.quantity;
+        bucket.other += disc.quantity;
+      }
+    });
+    return { totals, byItem };
+  }, [discrepancies]);
+
+  useEffect(() => {
+    if (!shipment || hasInitialized) return;
+
+    setEditPoNumber(shipment.poNumber);
+    setEditWarehouseId(shipment.warehouseId);
+    setEditVendorId(shipment.vendorId);
+    setEditCarrier(shipment.carrier || '');
+    setEditTrackingNumber(shipment.trackingNumber || '');
+    setEditEta(shipment.eta ? new Date(shipment.eta).toISOString().split('T')[0] : '');
+    setEditVendorContact(shipment.vendorContact || '');
+    setEditVendorEmail(shipment.vendorEmail || '');
+    setAttachedDocuments(shipment.documents || []);
+    setBaseDocuments(shipment.documents || []);
+    setBaseAssignedManagers(shipment.assignedManagers || []);
+    setBaseAssignedWorkers(shipment.assignedWorkers || []);
+    setDiscrepancies(
+      (shipment.issues || []).map((issue) => ({
+        id: issue.id,
+        lineItemId: issue.deliveryItemId,
+        type: mapIssueTypeToDiscrepancy(issue.issueType),
+        quantity: issue.qty,
+        description: issue.description || '',
+        customType: issue.customIssueType,
+      }))
+    );
+
+    const initialLineItems = shipment.items.map((item) => {
+      const defaultBinId = '';
+      const receivedQty = item.receivedQuantity || 0;
+      const damagedQty = item.damagedQuantity || 0;
+      const hasProgress = receivedQty > 0 || damagedQty > 0;
       return {
         id: item.id,
         productId: item.productId,
         productName: item.productName,
         partNumber: item.partNumber,
         expectedQty: item.expectedQuantity,
-        receivedQty: 0,
-        damagedQty: 0,
-        binId: defaultBinId, // Auto-populate with default
-        primaryBinId: defaultBinId, // Store the default for comparison
-        binAssignments: [], // Multiple bin support
-        showAlternateLocations: false, // Toggle for multi-location UI
+        receivedQty,
+        damagedQty,
+        binId: defaultBinId,
+        primaryBinId: defaultBinId,
+        binAssignments: [],
+        showAlternateLocations: false,
         condition: 'good' as ConditionType,
         notes: '',
         lotNumber: '',
         expirationDate: '',
-        verified: false,
-        putAway: false,
+        verified: hasProgress,
+        putAway: shipment.status === 'RECEIVED' && hasProgress,
       };
     });
-  });
+    setLineItems(initialLineItems);
+    setBaseLineItems(initialLineItems);
 
-  // Discrepancy reporting
-  const [discrepancies, setDiscrepancies] = useState<Array<{
-    id: string;
-    lineItemId: string;
-    type: 'shortage' | 'overage' | 'damage' | 'wrong_item' | 'other';
-    quantity: number;
-    description: string;
-    customType?: string; // For 'other' type - user enters custom issue type
-    photo?: string;
-  }>>([]);
-  const [showDiscrepancyForm, setShowDiscrepancyForm] = useState<string | null>(null);
-  const [newDiscrepancy, setNewDiscrepancy] = useState<{ type: 'shortage' | 'overage' | 'damage' | 'wrong_item' | 'other'; quantity: number; description: string }>({ type: 'damage', quantity: 0, description: '' });
-
-  // Collapsed items for detailed entry - all collapsed by default
-  const [collapsedItems, setCollapsedItems] = useState<Set<string>>(() => {
-    if (!shipment) return new Set();
-    return new Set(shipment.items.map(item => item.id));
-  });
+    setCollapsedItems(new Set(shipment.items.map(item => item.id)));
+    setHasInitialized(true);
+  }, [shipment, hasInitialized]);
 
   // Search/filter for line items
   const [itemSearchQuery, setItemSearchQuery] = useState('');
+
+  if (isLoadingShipment) {
+    return (
+      <main className="flex-1 overflow-hidden bg-[var(--background)] flex flex-col items-center justify-center p-6">
+        <div className="text-center text-[var(--muted-foreground)]">Loading delivery...</div>
+      </main>
+    );
+  }
+
+  if (shipmentError) {
+    return (
+      <main className="flex-1 overflow-hidden bg-[var(--background)] flex flex-col items-center justify-center p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-[var(--foreground)] mb-2">Failed to Load Delivery</h1>
+          <p className="text-[var(--muted-foreground)] mb-6">{shipmentError}</p>
+          <button
+            onClick={() => router.push('/warehouse/deliveries')}
+            className="bg-[var(--primary)] text-[var(--primary-foreground)] px-4 py-2 rounded-md hover:opacity-90"
+          >
+            Back to Deliveries
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   if (!shipment) {
     return (
@@ -281,6 +716,9 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   const isArrived = displayStatus === 'ARRIVED' || currentStepIndex >= receivingSteps.indexOf('ARRIVED');
   const isReceiving = displayStatus === 'RECEIVING';
   const isReceived = displayStatus === 'RECEIVED';
+  const shouldDeferPersistence =
+    shipment?.status === 'DRAFT' ||
+    ['PENDING', 'CONFIRMED'].includes(shipment?.status || '');
 
   // Helper functions
   const formatDateTime = (dateStr?: string) => {
@@ -304,34 +742,99 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     });
   };
 
+  const isTempId = (value: string) => value.startsWith('temp-');
+  const mapIssueTypeToDiscrepancy = (
+    issueType: string
+  ): 'shortage' | 'overage' | 'damage' | 'wrong_item' | 'other' => {
+    switch (issueType.toUpperCase()) {
+      case 'DAMAGED':
+        return 'damage';
+      case 'MISSING':
+        return 'shortage';
+      case 'OVERAGE':
+        return 'overage';
+      case 'WRONG_ITEM':
+        return 'wrong_item';
+      default:
+        return 'other';
+    }
+  };
+
+  const getItemDiscrepancyTotals = (itemId: string) =>
+    discrepancySummary.byItem[itemId] || { total: 0, damage: 0, shortage: 0, overage: 0, wrongItem: 0, other: 0 };
+
+  const getItemAdjustedReceived = (item: LineItemReceive) => {
+    return Math.max(0, item.receivedQty);
+  };
+
+  const getItemDamagedTotal = (item: LineItemReceive) => {
+    const disc = getItemDiscrepancyTotals(item.id);
+    return item.damagedQty + disc.damage;
+  };
+
+  const getItemAccountedTotal = (item: LineItemReceive) => {
+    const disc = getItemDiscrepancyTotals(item.id);
+    return (
+      getItemAdjustedReceived(item) +
+      getItemDamagedTotal(item) +
+      disc.shortage +
+      disc.wrongItem +
+      disc.other +
+      disc.overage
+    );
+  };
+
   // Calculate totals
   const totalExpected = lineItems.reduce((sum, item) => sum + item.expectedQty, 0);
-  const totalReceived = lineItems.reduce((sum, item) => sum + item.receivedQty, 0);
-  const totalDamaged = lineItems.reduce((sum, item) => sum + item.damagedQty, 0);
-  const totalIssues = discrepancies.reduce((sum, d) => sum + d.quantity, 0);
-  const totalGood = Math.max(0, totalReceived - totalIssues);
-  const allItemsVerified = lineItems.every(item => item.verified);
+  const totalRawReceived = lineItems.reduce((sum, item) => sum + item.receivedQty, 0);
+  const totalRawDamaged = lineItems.reduce((sum, item) => sum + item.damagedQty, 0);
+  const totalIssues = discrepancySummary.totals.total;
+  const totalReceived = Math.max(0, totalRawReceived);
+  const totalDamaged = totalRawDamaged + discrepancySummary.totals.damage;
+  const totalVariance = totalReceived - totalExpected;
+  const allItemsVerified = lineItems.every(item => item.verified || getItemAccountedTotal(item) >= item.expectedQty);
   const allItemsPutAway = lineItems.every(item => item.putAway);
   const allBinsAssigned = lineItems.every(item => item.binId);
 
   // Save shipment details handler
   const handleSaveDetails = () => {
-    const selectedVendor = factories.find(f => f.id === editVendorId);
-    const selectedWarehouse = mockWarehouses.find(w => w.id === editWarehouseId);
+    const selectedVendor = vendorOptions.find((vendor) => vendor.id === editVendorId);
+    if (!shipment) return;
 
-    updateShipmentDetails(shipment.id, {
+    const carrierId =
+      carrierOptions.find((carrier) => carrier.name === editCarrier)?.id ||
+      null;
+    const expectedDate =
+      editEta || (shipment.eta ? shipment.eta.split('T')[0] : null);
+
+    updateDelivery(shipment.id, {
       poNumber: editPoNumber,
       warehouseId: editWarehouseId,
-      warehouseName: selectedWarehouse?.name || '',
       vendorId: editVendorId,
-      vendorName: selectedVendor?.name || '',
-      vendorContact: editVendorContact || undefined,
-      vendorEmail: editVendorEmail || undefined,
-      carrier: editCarrier || undefined,
-      trackingNumber: editTrackingNumber || undefined,
-      eta: editEta ? new Date(editEta).toISOString() : shipment.eta,
-    });
-    setForceUpdate(prev => prev + 1);
+      carrierId,
+      trackingNumber: editTrackingNumber || null,
+      status: shipment.status,
+      expectedDate,
+      arrivedAt: null,
+      receivingStartedAt: null,
+      receivedAt: shipment.receivedAt || null,
+      originAddressId: null,
+      destinationAddressId: null,
+      recurringShipmentId: shipment.recurringShipmentId || null,
+      vendorContactName: editVendorContact || null,
+      vendorContactEmail: editVendorEmail || selectedVendor?.email || null,
+      notes: shipment.notes || null,
+      updatedById: null,
+    })
+      .then(() => {
+        setEditVendorEmail(editVendorEmail || selectedVendor?.email || '');
+        setEditWarehouseId(editWarehouseId || shipment.warehouseId);
+        setEditVendorId(editVendorId || shipment.vendorId);
+        refreshShipment();
+      })
+      .catch((error) => {
+        console.error('Failed to update delivery details:', error);
+      });
   };
 
   // Expected items handlers
@@ -342,177 +845,617 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     setLineItems(prev => prev.map(item =>
       item.id === itemId ? { ...item, expectedQty: newQty } : item
     ));
+    if (shouldDeferPersistence) {
+      return;
+    }
+    const lineItem = lineItems.find((item) => item.id === itemId);
+    const expectedItem = shipment.expectedItems?.find((item) => item.id === itemId);
+    if (!lineItem) return;
 
-    // Update shipment in mock data
-    const updatedItems = shipment.items.map(item =>
-      item.id === itemId ? { ...item, expectedQuantity: newQty } : item
-    );
-    const updatedExpectedItems = shipment.expectedItems?.map(item =>
-      item.id === itemId ? { ...item, expectedQuantity: newQty } : item
-    );
-
-    updateShipmentDetails(shipment.id, {
-      items: updatedItems,
-      expectedItems: updatedExpectedItems,
-      expectedQuantity: updatedItems.reduce((sum, item) => sum + item.expectedQuantity, 0),
-    });
-    setForceUpdate(prev => prev + 1);
+    updateDeliveryItem(itemId, {
+      deliveryId: shipment.id,
+      productId: lineItem.productId,
+      expectedQty: newQty,
+      receivedQty: lineItem.receivedQty,
+      damagedQty: lineItem.damagedQty,
+      status: (expectedItem?.status || 'pending').toUpperCase(),
+      discrepancyNotes: expectedItem?.discrepancyNotes || null,
+    })
+      .then(() => refreshShipment())
+      .catch((error) => {
+        console.error('Failed to update expected quantity:', error);
+      });
   };
 
   const handleRemoveExpectedItem = (itemId: string) => {
     // Update local state
     setLineItems(prev => prev.filter(item => item.id !== itemId));
-
-    // Update shipment in mock data
-    const updatedItems = shipment.items.filter(item => item.id !== itemId);
-    const updatedExpectedItems = shipment.expectedItems?.filter(item => item.id !== itemId);
-
-    updateShipmentDetails(shipment.id, {
-      items: updatedItems,
-      expectedItems: updatedExpectedItems,
-      itemCount: updatedItems.length,
-      expectedQuantity: updatedItems.reduce((sum, item) => sum + item.expectedQuantity, 0),
-    });
-    setForceUpdate(prev => prev + 1);
+    if (shouldDeferPersistence) {
+      return;
+    }
+    deleteDeliveryItem(itemId)
+      .then(() => refreshShipment())
+      .catch((error) => {
+        console.error('Failed to remove expected item:', error);
+      });
   };
 
   const handleAddExpectedItem = (product: { id: string; name: string; partNumber: string }, quantity: number) => {
-    const newItemId = `EI-${shipment.id}-${Date.now()}`;
-    const defaultBinId = mockBins[lineItems.length % mockBins.length]?.id || '';
-
-    // Update local state
-    const newLineItem: LineItemReceive = {
-      id: newItemId,
+    if (shouldDeferPersistence) {
+      const newItem: LineItemReceive = {
+        id: `temp-${Date.now()}`,
+        productId: product.id,
+        productName: product.name,
+        partNumber: product.partNumber,
+        expectedQty: quantity,
+        receivedQty: 0,
+        damagedQty: 0,
+        binId: '',
+        primaryBinId: '',
+        binAssignments: [],
+        showAlternateLocations: false,
+        condition: 'good' as ConditionType,
+        notes: '',
+        lotNumber: '',
+        expirationDate: '',
+        verified: false,
+        putAway: false,
+      };
+      setLineItems(prev => [...prev, newItem]);
+      setShowAddProductModal(false);
+      return;
+    }
+    createDeliveryItem({
+      deliveryId: shipment.id,
       productId: product.id,
-      productName: product.name,
-      partNumber: product.partNumber,
       expectedQty: quantity,
       receivedQty: 0,
       damagedQty: 0,
-      binId: defaultBinId,
-      primaryBinId: defaultBinId,
-      binAssignments: [],
-      showAlternateLocations: false,
-      condition: 'good' as ConditionType,
-      notes: '',
-      lotNumber: '',
-      expirationDate: '',
-      verified: false,
-      putAway: false,
-    };
-    setLineItems(prev => [...prev, newLineItem]);
+      status: 'PENDING',
+      discrepancyNotes: null,
+    })
+      .then(() => refreshShipment())
+      .catch((error) => {
+        console.error('Failed to add expected item:', error);
+      })
+      .finally(() => {
+        setShowAddProductModal(false);
+      });
+  };
 
-    // Update shipment in mock data
-    const newShipmentItem = {
-      id: newItemId,
-      productId: product.id,
-      productName: product.name,
-      partNumber: product.partNumber,
-      expectedQuantity: quantity,
-      receivedQuantity: 0,
-    };
-    const newExpectedItem = {
-      id: newItemId,
-      productId: product.id,
-      productName: product.name,
-      partNumber: product.partNumber,
-      expectedQuantity: quantity,
-      receivedQuantity: 0,
-      status: 'pending' as const,
-    };
+  const syncPendingChanges = async () => {
+    if (!shipment || !shouldDeferPersistence) return;
 
-    updateShipmentDetails(shipment.id, {
-      items: [...shipment.items, newShipmentItem],
-      expectedItems: [...(shipment.expectedItems || []), newExpectedItem],
-      itemCount: shipment.itemCount + 1,
-      expectedQuantity: shipment.expectedQuantity + quantity,
+    const baseItemsById = new Map(baseLineItems.map((item) => [item.id, item]));
+    const currentItemsById = new Map(lineItems.map((item) => [item.id, item]));
+    const itemsToCreate = lineItems.filter((item) => isTempId(item.id));
+    const itemsToDelete = baseLineItems.filter((item) => !currentItemsById.has(item.id));
+    const itemsToUpdate = lineItems.filter((item) => {
+      if (isTempId(item.id)) return false;
+      const baseItem = baseItemsById.get(item.id);
+      return baseItem ? baseItem.expectedQty !== item.expectedQty : false;
     });
-    setForceUpdate(prev => prev + 1);
-    setShowAddProductModal(false);
+
+    const baseDocsById = new Set(baseDocuments.map((doc) => doc.id));
+    const currentDocsById = new Set(attachedDocuments.map((doc) => doc.id));
+    const docsToCreate = attachedDocuments.filter((doc) => isTempId(doc.id));
+    const docsToDelete = baseDocuments.filter((doc) => !currentDocsById.has(doc.id));
+
+    const baseAssignments = [
+      ...baseAssignedManagers.map((assignment) => ({ ...assignment, role: 'manager' as AssignedUserRole })),
+      ...baseAssignedWorkers.map((assignment) => ({ ...assignment, role: 'worker' as AssignedUserRole })),
+    ];
+    const currentAssignments = [
+      ...resolvedManagers.map((assignment) => ({ ...assignment, role: 'manager' as AssignedUserRole })),
+      ...resolvedWorkers.map((assignment) => ({ ...assignment, role: 'worker' as AssignedUserRole })),
+    ];
+    const baseAssignmentKeys = new Set(baseAssignments.map((assignment) => `${assignment.userId}:${assignment.role}`));
+    const currentAssignmentKeys = new Set(currentAssignments.map((assignment) => `${assignment.userId}:${assignment.role}`));
+    const assignmentsToCreate = currentAssignments.filter(
+      (assignment) => !baseAssignmentKeys.has(`${assignment.userId}:${assignment.role}`)
+    );
+    const assignmentsToDelete = baseAssignments.filter(
+      (assignment) => !currentAssignmentKeys.has(`${assignment.userId}:${assignment.role}`)
+    );
+
+    const tasks: Array<Promise<unknown>> = [];
+
+    itemsToCreate.forEach((item) => {
+      tasks.push(
+        createDeliveryItem({
+          deliveryId: shipment.id,
+          productId: item.productId,
+          expectedQty: item.expectedQty,
+          receivedQty: item.receivedQty,
+          damagedQty: item.damagedQty,
+          status: 'PENDING',
+          discrepancyNotes: null,
+        })
+      );
+    });
+
+    itemsToUpdate.forEach((item) => {
+      tasks.push(
+        updateDeliveryItem(item.id, {
+          deliveryId: shipment.id,
+          productId: item.productId,
+          expectedQty: item.expectedQty,
+          receivedQty: item.receivedQty,
+          damagedQty: item.damagedQty,
+          status: 'PENDING',
+          discrepancyNotes: null,
+        })
+      );
+    });
+
+    itemsToDelete.forEach((item) => {
+      tasks.push(deleteDeliveryItem(item.id));
+    });
+
+    docsToCreate.forEach((doc) => {
+      tasks.push(
+        createDeliveryDocument({
+          deliveryId: shipment.id,
+          name: doc.name,
+          docType: doc.type,
+          fileUrl: doc.fileUrl,
+          mimeType: doc.mimeType,
+          fileSize: doc.fileSize || null,
+          uploadedById: isUuid(doc.uploadedBy) ? doc.uploadedBy : null,
+          notes: doc.notes || null,
+        })
+      );
+    });
+
+    docsToDelete.forEach((doc) => {
+      tasks.push(deleteDeliveryDocument(doc.id));
+    });
+
+    assignmentsToCreate.forEach((assignment) => {
+      tasks.push(
+        createDeliveryAssignee({
+          deliveryId: shipment.id,
+          userId: assignment.userId,
+          role: assignment.role === 'manager' ? 'MANAGER' : 'WORKER',
+        })
+      );
+    });
+
+    assignmentsToDelete.forEach((assignment) => {
+      if (!assignment.id || isTempId(assignment.id)) return;
+      tasks.push(deleteDeliveryAssignee(assignment.id));
+    });
+
+    if (tasks.length === 0) return;
+
+    await Promise.all(tasks);
   };
 
   // Status transition handlers
-  const handleReleaseToWarehouse = () => {
+  const handleReleaseToWarehouse = async () => {
     // From DRAFT -> PENDING (Expected)
-    if (shipment.status !== 'DRAFT') return;
-    updateShipmentStatus(shipment.id, 'PENDING');
-    setForceUpdate(prev => prev + 1);
+    if (!shipment || shipment.status !== 'DRAFT' || isTransitioning) return;
+    setIsTransitioning(true);
+
+    const carrierId =
+      carrierOptions.find((carrier) => carrier.name === editCarrier)?.id ||
+      null;
+    const expectedDate =
+      editEta || (shipment.eta ? shipment.eta.split('T')[0] : null);
+    const nowIso = new Date().toISOString();
+
+    const payload = {
+      poNumber: editPoNumber || shipment.poNumber,
+      warehouseId: editWarehouseId || shipment.warehouseId,
+      vendorId: editVendorId || shipment.vendorId,
+      carrierId,
+      trackingNumber: editTrackingNumber || null,
+      status: 'PENDING',
+      expectedDate,
+      arrivedAt: null,
+      receivingStartedAt: null,
+      receivedAt: null,
+      originAddressId: null,
+      destinationAddressId: null,
+      recurringShipmentId: shipment.recurringShipmentId || null,
+      vendorContactName: editVendorContact || null,
+      vendorContactEmail: editVendorEmail || null,
+      notes: shipment.notes || null,
+      updatedById: null,
+    };
+
+    applyShipmentPatch(
+      {
+        status: 'PENDING',
+        eta: expectedDate || shipment.eta,
+        arrivedAt: null,
+        receivingStartedAt: null,
+        receivedAt: null,
+      },
+      {
+        id: shipment.id,
+        status: 'PENDING',
+        expectedDate,
+        carrierId,
+        trackingNumber: editTrackingNumber || null,
+        vendorContactName: editVendorContact || null,
+        vendorContactEmail: editVendorEmail || null,
+        warehouseId: payload.warehouseId,
+        vendorId: payload.vendorId,
+        poNumber: payload.poNumber,
+        updatedAt: nowIso,
+      }
+    );
+
+    try {
+      await syncPendingChanges();
+      await updateDelivery(shipment.id, payload);
+      await createDeliveryStatusHistory({
+        deliveryId: shipment.id,
+        status: 'PENDING',
+        timestamp: null,
+        userId: null,
+        note: 'Released to warehouse',
+      });
+      void refreshShipment();
+    } catch (error) {
+      console.error('Failed to release delivery:', error);
+    } finally {
+      setIsTransitioning(false);
+    }
   };
 
-  const handleMakeRecurring = (name: string, pattern: RecurrencePattern, startDate: string, endDate?: string) => {
-    convertToRecurringShipment(shipment.id, name, pattern, startDate, endDate);
-    // Also release to warehouse
-    updateShipmentStatus(shipment.id, 'PENDING');
-    setShowRecurringModal(false);
-    setForceUpdate(prev => prev + 1);
+  const handleMakeRecurring = async (name: string, pattern: RecurrencePattern, startDate: string, endDate?: string) => {
+    if (!shipment || isTransitioning) return;
+    setIsTransitioning(true);
+
+    const carrierId =
+      carrierOptions.find((carrier) => carrier.name === editCarrier)?.id ||
+      null;
+    const nowIso = new Date().toISOString();
+
+    try {
+      await syncPendingChanges();
+      const recurrencePattern = {
+        ...pattern,
+        expectedItems: shipment.expectedItems || [],
+      };
+      const recurring = await createRecurringShipment({
+        name,
+        vendorId: editVendorId || shipment.vendorId,
+        warehouseId: editWarehouseId || shipment.warehouseId,
+        recurrencePattern,
+        startDate,
+        endDate: endDate || null,
+        vendorContactName: editVendorContact || null,
+        vendorContactEmail: editVendorEmail || null,
+        carrier: editCarrier || null,
+        notes: shipment.notes || null,
+        status: 'ACTIVE',
+      });
+      applyShipmentPatch(
+        {
+          status: 'PENDING',
+          eta: shipment.eta,
+        },
+        {
+          id: shipment.id,
+          status: 'PENDING',
+          recurringShipmentId: recurring.id,
+          carrierId,
+          trackingNumber: shipment.trackingNumber || null,
+          vendorContactName: shipment.vendorContact || null,
+          vendorContactEmail: shipment.vendorEmail || null,
+          expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+          updatedAt: nowIso,
+        }
+      );
+      await updateDelivery(shipment.id, {
+        poNumber: shipment.poNumber,
+        warehouseId: shipment.warehouseId,
+        vendorId: shipment.vendorId,
+        carrierId,
+        trackingNumber: shipment.trackingNumber || null,
+        status: 'PENDING',
+        expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+        arrivedAt: null,
+        receivingStartedAt: null,
+        receivedAt: shipment.receivedAt || null,
+        originAddressId: null,
+        destinationAddressId: null,
+        recurringShipmentId: recurring.id,
+        vendorContactName: shipment.vendorContact || null,
+        vendorContactEmail: shipment.vendorEmail || null,
+        notes: shipment.notes || null,
+        updatedById: null,
+      });
+      await createDeliveryStatusHistory({
+        deliveryId: shipment.id,
+        status: 'PENDING',
+        timestamp: null,
+        userId: null,
+        note: 'Released to warehouse',
+      });
+      void refreshShipment();
+    } catch (error) {
+      console.error('Failed to create recurring shipment:', error);
+    } finally {
+      setShowRecurringModal(false);
+      setIsTransitioning(false);
+    }
   };
 
-  const handleMarkArrived = () => {
-    // From Expected (PENDING/CONFIRMED/IN_TRANSIT) -> ARRIVED
-    if (!['PENDING', 'CONFIRMED', 'IN_TRANSIT'].includes(shipment.status)) return;
-    updateShipmentStatus(shipment.id, 'ARRIVED');
-    setForceUpdate(prev => prev + 1);
+  const handleMarkArrived = async () => {
+    // From Expected (PENDING/CONFIRMED) -> ARRIVED
+    if (!shipment || !['PENDING', 'CONFIRMED'].includes(shipment.status) || isTransitioning) return;
+    setIsTransitioning(true);
+    const nowIso = new Date().toISOString();
+    applyShipmentPatch(
+      {
+        status: 'ARRIVED',
+        arrivedAt: nowIso,
+      },
+      {
+        id: shipment.id,
+        status: 'ARRIVED',
+        arrivedAt: nowIso,
+        updatedAt: nowIso,
+      }
+    );
+    try {
+      await syncPendingChanges();
+      await updateDelivery(shipment.id, {
+        poNumber: shipment.poNumber,
+        warehouseId: shipment.warehouseId,
+        vendorId: shipment.vendorId,
+        carrierId: shipment.carrierId || null,
+        trackingNumber: shipment.trackingNumber || null,
+        status: 'ARRIVED',
+        expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+        arrivedAt: nowIso,
+        receivingStartedAt: null,
+        receivedAt: shipment.receivedAt || null,
+        originAddressId: null,
+        destinationAddressId: null,
+        recurringShipmentId: shipment.recurringShipmentId || null,
+        vendorContactName: shipment.vendorContact || null,
+        vendorContactEmail: shipment.vendorEmail || null,
+        notes: shipment.notes || null,
+        updatedById: null,
+      });
+      await createDeliveryStatusHistory({
+        deliveryId: shipment.id,
+        status: 'ARRIVED',
+        timestamp: null,
+        userId: null,
+        note: 'Marked arrived',
+      });
+      void refreshShipment();
+    } catch (error) {
+      console.error('Failed to mark delivery arrived:', error);
+    } finally {
+      setIsTransitioning(false);
+    }
   };
 
   const handleStartReceiving = () => {
-    if (shipment.status !== 'ARRIVED') return;
-    updateShipmentStatus(shipment.id, 'RECEIVING');
-    setForceUpdate(prev => prev + 1);
+    if (!shipment || shipment.status !== 'ARRIVED' || isTransitioning) return;
+    setIsTransitioning(true);
+    const nowIso = new Date().toISOString();
+    applyShipmentPatch(
+      {
+        status: 'RECEIVING',
+        receivingStartedAt: nowIso,
+      },
+      {
+        id: shipment.id,
+        status: 'RECEIVING',
+        receivingStartedAt: nowIso,
+        updatedAt: nowIso,
+      }
+    );
+    updateDelivery(shipment.id, {
+      poNumber: shipment.poNumber,
+      warehouseId: shipment.warehouseId,
+      vendorId: shipment.vendorId,
+      carrierId: shipment.carrierId || null,
+      trackingNumber: shipment.trackingNumber || null,
+      status: 'RECEIVING',
+      expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+      arrivedAt: shipment.arrivedAt || null,
+      receivingStartedAt: nowIso,
+      receivedAt: shipment.receivedAt || null,
+      originAddressId: null,
+      destinationAddressId: null,
+      recurringShipmentId: shipment.recurringShipmentId || null,
+      vendorContactName: shipment.vendorContact || null,
+      vendorContactEmail: shipment.vendorEmail || null,
+      notes: shipment.notes || null,
+      updatedById: null,
+    })
+      .then(() =>
+        createDeliveryStatusHistory({
+          deliveryId: shipment.id,
+        status: 'RECEIVING',
+        timestamp: null,
+        userId: null,
+        note: 'Receiving started',
+      })
+    )
+      .then(() => void refreshShipment())
+      .catch((error) => {
+        console.error('Failed to start receiving:', error);
+      })
+      .finally(() => {
+        setIsTransitioning(false);
+      });
   };
 
-  const handleCompleteReceiving = () => {
-    if (shipment.status !== 'RECEIVING') return;
+  const handleCompleteReceiving = async () => {
+    if (shipment.status !== 'RECEIVING' || isTransitioning) return;
+    setIsTransitioning(true);
+    const nowIso = new Date().toISOString();
+    applyShipmentPatch(
+      {
+        status: 'RECEIVED',
+        receivedAt: nowIso,
+      },
+      {
+        id: shipment.id,
+        status: 'RECEIVED',
+        receivedAt: nowIso,
+        updatedAt: nowIso,
+      }
+    );
 
-    // If there are discrepancies, create a delivery issue
-    if (discrepancies.length > 0) {
-      // Map discrepancy type to delivery issue type
-      const mapDiscrepancyType = (type: 'shortage' | 'overage' | 'damage' | 'wrong_item' | 'other'): DeliveryIssueType => {
-        switch (type) {
-          case 'damage': return 'DAMAGED';
-          case 'shortage': return 'MISSING';
-          case 'overage': return 'OVERAGE';
-          case 'wrong_item': return 'WRONG_ITEM';
-          case 'other': return 'OTHER';
-          default: return 'DAMAGED';
-        }
-      };
+    const computeLineItemStatus = (item: LineItemReceive) => {
+      const disc = getItemDiscrepancyTotals(item.id);
+      const adjustedReceived = getItemAdjustedReceived(item);
+      const damagedTotal = getItemDamagedTotal(item);
+      const accountedTotal = getItemAccountedTotal(item);
+      if (accountedTotal === 0) return 'PENDING';
+      if (damagedTotal > 0 || disc.total > 0) return 'DISCREPANCY';
+      if (adjustedReceived < item.expectedQty) return 'PARTIAL';
+      return 'RECEIVED';
+    };
 
-      // Build delivery issue items from discrepancies
-      const issueItems: DeliveryIssueItem[] = discrepancies.map(disc => {
-        const lineItem = lineItems.find(li => li.id === disc.lineItemId);
-        return {
-          id: `DII-${Date.now()}-${disc.id}`,
-          productId: lineItem?.productId || '',
-          productName: lineItem?.productName || '',
-          partNumber: lineItem?.partNumber || '',
-          issueType: mapDiscrepancyType(disc.type),
-          customIssueType: disc.type === 'other' ? disc.customType : undefined,
-          quantity: disc.quantity,
-          description: disc.description || undefined,
+    try {
+      const receiptInputs = lineItems.reduce<DeliveryItemReceiptInput[]>(
+        (acc, item) => {
+          const goodQty = Math.max(0, getItemAdjustedReceived(item));
+          const damagedTotal = Math.max(0, getItemDamagedTotal(item));
+          const baseReceipt = {
+            receiptType: 'RECEIPT' as const,
+            receivedById: null,
+            receivedAt: nowIso,
+            note: null,
+          };
+
+          if (item.binAssignments.length > 0) {
+            item.binAssignments.forEach((assignment) => {
+              if (assignment.quantity <= 0) return;
+              acc.push({
+                deliveryItemId: item.id,
+                receivedQty: assignment.quantity,
+                damagedQty: 0,
+                locationId: assignment.binId || null,
+                ...baseReceipt,
+              });
+            });
+          } else if (goodQty > 0) {
+            acc.push({
+              deliveryItemId: item.id,
+              receivedQty: goodQty,
+              damagedQty: 0,
+              locationId: item.binId || item.primaryBinId || null,
+              ...baseReceipt,
+            });
+          }
+
+          if (damagedTotal > 0) {
+            acc.push({
+              deliveryItemId: item.id,
+              receivedQty: 0,
+              damagedQty: damagedTotal,
+              locationId: null,
+              ...baseReceipt,
+            });
+          }
+
+          return acc;
+        },
+        []
+      );
+
+      await Promise.all(
+        lineItems.map((item) =>
+          updateDeliveryItem(item.id, {
+            deliveryId: shipment.id,
+            productId: item.productId,
+            expectedQty: item.expectedQty,
+            receivedQty: item.receivedQty,
+            damagedQty: item.damagedQty,
+            status: computeLineItemStatus(item),
+            discrepancyNotes: null,
+          })
+        )
+      );
+
+      if (receiptInputs.length > 0) {
+        await Promise.all(
+          receiptInputs.map((input) => createDeliveryItemReceipt(input))
+        );
+      }
+
+      if (discrepancies.length > 0) {
+        const mapDiscrepancyType = (type: 'shortage' | 'overage' | 'damage' | 'wrong_item' | 'other'): DeliveryIssueType => {
+          switch (type) {
+            case 'damage':
+              return 'DAMAGED';
+            case 'shortage':
+              return 'MISSING';
+            case 'overage':
+              return 'OVERAGE';
+            case 'wrong_item':
+              return 'WRONG_ITEM';
+            case 'other':
+              return 'OTHER';
+            default:
+              return 'DAMAGED';
+          }
         };
-      });
 
-      const totalAffectedQuantity = issueItems.reduce((sum, item) => sum + item.quantity, 0);
+        await Promise.all(
+          discrepancies.map((disc) =>
+            createDeliveryIssue({
+              deliveryId: shipment.id,
+              deliveryItemId: disc.lineItemId,
+              receiptId: null,
+              issueType: mapDiscrepancyType(disc.type),
+              customIssueType: disc.type === 'other' ? disc.customType : null,
+              qty: disc.quantity,
+              status: 'OPEN',
+              description: disc.description || null,
+              notes: null,
+              communicatedAt: null,
+            })
+          )
+        );
+      }
 
-      createDeliveryIssue({
-        shipmentId: shipment.id,
+      await updateDelivery(shipment.id, {
         poNumber: shipment.poNumber,
-        vendorId: shipment.vendorId,
-        vendorName: shipment.vendorName,
-        vendorEmail: shipment.vendorEmail,
-        vendorContact: shipment.vendorContact,
         warehouseId: shipment.warehouseId,
-        warehouseName: shipment.warehouseName,
-        status: 'OPEN',
-        items: issueItems,
-        totalAffectedQuantity,
-        reportedAt: new Date().toISOString(),
-        reportedBy: 'Current User', // In real app, get from auth context
+        vendorId: shipment.vendorId,
+        carrierId: shipment.carrierId || null,
+        trackingNumber: shipment.trackingNumber || null,
+        status: 'RECEIVED',
+        expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+        arrivedAt: shipment.arrivedAt || null,
+        receivingStartedAt: shipment.receivingStartedAt || null,
+        receivedAt: nowIso,
+        originAddressId: null,
+        destinationAddressId: null,
+        recurringShipmentId: shipment.recurringShipmentId || null,
+        vendorContactName: shipment.vendorContact || null,
+        vendorContactEmail: shipment.vendorEmail || null,
+        notes: shipment.notes || null,
+        updatedById: null,
       });
-    }
 
-    updateShipmentStatus(shipment.id, 'RECEIVED');
-    setForceUpdate(prev => prev + 1);
+      await createDeliveryStatusHistory({
+        deliveryId: shipment.id,
+        status: 'RECEIVED',
+        timestamp: null,
+        userId: null,
+        note: 'Receiving completed',
+      });
+      void refreshShipment();
+    } catch (error) {
+      console.error('Failed to complete receiving:', error);
+    } finally {
+      setIsTransitioning(false);
+    }
   };
 
   // Line item handlers
@@ -524,7 +1467,13 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
 
   const handleVerifyItem = (itemId: string) => {
     setLineItems(prev => prev.map(item =>
-      item.id === itemId ? { ...item, verified: !item.verified } : item
+      item.id === itemId ? { ...item, verified: true } : item
+    ));
+  };
+
+  const handleUnverifyItem = (itemId: string) => {
+    setLineItems(prev => prev.map(item =>
+      item.id === itemId ? { ...item, verified: false } : item
     ));
   };
 
@@ -595,35 +1544,18 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
 
   const processPackingSlipImage = () => {
     setIsProcessingPackingSlip(true);
-    // Simulate OCR processing - in real app this would call an OCR service
-    setTimeout(() => {
-      // Create a new scanned packing slip document
-      const newPackingSlipId = `PS-${Date.now()}`;
-      const newPackingSlip: ScannedPackingSlip = {
-        id: newPackingSlipId,
-        name: `Packing Slip ${scannedPackingSlips.length + 1}`,
-        scannedAt: new Date().toISOString(),
-        imageUrl: packingSlipImage || '',
-        lineItemIds: [],
-      };
-      setScannedPackingSlips(prev => [...prev, newPackingSlip]);
-      setCurrentPackingSlipId(newPackingSlipId);
-
-      // Mock: Generate digitized line items from "scanned" packing slip
-      // Simulates messy/nonstandard slips by potentially having repeated or combined lines
-      const mockDigitizedItems: PackingSlipLineItem[] = shipment.items.map((item, index) => ({
-        id: `PS-${Date.now()}-${index}`,
-        partNumber: item.partNumber,
-        description: item.productName,
-        quantity: item.expectedQuantity,
-        matched: true,
-        matchedLineItemId: item.id,
-      }));
-
-      setPackingSlipLineItems(mockDigitizedItems);
-      setIsProcessingPackingSlip(false);
-      setPackingSlipCaptured(true);
-    }, 2000);
+    const newPackingSlipId = `PS-${Date.now()}`;
+    const newPackingSlip: ScannedPackingSlip = {
+      id: newPackingSlipId,
+      name: `Packing Slip ${scannedPackingSlips.length + 1}`,
+      scannedAt: new Date().toISOString(),
+      imageUrl: packingSlipImage || '',
+      lineItemIds: [],
+    };
+    setScannedPackingSlips(prev => [...prev, newPackingSlip]);
+    setCurrentPackingSlipId(newPackingSlipId);
+    setIsProcessingPackingSlip(false);
+    setPackingSlipCaptured(true);
   };
 
   const handleAddPackingSlipLine = () => {
@@ -721,8 +1653,8 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   };
 
   // Put-away helpers
-  const getEmptyBins = () => mockBins.filter(bin => bin.currentQuantity === 0);
-  const getLowCapacityBins = () => mockBins.filter(bin => bin.currentQuantity < bin.maxCapacity * 0.5);
+  const getEmptyBins = () => warehouseBins.filter(bin => (bin.currentQuantity ?? 0) === 0);
+  const getLowCapacityBins = () => warehouseBins.filter(bin => (bin.currentQuantity ?? 0) < (bin.maxCapacity ?? 0) * 0.5);
   const isNonPrimaryBin = (lineItem: LineItemReceive) => lineItem.binId !== lineItem.primaryBinId;
 
   const handleOneClickPutAway = (itemId: string) => {
@@ -748,34 +1680,84 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     }));
   };
 
-  const handleResolvePackingSlipDiscrepancy = (index: number) => {
-    setPackingSlipDiscrepancies(prev => prev.map((d, i) =>
-      i === index ? { ...d, resolved: true } : d
-    ));
-  };
-
   // Document handlers
   const handleAddDocument = (document: Omit<AttachedDocument, 'id'>) => {
-    const newDocument: AttachedDocument = {
-      ...document,
-      id: `DOC-${Date.now()}`,
-    };
-    setAttachedDocuments(prev => [...prev, newDocument]);
-    // In a real app, also persist to backend
-    updateShipmentDetails(shipment.id, {
-      documents: [...attachedDocuments, newDocument],
-    });
-    setForceUpdate(prev => prev + 1);
+    if (shouldDeferPersistence) {
+      const newDocument: AttachedDocument = {
+        id: `temp-${Date.now()}`,
+        ...document,
+      };
+      setAttachedDocuments((prev) => [...prev, newDocument]);
+      return;
+    }
+    createDeliveryDocument({
+      deliveryId: shipment.id,
+      name: document.name,
+      docType: document.type,
+      fileUrl: document.fileUrl,
+      mimeType: document.mimeType,
+      fileSize: document.fileSize || null,
+      uploadedById: isUuid(document.uploadedBy) ? document.uploadedBy : null,
+      notes: document.notes || null,
+    })
+      .then(() => refreshShipment())
+      .catch((error) => {
+        console.error('Failed to add delivery document:', error);
+      });
   };
 
   const handleRemoveDocument = (documentId: string) => {
-    const updatedDocs = attachedDocuments.filter(d => d.id !== documentId);
-    setAttachedDocuments(updatedDocs);
-    // In a real app, also persist to backend
-    updateShipmentDetails(shipment.id, {
-      documents: updatedDocs,
+    if (shouldDeferPersistence) {
+      setAttachedDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
+      return;
+    }
+    deleteDeliveryDocument(documentId)
+      .then(() => refreshShipment())
+      .catch((error) => {
+        console.error('Failed to remove delivery document:', error);
+      });
+  };
+
+  const handleAddAssignment = async (userId: string, role: 'manager' | 'worker') => {
+    if (shouldDeferPersistence) {
+      const userPool = role === 'manager' ? availableManagers : availableWorkers;
+      const userInfo = userPool.find((user) => user.id === userId);
+      const newAssignment: AssignedUser = {
+        id: `temp-${Date.now()}`,
+        userId,
+        userName: userInfo?.name || userId,
+        userEmail: userInfo?.email || '',
+        role,
+        assignedAt: new Date().toISOString(),
+      };
+      if (role === 'manager') {
+        setResolvedManagers((prev) =>
+          prev.some((assignment) => assignment.userId === userId) ? prev : [...prev, newAssignment]
+        );
+      } else {
+        setResolvedWorkers((prev) =>
+          prev.some((assignment) => assignment.userId === userId) ? prev : [...prev, newAssignment]
+        );
+      }
+      return;
+    }
+    await createDeliveryAssignee({
+      deliveryId: shipmentId,
+      userId,
+      role: role === 'manager' ? 'MANAGER' : 'WORKER',
     });
-    setForceUpdate(prev => prev + 1);
+    await refreshShipment();
+  };
+
+  const handleRemoveAssignment = async (assignmentId: string, role: 'manager' | 'worker') => {
+    void role;
+    if (shouldDeferPersistence) {
+      setResolvedManagers((prev) => prev.filter((assignment) => assignment.id !== assignmentId));
+      setResolvedWorkers((prev) => prev.filter((assignment) => assignment.id !== assignmentId));
+      return;
+    }
+    await deleteDeliveryAssignee(assignmentId);
+    await refreshShipment();
   };
 
   // Receiving Interface Component
@@ -815,12 +1797,27 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           {allItemsVerified && (
             <button
               onClick={handleCompleteReceiving}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-700 transition-colors"
+              disabled={isTransitioning}
+              className={`px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+                isTransitioning ? 'opacity-60 cursor-not-allowed' : 'hover:bg-green-700'
+              }`}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
-              Complete Receiving
+              {isTransitioning ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 6L9 17l-5-5"/>
+                  </svg>
+                  Complete Receiving
+                </>
+              )}
             </button>
           )}
         </div>
@@ -1035,11 +2032,14 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           .map((lineItem) => {
           const isVerified = lineItem.verified;
           const isPutAway = lineItem.putAway;
-          const hasDiscrepancy = discrepancies.some(d => d.lineItemId === lineItem.id);
+          const itemDiscrepancies = getItemDiscrepancyTotals(lineItem.id);
+          const adjustedReceived = getItemAdjustedReceived(lineItem);
+          const accountedTotal = getItemAccountedTotal(lineItem);
+          const hasDiscrepancy = itemDiscrepancies.total > 0;
           const isExpanded = !collapsedItems.has(lineItem.id);
           const hasNotes = lineItem.notes && lineItem.notes.trim().length > 0;
           const isNonPrimary = isNonPrimaryBin(lineItem);
-          const remainingToReceive = lineItem.expectedQty - lineItem.receivedQty;
+          const remainingToReceive = Math.max(0, lineItem.expectedQty - accountedTotal);
 
           return (
             <div
@@ -1122,7 +2122,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                         <circle cx="12" cy="10" r="3"/>
                       </svg>
                       <span className={`text-xs font-medium ${isNonPrimary ? 'text-orange-600' : 'text-amber-600'}`}>
-                        Bin {mockBins.find(b => b.id === lineItem.binId)?.letterCode || lineItem.binId}
+                        Bin {warehouseBins.find(b => b.id === lineItem.binId)?.letterCode || lineItem.binId}
                         {isNonPrimary && (
                           <span className="ml-1 text-orange-500" title="Not the default bin for this item">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline">
@@ -1146,7 +2146,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                 {/* Quantity display */}
                 <div className="text-right mr-4">
                   <div className="text-2xl font-bold text-[var(--foreground)]">
-                    {lineItem.receivedQty} / {lineItem.expectedQty}
+                    {adjustedReceived} / {lineItem.expectedQty}
                   </div>
                   <div className="text-xs text-[var(--muted-foreground)]">
                     {isVerified ? 'verified' : remainingToReceive > 0 ? `${remainingToReceive} remaining` : 'received'}
@@ -1199,17 +2199,17 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                       className={`px-4 py-3 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
                         isNonPrimary ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-500 hover:bg-blue-600'
                       }`}
-                      title={isNonPrimary ? 'Put away to non-primary bin' : `Put away to Bin ${mockBins.find(b => b.id === lineItem.binId)?.letterCode}`}
+                      title={isNonPrimary ? 'Put away to non-primary bin' : `Put away to Bin ${warehouseBins.find(b => b.id === lineItem.binId)?.letterCode}`}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
                       </svg>
-                      Put Away {mockBins.find(b => b.id === lineItem.binId)?.letterCode}
+                      Put Away {warehouseBins.find(b => b.id === lineItem.binId)?.letterCode}
                     </button>
                   )}
                   {isVerified && (
                     <button
-                      onClick={() => handleVerifyItem(lineItem.id)}
+                      onClick={() => handleUnverifyItem(lineItem.id)}
                       className="px-4 py-3 border border-[var(--border)] rounded-lg font-medium text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)] transition-colors"
                     >
                       Undo
@@ -1466,29 +2466,48 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                         /* Simple Mode - Default bin with option to expand */
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-2 flex-1">
-                            <label className="text-xs font-medium text-[var(--muted-foreground)] whitespace-nowrap">Put-Away</label>
-                            {lineItem.primaryBinId ? (
-                              <div className="flex items-center gap-2">
-                                <span className="px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg text-sm font-medium text-green-700">
-                                  Bin {mockBins.find(b => b.id === lineItem.primaryBinId)?.letterCode} (Default)
-                                </span>
-                                <span className="text-sm text-[var(--muted-foreground)]">
-                                  Qty: {lineItem.receivedQty - lineItem.damagedQty}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-sm text-orange-600">No default bin assigned</span>
-                            )}
-                          </div>
+                          <label className="text-xs font-medium text-[var(--muted-foreground)] whitespace-nowrap">Put-Away</label>
+                          {lineItem.primaryBinId ? (
+                            <div className="flex items-center gap-2">
+                              <span className="px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg text-sm font-medium text-green-700">
+                                Bin {warehouseBins.find(b => b.id === lineItem.primaryBinId)?.letterCode} (Default)
+                              </span>
+                              <span className="text-sm text-[var(--muted-foreground)]">
+                                Qty: {Math.max(0, lineItem.receivedQty - lineItem.damagedQty)}
+                              </span>
+                            </div>
+                          ) : warehouseBins.length > 0 ? (
+                            <select
+                              value=""
+                              onChange={(e) => {
+                                const selectedBinId = e.target.value;
+                                handleUpdateLineItem(lineItem.id, {
+                                  primaryBinId: selectedBinId,
+                                  binId: selectedBinId,
+                                });
+                              }}
+                              className="px-2 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                            >
+                              <option value="">Select default bin</option>
+                              {warehouseBins.map((bin) => (
+                                <option key={bin.id} value={bin.id}>
+                                  Bin {bin.letterCode}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-sm text-orange-600">No bins configured for this warehouse</span>
+                          )}
+                        </div>
 
-                          {/* Split to Alternate Locations Button */}
-                          <button
+                        {/* Split to Alternate Locations Button */}
+                        <button
                             onClick={() => {
                               // Initialize bin assignments with the primary bin and all received quantity
                               const primaryAssignment: BinAssignment = {
                                 id: `ba-${Date.now()}-primary`,
                                 binId: lineItem.primaryBinId || '',
-                                quantity: lineItem.receivedQty - lineItem.damagedQty,
+                                quantity: Math.max(0, lineItem.receivedQty - lineItem.damagedQty),
                                 isPrimary: true,
                               };
                               handleUpdateLineItem(lineItem.id, {
@@ -1496,7 +2515,10 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                                 binAssignments: [primaryAssignment],
                               });
                             }}
-                            className="px-3 py-1.5 text-xs border border-orange-300 text-orange-600 rounded-lg hover:bg-orange-50 transition-colors flex items-center gap-1"
+                            disabled={!lineItem.primaryBinId}
+                            className={`px-3 py-1.5 text-xs border border-orange-300 text-orange-600 rounded-lg transition-colors flex items-center gap-1 ${
+                              lineItem.primaryBinId ? 'hover:bg-orange-50' : 'opacity-50 cursor-not-allowed'
+                            }`}
                           >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <path d="M16 3h5v5M8 3H3v5M3 16v5h5M21 16v5h-5"/>
@@ -1507,7 +2529,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                           {/* Put-Away Button */}
                           <button
                             onClick={() => handleVerifyItem(lineItem.id)}
-                            disabled={!lineItem.primaryBinId}
+                            disabled={!lineItem.primaryBinId || lineItem.verified}
                             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
                               lineItem.verified
                                 ? 'bg-green-100 text-green-700 border border-green-300'
@@ -1525,7 +2547,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                                 </>
                               )}
                             </svg>
-                            {lineItem.verified ? 'Put Away' : 'Confirm Put-Away'}
+                            {lineItem.verified ? 'Verified' : 'Verify Item'}
                           </button>
                         </div>
                       ) : (
@@ -1572,7 +2594,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                                   <option value="">Select bin</option>
                                   {lineItem.primaryBinId && (
                                     <option value={lineItem.primaryBinId}>
-                                      Bin {mockBins.find(b => b.id === lineItem.primaryBinId)?.letterCode} (Default)
+                                      Bin {warehouseBins.find(b => b.id === lineItem.primaryBinId)?.letterCode} (Default)
                                     </option>
                                   )}
                                   <optgroup label="Empty Bins">
@@ -1583,7 +2605,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                                     ))}
                                   </optgroup>
                                   <optgroup label="Available Bins">
-                                    {mockBins.filter(b => b.id !== lineItem.primaryBinId && b.currentQuantity > 0).map((bin) => (
+                                    {warehouseBins.filter(b => b.id !== lineItem.primaryBinId && b.currentQuantity > 0).map((bin) => (
                                       <option key={bin.id} value={bin.id}>
                                         Bin {bin.letterCode} ({Math.round((bin.currentQuantity / bin.maxCapacity) * 100)}% full)
                                       </option>
@@ -1669,7 +2691,11 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                                 });
                                 handleVerifyItem(lineItem.id);
                               }}
-                              disabled={lineItem.binAssignments.length === 0 || lineItem.binAssignments.some(ba => !ba.binId)}
+                              disabled={
+                                lineItem.verified ||
+                                lineItem.binAssignments.length === 0 ||
+                                lineItem.binAssignments.some(ba => !ba.binId)
+                              }
                               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
                                 lineItem.verified
                                   ? 'bg-green-100 text-green-700 border border-green-300'
@@ -1687,7 +2713,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                                   </>
                                 )}
                               </svg>
-                              {lineItem.verified ? 'Put Away' : 'Confirm Put-Away'}
+                              {lineItem.verified ? 'Verified' : 'Verify Item'}
                             </button>
                           </div>
 
@@ -1729,62 +2755,11 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
 
   // Put-Away Interface Component
   const putAwayInterface = (
-    <div className="bg-[var(--card)] rounded-lg border-2 border-blue-400 overflow-hidden">
-      <div className="px-4 py-3 border-b border-[var(--border)] bg-blue-50 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-              <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-              <line x1="12" y1="22.08" x2="12" y2="12"/>
-            </svg>
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-[var(--foreground)]">Put-Away Mode</h3>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Scan bins to put away verified items
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-4">
-        <div className="grid grid-cols-2 gap-4">
-          {lineItems.filter(li => li.verified && !li.putAway).map(lineItem => (
-            <div
-              key={lineItem.id}
-              className="p-4 bg-[var(--muted)]/20 border border-[var(--border)] rounded-lg"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold">{lineItem.partNumber}</span>
-                <span className="text-lg font-bold">{lineItem.receivedQty} units</span>
-              </div>
-              <p className="text-sm text-[var(--muted-foreground)] mb-3">{lineItem.productName}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-amber-600">
-                  Target: Bin {mockBins.find(b => b.id === lineItem.binId)?.letterCode || '-'}
-                </span>
-                <button
-                  onClick={() => handlePutAway(lineItem.id)}
-                  className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Confirm Put-Away
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {lineItems.filter(li => li.verified && !li.putAway).length === 0 && (
-          <div className="text-center py-8 text-[var(--muted-foreground)]">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-3 opacity-50">
-              <path d="M20 6L9 17l-5-5"/>
-            </svg>
-            <p>All verified items have been put away</p>
-          </div>
-        )}
-      </div>
-    </div>
+    <PutAwayInterface
+      lineItems={lineItems}
+      warehouseBins={warehouseBins}
+      onPutAway={handlePutAway}
+    />
   );
 
   // Line Items Summary Table
@@ -1792,211 +2767,33 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   const hasVendorSelected = Boolean(currentVendorId);
 
   const lineItemsTable = (
-    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-      <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Expected Items</h3>
-          <span className="text-xs px-2 py-0.5 bg-[var(--muted)] rounded">
-            {lineItems.length} line items
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-[var(--muted-foreground)]">{totalExpected} units expected</span>
-          {isEditingDetails && hasVendorSelected && (
-            <button
-              onClick={() => setShowAddProductModal(true)}
-              className="text-sm text-[var(--primary)] hover:underline flex items-center gap-1"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Add Product
-            </button>
-          )}
-        </div>
-      </div>
-      {lineItems.length === 0 ? (
-        <div className="p-8 text-center">
-          {!hasVendorSelected ? (
-            <p className="text-[var(--muted-foreground)]">Select a vendor/manufacturer above to add products</p>
-          ) : (
-            <>
-              <p className="text-[var(--muted-foreground)] mb-3">No expected items yet</p>
-              {isEditingDetails && (
-                <button
-                  onClick={() => setShowAddProductModal(true)}
-                  className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  Add Expected Products
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      ) : (
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[var(--border)] bg-[var(--muted)]/20">
-              <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Part #</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Product</th>
-              <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Expected</th>
-              <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Received</th>
-              <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Variance</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Status</th>
-              {isEditingDetails && (
-                <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Actions</th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--border)]">
-            {lineItems.map((lineItem) => {
-              const variance = lineItem.receivedQty - lineItem.expectedQty;
-              return (
-                <tr key={lineItem.id} className="hover:bg-[var(--muted)]/20 transition-colors">
-                  <td className="px-4 py-2 text-sm font-medium text-[var(--foreground)]">{lineItem.partNumber}</td>
-                  <td className="px-4 py-2 text-sm text-[var(--foreground)]">{lineItem.productName}</td>
-                  <td className="px-4 py-2 text-sm text-[var(--foreground)] text-right">
-                    {isEditingDetails ? (
-                      <input
-                        type="number"
-                        min="0"
-                        value={lineItem.expectedQty}
-                        onChange={(e) => handleUpdateExpectedQty(lineItem.id, parseInt(e.target.value) || 0)}
-                        className="w-20 px-2 py-1 text-right border border-[var(--border)] rounded bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                      />
-                    ) : (
-                      lineItem.expectedQty
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-[var(--foreground)] text-right">{lineItem.receivedQty}</td>
-                  <td className="px-4 py-2 text-sm text-right">
-                    <span className={variance === 0 ? 'text-green-600' : variance > 0 ? 'text-blue-600' : 'text-red-600'}>
-                      {variance > 0 ? '+' : ''}{variance}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                      lineItem.putAway ? 'bg-blue-100 text-blue-700' :
-                      lineItem.verified ? 'bg-green-100 text-green-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {lineItem.putAway ? 'Put Away' : lineItem.verified ? 'Verified' : 'Pending'}
-                    </span>
-                  </td>
-                  {isEditingDetails && (
-                    <td className="px-4 py-2 text-right">
-                      <button
-                        onClick={() => handleRemoveExpectedItem(lineItem.id)}
-                        className="text-red-500 hover:text-red-700 p-1"
-                        title="Remove item"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                        </svg>
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-    </div>
+    <LineItemsTable
+      lineItems={lineItems}
+      totalExpected={totalExpected}
+      isEditingDetails={isEditingDetails}
+      hasVendorSelected={hasVendorSelected}
+      onAddProductClick={() => setShowAddProductModal(true)}
+      onUpdateExpectedQty={handleUpdateExpectedQty}
+      onRemoveExpectedItem={handleRemoveExpectedItem}
+      getItemAdjustedReceived={getItemAdjustedReceived}
+      getItemDamagedTotal={getItemDamagedTotal}
+    />
   );
 
   return (
     <main className="flex-1 overflow-auto bg-[var(--background)]">
       <div className="max-w-[1400px] mx-auto p-6">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-4">
-          <button
-            onClick={() => router.push('/warehouse/deliveries')}
-            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-semibold text-[var(--foreground)]">
-                {shipment.poNumber}
-              </h1>
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${shipmentStatusColors[shipment.status]}`}>
-                {shipmentStatusLabels[shipment.status]}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm text-[var(--muted-foreground)]">From:</span>
-              <span className="text-sm font-medium text-[var(--foreground)]">{shipment.vendorName}</span>
-              <span className="text-sm text-[var(--muted-foreground)]">|</span>
-              <span className="text-sm text-[var(--muted-foreground)]">ETA: {formatDate(shipment.eta)}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-1.5 border border-[var(--border)] rounded-lg font-medium text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="6 9 6 2 18 2 18 9"/>
-                <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
-                <rect x="6" y="14" width="12" height="8"/>
-              </svg>
-              Print Receipt
-            </button>
-
-            {/* Dynamic Action Buttons based on status */}
-            {shipment.status === 'DRAFT' && (
-              <button
-                onClick={handleReleaseToWarehouse}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                  <polyline points="22 4 12 14.01 9 11.01"/>
-                </svg>
-                Release to Warehouse
-              </button>
-            )}
-
-            {['PENDING', 'CONFIRMED', 'IN_TRANSIT'].includes(shipment.status) && (
-              <button
-                onClick={handleMarkArrived}
-                className="px-3 py-1.5 bg-purple-600 text-white rounded-lg font-medium text-sm hover:bg-purple-700 transition-colors flex items-center gap-2"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-                </svg>
-                Mark Arrived
-              </button>
-            )}
-
-            {shipment.status === 'ARRIVED' && (
-              <button
-                onClick={handleStartReceiving}
-                className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg font-medium text-sm hover:bg-yellow-700 transition-colors flex items-center gap-2"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
-                  <rect x="9" y="3" width="6" height="4" rx="1"/>
-                </svg>
-                Start Receiving
-              </button>
-            )}
-
-            {shipment.status === 'RECEIVING' && allItemsVerified && (
-              <button
-                onClick={handleCompleteReceiving}
-                className="px-3 py-1.5 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition-colors flex items-center gap-2"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-                Complete Receiving
-              </button>
-            )}
-          </div>
-        </div>
+        <ReceivingHeader
+          shipment={shipment}
+          onBack={() => router.push('/warehouse/deliveries')}
+          onReleaseToWarehouse={handleReleaseToWarehouse}
+          onMarkArrived={handleMarkArrived}
+          onStartReceiving={handleStartReceiving}
+          onCompleteReceiving={handleCompleteReceiving}
+          isTransitioning={isTransitioning}
+          allItemsVerified={allItemsVerified}
+          formatDate={formatDate}
+        />
 
         {/* Draft Notice Banner */}
         {shipment.status === 'DRAFT' && (
@@ -2016,17 +2813,35 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
             <div className="mt-4 pt-3 border-t border-slate-200 flex flex-wrap gap-3">
               <button
                 onClick={handleReleaseToWarehouse}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
+                disabled={isTransitioning}
+                className={`px-4 py-2 bg-blue-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
+                  isTransitioning ? 'opacity-60 cursor-not-allowed' : 'hover:bg-blue-700'
+                }`}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                  <polyline points="22 4 12 14.01 9 11.01"/>
-                </svg>
-                Release to Warehouse
+                {isTransitioning ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Release to Warehouse
+                  </>
+                )}
               </button>
               <button
                 onClick={() => setShowRecurringModal(true)}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium text-sm hover:bg-purple-700 transition-colors flex items-center gap-2"
+                disabled={isTransitioning}
+                className={`px-4 py-2 bg-purple-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
+                  isTransitioning ? 'opacity-60 cursor-not-allowed' : 'hover:bg-purple-700'
+                }`}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M17 1l4 4-4 4"/>
@@ -2108,371 +2923,23 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           </div>
         </div>
 
-        {/* Packing Slip Capture Section - Show when status is ARRIVED */}
-        {displayStatus === 'ARRIVED' && !packingSlipCaptured && (
-          <div className="bg-[var(--card)] rounded-lg border-2 border-blue-400 p-4 mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
-                    <polyline points="10 9 9 9 8 9"/>
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-[var(--foreground)]">Packing Slip Capture</h3>
-                  <p className="text-sm text-[var(--muted-foreground)]">Scan or photograph the manufacturer packing slip</p>
-                </div>
-              </div>
-              {isProcessingPackingSlip && (
-                <div className="flex items-center gap-2 text-blue-600">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                  </svg>
-                  <span className="text-sm font-medium">Processing packing slip...</span>
-                </div>
-              )}
-            </div>
-
-            {/* Capture Method Selection */}
-            {!packingSlipInputMode && !packingSlipImage && (
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <button
-                  onClick={handleCameraCapture}
-                  className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
-                >
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
-                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-                    <circle cx="12" cy="13" r="4"/>
-                  </svg>
-                  <span className="text-sm font-medium text-blue-700">Take Photo</span>
-                  <span className="text-xs text-[var(--muted-foreground)]">Use camera</span>
-                </button>
-
-                <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors cursor-pointer">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
-                  </svg>
-                  <span className="text-sm font-medium text-blue-700">Upload Image</span>
-                  <span className="text-xs text-[var(--muted-foreground)]">From device</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePackingSlipImageUpload}
-                    className="hidden"
-                  />
-                </label>
-
-                <button
-                  onClick={() => setPackingSlipInputMode('manual')}
-                  className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
-                >
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
-                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
-                  <span className="text-sm font-medium text-blue-700">Enter Manually</span>
-                  <span className="text-xs text-[var(--muted-foreground)]">Add line items</span>
-                </button>
-              </div>
-            )}
-
-            {/* Image Preview */}
-            {packingSlipImage && (
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-[var(--foreground)]">Uploaded Packing Slip</span>
-                  <button
-                    onClick={handleClearPackingSlip}
-                    className="text-xs text-red-600 hover:underline"
-                  >
-                    Remove
-                  </button>
-                </div>
-                <div className="relative rounded-lg overflow-hidden border border-[var(--border)] bg-[var(--muted)]/20">
-                  <img
-                    src={packingSlipImage}
-                    alt="Packing Slip"
-                    className="w-full max-h-64 object-contain"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Manual Entry Mode */}
-            {packingSlipInputMode === 'manual' && !packingSlipImage && (
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm font-medium text-[var(--foreground)]">Manual Entry</span>
-                  <button
-                    onClick={() => setPackingSlipInputMode(null)}
-                    className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                  >
-                    Back to options
-                  </button>
-                </div>
-
-                {/* Packing Slip Line Items Table */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xs font-semibold text-[var(--foreground)] uppercase">Line Items from Packing Slip</h4>
-                    <button
-                      onClick={handleAddPackingSlipLine}
-                      className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                      </svg>
-                      Add Line
-                    </button>
-                  </div>
-                  <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-[var(--muted)]/30">
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Part #</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Description</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Qty</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Status</th>
-                          <th className="px-3 py-2 w-8"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--border)]">
-                        {packingSlipLineItems.map((item) => (
-                          <tr key={item.id} className="hover:bg-[var(--muted)]/10">
-                            <td className="px-2 py-1">
-                              <input
-                                type="text"
-                                value={item.partNumber}
-                                onChange={(e) => {
-                                  setPackingSlipLineItems(prev => prev.map(li =>
-                                    li.id === item.id ? { ...li, partNumber: e.target.value } : li
-                                  ));
-                                }}
-                                className="w-full px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
-                                placeholder="Part number"
-                              />
-                            </td>
-                            <td className="px-2 py-1">
-                              <input
-                                type="text"
-                                value={item.description}
-                                onChange={(e) => {
-                                  setPackingSlipLineItems(prev => prev.map(li =>
-                                    li.id === item.id ? { ...li, description: e.target.value } : li
-                                  ));
-                                }}
-                                className="w-full px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
-                                placeholder="Description"
-                              />
-                            </td>
-                            <td className="px-2 py-1">
-                              <input
-                                type="number"
-                                min="0"
-                                value={item.quantity || ''}
-                                onChange={(e) => {
-                                  setPackingSlipLineItems(prev => prev.map(li =>
-                                    li.id === item.id ? { ...li, quantity: parseInt(e.target.value) || 0 } : li
-                                  ));
-                                }}
-                                className="w-20 px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
-                                placeholder="0"
-                              />
-                            </td>
-                            <td className="px-2 py-1">
-                              {item.matched ? (
-                                <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M20 6L9 17l-5-5"/>
-                                  </svg>
-                                  Matched
-                                </span>
-                              ) : (
-                                <span className="text-xs text-amber-600">Pending</span>
-                              )}
-                            </td>
-                            <td className="px-2 py-1">
-                              {packingSlipLineItems.length > 1 && (
-                                <button
-                                  onClick={() => {
-                                    setPackingSlipLineItems(prev => prev.filter(li => li.id !== item.id));
-                                  }}
-                                  className="p-1 text-red-500 hover:text-red-700"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <line x1="18" y1="6" x2="6" y2="18"/>
-                                    <line x1="6" y1="6" x2="18" y2="18"/>
-                                  </svg>
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Action Buttons for Manual Entry */}
-                <div className="flex items-center justify-end gap-3">
-                  <button
-                    onClick={() => {
-                      setPackingSlipInputMode(null);
-                      setPackingSlipLineItems([]);
-                    }}
-                    className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (packingSlipLineItems.length > 0 && packingSlipLineItems.some(li => li.partNumber || li.description)) {
-                        setPackingSlipCaptured(true);
-                        setPackingSlipInputMode(null);
-                      }
-                    }}
-                    disabled={packingSlipLineItems.length === 0 || !packingSlipLineItems.some(li => li.partNumber || li.description)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M20 6L9 17l-5-5"/>
-                    </svg>
-                    Confirm Packing Slip
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Packing Slip Discrepancy Display */}
-            {packingSlipDiscrepancies.length > 0 && (
-              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16"/>
-                  </svg>
-                  <h4 className="text-sm font-semibold text-red-800">Discrepancies Found</h4>
-                </div>
-                <p className="text-xs text-red-700 mb-3">
-                  The following differences were detected between the packing slip and the expected shipment:
-                </p>
-                <div className="space-y-2">
-                  {packingSlipDiscrepancies.map((disc, index) => (
-                    <div
-                      key={index}
-                      className={`flex items-center justify-between p-3 rounded-lg ${
-                        disc.resolved ? 'bg-green-50 border border-green-200' : 'bg-white border border-red-200'
-                      }`}
-                    >
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-[var(--foreground)]">{disc.field}</div>
-                        <div className="flex items-center gap-4 mt-1 text-xs">
-                          <span className="text-[var(--muted-foreground)]">
-                            Expected: <span className="font-medium text-green-700">{disc.expected}</span>
-                          </span>
-                          <span className="text-[var(--muted-foreground)]">
-                            Actual: <span className="font-medium text-red-700">{disc.actual}</span>
-                          </span>
-                        </div>
-                      </div>
-                      {disc.resolved ? (
-                        <span className="flex items-center gap-1 text-xs text-green-700 font-medium">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M20 6L9 17l-5-5"/>
-                          </svg>
-                          Acknowledged
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setPackingSlipDiscrepancies(prev => prev.map((d, i) =>
-                              i === index ? { ...d, resolved: true } : d
-                            ));
-                          }}
-                          className="px-3 py-1.5 bg-amber-500 text-white text-xs font-medium rounded hover:bg-amber-600 transition-colors"
-                        >
-                          Acknowledge
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {packingSlipDiscrepancies.every(d => d.resolved) && (
-                  <div className="mt-3 pt-3 border-t border-red-200">
-                    <button
-                      onClick={() => {
-                        setPackingSlipDiscrepancies([]);
-                        setPackingSlipCaptured(true);
-                      }}
-                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                    >
-                      Proceed with Acknowledged Discrepancies
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Packing Slip Captured Badge */}
-        {packingSlipCaptured && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-blue-800">Packing Slip Captured</span>
-                    <span className="text-sm text-blue-700">
-                      {packingSlipImage ? '(Image uploaded)' : `(${packingSlipLineItems.length} line items)`}
-                    </span>
-                  </div>
-                  {packingSlipDiscrepancies.length > 0 && (
-                    <span className="text-xs text-amber-600">
-                      {packingSlipDiscrepancies.filter(d => d.resolved).length} discrepanc{packingSlipDiscrepancies.filter(d => d.resolved).length === 1 ? 'y' : 'ies'} acknowledged
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                {packingSlipImage && (
-                  <button
-                    onClick={() => window.open(packingSlipImage, '_blank')}
-                    className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                      <circle cx="8.5" cy="8.5" r="1.5"/>
-                      <polyline points="21 15 16 10 5 21"/>
-                    </svg>
-                    View Image
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    setPackingSlipCaptured(false);
-                    setPackingSlipDiscrepancies([]);
-                  }}
-                  className="text-xs text-blue-600 hover:underline"
-                >
-                  Edit
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <PackingSlipSection
+          displayStatus={displayStatus}
+          packingSlipCaptured={packingSlipCaptured}
+          packingSlipInputMode={packingSlipInputMode}
+          packingSlipImage={packingSlipImage}
+          isProcessingPackingSlip={isProcessingPackingSlip}
+          packingSlipLineItems={packingSlipLineItems}
+          packingSlipDiscrepancies={packingSlipDiscrepancies}
+          onCameraCapture={handleCameraCapture}
+          onImageUpload={handlePackingSlipImageUpload}
+          onClearPackingSlip={handleClearPackingSlip}
+          setPackingSlipInputMode={setPackingSlipInputMode}
+          setPackingSlipCaptured={setPackingSlipCaptured}
+          setPackingSlipLineItems={setPackingSlipLineItems}
+          setPackingSlipDiscrepancies={setPackingSlipDiscrepancies}
+          onAddPackingSlipLine={handleAddPackingSlipLine}
+        />
 
         {/* Receiving Interface - Show when status is RECEIVING */}
         {isReceiving && (
@@ -2504,14 +2971,14 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                       onBlur={handleSaveDetails}
                       className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                     >
-                      {mockWarehouses.map((warehouse) => (
+                      {warehouseOptions.map((warehouse) => (
                         <option key={warehouse.id} value={warehouse.id}>
                           {warehouse.name}
                         </option>
                       ))}
                     </select>
                   ) : (
-                    <p className="text-sm font-medium text-[var(--foreground)]">{shipment.warehouseName}</p>
+                    <p className="text-sm font-medium text-[var(--foreground)]">{resolvedWarehouseName}</p>
                   )}
                 </div>
                 <div>
@@ -2524,8 +2991,8 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                       className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                     >
                       <option value="">Select carrier</option>
-                      {carriers.map((c) => (
-                        <option key={c} value={c}>{c}</option>
+                      {carrierOptions.map((carrier) => (
+                        <option key={carrier.id} value={carrier.name}>{carrier.name}</option>
                       ))}
                     </select>
                   ) : (
@@ -2586,9 +3053,9 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                       className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                     >
                       <option value="">Select vendor</option>
-                      {factories.map((factory) => (
-                        <option key={factory.id} value={factory.id}>
-                          {factory.name}
+                      {vendorOptions.map((vendor) => (
+                        <option key={vendor.id} value={vendor.id}>
+                          {vendor.name}
                         </option>
                       ))}
                     </select>
@@ -2766,129 +3233,28 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
             {lineItemsTable}
           </div>
 
-          {/* Right Column - Receiving Summary */}
-          <div className="space-y-4">
-            {/* Receiving Stats */}
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
-                  <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-                </svg>
-                <h3 className="text-sm font-semibold text-[var(--foreground)]">Receiving Summary</h3>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[var(--muted-foreground)]">Expected</span>
-                  <span className="text-sm font-semibold text-[var(--foreground)]">{totalExpected} units</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[var(--muted-foreground)]">Received</span>
-                  <span className="text-sm font-semibold text-green-600">{totalReceived} units</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[var(--muted-foreground)]">Damaged</span>
-                  <span className={`text-sm font-semibold ${totalDamaged > 0 ? 'text-red-600' : 'text-[var(--foreground)]'}`}>
-                    {totalDamaged} units
-                  </span>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
-                  <span className="text-sm text-[var(--muted-foreground)]">Variance</span>
-                  <span className={`text-sm font-semibold ${
-                    totalReceived - totalExpected === 0 ? 'text-green-600' :
-                    totalReceived - totalExpected > 0 ? 'text-blue-600' : 'text-red-600'
-                  }`}>
-                    {totalReceived - totalExpected > 0 ? '+' : ''}{totalReceived - totalExpected} units
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Timestamps */}
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
-                  <circle cx="12" cy="12" r="10"/>
-                  <path d="M12 6v6l4 2"/>
-                </svg>
-                <h3 className="text-sm font-semibold text-[var(--foreground)]">Timestamps</h3>
-              </div>
-              <div className="space-y-2">
-                <div>
-                  <label className="text-xs text-[var(--muted-foreground)]">Created</label>
-                  <p className="text-sm font-medium">{formatDateTime(shipment.createdAt)}</p>
-                </div>
-                <div>
-                  <label className="text-xs text-[var(--muted-foreground)]">Last Updated</label>
-                  <p className="text-sm font-medium">{formatDateTime(shipment.updatedAt)}</p>
-                </div>
-                {shipment.receivedAt && (
-                  <div>
-                    <label className="text-xs text-[var(--muted-foreground)]">Received</label>
-                    <p className="text-sm font-medium">{formatDateTime(shipment.receivedAt)}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Discrepancies Summary */}
-            {discrepancies.length > 0 && (
-              <div className="bg-red-50 rounded-lg border border-red-200 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16"/>
-                  </svg>
-                  <h3 className="text-sm font-semibold text-red-800">Discrepancies ({discrepancies.length})</h3>
-                </div>
-                <div className="space-y-1">
-                  {discrepancies.slice(0, 3).map(disc => (
-                    <div key={disc.id} className="text-xs text-red-700">
-                      · {disc.type}: {disc.description}
-                    </div>
-                  ))}
-                  {discrepancies.length > 3 && (
-                    <div className="text-xs text-red-600 font-medium">
-                      +{discrepancies.length - 3} more...
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Assignment Panel */}
-            <AssignmentPanel
-              assignedManagers={shipment.assignedManagers || []}
-              assignedWorkers={shipment.assignedWorkers || []}
-              warehouseId={shipment.warehouseId}
-              onAddAssignment={(userId, role) => {
-                addIncomingShipmentAssignment(shipmentId, userId, role, 'Current User');
-                setForceUpdate(prev => prev + 1);
-              }}
-              onRemoveAssignment={(assignmentId, role) => {
-                removeIncomingShipmentAssignment(shipmentId, assignmentId, role);
-                setForceUpdate(prev => prev + 1);
-              }}
-              isEditable={shipment.status !== 'RECEIVED' && shipment.status !== 'CANCELLED'}
-            />
-
-            {/* Documents Section */}
-            <DocumentsSection
-              documents={attachedDocuments}
-              onAddDocument={handleAddDocument}
-              onRemoveDocument={handleRemoveDocument}
-              isEditable={shipment.status !== 'RECEIVED' && shipment.status !== 'CANCELLED'}
-            />
-          </div>
+          <ReceivingSummarySidebar
+            totalExpected={totalExpected}
+            totalReceived={totalReceived}
+            totalDamaged={totalDamaged}
+            totalVariance={totalVariance}
+            shipment={shipment}
+            formatDateTime={formatDateTime}
+            discrepancies={discrepancies}
+            resolvedManagers={resolvedManagers}
+            resolvedWorkers={resolvedWorkers}
+            availableManagers={availableManagers}
+            availableWorkers={availableWorkers}
+            onAddAssignment={handleAddAssignment}
+            onRemoveAssignment={handleRemoveAssignment}
+            attachedDocuments={attachedDocuments}
+            onAddDocument={handleAddDocument}
+            onRemoveDocument={handleRemoveDocument}
+            isEditable={!isWorkerView && shipment.status !== 'RECEIVED' && shipment.status !== 'CANCELLED'}
+          />
         </div>
 
-        {/* Notes Section */}
-        {shipment.notes && (
-          <div className="mt-4 bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-            <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2">Notes</h3>
-            <p className="text-sm text-[var(--muted-foreground)]">{shipment.notes}</p>
-          </div>
-        )}
+        <NotesSection notes={shipment.notes} />
       </div>
 
       {/* Add Product Modal */}
@@ -2906,224 +3272,18 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         <RecurringShipmentModal
           onClose={() => setShowRecurringModal(false)}
           onSubmit={handleMakeRecurring}
-          shipmentVendorName={factories.find(f => f.id === editVendorId)?.name || shipment.vendorName}
+          shipmentVendorName={vendorOptions.find(vendor => vendor.id === editVendorId)?.name || shipment.vendorName}
         />
       )}
 
-      {/* Packing Slip Viewer Modal */}
       {viewingPackingSlip && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
-                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                  <path d="M14 2v6h6"/>
-                </svg>
-                <div>
-                  <h3 className="font-medium text-[var(--foreground)]">{viewingPackingSlip.name}</h3>
-                  <p className="text-xs text-[var(--muted-foreground)]">
-                    Scanned {new Date(viewingPackingSlip.scannedAt).toLocaleString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setViewingPackingSlip(null)}
-                className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              {viewingPackingSlip.imageUrl ? (
-                <div className="flex items-center justify-center bg-gray-100 rounded-lg min-h-[400px]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={viewingPackingSlip.imageUrl}
-                    alt={viewingPackingSlip.name}
-                    className="max-w-full max-h-[60vh] object-contain"
-                  />
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg">
-                  <p className="text-[var(--muted-foreground)]">No image available</p>
-                </div>
-              )}
-              {viewingPackingSlip.lineItemIds.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="text-sm font-medium text-[var(--foreground)] mb-2">Associated Items</h4>
-                  <div className="space-y-1">
-                    {viewingPackingSlip.lineItemIds.map((itemId) => {
-                      const item = lineItems.find(li => li.id === itemId);
-                      return item ? (
-                        <div key={itemId} className="flex items-center gap-3 p-2 bg-[var(--muted)]/30 rounded-lg">
-                          <span className="text-sm font-medium text-[var(--foreground)]">{item.partNumber}</span>
-                          <span className="text-sm text-[var(--muted-foreground)]">{item.productName}</span>
-                          <span className="ml-auto text-sm text-green-600 font-medium">{item.receivedQty} received</span>
-                        </div>
-                      ) : null;
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="px-4 py-3 border-t border-[var(--border)] flex justify-end">
-              <button
-                onClick={() => setViewingPackingSlip(null)}
-                className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <PackingSlipViewerModal
+          packingSlip={viewingPackingSlip}
+          lineItems={lineItems}
+          onClose={() => setViewingPackingSlip(null)}
+        />
       )}
     </main>
   );
 }
 
-// Add Product Modal Component
-interface AddProductModalProps {
-  vendorId: string;
-  onClose: () => void;
-  onAddProduct: (product: { id: string; name: string; partNumber: string }, quantity: number) => void;
-  existingProductIds: string[];
-}
-
-function AddProductModal({ vendorId, onClose, onAddProduct, existingProductIds }: AddProductModalProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string; partNumber: string } | null>(null);
-  const [quantity, setQuantity] = useState(1);
-
-  // Mock products per vendor - in real app this would come from an API based on vendorId
-  const productsByVendor: Record<string, Array<{ id: string; name: string; partNumber: string }>> = {
-    'CO-012': [ // Legrand North America
-      { id: 'ALF-LS600', name: 'ALF Flexible Area Light, 60000Lm', partNumber: 'ALF LS600' },
-      { id: 'ALF-ASR', name: 'Adjustable Square & Round Pole Mounting', partNumber: 'ALF-ASR' },
-      { id: 'ALF-LS400', name: 'ALF Flexible Area Light, 40000Lm', partNumber: 'ALF LS400' },
-      { id: 'ALF-LS800', name: 'ALF Flexible Area Light, 80000Lm', partNumber: 'ALF LS800' },
-      { id: 'ALF-BRK', name: 'Universal Mounting Bracket Kit', partNumber: 'ALF-BRK' },
-      { id: 'ALF-PSC', name: 'Photocell Sensor Controller', partNumber: 'ALF-PSC' },
-    ],
-    'CO-004': [ // Johnson Controls
-      { id: 'JCI-T40', name: 'Thermostat T40 Series', partNumber: 'T40-001' },
-      { id: 'JCI-VAV', name: 'VAV Controller', partNumber: 'VAV-100' },
-      { id: 'JCI-SENS', name: 'Temperature Sensor', partNumber: 'TS-200' },
-      { id: 'JCI-AHU', name: 'Air Handling Unit Controller', partNumber: 'AHU-500' },
-      { id: 'JCI-BMS', name: 'Building Management System Panel', partNumber: 'BMS-PRO' },
-    ],
-  };
-
-  const vendorProducts = productsByVendor[vendorId] || [];
-  const availableProducts = vendorProducts.filter(p => !existingProductIds.includes(p.id));
-
-  const filteredProducts = availableProducts.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.partNumber.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleAdd = () => {
-    if (selectedProduct && quantity > 0) {
-      onAddProduct(selectedProduct, quantity);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
-        <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
-          <h3 className="font-medium text-[var(--foreground)]">Add Expected Product</h3>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-
-        <div className="p-4 border-b border-[var(--border)]">
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-            autoFocus
-          />
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-2">
-          {filteredProducts.length === 0 ? (
-            <div className="p-4 text-center text-[var(--muted-foreground)]">
-              {searchTerm ? 'No products found' : 'All products already added'}
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {filteredProducts.map((product) => (
-                <button
-                  key={product.id}
-                  onClick={() => setSelectedProduct(product)}
-                  className={`w-full p-3 text-left rounded-lg transition-colors ${
-                    selectedProduct?.id === product.id
-                      ? 'bg-[var(--primary)]/10 border border-[var(--primary)]'
-                      : 'hover:bg-[var(--muted)] border border-transparent'
-                  }`}
-                >
-                  <div className="font-medium text-sm text-[var(--foreground)]">{product.partNumber}</div>
-                  <div className="text-xs text-[var(--muted-foreground)]">{product.name}</div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {selectedProduct && (
-          <div className="p-4 border-t border-[var(--border)] bg-[var(--muted)]/30">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <div className="text-sm font-medium text-[var(--foreground)]">{selectedProduct.partNumber}</div>
-                <div className="text-xs text-[var(--muted-foreground)]">{selectedProduct.name}</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-[var(--muted-foreground)]">Qty:</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                  className="w-20 px-2 py-1 border border-[var(--border)] rounded bg-[var(--background)] text-sm text-center focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="px-4 py-3 border-t border-[var(--border)] flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleAdd}
-            disabled={!selectedProduct || quantity < 1}
-            className="px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Add Product
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}

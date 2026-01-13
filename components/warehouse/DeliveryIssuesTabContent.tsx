@@ -3,12 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  mockDeliveryIssues,
-  getDeliveryIssuesByWarehouse,
-} from '@/lib/data/warehouse-mock';
-import {
   DeliveryIssue,
-  DeliveryIssueStatus,
   DeliveryIssueType,
   deliveryIssueStatusColors,
   deliveryIssueStatusLabels,
@@ -19,6 +14,16 @@ import { useWarehouse } from './WarehouseContext';
 
 type SortField = 'issueNumber' | 'vendorName' | 'poNumber' | 'reportedAt' | 'status' | 'totalAffectedQuantity';
 type SortDirection = 'asc' | 'desc';
+
+const issueStatusCardStyles: Record<
+  'OPEN' | 'COMMUNICATED' | 'RESOLVED' | 'CLOSED',
+  { card: string; dot: string; text: string }
+> = {
+  OPEN: { card: 'bg-yellow-100 border-yellow-200', dot: 'bg-yellow-500', text: 'text-yellow-700' },
+  COMMUNICATED: { card: 'bg-blue-100 border-blue-200', dot: 'bg-blue-500', text: 'text-blue-700' },
+  RESOLVED: { card: 'bg-green-100 border-green-200', dot: 'bg-green-500', text: 'text-green-700' },
+  CLOSED: { card: 'bg-gray-100 border-gray-200', dot: 'bg-gray-500', text: 'text-gray-700' },
+};
 
 // Sort Icon Component
 function SortIcon({ field, currentSortField, currentSortDirection }: { field: SortField; currentSortField: SortField; currentSortDirection: SortDirection }) {
@@ -35,7 +40,12 @@ function SortIcon({ field, currentSortField, currentSortDirection }: { field: So
   );
 }
 
-export default function DeliveryIssuesTabContent() {
+interface DeliveryIssuesTabContentProps {
+  deliveryIssues: DeliveryIssue[];
+  isLoading?: boolean;
+}
+
+export default function DeliveryIssuesTabContent({ deliveryIssues, isLoading = false }: DeliveryIssuesTabContentProps) {
   const router = useRouter();
   const { selectedWarehouse } = useWarehouse();
 
@@ -47,14 +57,14 @@ export default function DeliveryIssuesTabContent() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // Get issues for selected warehouse
-  const deliveryIssues = useMemo(() => {
-    if (!selectedWarehouse) return mockDeliveryIssues;
-    return getDeliveryIssuesByWarehouse(selectedWarehouse.id);
-  }, [selectedWarehouse]);
+  const warehouseIssues = useMemo(() => {
+    if (!selectedWarehouse) return deliveryIssues;
+    return deliveryIssues.filter((issue) => issue.warehouseId === selectedWarehouse.id);
+  }, [deliveryIssues, selectedWarehouse]);
 
   // Filter and sort issues
   const filteredIssues = useMemo(() => {
-    let result = [...deliveryIssues];
+    let result = [...warehouseIssues];
 
     // Search filter
     if (searchQuery) {
@@ -109,7 +119,7 @@ export default function DeliveryIssuesTabContent() {
     });
 
     return result;
-  }, [deliveryIssues, searchQuery, statusFilter, typeFilter, sortField, sortDirection]);
+  }, [warehouseIssues, searchQuery, statusFilter, typeFilter, sortField, sortDirection]);
 
   // Toggle sort
   const handleSort = (field: SortField) => {
@@ -124,20 +134,20 @@ export default function DeliveryIssuesTabContent() {
   // Get unique issue types from all issues
   const issueTypes = useMemo(() => {
     const types = new Set<DeliveryIssueType>();
-    deliveryIssues.forEach(issue => {
+    warehouseIssues.forEach(issue => {
       issue.items.forEach(item => types.add(item.issueType));
     });
     return Array.from(types);
-  }, [deliveryIssues]);
+  }, [warehouseIssues]);
 
   // Stats
   const stats = useMemo(() => {
-    const open = deliveryIssues.filter(i => i.status === 'OPEN').length;
-    const communicated = deliveryIssues.filter(i => i.status === 'COMMUNICATED').length;
-    const resolved = deliveryIssues.filter(i => i.status === 'RESOLVED').length;
-    const closed = deliveryIssues.filter(i => i.status === 'CLOSED').length;
-    return { open, communicated, resolved, closed, total: deliveryIssues.length };
-  }, [deliveryIssues]);
+    const open = warehouseIssues.filter(i => i.status === 'OPEN').length;
+    const communicated = warehouseIssues.filter(i => i.status === 'COMMUNICATED').length;
+    const resolved = warehouseIssues.filter(i => i.status === 'RESOLVED').length;
+    const closed = warehouseIssues.filter(i => i.status === 'CLOSED').length;
+    return { open, communicated, resolved, closed, total: warehouseIssues.length };
+  }, [warehouseIssues]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -155,34 +165,28 @@ export default function DeliveryIssuesTabContent() {
     <div>
       {/* Stats Cards */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-2 h-2 rounded-full bg-red-500" />
-            <span className="text-xs font-medium text-red-700 uppercase">Open</span>
-          </div>
-          <div className="text-2xl font-bold text-red-700">{stats.open}</div>
-        </div>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-2 h-2 rounded-full bg-yellow-500" />
-            <span className="text-xs font-medium text-yellow-700 uppercase">Communicated</span>
-          </div>
-          <div className="text-2xl font-bold text-yellow-700">{stats.communicated}</div>
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="text-xs font-medium text-blue-700 uppercase">Resolved</span>
-          </div>
-          <div className="text-2xl font-bold text-blue-700">{stats.resolved}</div>
-        </div>
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-xs font-medium text-green-700 uppercase">Closed</span>
-          </div>
-          <div className="text-2xl font-bold text-green-700">{stats.closed}</div>
-        </div>
+        {(['OPEN', 'COMMUNICATED', 'RESOLVED', 'CLOSED'] as const).map((status) => {
+          const styles = issueStatusCardStyles[status];
+          const count =
+            status === 'OPEN'
+              ? stats.open
+              : status === 'COMMUNICATED'
+                ? stats.communicated
+                : status === 'RESOLVED'
+                  ? stats.resolved
+                  : stats.closed;
+          return (
+            <div key={status} className={`${styles.card} rounded-lg p-4 border`}>
+              <div className="flex items-center gap-2 mb-1">
+                <div className={`w-2 h-2 rounded-full ${styles.dot}`} />
+                <span className={`text-xs font-medium uppercase ${styles.text}`}>
+                  {deliveryIssueStatusLabels[status]}
+                </span>
+              </div>
+              <div className={`text-2xl font-bold ${styles.text}`}>{count}</div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Filters */}
@@ -232,7 +236,17 @@ export default function DeliveryIssuesTabContent() {
       </div>
 
       {/* Issues Table */}
-      {filteredIssues.length === 0 ? (
+      {isLoading ? (
+        <div className="text-center py-12 bg-[var(--card)] rounded-lg border border-[var(--border)]">
+          <div className="flex items-center justify-center gap-3 text-sm text-[var(--muted-foreground)]">
+            <svg className="h-4 w-4 animate-spin text-[var(--primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" className="opacity-25" />
+              <path d="M22 12a10 10 0 00-10-10" className="opacity-75" />
+            </svg>
+            Loading delivery issues...
+          </div>
+        </div>
+      ) : filteredIssues.length === 0 ? (
         <div className="text-center py-12 bg-[var(--card)] rounded-lg border border-[var(--border)]">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-4 text-[var(--muted-foreground)]">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>

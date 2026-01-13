@@ -33,8 +33,7 @@ export default function ShipmentDetailModal({ shipment, onClose, onReceive, onUp
   const totalReceived = shipment.items.reduce((sum, item) => sum + item.receivedQuantity, 0);
 
   const canReceive = shipment.status === 'ARRIVED' || shipment.status === 'RECEIVING';
-  const canUpdateToArrived = shipment.status === 'IN_TRANSIT';
-  const canUpdateToInTransit = shipment.status === 'CONFIRMED' || shipment.status === 'PENDING';
+  const canUpdateToArrived = shipment.status === 'CONFIRMED';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -187,14 +186,6 @@ export default function ShipmentDetailModal({ shipment, onClose, onReceive, onUp
         {/* Footer */}
         <div className="px-6 py-4 border-t border-[var(--border)] flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {canUpdateToInTransit && onUpdateStatus && (
-              <button
-                onClick={() => onUpdateStatus('IN_TRANSIT')}
-                className="px-3 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-100 hover:bg-indigo-200 rounded-lg transition-colors"
-              >
-                Mark In Transit
-              </button>
-            )}
             {canUpdateToArrived && onUpdateStatus && (
               <button
                 onClick={() => onUpdateStatus('ARRIVED')}

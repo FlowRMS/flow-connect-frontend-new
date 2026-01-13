@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   RecurrenceFrequency,
   RecurrencePattern,
@@ -12,35 +12,32 @@ import {
   weekOfMonthLabels,
   RecurringShipment,
 } from '@/lib/types/warehouse';
-import {
-  getRecurrenceDescription,
-  getWarehouseFactories,
-  mockWarehouses,
-  getAllProducts,
-  calculateNextDate,
-} from '@/lib/data/warehouse-mock';
+import { getRecurrenceDescription, parseDateInput } from '../utils/recurrence';
+import { fetchFactories, fetchProducts, fetchWarehouses } from '../api/warehouseDeliveriesApi';
 
 const carriers = ['UPS', 'FedEx', 'USPS', 'DHL', 'Freight', 'Other'];
 
 interface CreateRecurringShipmentModalProps {
   onClose: () => void;
   onSubmit: (data: Omit<RecurringShipment, 'id' | 'createdAt' | 'updatedAt' | 'generatedShipmentIds' | 'lastGeneratedDate' | 'nextExpectedDate'>) => void;
+  isSubmitting?: boolean;
 }
 
 export default function CreateRecurringShipmentModal({
   onClose,
   onSubmit,
+  isSubmitting = false,
 }: CreateRecurringShipmentModalProps) {
-  const factories = useMemo(() => getWarehouseFactories(), []);
-  const warehouses = useMemo(() => mockWarehouses.filter(w => w.isActive), []);
-  const products = useMemo(() => getAllProducts(), []);
+  const [factories, setFactories] = useState<Array<{ id: string; name: string }>>([]);
+  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
+  const [products, setProducts] = useState<Array<{ id: string; title: string; factoryPartNumber?: string | null }>>([]);
 
   // Basic info state
   const [name, setName] = useState('');
-  const [vendorId, setVendorId] = useState(factories[0]?.id || '');
-  const [vendorName, setVendorName] = useState(factories[0]?.name || '');
-  const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || '');
-  const [warehouseName, setWarehouseName] = useState(warehouses[0]?.name || '');
+  const [vendorId, setVendorId] = useState('');
+  const [vendorName, setVendorName] = useState('');
+  const [warehouseId, setWarehouseId] = useState('');
+  const [warehouseName, setWarehouseName] = useState('');
   const [carrier, setCarrier] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -58,6 +55,62 @@ export default function CreateRecurringShipmentModal({
   const [expectedItems, setExpectedItems] = useState<ExpectedItem[]>([]);
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadLookups = async () => {
+      try {
+        const [warehouseData, factoryData] = await Promise.all([
+          fetchWarehouses(),
+          fetchFactories('', true, 100),
+        ]);
+        if (!isActive) return;
+        setWarehouses(warehouseData.map((wh) => ({ id: wh.id, name: wh.name })));
+        setFactories(factoryData.map((factory) => ({ id: factory.id, name: factory.title })));
+        setVendorId((current) => current || factoryData[0]?.id || '');
+        setVendorName((current) => current || factoryData[0]?.title || '');
+        setWarehouseId((current) => current || warehouseData[0]?.id || '');
+        setWarehouseName((current) => current || warehouseData[0]?.name || '');
+      } catch (error) {
+        console.error('Failed to load recurring shipment lookups', error);
+      }
+    };
+
+    void loadLookups();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadProducts = async () => {
+      if (!vendorId) {
+        setProducts([]);
+        return;
+      }
+      try {
+        const items = await fetchProducts(productSearch || '', vendorId, 200);
+        if (!isActive) return;
+        setProducts(items.map((item) => ({
+          id: item.id,
+          title: item.description || item.factoryPartNumber,
+          factoryPartNumber: item.factoryPartNumber,
+        })));
+      } catch (error) {
+        console.error('Failed to load products', error);
+      }
+    };
+
+    void loadProducts();
+
+    return () => {
+      isActive = false;
+    };
+  }, [vendorId, productSearch]);
 
   const currentPattern: RecurrencePattern = {
     frequency,
@@ -95,7 +148,7 @@ export default function CreateRecurringShipmentModal({
     setExpectedItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleAddProduct = (product: { id: string; name: string; partNumber: string }) => {
+  const handleAddProduct = (product: { id: string; title: string; factoryPartNumber?: string | null }) => {
     if (expectedItems.some(item => item.productId === product.id)) {
       setShowProductSelector(false);
       setProductSearch('');
@@ -105,8 +158,8 @@ export default function CreateRecurringShipmentModal({
     const newItem: ExpectedItem = {
       id: `EI-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       productId: product.id,
-      productName: product.name,
-      partNumber: product.partNumber,
+      productName: product.title,
+      partNumber: product.factoryPartNumber || '',
       expectedQuantity: 1,
       receivedQuantity: 0,
       status: 'pending',
@@ -120,7 +173,7 @@ export default function CreateRecurringShipmentModal({
     if (!productSearch.trim()) return products.slice(0, 10);
     const search = productSearch.toLowerCase();
     return products
-      .filter(p => p.name.toLowerCase().includes(search) || p.partNumber.toLowerCase().includes(search))
+      .filter(p => p.title.toLowerCase().includes(search) || (p.factoryPartNumber || '').toLowerCase().includes(search))
       .slice(0, 10);
   }, [products, productSearch]);
 
@@ -128,7 +181,7 @@ export default function CreateRecurringShipmentModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || isSubmitting) return;
 
     onSubmit({
       name,
@@ -164,6 +217,7 @@ export default function CreateRecurringShipmentModal({
           </div>
           <button
             onClick={onClose}
+            disabled={isSubmitting}
             className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -375,8 +429,8 @@ export default function CreateRecurringShipmentModal({
                 </div>
                 <p className="text-sm text-blue-700">{getRecurrenceDescription(currentPattern)}</p>
                 <p className="text-xs text-blue-600 mt-1">
-                  Starting {new Date(startDate).toLocaleDateString()}
-                  {hasEndDate && endDate && ` until ${new Date(endDate).toLocaleDateString()}`}
+                  Starting {parseDateInput(startDate).toLocaleDateString()}
+                  {hasEndDate && endDate && ` until ${parseDateInput(endDate).toLocaleDateString()}`}
                 </p>
               </div>
             </div>
@@ -420,8 +474,8 @@ export default function CreateRecurringShipmentModal({
                         onClick={() => handleAddProduct(product)}
                         className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--muted)]/50 flex items-center justify-between"
                       >
-                        <span className="font-medium">{product.name}</span>
-                        <span className="text-xs text-[var(--muted-foreground)]">{product.partNumber}</span>
+                        <span className="font-medium">{product.title}</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">{product.factoryPartNumber || 'No part number'}</span>
                       </button>
                     ))}
                     {filteredProducts.length === 0 && (
@@ -508,19 +562,29 @@ export default function CreateRecurringShipmentModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-[var(--foreground)] bg-[var(--muted)] hover:bg-[var(--muted)]/80 rounded-lg transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-[var(--foreground)] bg-[var(--muted)] hover:bg-[var(--muted)]/80 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={!canSubmit}
+              disabled={!canSubmit || isSubmitting}
               className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 5v14M5 12h14"/>
-              </svg>
-              Create Recurring Delivery
+              {isSubmitting ? (
+                <>
+                  <span className="h-4 w-4 rounded-full border-2 border-white/80 border-t-transparent animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                  Create Recurring Delivery
+                </>
+              )}
             </button>
           </div>
         </form>

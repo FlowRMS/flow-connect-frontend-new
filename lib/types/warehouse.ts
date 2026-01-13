@@ -82,12 +82,8 @@ export type ShipmentStatus =
   | 'DRAFT'
   | 'PENDING'
   | 'CONFIRMED'
-  | 'IN_TRANSIT'
   | 'ARRIVED'
   | 'RECEIVING'
-  | 'PROCESSING'
-  | 'SHIPPED'
-  | 'DELIVERED'
   | 'RECEIVED'
   | 'CANCELLED';
 
@@ -717,6 +713,10 @@ export interface IncomingShipment {
   expectedQuantity: number;
   trackingNumber?: string;
   carrier?: string;
+  carrierId?: string;
+  expectedDate?: string;
+  arrivedAt?: string;
+  receivingStartedAt?: string;
   receivedAt?: string;
   notes?: string;
   // Recurring shipment link
@@ -726,8 +726,19 @@ export interface IncomingShipment {
   assignedWorkers?: AssignedUser[];    // Workers assigned to receive this delivery
   // Attached Documents
   documents?: AttachedDocument[];      // Packing slips, BOL, receipts, photos, etc.
+  // Delivery issues for receiving summary
+  issues?: IncomingShipmentIssue[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IncomingShipmentIssue {
+  id: string;
+  deliveryItemId: string;
+  issueType: DeliveryIssueType;
+  customIssueType?: string;
+  qty: number;
+  description?: string;
 }
 
 export interface ShipmentLineItem {
@@ -737,6 +748,7 @@ export interface ShipmentLineItem {
   partNumber: string;
   expectedQuantity: number;
   receivedQuantity: number;
+  damagedQuantity?: number;
 }
 
 export interface ExpectedItem {
@@ -1432,12 +1444,8 @@ export const shipmentStatusLabels: Record<ShipmentStatus, string> = {
   DRAFT: 'Draft',
   PENDING: 'Expected',
   CONFIRMED: 'Expected',
-  IN_TRANSIT: 'Expected',
   ARRIVED: 'Arrived',
   RECEIVING: 'Receiving',
-  PROCESSING: 'Processing',
-  SHIPPED: 'Shipped',
-  DELIVERED: 'Delivered',
   RECEIVED: 'Received',
   CANCELLED: 'Cancelled',
 };
@@ -1446,12 +1454,8 @@ export const shipmentStatusColors: Record<ShipmentStatus, string> = {
   DRAFT: 'bg-slate-100 text-slate-600',
   PENDING: 'bg-gray-100 text-gray-700',
   CONFIRMED: 'bg-blue-100 text-blue-700',
-  IN_TRANSIT: 'bg-indigo-100 text-indigo-700',
   ARRIVED: 'bg-purple-100 text-purple-700',
   RECEIVING: 'bg-yellow-100 text-yellow-700',
-  PROCESSING: 'bg-orange-100 text-orange-700',
-  SHIPPED: 'bg-cyan-100 text-cyan-700',
-  DELIVERED: 'bg-green-100 text-green-700',
   RECEIVED: 'bg-green-100 text-green-700',
   CANCELLED: 'bg-red-100 text-red-700',
 };
@@ -1826,6 +1830,7 @@ export interface RecurrencePattern {
   dayOfWeek?: DayOfWeek;         // For WEEKLY/BIWEEKLY/MONTHLY_WEEK
   weekOfMonth?: WeekOfMonth;     // For MONTHLY_WEEK (e.g., "First Monday")
   dayOfMonth?: number;           // For MONTHLY (1-31)
+  expectedItems?: ExpectedItem[]; // Optional: stored template items
 }
 
 export interface RecurringShipment {
