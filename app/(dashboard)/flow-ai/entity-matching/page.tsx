@@ -21,8 +21,37 @@ import { BulkCreateNewPane } from '@/components/flow-ai/flowrms/entity-matching/
 import { CreateNewSpreadsheet } from '@/components/flow-ai/flowrms/entity-matching/CreateNewSpreadsheet';
 import { WorkflowBreadcrumb } from '@/components/flow-ai/flowrms/WorkflowBreadcrumb';
 import { useEntityMatching, CreateExtraFields } from '@/components/flow-ai/hooks/useEntityMatching';
-import type { PendingEntity, PendingEntityType } from '@/components/flow-ai/types/entity-matching';
+import type { PendingEntity, PendingEntityType, EntityStep } from '@/components/flow-ai/types/entity-matching';
 import { getConfidencePercentage, parseExtractedData } from '@/components/flow-ai/types/entity-matching';
+
+// Tabs that require factory to be matched first (only for CHECKS and INVOICES document types)
+const FACTORY_DEPENDENT_TABS: EntityStep[] = ['orders', 'invoices', 'credits', 'adjustments'];
+
+// All possible steps in order
+const ALL_STEPS: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices', 'credits', 'adjustments'];
+
+// Get visible steps based on document type
+function getVisibleSteps(documentType: string | null): EntityStep[] {
+  const normalizedDocType = documentType?.toUpperCase();
+
+  // For CHECKS: Show all tabs (orders, invoices, credits, adjustments all visible)
+  if (normalizedDocType === 'CHECKS') {
+    return ALL_STEPS;
+  }
+
+  // For INVOICES: Hide invoices, credits, adjustments tabs - only show orders
+  if (normalizedDocType === 'INVOICES') {
+    return ALL_STEPS.filter(step =>
+      !['invoices', 'credits', 'adjustments'].includes(step)
+    );
+  }
+
+  // For other document types (ORDERS, QUOTES, ORDER_ACKNOWLEDGEMENTS, etc.):
+  // Hide orders, invoices, credits, adjustments tabs entirely
+  return ALL_STEPS.filter(step =>
+    !FACTORY_DEPENDENT_TABS.includes(step)
+  );
+}
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import { Q_GET_PENDING, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
 
@@ -238,6 +267,33 @@ function EntityMatchingContent() {
   useEffect(() => {
     setDisplayLimit(ITEMS_PER_PAGE);
   }, [currentStep]);
+
+  // Compute visible steps based on document type
+  const visibleSteps = useMemo(() => getVisibleSteps(documentType), [documentType]);
+
+  // Get the last visible step (for showing Complete button)
+  const lastVisibleStep = useMemo(() => visibleSteps[visibleSteps.length - 1], [visibleSteps]);
+
+  // Check if current step is the last visible step
+  const isLastStep = currentStep === lastVisibleStep;
+
+  // Get next step in navigation
+  const getNextStep = useCallback((current: EntityStep): EntityStep | null => {
+    const currentIndex = visibleSteps.indexOf(current);
+    if (currentIndex === -1 || currentIndex >= visibleSteps.length - 1) {
+      return null;
+    }
+    return visibleSteps[currentIndex + 1];
+  }, [visibleSteps]);
+
+  // Get previous step in navigation
+  const getPreviousStep = useCallback((current: EntityStep): EntityStep | null => {
+    const currentIndex = visibleSteps.indexOf(current);
+    if (currentIndex <= 0) {
+      return null;
+    }
+    return visibleSteps[currentIndex - 1];
+  }, [visibleSteps]);
 
   // Removed auto-skip logic - user must manually click "Complete & Continue" button
   // even when all entities are automatically matched or no entities exist
@@ -1203,6 +1259,7 @@ function EntityMatchingContent() {
           getStepStatus={getStepStatus}
           documentType={documentType}
           isFactoryMatched={isFactoryMatched}
+          factoryEntitiesLoading={factoryEntitiesLoading}
         />
 
         {/* Filter and Action Controls */}
@@ -1328,11 +1385,13 @@ function EntityMatchingContent() {
             variant="outline"
             size="lg"
             onClick={() => {
-              if (currentStep === 'customers') setCurrentStep('factories');
-              else if (currentStep === 'billtocustomers') setCurrentStep('customers');
-              else if (currentStep === 'endusers') setCurrentStep('billtocustomers');
-              else if (currentStep === 'products') setCurrentStep('endusers');
-              else setShowBackWarningModal(true);
+              const prevStep = getPreviousStep(currentStep);
+              if (prevStep) {
+                setCurrentStep(prevStep);
+              } else {
+                // On first step, show back warning
+                setShowBackWarningModal(true);
+              }
             }}
           >
             <ChevronRight className="w-4 h-4 mr-2 rotate-180" />
@@ -1341,20 +1400,28 @@ function EntityMatchingContent() {
           <Button
             size="lg"
             onClick={() => {
-              if (currentStep === 'factories') setCurrentStep('customers');
-              else if (currentStep === 'customers') setCurrentStep('billtocustomers');
-              else if (currentStep === 'billtocustomers') setCurrentStep('endusers');
-              else if (currentStep === 'endusers') setCurrentStep('products');
-              else if (currentStep === 'products' && allValidated) handleCompleteMatching();
+              if (isLastStep && allValidated) {
+                handleCompleteMatching();
+              } else {
+                const nextStep = getNextStep(currentStep);
+                if (nextStep) {
+                  setCurrentStep(nextStep);
+                }
+              }
             }}
-            disabled={(currentStep === 'products' && !allValidated) || isProcessingWorkflow || factoryEntitiesLoading}
+            disabled={
+              (isLastStep && !allValidated) ||
+              isProcessingWorkflow ||
+              // Only disable for factory loading if trying to go to a factory-dependent step or completing
+              (factoryEntitiesLoading && (isLastStep || FACTORY_DEPENDENT_TABS.includes(getNextStep(currentStep) as EntityStep)))
+            }
           >
             {isProcessingWorkflow ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Processing...
               </>
-            ) : currentStep === 'products' ? (
+            ) : isLastStep ? (
               <>
                 Complete & Continue
                 <ChevronRight className="w-4 h-4 ml-2" />
