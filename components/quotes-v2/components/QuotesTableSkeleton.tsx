@@ -37,7 +37,7 @@ export function QuotesTableSkeleton({ rowCount = 8 }: QuotesTableSkeletonProps) 
         <tr key={idx} className="border-b border-gray-100">
           {columnClasses.map((cls, colIdx) => (
             <td key={colIdx} className={`px-3 py-3 ${cls}`}>
-              <div className="h-4 w-full bg-gray-100 rounded animate-pulse" />
+              <div className="h-4 w-full bg-gray-200 rounded animate-pulse" />
             </td>
           ))}
         </tr>

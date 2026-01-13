@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import type { QuoteV2, QuotePipelineStage } from '../types';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { getQuoteFilterOptions } from '../config/filterConfig';
 import { QuotesTableSkeleton } from '../components/QuotesTableSkeleton';
+import { SortIndicator } from '@/components/shared/sorting/components/SortIndicator';
+import type { ActiveSort } from '@/components/shared/sorting/types';
 
 interface ListViewV2Props {
   quotes: QuoteV2[];
@@ -29,10 +30,9 @@ interface ListViewV2Props {
   isFetching?: boolean; // For showing skeleton during refetch (sort/filter)
   // Whether there are any active filters (for better empty state messaging)
   hasActiveFilters?: boolean;
-  // Column sort props (for backend sorting)
-  columnSort?: string | null;
-  columnSortDirection?: 'ASC' | 'DESC';
-  onColumnSort?: (column: string) => void;
+  // Unified sort props (for backend sorting)
+  activeSort?: ActiveSort | null;
+  onSortChange?: (columnId: string) => void;
 }
 
 function getStatusBadgeClass(status: string): string {
@@ -94,9 +94,8 @@ export function ListViewV2({
   isLoading = false,
   isFetching = false,
   hasActiveFilters = false,
-  columnSort = null,
-  columnSortDirection = 'DESC',
-  onColumnSort,
+  activeSort = null,
+  onSortChange,
 }: ListViewV2Props) {
   // Local selection state (fallback if parent props not provided)
   const [localSelectedQuotes, setLocalSelectedQuotes] = useState<Set<string>>(new Set());
@@ -143,40 +142,6 @@ export function ListViewV2({
   }, [columnFilters, onColumnFiltersChange, setColumnFilters]);
 
   // SortIndicator component (simple arrows, clickable)
-  const SortIndicator = ({ column }: { column: string }) => {
-    if (!onColumnSort) return null;
-    
-    const handleClick = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      onColumnSort(column);
-    };
-    
-    if (columnSort !== column) {
-      return (
-        <button
-          type="button"
-          onClick={handleClick}
-          className="flex items-center justify-center hover:opacity-100 transition-opacity"
-        >
-          <ArrowUpDown className="w-4 h-4 opacity-50" />
-        </button>
-      );
-    }
-    
-    return (
-      <button
-        type="button"
-        onClick={handleClick}
-        className="flex items-center justify-center hover:opacity-80 transition-opacity"
-      >
-        {columnSortDirection === 'ASC' ? (
-          <ArrowUp className="w-4 h-4" />
-        ) : (
-          <ArrowDown className="w-4 h-4" />
-        )}
-      </button>
-    );
-  };
 
   // Use parent props if available, otherwise use local state
   const checkIsSelected = (id: string) =>
@@ -290,16 +255,21 @@ export function ListViewV2({
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
-                    onClick={() => onColumnSort?.('quoteNumber')}
+                    onClick={() => onSortChange?.('quoteNumber')}
                   >
                     Quote Number
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('quoteNumber')}
                   </div>
-                  {onColumnSort && (
+                  {onSortChange && (
                     <div className="flex-shrink-0">
-                      <SortIndicator column="quoteNumber" />
+                      <SortIndicator 
+                        columnId="quoteNumber" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
                     </div>
                   )}
                 </div>
@@ -309,13 +279,18 @@ export function ListViewV2({
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
-                    onClick={() => onColumnSort?.('soldToCustomerName')}
+                    onClick={() => onSortChange?.('soldToCustomerName')}
                   >
                     Customer
                   </span>
-                  {onColumnSort && (
+                  {onSortChange && (
                     <div className="flex-shrink-0">
-                      <SortIndicator column="soldToCustomerName" />
+                      <SortIndicator 
+                        columnId="soldToCustomerName" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
                     </div>
                   )}
                 </div>
@@ -325,16 +300,21 @@ export function ListViewV2({
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
-                    onClick={() => onColumnSort?.('status')}
+                    onClick={() => onSortChange?.('status')}
                   >
                     Status
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('status')}
                   </div>
-                  {onColumnSort && (
+                  {onSortChange && (
                     <div className="flex-shrink-0">
-                      <SortIndicator column="status" />
+                      <SortIndicator 
+                        columnId="status" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
                     </div>
                   )}
                 </div>
@@ -344,16 +324,21 @@ export function ListViewV2({
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
-                    onClick={() => onColumnSort?.('pipelineStage')}
+                    onClick={() => onSortChange?.('pipelineStage')}
                   >
                     Pipeline Stage
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('pipelineStage')}
                   </div>
-                  {onColumnSort && (
+                  {onSortChange && (
                     <div className="flex-shrink-0">
-                      <SortIndicator column="pipelineStage" />
+                      <SortIndicator 
+                        columnId="pipelineStage" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
                     </div>
                   )}
                 </div>
@@ -363,16 +348,21 @@ export function ListViewV2({
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
-                    onClick={() => onColumnSort?.('quoteAmount')}
+                    onClick={() => onSortChange?.('quoteAmount')}
                   >
                     Total
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('quoteAmount')}
                   </div>
-                  {onColumnSort && (
+                  {onSortChange && (
                     <div className="flex-shrink-0">
-                      <SortIndicator column="quoteAmount" />
+                      <SortIndicator 
+                        columnId="quoteAmount" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
                     </div>
                   )}
                 </div>
@@ -382,16 +372,21 @@ export function ListViewV2({
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
-                    onClick={() => onColumnSort?.('commission')}
+                    onClick={() => onSortChange?.('commission')}
                   >
                     Commission
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('commission')}
                   </div>
-                  {onColumnSort && (
+                  {onSortChange && (
                     <div className="flex-shrink-0">
-                      <SortIndicator column="commission" />
+                      <SortIndicator 
+                        columnId="commission" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
                     </div>
                   )}
                 </div>
@@ -401,16 +396,21 @@ export function ListViewV2({
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
-                    onClick={() => onColumnSort?.('entryDate')}
+                    onClick={() => onSortChange?.('entryDate')}
                   >
                     Entry Date
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('entryDate')}
                   </div>
-                  {onColumnSort && (
+                  {onSortChange && (
                     <div className="flex-shrink-0">
-                      <SortIndicator column="entryDate" />
+                      <SortIndicator 
+                        columnId="entryDate" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
                     </div>
                   )}
                 </div>
@@ -420,16 +420,21 @@ export function ListViewV2({
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
-                    onClick={() => onColumnSort?.('quoteDate')}
+                    onClick={() => onSortChange?.('quoteDate')}
                   >
                     Quote Date
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('quoteDate')}
                   </div>
-                  {onColumnSort && (
+                  {onSortChange && (
                     <div className="flex-shrink-0">
-                      <SortIndicator column="quoteDate" />
+                      <SortIndicator 
+                        columnId="quoteDate" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
                     </div>
                   )}
                 </div>
@@ -439,16 +444,21 @@ export function ListViewV2({
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
-                    onClick={() => onColumnSort?.('expirationDate')}
+                    onClick={() => onSortChange?.('expirationDate')}
                   >
                     Exp. Date
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('expirationDate')}
                   </div>
-                  {onColumnSort && (
+                  {onSortChange && (
                     <div className="flex-shrink-0">
-                      <SortIndicator column="expirationDate" />
+                      <SortIndicator 
+                        columnId="expirationDate" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
                     </div>
                   )}
                 </div>
@@ -462,16 +472,21 @@ export function ListViewV2({
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
-                    onClick={() => onColumnSort?.('published')}
+                    onClick={() => onSortChange?.('published')}
                   >
                     Published
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('published')}
                   </div>
-                  {onColumnSort && (
+                  {onSortChange && (
                     <div className="flex-shrink-0">
-                      <SortIndicator column="published" />
+                      <SortIndicator 
+                        columnId="published" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
                     </div>
                   )}
                 </div>

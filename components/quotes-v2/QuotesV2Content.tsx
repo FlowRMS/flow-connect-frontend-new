@@ -17,11 +17,13 @@ import { formatDateToISO, formatDateToBackend, parseDateString } from '../advanc
 import { useFilterSync } from '../advancedFilters/hooks/useFilterSync';
 import { useBulkSelection } from '../shared';
 import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
+import { useSortState } from '@/components/shared/sorting/hooks/useSortState';
+import { SortMenu } from '@/components/shared/sorting/components/SortMenu';
+import { QUOTE_SORT_CONFIGS, DEFAULT_QUOTE_SORT } from './config/sortConfig';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
 type QuickDateField = 'createdAt' | 'entityDate';
-type SortOption = 'createdAt' | 'entityDate' | 'total' | 'quoteNumber';
 
 export function QuotesV2Content() {
   const router = useRouter();
@@ -32,36 +34,12 @@ export function QuotesV2Content() {
   const [quickDateField, setQuickDateField] = useState<QuickDateField>('createdAt');
   const [showQuickDateFieldDropdown, setShowQuickDateFieldDropdown] = useState(false);
   const [showSortMenu, setShowSortMenu] = useState(false);
-  const [sortBy, setSortBy] = useState<SortOption>('createdAt');
-  const [sortDirection, setSortDirection] = useState<'ASC' | 'DESC'>('DESC');
   
-  // Column sort state (for table headers)
-  const [columnSort, setColumnSort] = useState<string | null>(null);
-  const [columnSortDirection, setColumnSortDirection] = useState<'ASC' | 'DESC'>('DESC');
-  
-  // Map UI column keys to backend column names
-  const columnToBackendMap: Record<string, string> = useMemo(() => ({
-    quoteNumber: 'quoteNumber',
-    status: 'status',
-    pipelineStage: 'pipelineStage',
-    quoteAmount: 'total',
-    commission: 'commission',
-    entryDate: 'createdAt',
-    quoteDate: 'entityDate',
-    expirationDate: 'expDate',
-    published: 'published',
-    soldToCustomerName: 'soldToCustomerName',
-  }), []);
-  
-  // Handler for column sort
-  const handleColumnSort = useCallback((column: string) => {
-    if (columnSort === column) {
-      setColumnSortDirection(prev => prev === 'ASC' ? 'DESC' : 'ASC');
-    } else {
-      setColumnSort(column);
-      setColumnSortDirection('DESC');
-    }
-  }, [columnSort]);
+  // Unified sort state using the generic hook
+  const sortState = useSortState({
+    configs: QUOTE_SORT_CONFIGS,
+    defaultSort: DEFAULT_QUOTE_SORT,
+  });
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -255,16 +233,10 @@ export function QuotesV2Content() {
     return result;
   }, [quickFilter, quickDateField]);
 
-  // Build order by - use columnSort if set, otherwise use sortBy (from sort menu)
+  // Build order by from unified sort state
   const orderBy = useMemo<QuoteLandingPageOrderBy[]>(() => {
-    if (columnSort) {
-      const backendColumn = columnToBackendMap[columnSort];
-      if (backendColumn) {
-        return [{ columnName: backendColumn, direction: columnSortDirection }];
-      }
-    }
-    return [{ columnName: sortBy, direction: sortDirection }];
-  }, [columnSort, columnSortDirection, columnToBackendMap, sortBy, sortDirection]);
+    return sortState.toOrderBy();
+  }, [sortState]);
 
   // Combine all filters (uses columnFiltersToAPIState which will be updated when columnFiltersToAPI is computed)
   const filters = useMemo<QuoteLandingPageFilter[]>(() => {
@@ -479,16 +451,6 @@ export function QuotesV2Content() {
     router.push('/quotes-v2/new');
   }, [router]);
 
-  const handleSortChange = useCallback((option: SortOption) => {
-    if (sortBy === option) {
-      setSortDirection((prev) => (prev === 'ASC' ? 'DESC' : 'ASC'));
-    } else {
-      setSortBy(option);
-      setSortDirection('DESC');
-    }
-    setShowSortMenu(false);
-  }, [sortBy]);
-
   // Handle stage change from Kanban drag & drop
   const handleStageChange = useCallback(async (quoteId: string, newStage: QuotePipelineStage) => {
     const quote = quotes.find((q) => q.id === quoteId);
@@ -602,69 +564,13 @@ export function QuotesV2Content() {
               />
 
             {/* Sort */}
-            <div className="relative">
-              <button
-                onClick={() => setShowSortMenu(!showSortMenu)}
-                className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 7h4M3 12h8M3 17h12" strokeLinecap="round" />
-                </svg>
-                Sort
-                {sortDirection === 'DESC' ? ' ↓' : ' ↑'}
-              </button>
-              {showSortMenu && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />
-                  <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
-                    <button
-                      onClick={() => handleSortChange('entityDate')}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${sortBy === 'entityDate' ? 'bg-gray-50' : ''}`}
-                    >
-                      Quote Date
-                      {sortBy === 'entityDate' && <span>{sortDirection === 'DESC' ? '↓' : '↑'}</span>}
-                    </button>
-                    <button
-                      onClick={() => handleSortChange('total')}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${sortBy === 'total' ? 'bg-gray-50' : ''}`}
-                    >
-                      Amount
-                      {sortBy === 'total' && <span>{sortDirection === 'DESC' ? '↓' : '↑'}</span>}
-                    </button>
-                    <button
-                      onClick={() => handleSortChange('createdAt')}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${sortBy === 'createdAt' ? 'bg-gray-50' : ''}`}
-                    >
-                      Created Date
-                      {sortBy === 'createdAt' && <span>{sortDirection === 'DESC' ? '↓' : '↑'}</span>}
-                    </button>
-                    <button
-                      onClick={() => handleSortChange('quoteNumber')}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${sortBy === 'quoteNumber' ? 'bg-gray-50' : ''}`}
-                    >
-                      Quote Number
-                      {sortBy === 'quoteNumber' && <span>{sortDirection === 'DESC' ? '↓' : '↑'}</span>}
-                    </button>
-                    {/* Win Probability - Coming Soon */}
-                    <button
-                      disabled
-                      className="w-full text-left px-4 py-2 text-sm text-gray-400 cursor-not-allowed flex items-center justify-between"
-                    >
-                      Win Probability
-                      <span className="text-[10px] bg-gray-100 px-1 py-0.5 rounded uppercase">Soon</span>
-                    </button>
-                    {/* Customer Name - Coming Soon */}
-                    <button
-                      disabled
-                      className="w-full text-left px-4 py-2 text-sm text-gray-400 cursor-not-allowed flex items-center justify-between"
-                    >
-                      Customer Name
-                      <span className="text-[10px] bg-gray-100 px-1 py-0.5 rounded uppercase">Soon</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            <SortMenu
+              options={sortState.getMenuOptions()}
+              activeSort={sortState.activeSort}
+              onSortChange={sortState.toggleSort}
+              isOpen={showSortMenu}
+              onToggle={setShowSortMenu}
+            />
 
             {/* New Quote */}
             <button
@@ -822,9 +728,8 @@ export function QuotesV2Content() {
                   isLoading={isLoading}
                   isFetching={isFetching}
                   hasActiveFilters={hasActiveFilters}
-                  columnSort={columnSort}
-                  columnSortDirection={columnSortDirection}
-                  onColumnSort={handleColumnSort}
+                  activeSort={sortState.activeSort}
+                  onSortChange={sortState.toggleSort}
                 />
 
                 {/* Loading indicator for infinite scroll - list view */}
