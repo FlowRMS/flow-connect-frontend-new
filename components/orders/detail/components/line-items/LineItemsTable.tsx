@@ -397,7 +397,7 @@ export function LineItemsTable({
     if (!item) return;
 
     const quantity = item.quantity || 1;
-    const divisor = product.defaultDivisor || item.divisor || 1;
+    let divisor = product.defaultDivisor || item.divisor || 1;
 
     // Default values from product - this is what we use for new product selection
     let unitPrice = product.unitPrice || 0;
@@ -407,20 +407,36 @@ export function LineItemsTable({
     setDropdownOpen(null);
     setSearchQuery('');
 
-    // Fetch CPN and pricing tiers in parallel (for dropdown, NOT to auto-apply)
+    // Fetch CPN, pricing tiers, and full product details in parallel
     let custPartNumber = '';
+    let uomId: string | undefined;
+    let uomTitle: string | undefined;
+    let manufacturerId: string | undefined;
+    let manufacturerName: string | undefined;
     const soldToCustomerId = order.customerId;
 
     // Track pricing source for UI - default to 'product'
     let pricingSource = 'product';
 
     if (product.id) {
-      const [cpnResult, tiersResult] = await Promise.all([
+      const [cpnResult, tiersResult, fullProduct] = await Promise.all([
         soldToCustomerId
           ? getProductCpnByCustomer(product.id, soldToCustomerId).catch(() => null)
           : Promise.resolve(null),
-        listProductPricingTiers(product.id).catch(() => [])
+        listProductPricingTiers(product.id).catch(() => []),
+        fetchProductById(product.id).catch(() => null)
       ]);
+
+      // Extract factory and UOM from full product details
+      if (fullProduct) {
+        manufacturerId = fullProduct.factory?.id;
+        manufacturerName = fullProduct.factory?.title;
+        uomId = fullProduct.uom?.id;
+        uomTitle = fullProduct.uom?.title;
+        if (fullProduct.uom?.divisionFactor) {
+          divisor = fullProduct.uom.divisionFactor;
+        }
+      }
 
       // Store pricing options for this product (for dropdown)
       const options: PricingOptions = {
@@ -469,6 +485,10 @@ export function LineItemsTable({
           commissionRate: commissionRate,
           extendedPrice: extendedPrice,
           commissionAmount: commissionAmount,
+          manufacturerId: manufacturerId || li.manufacturerId,
+          manufacturerName: manufacturerName || li.manufacturerName,
+          uomId: uomId || li.uomId,
+          uom: uomTitle || li.uom,
         } : li
       );
       onUpdateLineItems(updatedItems);
