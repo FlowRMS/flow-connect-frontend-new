@@ -1124,7 +1124,7 @@ function EntityMatchingContent() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex-1 overflow-auto bg-background">
       <div className="container max-w-7xl mx-auto py-8 px-4 space-y-6 pb-24">
         {/* Breadcrumb */}
         <WorkflowBreadcrumb currentStep="validate" showMapColumns={isFromSpreadsheet} />
@@ -1161,7 +1161,7 @@ function EntityMatchingContent() {
               <Button
                 size="lg"
                 onClick={handleCompleteMatching}
-                disabled={isProcessingWorkflow}
+                disabled={isProcessingWorkflow || factoryEntitiesLoading}
                 className="gap-2 bg-green-600 hover:bg-green-700"
               >
                 {isProcessingWorkflow ? (
@@ -1175,6 +1175,17 @@ function EntityMatchingContent() {
             )}
           </div>
         </div>
+
+        {/* Loading banner when factory entities are being loaded */}
+        {factoryEntitiesLoading && (
+          <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+            <div>
+              <p className="font-medium text-blue-800">Loading additional records...</p>
+              <p className="text-sm text-blue-600">Please wait while we fetch orders, invoices, and other related records.</p>
+            </div>
+          </div>
+        )}
 
         {/* Step Navigation */}
         <EntityStepNavigation
@@ -1336,7 +1347,7 @@ function EntityMatchingContent() {
               else if (currentStep === 'endusers') setCurrentStep('products');
               else if (currentStep === 'products' && allValidated) handleCompleteMatching();
             }}
-            disabled={(currentStep === 'products' && !allValidated) || isProcessingWorkflow}
+            disabled={(currentStep === 'products' && !allValidated) || isProcessingWorkflow || factoryEntitiesLoading}
           >
             {isProcessingWorkflow ? (
               <>
