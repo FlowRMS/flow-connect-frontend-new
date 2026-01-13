@@ -538,8 +538,8 @@ export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: s
     partNumber: detail.productNameAdhoc || detail.product?.factoryPartNumber || '',
     customerPartNumber: '', // CPN is fetched separately via product CPNs API
     description: detail.productDescriptionAdhoc || detail.product?.description || '',
-    manufacturerId: detail.factoryId,
-    manufacturerName: '', // Factory name not available in response - selected via dropdown
+    manufacturerId: detail.factoryId || detail.factory?.id,
+    manufacturerName: detail.factory?.title || '', // Factory name now comes from factory object in response
 
     // Quantity
     quantity,

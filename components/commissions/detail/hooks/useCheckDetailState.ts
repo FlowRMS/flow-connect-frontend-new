@@ -106,7 +106,8 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       creditDeductions: 0,
       netAmount: parseFloat(apiCheck.enteredCommissionAmount || '0'),
       checkBalance: 0,
-      createdBy: apiCheck.createdById || '',
+      createdBy: apiCheck.createdBy?.fullName || apiCheck.createdBy?.username || '',
+      createdAt: apiCheck.createdAt || now,
     };
   }, [apiCheck, isCreateMode]);
 

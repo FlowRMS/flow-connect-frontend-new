@@ -113,6 +113,21 @@ export interface CheckDetail {
   appliedAmount?: string;
 }
 
+export interface CheckCreatedBy {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  inside?: boolean;
+  lastName?: string;
+  role?: string;
+  outside?: boolean;
+  username?: string;
+  visible?: boolean;
+}
+
 export interface Check {
   id: string;
   checkNumber?: string;
@@ -125,6 +140,7 @@ export interface Check {
   factory?: CheckFactory;
   creationType?: CheckCreationType;
   createdById?: string;
+  createdBy?: CheckCreatedBy;
   createdAt?: string;
   url?: string;
   details?: CheckDetail[];
@@ -288,6 +304,20 @@ const CHECK_FIELDS = `
   }
   creationType
   createdById
+  createdBy {
+    id
+    authProviderId
+    email
+    enabled
+    firstName
+    fullName
+    inside
+    lastName
+    role
+    outside
+    username
+    visible
+  }
   createdAt
   url
   details {

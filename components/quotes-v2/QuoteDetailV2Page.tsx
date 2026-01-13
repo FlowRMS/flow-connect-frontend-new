@@ -34,7 +34,7 @@ import {
   useDeleteQuoteV2,
   useDuplicateQuoteV2,
 } from './api/quotesV2Api';
-import { searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer, listProductPricingTiers, getPriceForQuantity } from '../quotes/api/quotesApi';
+import { searchUsers, searchCustomers, getProductCpnByCustomer, listProductPricingTiers, getPriceForQuantity } from '../quotes/api/quotesApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { quoteToasts } from '../lib/toast';
 import { useFlowChat } from '@/contexts/FlowChatContext';
@@ -192,49 +192,31 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       originalJobIdRef.current = transformedQuote.jobId;
       prevJobIdRef.current = transformedQuote.jobId;
 
-      // Transform line items
+      // Transform line items - factory names now come directly from detail.factory object
       if (apiQuote.details) {
         const transformedLineItems = apiQuote.details.map((detail) =>
           transformQuoteDetailToLineItemV2(detail, apiQuote.id)
         );
         setLineItems(transformedLineItems);
 
-        // Collect unique factory and end user IDs to fetch their names
-        const factoryIds = new Set<string>();
+        // When factoryPerLineItem is false, populate header-level factory from first detail's factory
+        // (all details should have the same factory when this setting is off)
+        if (apiQuote.factoryPerLineItem === false && apiQuote.details.length > 0) {
+          const firstDetailWithFactory = apiQuote.details.find(d => d.factory);
+          if (firstDetailWithFactory?.factory) {
+            setQuote(prev => ({
+              ...prev,
+              factoryId: firstDetailWithFactory.factory!.id,
+              factoryName: firstDetailWithFactory.factory!.title || '',
+            }));
+          }
+        }
+
+        // Collect unique end user IDs to fetch their names (factory names come from detail.factory now)
         const endUserIds = new Set<string>();
         transformedLineItems.forEach((li) => {
-          if (li.manufacturerId) factoryIds.add(li.manufacturerId);
           if (li.endUserId) endUserIds.add(li.endUserId);
         });
-
-        // Fetch factory names
-        if (factoryIds.size > 0) {
-          searchFactories('', true)
-            .then((factories) => {
-              const factoryMap = new Map(factories.map((f) => [f.id, f.title]));
-              setLineItems((prev) =>
-                prev.map((li) => ({
-                  ...li,
-                  manufacturerName: li.manufacturerId ? factoryMap.get(li.manufacturerId) || '' : '',
-                }))
-              );
-
-              // When factoryPerLineItem is false, populate header-level factory from first line item
-              // (all line items should have the same factory when this setting is off)
-              if (apiQuote.factoryPerLineItem === false && transformedLineItems.length > 0) {
-                const firstLineItemWithFactory = transformedLineItems.find(li => li.manufacturerId);
-                if (firstLineItemWithFactory?.manufacturerId) {
-                  const factoryName = factoryMap.get(firstLineItemWithFactory.manufacturerId) || '';
-                  setQuote(prev => ({
-                    ...prev,
-                    factoryId: firstLineItemWithFactory.manufacturerId,
-                    factoryName: factoryName,
-                  }));
-                }
-              }
-            })
-            .catch((err) => console.error('Failed to fetch factory names:', err));
-        }
 
         // Fetch end user names
         if (endUserIds.size > 0) {
