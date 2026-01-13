@@ -210,6 +210,39 @@ export const getLineShipStatus = (
   lineItem: OrderLineItem,
   linkedInvoices: Invoice[]
 ): { label: string; color: string } => {
+  // Use the status from the API if available
+  if (lineItem.status) {
+    const status = lineItem.status.toUpperCase();
+    switch (status) {
+      case 'OPEN':
+        return { label: 'Open', color: 'bg-blue-100 text-blue-700' };
+      case 'PARTIAL_SHIPPED':
+      case 'PARTIALLY_SHIPPED':
+      case 'PARTIAL_INVOICED':
+      case 'PARTIALLY_INVOICED':
+        return { label: 'Partial Shipped', color: 'bg-yellow-100 text-yellow-700' };
+      case 'INVOICED':
+      case 'SHIPPED':
+      case 'SHIPPED_COMPLETE':
+      case 'COMPLETE':
+        return { label: 'Shipped Complete', color: 'bg-green-100 text-green-700' };
+      case 'CANCELLED':
+      case 'CANCELED':
+        return { label: 'Cancelled', color: 'bg-red-100 text-red-700' };
+      case 'PARTIAL_CANCELLED':
+      case 'PARTIALLY_CANCELLED':
+        return { label: 'Partial Cancelled', color: 'bg-red-100 text-red-600' };
+      case 'OVER_SHIPPED':
+        return { label: 'Over Shipped', color: 'bg-orange-100 text-orange-700' };
+      case 'OVER_CANCELLED':
+        return { label: 'Over Cancelled', color: 'bg-red-100 text-red-800' };
+      default:
+        // If status is unknown, display it as-is with default styling
+        return { label: status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase()), color: 'bg-blue-100 text-blue-700' };
+    }
+  }
+
+  // Fallback: Calculate status based on invoiced quantity if status field is not available
   const orderQty = lineItem.quantity;
 
   // Calculate invoiced quantity from linked invoices
@@ -228,15 +261,15 @@ export const getLineShipStatus = (
   }
 
   if (invoicedQty === 0 && linkedInvoices.length === 0) {
-    return { label: 'Open', color: 'bg-gray-100 text-gray-700' };
+    return { label: 'Open', color: 'bg-blue-100 text-blue-700' };
   } else if (invoicedQty === 0 && linkedInvoices.length > 0) {
-    return { label: 'Open', color: 'bg-gray-100 text-gray-700' };
+    return { label: 'Open', color: 'bg-blue-100 text-blue-700' };
   } else if (invoicedQty < orderQty) {
-    return { label: 'Partial Invoiced', color: 'bg-yellow-100 text-yellow-700' };
+    return { label: 'Partial Shipped', color: 'bg-yellow-100 text-yellow-700' };
   } else if (invoicedQty >= orderQty) {
-    return { label: 'Invoiced', color: 'bg-green-100 text-green-700' };
+    return { label: 'Shipped Complete', color: 'bg-green-100 text-green-700' };
   } else {
-    return { label: 'Open', color: 'bg-gray-100 text-gray-700' };
+    return { label: 'Open', color: 'bg-blue-100 text-blue-700' };
   }
 };
 

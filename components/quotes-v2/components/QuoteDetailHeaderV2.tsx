@@ -1,12 +1,53 @@
 'use client';
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2 } from '../types';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2, QuoteV2Status } from '../types';
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
 import { useCustomerSearch, useUserSearch, useJobSearch, useFactorySearch } from '../../quotes/api/useQuotesApi';
 import { searchUsers } from '../../quotes/api/quotesApi';
+import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
+import { PDFBuilder } from '@/components/shared/pdf-builder';
+
+// Quote status options using API enum values
+const quoteStatusOptions: QuoteV2Status[] = [
+  'OPEN',
+  'ORDERED',
+  'EXPIRED',
+  'LOST',
+];
+
+// Format quote status for display
+function formatQuoteStatus(status: QuoteV2Status): string {
+  switch (status) {
+    case 'OPEN':
+      return 'Open';
+    case 'ORDERED':
+      return 'Ordered';
+    case 'EXPIRED':
+      return 'Expired';
+    case 'LOST':
+      return 'Lost';
+    default:
+      return status;
+  }
+}
+
+function getQuoteStatusBadgeClass(status?: QuoteV2Status): string {
+  switch (status) {
+    case 'OPEN':
+      return 'bg-blue-500';
+    case 'ORDERED':
+      return 'bg-green-500';
+    case 'EXPIRED':
+      return 'bg-gray-500';
+    case 'LOST':
+      return 'bg-red-500';
+    default:
+      return 'bg-blue-500';
+  }
+}
 
 interface QuoteDetailHeaderV2Props {
   quote: QuoteV2;
@@ -21,9 +62,14 @@ interface QuoteDetailHeaderV2Props {
   lineItems?: LineItemV2[];
   settings?: QuoteSettingsV2;
   onClearLineItemProducts?: () => void;
+  // Callbacks for auto-populating reps at line item level
+  onAutoPopulateOutsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
+  onAutoPopulateInsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
+  // Callback for auto-populating inside reps per line item using each line's manufacturer
+  onAutoPopulateInsideRepsPerLineItemFactory?: () => void;
 }
 
-// Pipeline stage options using API enum values
+// Pipeline stage options - kept for potential future use
 const pipelineStageOptions: QuotePipelineStage[] = [
   'DISCOVERY',
   'PROSPECT',
@@ -94,15 +140,26 @@ export function QuoteDetailHeaderV2({
   lineItems = [],
   settings,
   onClearLineItemProducts,
+  onAutoPopulateOutsideRepsToLineItems,
+  onAutoPopulateInsideRepsToLineItems,
+  onAutoPopulateInsideRepsPerLineItemFactory,
 }: QuoteDetailHeaderV2Props) {
+  // Auto-populate reps hook
+  const {
+    fetchOutsideRepsFromCustomer,
+    fetchInsideRepsFromFactory,
+  } = useAutoPopulateReps();
+
   const [showActionsMenu, setShowActionsMenu] = useState(false);
-  const [showStageMenu, setShowStageMenu] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [showPipelineStageMenu, setShowPipelineStageMenu] = useState(false);
   const [showVersionMenu, setShowVersionMenu] = useState(false);
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [viewMode, setViewMode] = useState<'simple' | 'overage'>('simple');
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
   const [showQuoteDetails, setShowQuoteDetails] = useState(true);
+  const [showPDFBuilder, setShowPDFBuilder] = useState(false);
 
   // Customer search state
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
@@ -114,6 +171,9 @@ export function QuoteDetailHeaderV2({
 
   // End user same as sold to
   const [endUserSameAsSoldTo, setEndUserSameAsSoldTo] = useState(false);
+
+  // Bill to same as sold to
+  const [billToSameAsSoldTo, setBillToSameAsSoldTo] = useState(false);
 
   // User search state
   const [insideRepSearchTerm, setInsideRepSearchTerm] = useState('');
@@ -169,6 +229,10 @@ export function QuoteDetailHeaderV2({
   const [outsideSplitRepSearchTerm, setOutsideSplitRepSearchTerm] = useState('');
   const [outsideSplitRepSearchEnabled, setOutsideSplitRepSearchEnabled] = useState(false);
 
+  // Ref to skip useEffect when auto-populating reps (prevents race condition)
+  const skipOutsideRepsEffectRef = useRef(false);
+  const skipInsideRepsEffectRef = useRef(false);
+
   // Sync split commission state when quote.insideReps changes
   useEffect(() => {
     const hasMultipleInsideReps = (quote.insideReps?.length || 0) > 1;
@@ -176,33 +240,53 @@ export function QuoteDetailHeaderV2({
 
     // Initialize insideSplitReps from quote data
     if (quote.insideReps && quote.insideReps.length > 0) {
-      // Fetch user names for all reps
+      // Check if we already have the reps with names in our state (from auto-populate)
+      // by comparing userIds - if they match, keep existing names
+      setInsideSplitReps((currentReps) => {
+        const currentUserIds = new Set(currentReps.map(r => r.userId));
+        const newUserIds = new Set(quote.insideReps!.map(r => r.userId || ''));
+        const allMatch = quote.insideReps!.every(r => currentUserIds.has(r.userId || '')) &&
+                         currentReps.every(r => newUserIds.has(r.userId)) &&
+                         currentReps.length === quote.insideReps!.length;
+
+        // If userIds match, preserve existing names (already populated from auto-populate)
+        if (allMatch && currentReps.some(r => r.userName)) {
+          return currentReps.map((rep, idx) => ({
+            ...rep,
+            splitRate: quote.insideReps![idx]?.splitRate || rep.splitRate,
+            position: quote.insideReps![idx]?.position || rep.position || idx + 1,
+          }));
+        }
+
+        // Otherwise, need to fetch names - return placeholder and trigger async fetch
+        return quote.insideReps!.map((rep, idx) => ({
+          id: rep.id || crypto.randomUUID(),
+          userId: rep.userId || '',
+          userName: '', // Will be populated by async fetch below
+          splitRate: rep.splitRate || '100',
+          position: rep.position || idx + 1,
+        }));
+      });
+
+      // Fetch user names for all inside reps (only if we don't have names)
       searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
         .then((users) => {
-          const repsWithNames = quote.insideReps!.map((rep, idx) => {
-            const matchingUser = users.find((u) => u.id === rep.userId);
-            return {
-              id: rep.id || crypto.randomUUID(),
-              userId: rep.userId || '',
-              userName: matchingUser?.fullName || '',
-              splitRate: rep.splitRate || '100',
-              position: rep.position || idx + 1,
-            };
+          setInsideSplitReps((currentReps) => {
+            // Only update if we still don't have names
+            if (currentReps.some(r => r.userName)) {
+              return currentReps;
+            }
+            return currentReps.map((rep, idx) => {
+              const matchingUser = users.find((u) => u.id === rep.userId);
+              return {
+                ...rep,
+                userName: matchingUser?.fullName || '',
+              };
+            });
           });
-          setInsideSplitReps(repsWithNames);
         })
         .catch((err) => {
           console.error('Failed to fetch inside rep names:', err);
-          // Still set reps without names
-          setInsideSplitReps(
-            quote.insideReps!.map((rep, idx) => ({
-              id: rep.id || crypto.randomUUID(),
-              userId: rep.userId || '',
-              userName: '',
-              splitRate: rep.splitRate || '100',
-              position: rep.position || idx + 1,
-            }))
-          );
         });
     } else {
       setInsideSplitReps([]);
@@ -211,37 +295,64 @@ export function QuoteDetailHeaderV2({
 
   // Sync outside reps state when quote.outsideReps changes
   useEffect(() => {
+    // Skip this effect if we just auto-populated (prevents race condition)
+    if (skipOutsideRepsEffectRef.current) {
+      skipOutsideRepsEffectRef.current = false;
+      return;
+    }
+
     const hasMultipleOutsideReps = (quote.outsideReps?.length || 0) > 1;
     setShowOutsideSplitCommission(hasMultipleOutsideReps);
 
     // Initialize outsideSplitReps from quote data
     if (quote.outsideReps && quote.outsideReps.length > 0) {
-      // Fetch user names for all outside reps
+      // Check if we already have the reps with names in our state (from auto-populate)
+      // by comparing userIds - if they match, keep existing names
+      setOutsideSplitReps((currentReps) => {
+        const currentUserIds = new Set(currentReps.map(r => r.userId));
+        const newUserIds = new Set(quote.outsideReps!.map(r => r.userId || ''));
+        const allMatch = quote.outsideReps!.every(r => currentUserIds.has(r.userId || '')) &&
+                         currentReps.every(r => newUserIds.has(r.userId)) &&
+                         currentReps.length === quote.outsideReps!.length;
+
+        // If userIds match, preserve existing names (already populated from auto-populate)
+        if (allMatch && currentReps.some(r => r.userName)) {
+          return currentReps.map((rep, idx) => ({
+            ...rep,
+            splitRate: quote.outsideReps![idx]?.splitRate || rep.splitRate,
+            position: quote.outsideReps![idx]?.position || rep.position || idx + 1,
+          }));
+        }
+
+        // Otherwise, need to fetch names - return placeholder and trigger async fetch
+        return quote.outsideReps!.map((rep, idx) => ({
+          id: rep.id || crypto.randomUUID(),
+          userId: rep.userId || '',
+          userName: '', // Will be populated by async fetch below
+          splitRate: rep.splitRate || '100',
+          position: rep.position || idx + 1,
+        }));
+      });
+
+      // Fetch user names for all outside reps (only if we don't have names)
       searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
         .then((users) => {
-          const repsWithNames = quote.outsideReps!.map((rep, idx) => {
-            const matchingUser = users.find((u) => u.id === rep.userId);
-            return {
-              id: rep.id || crypto.randomUUID(),
-              userId: rep.userId || '',
-              userName: matchingUser?.fullName || '',
-              splitRate: rep.splitRate || '100',
-              position: rep.position || idx + 1,
-            };
+          setOutsideSplitReps((currentReps) => {
+            // Only update if we still don't have names
+            if (currentReps.some(r => r.userName)) {
+              return currentReps;
+            }
+            return currentReps.map((rep, idx) => {
+              const matchingUser = users.find((u) => u.id === rep.userId);
+              return {
+                ...rep,
+                userName: matchingUser?.fullName || '',
+              };
+            });
           });
-          setOutsideSplitReps(repsWithNames);
         })
         .catch((err) => {
           console.error('Failed to fetch outside rep names:', err);
-          setOutsideSplitReps(
-            quote.outsideReps!.map((rep, idx) => ({
-              id: rep.id || crypto.randomUUID(),
-              userId: rep.userId || '',
-              userName: '',
-              splitRate: rep.splitRate || '100',
-              position: rep.position || idx + 1,
-            }))
-          );
         });
     } else {
       setOutsideSplitReps([]);
@@ -338,12 +449,65 @@ export function QuoteDetailHeaderV2({
   }, []);
 
   // Handle end user same as sold to checkbox
-  const handleEndUserSameAsSoldTo = useCallback((checked: boolean) => {
+  const handleEndUserSameAsSoldTo = useCallback(async (checked: boolean) => {
     setEndUserSameAsSoldTo(checked);
     if (checked && quote.soldToCustomerId) {
       onQuoteChange({
         endUserId: quote.soldToCustomerId,
         endUserName: quote.soldToCustomerName,
+      });
+      // Auto-populate outside reps from end user (which is same as sold to)
+      const reps = await fetchOutsideRepsFromCustomer(quote.soldToCustomerId);
+      if (reps.length > 0) {
+        if (settings?.outsideRepAtLineLevel) {
+          // Per line item mode - populate all line items
+          onAutoPopulateOutsideRepsToLineItems?.(reps);
+        } else {
+          // Header level mode - populate header fields
+          const primaryRep = reps[0];
+          if (reps.length > 1) {
+            // Multiple reps - set up split commission
+            setShowOutsideSplitCommission(true);
+            setOutsideSplitReps(reps.map((r, idx) => ({
+              id: r.id,
+              userId: r.userId,
+              userName: r.userName,
+              splitRate: r.splitRate,
+              position: idx + 1,
+            })));
+            skipOutsideRepsEffectRef.current = true;
+            onQuoteChange({
+              outsideRepId: primaryRep.userId,
+              outsideRepName: primaryRep.userName,
+              outsideReps: reps.map((r, idx) => ({
+                id: '',
+                userId: r.userId,
+                splitRate: r.splitRate,
+                position: idx + 1,
+              })),
+            });
+          } else {
+            // Single rep
+            setShowOutsideSplitCommission(false);
+            setOutsideSplitReps([]);
+            onQuoteChange({
+              outsideRepId: primaryRep.userId,
+              outsideRepName: primaryRep.userName,
+              outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
+            });
+          }
+        }
+      }
+    }
+  }, [quote.soldToCustomerId, quote.soldToCustomerName, onQuoteChange, fetchOutsideRepsFromCustomer, settings?.outsideRepAtLineLevel, onAutoPopulateOutsideRepsToLineItems]);
+
+  // Handle bill to same as sold to checkbox
+  const handleBillToSameAsSoldTo = useCallback((checked: boolean) => {
+    setBillToSameAsSoldTo(checked);
+    if (checked && quote.soldToCustomerId) {
+      onQuoteChange({
+        billToCustomerId: quote.soldToCustomerId,
+        billToCustomerName: quote.soldToCustomerName,
       });
     }
   }, [quote.soldToCustomerId, quote.soldToCustomerName, onQuoteChange]);
@@ -352,7 +516,7 @@ export function QuoteDetailHeaderV2({
   const addRepToSplit = useCallback((rep: { id: string; fullName?: string; firstName?: string; lastName?: string }, isInside: boolean) => {
     const repName = rep.fullName || `${rep.firstName} ${rep.lastName}`;
     const newRep: CommissionSplitRep = {
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.id,
       userName: repName,
       splitRate: '0',
@@ -488,7 +652,7 @@ export function QuoteDetailHeaderV2({
   return (
     <div className="flex-shrink-0">
       {/* Top Header Row */}
-      <div className="flex items-center justify-between py-4 px-6 border-b border-gray-200">
+      <div className="flex items-center justify-between pt-6 pb-4 px-6 border-b border-gray-200">
         <div className="flex items-center gap-4">
           {/* Back Button */}
           <button
@@ -592,10 +756,49 @@ export function QuoteDetailHeaderV2({
             )}
           </div>
 
+          {/* Status Dropdown */}
+          <div className="relative">
+            <span className="absolute -top-5 left-0 text-[10px] text-gray-500 uppercase tracking-wide">Status</span>
+            <button
+              onClick={() => setShowStatusMenu(!showStatusMenu)}
+              className={`flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg transition-colors ${getQuoteStatusBadgeClass(quote.status)}`}
+            >
+              {formatQuoteStatus(quote.status || 'OPEN')}
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+              </svg>
+            </button>
+            {showStatusMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
+                <div className="absolute top-full right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+                  {quoteStatusOptions.map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => {
+                        onQuoteChange({ status: status });
+                        setShowStatusMenu(false);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${quote.status === status ? 'bg-gray-50' : ''}`}
+                    >
+                      <span>{formatQuoteStatus(status)}</span>
+                      {quote.status === status && (
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" className="text-indigo-600">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Pipeline Stage Dropdown */}
           <div className="relative">
+            <span className="absolute -top-5 left-0 text-[10px] text-gray-500 uppercase tracking-wide whitespace-nowrap">Pipeline Stage</span>
             <button
-              onClick={() => setShowStageMenu(!showStageMenu)}
+              onClick={() => setShowPipelineStageMenu(!showPipelineStageMenu)}
               className={`flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg transition-colors ${getPipelineStageBadgeClass(quote.pipelineStage)}`}
             >
               {formatPipelineStage(quote.pipelineStage || 'DISCOVERY')}
@@ -603,16 +806,16 @@ export function QuoteDetailHeaderV2({
                 <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
               </svg>
             </button>
-            {showStageMenu && (
+            {showPipelineStageMenu && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowStageMenu(false)} />
+                <div className="fixed inset-0 z-10" onClick={() => setShowPipelineStageMenu(false)} />
                 <div className="absolute top-full right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
                   {pipelineStageOptions.map((stage) => (
                     <button
                       key={stage}
                       onClick={() => {
                         onQuoteChange({ pipelineStage: stage });
-                        setShowStageMenu(false);
+                        setShowPipelineStageMenu(false);
                       }}
                       className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${quote.pipelineStage === stage ? 'bg-gray-50' : ''}`}
                     >
@@ -655,17 +858,22 @@ export function QuoteDetailHeaderV2({
             </button>
           </div>
 
-          {/* PDF Button - Coming Soon */}
+          {/* PDF Button */}
           <button
-            disabled
-            className="flex items-center gap-1 px-4 py-1.5 text-sm text-gray-400 bg-gray-100 cursor-not-allowed rounded-lg"
+            onClick={() => setShowPDFBuilder(true)}
+            disabled={isNew || !quote.id}
+            className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-lg transition-colors ${
+              isNew || !quote.id
+                ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                : 'text-white bg-red-600 hover:bg-red-700'
+            }`}
           >
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="14" height="14" rx="2" />
-              <path d="M7 7h6M7 10h6M7 13h4" strokeLinecap="round" />
+              <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M14 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round"/>
             </svg>
             PDF
-            <ComingSoonBadge inline />
           </button>
 
           {/* Save Button with Dropdown */}
@@ -768,8 +976,8 @@ export function QuoteDetailHeaderV2({
         {showQuoteDetails && (
         <div className="px-6 pb-4">
 
-        {/* Row 1 */}
-        <div className="grid grid-cols-8 gap-4 mb-4">
+        {/* Row 1: Quote Number, Manufacturer, Quote Date, Expiration Date, Sold To Customer, End User, Outside Rep */}
+        <div className="grid grid-cols-7 gap-4 mb-4">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Quote Number*</label>
             <input
@@ -781,46 +989,162 @@ export function QuoteDetailHeaderV2({
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1 flex items-center gap-1">
-              Quote Type
-              <span className="text-[10px] bg-gray-100 text-gray-400 px-1 py-0.5 rounded uppercase">Soon</span>
-            </label>
-            <select
-              disabled
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-400 cursor-not-allowed"
-            >
-              <option>Standard</option>
-              <option>Blanket</option>
-              <option>RFQ</option>
-            </select>
+            <label className="block text-xs text-gray-500 mb-1">Manufacturer</label>
+            {settings?.factoryPerLineItem ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  value="Per line item"
+                  disabled
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-100 text-gray-400 cursor-not-allowed"
+                />
+              </div>
+            ) : (
+              <SearchableDropdownV2
+                value={quote.factoryId || ''}
+                displayValue={quote.factoryName || ''}
+                placeholder="Select manufacturer..."
+                isLoading={isFactoriesLoading}
+                options={factoryOptions}
+                onSearch={handleFactorySearch}
+                onChange={async (id, label) => {
+                  // If manufacturer changed and there are line items with products, clear them
+                  const manufacturerChanged = id !== quote.factoryId;
+                  if (manufacturerChanged && onClearLineItemProducts) {
+                    onClearLineItemProducts();
+                  }
+                  onQuoteChange({ factoryId: id || undefined, factoryName: label });
+                  setFactorySearchEnabled(false);
+
+                  // Auto-populate inside reps from factory
+                  if (id) {
+                    const reps = await fetchInsideRepsFromFactory(id);
+                    if (reps.length > 0) {
+                      if (settings?.insideRepAtLineLevel) {
+                        // Per line item mode - populate all line items with same reps
+                        onAutoPopulateInsideRepsToLineItems?.(reps);
+                      } else {
+                        // Header level mode - populate header fields
+                        const primaryRep = reps[0];
+                        if (reps.length > 1) {
+                          // Multiple reps - set up split commission
+                          setShowInsideSplitCommission(true);
+                          setInsideSplitReps(reps.map((r, idx) => ({
+                            id: r.id,
+                            userId: r.userId,
+                            userName: r.userName,
+                            splitRate: r.splitRate,
+                            position: idx + 1,
+                          })));
+                          onQuoteChange({
+                            insideRepId: primaryRep.userId,
+                            insideRepName: primaryRep.userName,
+                            insideReps: reps.map((r, idx) => ({
+                              id: '',
+                              userId: r.userId,
+                              splitRate: r.splitRate,
+                              position: idx + 1,
+                            })),
+                          });
+                        } else {
+                          // Single rep
+                          setShowInsideSplitCommission(false);
+                          setInsideSplitReps([]);
+                          onQuoteChange({
+                            insideRepId: primaryRep.userId,
+                            insideRepName: primaryRep.userName,
+                            insideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
+                          });
+                        }
+                      }
+                    }
+                  }
+                }}
+              />
+            )}
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Quote Date*</label>
+            <input
+              type="date"
+              value={formatDateForInput(quote.quoteDate)}
+              onChange={(e) => handleDateChange('quoteDate', e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Expiration Date</label>
+            <input
+              type="date"
+              value={formatDateForInput(quote.expirationDate)}
+              onChange={(e) => handleDateChange('expirationDate', e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Sold To Customer*</label>
             <SearchableDropdownV2
               value={quote.soldToCustomerId}
               displayValue={quote.soldToCustomerName}
-              onChange={(id, label) => {
+              onChange={async (id, label) => {
                 onQuoteChange({ soldToCustomerId: id, soldToCustomerName: label });
-                // If "Same as sold to" is checked, update end user too
+                // If "Same as sold to" is checked, update end user too and auto-populate outside reps
                 if (endUserSameAsSoldTo) {
                   onQuoteChange({ endUserId: id, endUserName: label });
+                  // Auto-populate outside reps from end user (which is same as sold to in this case)
+                  if (id) {
+                    const reps = await fetchOutsideRepsFromCustomer(id);
+                    if (reps.length > 0) {
+                      if (settings?.outsideRepAtLineLevel) {
+                        // Per line item mode - populate all line items
+                        onAutoPopulateOutsideRepsToLineItems?.(reps);
+                      } else {
+                        // Header level mode - populate header fields
+                        const primaryRep = reps[0];
+                        if (reps.length > 1) {
+                          // Multiple reps - set up split commission
+                          setShowOutsideSplitCommission(true);
+                          setOutsideSplitReps(reps.map((r, idx) => ({
+                            id: r.id,
+                            userId: r.userId,
+                            userName: r.userName,
+                            splitRate: r.splitRate,
+                            position: idx + 1,
+                          })));
+                          // Skip the useEffect to prevent it from overwriting our reps with names
+                          skipOutsideRepsEffectRef.current = true;
+                          onQuoteChange({
+                            outsideRepId: primaryRep.userId,
+                            outsideRepName: primaryRep.userName,
+                            outsideReps: reps.map((r, idx) => ({
+                              id: '',
+                              userId: r.userId,
+                              splitRate: r.splitRate,
+                              position: idx + 1,
+                            })),
+                          });
+                        } else {
+                          // Single rep
+                          setShowOutsideSplitCommission(false);
+                          setOutsideSplitReps([]);
+                          onQuoteChange({
+                            outsideRepId: primaryRep.userId,
+                            outsideRepName: primaryRep.userName,
+                            outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
+                          });
+                        }
+                      }
+                    }
+                  }
+                }
+                // If "Same as sold to" is checked for bill to, update bill to too
+                if (billToSameAsSoldTo) {
+                  onQuoteChange({ billToCustomerId: id, billToCustomerName: label });
                 }
               }}
               options={soldToOptions}
               onSearch={handleSoldToSearch}
               isLoading={isSoldToLoading}
-              placeholder="Search customers..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Bill To Customer</label>
-            <SearchableDropdownV2
-              value={quote.billToCustomerId}
-              displayValue={quote.billToCustomerName}
-              onChange={(id, label) => onQuoteChange({ billToCustomerId: id, billToCustomerName: label })}
-              options={billToOptions}
-              onSearch={handleBillToSearch}
-              isLoading={isBillToLoading}
               placeholder="Search customers..."
             />
           </div>
@@ -841,7 +1165,54 @@ export function QuoteDetailHeaderV2({
                 <SearchableDropdownV2
                   value={quote.endUserId || ''}
                   displayValue={quote.endUserName || ''}
-                  onChange={(id, label) => onQuoteChange({ endUserId: id, endUserName: label })}
+                  onChange={async (id, label) => {
+                    onQuoteChange({ endUserId: id, endUserName: label });
+                    // Auto-populate outside reps from end user
+                    if (id) {
+                      const reps = await fetchOutsideRepsFromCustomer(id);
+                      if (reps.length > 0) {
+                        if (settings?.outsideRepAtLineLevel) {
+                          // Per line item mode - populate all line items
+                          onAutoPopulateOutsideRepsToLineItems?.(reps);
+                        } else {
+                          // Header level mode - populate header fields
+                          const primaryRep = reps[0];
+                          if (reps.length > 1) {
+                            // Multiple reps - set up split commission
+                            setShowOutsideSplitCommission(true);
+                            setOutsideSplitReps(reps.map((r, idx) => ({
+                              id: r.id,
+                              userId: r.userId,
+                              userName: r.userName,
+                              splitRate: r.splitRate,
+                              position: idx + 1,
+                            })));
+                            // Skip the useEffect to prevent it from overwriting our reps with names
+                            skipOutsideRepsEffectRef.current = true;
+                            onQuoteChange({
+                              outsideRepId: primaryRep.userId,
+                              outsideRepName: primaryRep.userName,
+                              outsideReps: reps.map((r, idx) => ({
+                                id: '',
+                                userId: r.userId,
+                                splitRate: r.splitRate,
+                                position: idx + 1,
+                              })),
+                            });
+                          } else {
+                            // Single rep
+                            setShowOutsideSplitCommission(false);
+                            setOutsideSplitReps([]);
+                            onQuoteChange({
+                              outsideRepId: primaryRep.userId,
+                              outsideRepName: primaryRep.userName,
+                              outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
+                            });
+                          }
+                        }
+                      }
+                    }
+                  }}
                   options={endUserOptions}
                   onSearch={handleEndUserSearch}
                   isLoading={isEndUserLoading}
@@ -859,86 +1230,6 @@ export function QuoteDetailHeaderV2({
                 </label>
               </>
             )}
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Job</label>
-            <SearchableDropdownV2
-              value={quote.jobId || ''}
-              displayValue={quote.jobName || ''}
-              placeholder="Search jobs..."
-              isLoading={isJobsLoading}
-              options={(jobs || []).map((job) => ({
-                id: job.id,
-                label: job.jobName,
-                sublabel: job.jobType ? `${job.jobType}${job.status?.name ? ` • ${job.status.name}` : ''}` : job.status?.name,
-              }))}
-              onSearch={(term) => {
-                setJobSearchTerm(term);
-                setJobSearchEnabled(true);
-              }}
-              onChange={(id, label) => {
-                onQuoteChange({ jobId: id || undefined, jobName: label });
-                setJobSearchEnabled(false);
-              }}
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Payment Terms</label>
-            <input
-              type="text"
-              value={quote.paymentTerms}
-              onChange={(e) => onQuoteChange({ paymentTerms: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Freight Terms</label>
-            <input
-              type="text"
-              value={quote.freightTerms}
-              onChange={(e) => onQuoteChange({ freightTerms: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-        </div>
-
-        {/* Row 2 */}
-        <div className="grid grid-cols-7 gap-4 mb-4">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Quote Date*</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.quoteDate)}
-              onChange={(e) => handleDateChange('quoteDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Expiration Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.expirationDate)}
-              onChange={(e) => handleDateChange('expirationDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Revised Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.revisedDate || '')}
-              onChange={(e) => handleDateChange('revisedDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Accept Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.acceptDate || '')}
-              onChange={(e) => handleDateChange('acceptDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Outside Rep</label>
@@ -1005,7 +1296,7 @@ export function QuoteDetailHeaderV2({
                           // Initialize with current rep if no split reps exist
                           if (outsideSplitReps.length === 0) {
                             setOutsideSplitReps([{
-                              id: crypto.randomUUID(),
+                              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                               userId: quote.outsideRepId || '',
                               userName: quote.outsideRepName || '',
                               splitRate: '100',
@@ -1023,6 +1314,104 @@ export function QuoteDetailHeaderV2({
                 )}
               </>
             )}
+          </div>
+        </div>
+
+        {/* Row 2: Quote Type, Bill To, Job, Payment Terms, Freight Terms, Revised Date, Accept Date, Inside Rep */}
+        <div className="grid grid-cols-8 gap-4 mb-4">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1 flex items-center gap-1">
+              Quote Type
+              <span className="text-[10px] bg-gray-100 text-gray-400 px-1 py-0.5 rounded uppercase">Soon</span>
+            </label>
+            <select
+              disabled
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-400 cursor-not-allowed"
+            >
+              <option>Standard</option>
+              <option>Blanket</option>
+              <option>RFQ</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Bill To Customer</label>
+            <SearchableDropdownV2
+              value={quote.billToCustomerId}
+              displayValue={quote.billToCustomerName}
+              onChange={(id, label) => onQuoteChange({ billToCustomerId: id, billToCustomerName: label })}
+              options={billToOptions}
+              onSearch={handleBillToSearch}
+              isLoading={isBillToLoading}
+              placeholder="Search customers..."
+              disabled={billToSameAsSoldTo}
+            />
+            <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={billToSameAsSoldTo}
+                onChange={(e) => handleBillToSameAsSoldTo(e.target.checked)}
+                className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              />
+              <span className="text-xs text-gray-500">Same as sold to</span>
+            </label>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Job</label>
+            <SearchableDropdownV2
+              value={quote.jobId || ''}
+              displayValue={quote.jobName || ''}
+              placeholder="Search jobs..."
+              isLoading={isJobsLoading}
+              options={(jobs || []).map((job) => ({
+                id: job.id,
+                label: job.jobName,
+                sublabel: job.jobType ? `${job.jobType}${job.status?.name ? ` • ${job.status.name}` : ''}` : job.status?.name,
+              }))}
+              onSearch={(term) => {
+                setJobSearchTerm(term);
+                setJobSearchEnabled(true);
+              }}
+              onChange={(id, label) => {
+                onQuoteChange({ jobId: id || undefined, jobName: label });
+                setJobSearchEnabled(false);
+              }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Payment Terms</label>
+            <input
+              type="text"
+              value={quote.paymentTerms}
+              onChange={(e) => onQuoteChange({ paymentTerms: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Freight Terms</label>
+            <input
+              type="text"
+              value={quote.freightTerms}
+              onChange={(e) => onQuoteChange({ freightTerms: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Revised Date</label>
+            <input
+              type="date"
+              value={formatDateForInput(quote.revisedDate || '')}
+              onChange={(e) => handleDateChange('revisedDate', e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Accept Date</label>
+            <input
+              type="date"
+              value={formatDateForInput(quote.acceptDate || '')}
+              onChange={(e) => handleDateChange('acceptDate', e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Inside Rep</label>
@@ -1088,7 +1477,7 @@ export function QuoteDetailHeaderV2({
                           // Initialize with current rep if no split reps exist
                           if (insideSplitReps.length === 0) {
                             setInsideSplitReps([{
-                              id: crypto.randomUUID(),
+                              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                               userId: quote.insideRepId || '',
                               userName: quote.insideRepName || '',
                               splitRate: '100',
@@ -1107,53 +1496,9 @@ export function QuoteDetailHeaderV2({
               </>
             )}
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Customer Ref</label>
-            <input
-              type="text"
-              value={quote.customerRef || ''}
-              onChange={(e) => onQuoteChange({ customerRef: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
         </div>
 
-        {/* Row 3 - Manufacturer (header-level) */}
-        <div className="grid grid-cols-7 gap-4 mb-4">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Manufacturer</label>
-            {settings?.factoryPerLineItem ? (
-              <div className="relative">
-                <input
-                  type="text"
-                  value="Per line item"
-                  disabled
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-100 text-gray-400 cursor-not-allowed"
-                />
-              </div>
-            ) : (
-              <SearchableDropdownV2
-                value={quote.factoryId || ''}
-                displayValue={quote.factoryName || ''}
-                placeholder="Select manufacturer..."
-                isLoading={isFactoriesLoading}
-                options={factoryOptions}
-                onSearch={handleFactorySearch}
-                onChange={(id, label) => {
-                  // If manufacturer changed and there are line items with products, clear them
-                  const manufacturerChanged = id !== quote.factoryId;
-                  if (manufacturerChanged && onClearLineItemProducts) {
-                    onClearLineItemProducts();
-                  }
-                  onQuoteChange({ factoryId: id || undefined, factoryName: label });
-                  setFactorySearchEnabled(false);
-                }}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Row 4 - Published and Blanket Checkboxes */}
+        {/* Row 3 - Published and Blanket Checkboxes */}
         <div className="flex items-center gap-6 mt-4">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -1421,6 +1766,14 @@ export function QuoteDetailHeaderV2({
         factoryName={lineItems[0]?.manufacturerName}
         lineItems={lineItems}
         onClose={() => setShowCreateOrderModal(false)}
+      />
+
+      {/* PDF Builder */}
+      <PDFBuilder
+        entityId={quote.id}
+        entityType="QUOTES"
+        isOpen={showPDFBuilder}
+        onClose={() => setShowPDFBuilder(false)}
       />
     </div>
   );

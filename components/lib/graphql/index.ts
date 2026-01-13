@@ -384,3 +384,50 @@ export {
   type UpdateAcknowledgementInput,
   type FindAcknowledgementsLandingPagesResponse,
 } from './acknowledgements';
+
+// Organization module
+export {
+  fetchOrganization,
+  createOrganization,
+  updateOrganization,
+  type Organization,
+  type OrganizationInput,
+} from './organization';
+
+// PDF Entities module
+export {
+  fetchPreOpportunityForPDF,
+  fetchQuoteForPDF,
+  fetchOrderForPDF,
+  fetchInvoiceForPDF,
+  fetchCheckForPDF,
+  fetchEntityForPDF,
+  type PDFEntityType,
+  type PDFEntityData,
+  type PDFPreOpportunity,
+  type PDFQuote,
+  type PDFOrder,
+  type PDFInvoice,
+  type PDFCheck,
+  type PDFPreOpportunityDetail,
+  type PDFQuoteDetail,
+  type PDFOrderDetail,
+  type PDFInvoiceDetail,
+  type PDFCheckDetail,
+  type PDFBalance,
+  type PDFUser,
+  type PDFCustomer,
+  type PDFFactory,
+  type PDFProduct,
+  type PDFJob,
+  type PDFSplitRate,
+  type PDFUom,
+} from './pdf-entities';
+
+// Bulk Operations module
+export {
+  bulkDelete,
+  type BulkDeleteEntityType,
+  type BulkDeleteResult,
+  type BulkDeleteFailure,
+} from './bulk-operations';

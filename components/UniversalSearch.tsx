@@ -41,7 +41,7 @@ const RESULT_TYPE_CONFIG: Record<string, {
         <path d="M9 6h2M9 10h2M9 14h2M13 6h2M13 10h2"/>
       </svg>
     ),
-    href: (id) => `/companies?id=${id}`,
+    href: (id) => `/companies/${id}/edit`,
   },
   CONTACT: {
     color: 'text-green-700',
@@ -67,7 +67,7 @@ const RESULT_TYPE_CONFIG: Record<string, {
         <path d="M16 3.13a4 4 0 010 7.75"/>
       </svg>
     ),
-    href: (id) => `/customers?id=${id}`,
+    href: (id) => `/customers/${id}/edit`,
   },
   PRE_OPPORTUNITY: {
     color: 'text-amber-700',
@@ -91,7 +91,7 @@ const RESULT_TYPE_CONFIG: Record<string, {
         <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
       </svg>
     ),
-    href: (id) => `/quotes?id=${id}`,
+    href: (id) => `/quotes/${id}`,
   },
   ORDER: {
     color: 'text-indigo-700',
@@ -153,7 +153,7 @@ const RESULT_TYPE_CONFIG: Record<string, {
         <path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/>
       </svg>
     ),
-    href: (id) => `/products?id=${id}`,
+    href: (id) => `/products/${id}/edit`,
   },
   CHECK: {
     color: 'text-emerald-700',
@@ -364,6 +364,11 @@ export default function UniversalSearch() {
                       {result.alias && (
                         <span className="text-xs text-gray-400 truncate">
                           {result.alias}
+                        </span>
+                      )}
+                      {result.extraInfo && (
+                        <span className="text-xs text-gray-500 truncate">
+                          • {result.extraInfo}
                         </span>
                       )}
                     </div>

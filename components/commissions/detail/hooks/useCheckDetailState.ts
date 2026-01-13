@@ -188,7 +188,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     check?.status === 'POSTED' ? 'posted' : 'unposted'
   );
   const [postedDate, setPostedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    check?.postDate || ''
   );
   const [isTotalStatedCommission, setIsTotalStatedCommission] = useState(false);
   const [isTiedToCommissionUpload, setIsTiedToCommissionUpload] = useState(true);
@@ -212,6 +212,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       setCommissionAmount(check.netAmount || 0);
       setCheckDate(check.checkDate || '');
       setStatus(check.status === 'POSTED' ? 'posted' : 'unposted');
+      setPostedDate(check.postDate || '');
     }
   }, [check]);
 
@@ -596,7 +597,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     createdById?: string;
     url?: string;
   }>) => {
-    // Convert open invoices to line items format
+    // Convert open invoices to line items format with isNew flag
     const newLineItems: LineItem[] = invoices.map((invoice) => ({
       id: `temp-${invoice.id}`,
       type: 'invoice' as const,
@@ -617,9 +618,26 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       status: invoice.status,
       createdAt: invoice.createdAt,
       url: invoice.url,
+      isNew: true, // Mark as new/unsaved
     }));
 
-    setLineItems(newLineItems);
+    // ADD to existing line items instead of replacing
+    // Filter out duplicates based on invoiceId to avoid adding the same invoice twice
+    setLineItems((prevLineItems) => {
+      const existingInvoiceIds = new Set(
+        prevLineItems
+          .filter((item) => item.invoiceId)
+          .map((item) => item.invoiceId)
+      );
+
+      // Only add invoices that don't already exist in the list
+      const uniqueNewItems = newLineItems.filter(
+        (item) => !existingInvoiceIds.has(item.invoiceId)
+      );
+
+      // Return new unique items at the TOP + existing items
+      return [...uniqueNewItems, ...prevLineItems];
+    });
   }, []);
 
   // Summary calculations
@@ -800,6 +818,19 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   // Unpost check state
   const [isUnposting, setIsUnposting] = useState(false);
 
+  // Delete confirmation modal state
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+
+  // Open delete confirmation modal
+  const openDeleteConfirmModal = useCallback(() => {
+    setShowDeleteConfirmModal(true);
+  }, []);
+
+  // Close delete confirmation modal
+  const closeDeleteConfirmModal = useCallback(() => {
+    setShowDeleteConfirmModal(false);
+  }, []);
+
   // Unpost check - changes status from POSTED back to OPEN
   const handleUnpost = useCallback(async () => {
     if (isCreateMode || status !== 'posted') return;
@@ -848,6 +879,11 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     isSaving: createCheckMutation.isPending || updateCheckMutation.isPending,
     isDeleting: deleteCheckMutation.isPending,
     isUnposting,
+
+    // Delete confirmation modal
+    showDeleteConfirmModal,
+    openDeleteConfirmModal,
+    closeDeleteConfirmModal,
 
     // Factory ID (for API)
     factoryId,

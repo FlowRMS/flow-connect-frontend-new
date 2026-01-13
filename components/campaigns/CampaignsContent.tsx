@@ -31,7 +31,7 @@ import {
 import CampaignStatusModal from './modals/CampaignStatusModal';
 import { mapAPIToListType } from './types';
 import { campaignToasts } from '../lib/toast';
-import AdvancedFilters from '../AdvancedFilters';
+import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import { getCampaignFilterOptions, getCampaignSortOptions } from './config/filterConfig';
 

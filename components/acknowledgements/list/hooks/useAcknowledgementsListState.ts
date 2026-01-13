@@ -56,7 +56,7 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     manufacturerName: apiOrder.factory?.title || '',
     customerId: apiOrder.soldToCustomerId || '',
     customerName: apiOrder.soldToCustomer?.companyName || '',
-    status: 'open',
+    status: 'OPEN',
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
     commissionStatus: 'pending',

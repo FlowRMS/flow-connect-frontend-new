@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo } from 'react';
-import AdvancedFilters from './AdvancedFilters';
+import AdvancedFilters from './advancedFilters/AdvancedFilters';
 import SortButton from './SortButton';
 import {
   usePreOppsState,

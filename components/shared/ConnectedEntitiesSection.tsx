@@ -10,7 +10,7 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -34,7 +34,8 @@ import type {
 import { AddLinkModal } from './AddLinkModal';
 import { linkToasts } from '../lib/toast';
 import { RelatedEntityHoverCard } from './RelatedEntityHoverCard';
-import { fetchFilesByLinkedEntity, formatFileSize, type FileResponse, type FileEntityType } from '../lib/graphql/files';
+import { fetchFilesByLinkedEntity, formatFileSize, getFilePresignedUrl, type FileResponse, type FileEntityType } from '../lib/graphql/files';
+import { showErrorToast } from '../lib/toast';
 
 // ============================================================================
 // Types
@@ -75,6 +76,8 @@ export interface ConnectedEntitiesSectionProps {
   title?: string;
   /** Whether to show the "Add Link" button */
   showAddLinkButton?: boolean;
+  /** Key to trigger a refetch of linked entities when changed */
+  refreshKey?: number;
   /** Click handlers for different entity types */
   onCompanyClick?: (company: RelatedEntityCompany) => void;
   onContactClick?: (contact: RelatedEntityContact) => void;
@@ -158,6 +161,7 @@ export function ConnectedEntitiesSection({
   enabledCategories,
   title = 'Connected Entities',
   showAddLinkButton = true,
+  refreshKey,
   onCompanyClick,
   onContactClick,
   onPreOpportunityClick,
@@ -194,6 +198,13 @@ export function ConnectedEntitiesSection({
     error,
     refetch
   } = useRelatedEntities(entityId, SOURCE_TYPE_TO_API_TYPE[sourceEntityType]);
+
+  // Refetch when refreshKey changes (e.g., after save)
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      refetch();
+    }
+  }, [refreshKey, refetch]);
 
   // Fetch linked files separately (uses different API endpoint)
   const {
@@ -369,12 +380,12 @@ export function ConnectedEntitiesSection({
     }
   };
 
-  // Handle check click - navigate to check detail page
+  // Handle check click - navigate to commissions detail page
   const handleCheckClick = (check: RelatedEntityCheck) => {
     if (onCheckClick) {
       onCheckClick(check);
     } else {
-      router.push(`/checks/${check.id}`);
+      router.push(`/commissions/${check.id}`);
     }
   };
 
@@ -388,12 +399,24 @@ export function ConnectedEntitiesSection({
   };
 
   // Handle file click - open file or download
-  const handleFileClick = (file: FileResponse) => {
+  const handleFileClick = async (file: FileResponse) => {
     if (onFileClick) {
       onFileClick(file);
-    } else if (file.filePath) {
-      // Open file in new tab
-      window.open(file.filePath, '_blank');
+    } else {
+      try {
+        const url = await getFilePresignedUrl(file.id);
+        if (url) {
+          window.open(url, '_blank');
+        } else {
+          showErrorToast('Unable to open file', {
+            description: 'Could not generate download URL',
+          });
+        }
+      } catch (error) {
+        showErrorToast('Failed to open file', {
+          description: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
     }
   };
 

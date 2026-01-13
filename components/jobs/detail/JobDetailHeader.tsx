@@ -108,15 +108,15 @@ export function JobDetailHeader({
           {/* Right Side - Actions */}
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             <button
-              onClick={onRepTypeClick}
-              className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 md:py-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-xs md:text-sm font-medium text-gray-700"
-              title="Rep Type Settings"
+              disabled
+              className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 md:py-2.5 border border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed text-xs md:text-sm font-medium text-gray-400"
+              title="Electrical Rep - Coming Soon"
             >
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="md:w-4 md:h-4">
                 <circle cx="10" cy="10" r="3"/>
                 <path d="M10 1v2m0 14v2M3.93 3.93l1.41 1.41m9.9 9.9l1.41 1.41M1 10h2m14 0h2M4.34 15.66l1.41-1.41m9.9-9.9l1.41-1.41" strokeLinecap="round"/>
               </svg>
-              <span className="hidden sm:inline">{REP_TYPE_CONFIG[repType].label}</span>
+              <span className="hidden sm:inline">Electrical Rep (Coming Soon)</span>
             </button>
 
             {isEditing ? (

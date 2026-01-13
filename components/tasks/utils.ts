@@ -13,9 +13,10 @@ import type {
   ParsedTask,
   RelatedEntities,
   LinkedTitle,
+  TaskAssignee,
 } from './types';
 import type { CRMTask } from '../lib/crm-graphql';
-import type { ActiveFilter } from '../AdvancedFilters';
+import type { ActiveFilter } from '../advancedFilters/AdvancedFilters';
 import { formatLocalDate, parseLocalDate } from '../lib/date-utils';
 
 // Status mappings
@@ -168,6 +169,40 @@ export function tagsToString(tags: string[]): string {
 }
 
 /**
+ * Format a single assignee's display name
+ */
+export function formatAssigneeName(assignee: TaskAssignee): string {
+  if (assignee.fullName && assignee.fullName.trim()) {
+    return assignee.fullName.trim();
+  }
+  const name = [assignee.firstName, assignee.lastName].filter(Boolean).join(' ').trim();
+  return name || assignee.email || 'Unknown';
+}
+
+/**
+ * Format multiple assignees into a display string
+ * Handles both TaskAssignee objects and string names
+ */
+export function formatAssigneesDisplay(assignees: TaskAssignee[] | string[] | undefined): string {
+  if (!assignees || assignees.length === 0) return 'Unassigned';
+  if (assignees.length === 1) {
+    const first = assignees[0];
+    if (typeof first === 'string') return first.trim() || 'Unknown';
+    return formatAssigneeName(first);
+  }
+  return `${assignees.length} assignees`;
+}
+
+/**
+ * Format assignee names from string array (landing pages)
+ */
+export function formatAssigneeNamesDisplay(names: string[] | undefined): string {
+  if (!names || names.length === 0) return 'Unassigned';
+  if (names.length === 1) return names[0].trim() || 'Unknown';
+  return `${names.length} assignees`;
+}
+
+/**
  * Convert TaskLandingPage to UI Task
  * Used for list views where we get data from findLandingPages query
  */
@@ -177,9 +212,9 @@ export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
   const tags = parseTagsString(taskLanding.tags);
   const linkedTitles = parseLinkedEntities(taskLanding.linkedEntities);
 
-  // Check if assignedTo is a UUID - if so, it's the assignedToId
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const isUUID = taskLanding.assignedTo && uuidRegex.test(taskLanding.assignedTo);
+  // Assignees from landing page is array of names (strings)
+  const assigneeNames = taskLanding.assignees || [];
+  const assignedToDisplay = formatAssigneeNamesDisplay(assigneeNames);
 
   return {
     id: taskLanding.id,
@@ -187,10 +222,9 @@ export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
     description: taskLanding.description || '',
     dueDate: taskLanding.dueDate || '',
     reminderDate: taskLanding.reminderDate || '',
-    // If assignedTo is a UUID, display as "Loading..." until name is resolved
-    assignedTo: isUUID ? 'Loading...' : (taskLanding.assignedTo || 'Unassigned'),
-    // Store the UUID in assignedToId for API calls
-    assignedToId: isUUID ? taskLanding.assignedTo : undefined,
+    assignedTo: assignedToDisplay,
+    assigneeNames: assigneeNames, // Names for display
+    assignees: undefined, // Full objects not available from landing page
     taskType: 'General',
     status: uiStatus,
     apiStatus: taskLanding.status,
@@ -215,15 +249,18 @@ export function convertCRMTaskToUI(task: CRMTask): Task {
   const uiPriority = convertAPIPriorityToUI(task.priority);
   const tags = parseTagsString(task.tags);
 
+  // Assignees is now an array of UUIDs
+  const assignees = task.assignees || [];
+  const assignedToDisplay = formatAssigneesDisplay(assignees);
+
   return {
     id: task.id,
     title: task.title || '',
     description: task.description || '',
     dueDate: task.dueDate || '',
     reminderDate: undefined,
-    // CRMTask has assignedToId, not assignedTo name - show as Loading until resolved
-    assignedTo: 'Loading...',
-    assignedToId: task.assignedToId || undefined,
+    assignedTo: assignedToDisplay,
+    assignees: assignees,
     taskType: 'General',
     status: uiStatus,
     apiStatus: task.status,

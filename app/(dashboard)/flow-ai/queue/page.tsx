@@ -67,11 +67,28 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/flow-ai/ui/tooltip';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/flow-ai/cn';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/flow-ai/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/flow-ai/ui/popover';
 import { AdminSettingsDialog } from '@/components/flow-ai/flowrms/AdminSettingsDialog';
+import { searchUsers } from '@/components/lib/api/search';
 import { navigateToNewUpload } from '@/lib/flow-ai/navigation-utils';
 import { useApolloClient, useMutation } from '@apollo/client/react';
-import { Q_PENDING_DOCUMENTS_LANDING, M_ARCHIVE_PENDING_DOCUMENTS } from '@/lib/flow-ai/gql';
+import { Q_PENDING_DOCUMENTS_LANDING, M_ARCHIVE_PENDING_DOCUMENTS, M_SEND_PENDING_DOCUMENT_STATUS_EMAIL } from '@/lib/flow-ai/gql';
 import { toast } from 'sonner';
+import { Mail, Bell, Clock as ClockIcon, CheckCircle, Loader2 as Spinner } from 'lucide-react';
 import {
   PendingDocument,
   PaginatedResponse,
@@ -443,8 +460,79 @@ function QueuePageContent() {
   const [entityTypeFilter, setEntityTypeFilter] = useState<EntityType | 'all'>('all');
   const [createdByIdFilter, setCreatedByIdFilter] = useState<string | 'all'>('all');
 
-  // Track unique creators from loaded documents for the filter dropdown
-  const [uniqueCreators, setUniqueCreators] = useState<{ id: string; name: string }[]>([]);
+  // User search state
+  const [userSearchOpen, setUserSearchOpen] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [userOptions, setUserOptions] = useState<{ id: string; name: string }[]>([]);
+  // Cache all known users for label display
+  const [userCache, setUserCache] = useState<Map<string, string>>(new Map());
+
+  // Track unique creators from loaded documents for the filter dropdown fallback
+  const [documentCreators, setDocumentCreators] = useState<{ id: string; name: string }[]>([]);
+
+  // Update user cache helper
+  const updateUserCache = useCallback((users: { id: string; name: string }[]) => {
+    setUserCache(prev => {
+      const next = new Map(prev);
+      users.forEach(u => {
+        if (u.id && u.name) next.set(u.id, u.name);
+      });
+      return next;
+    });
+  }, []);
+
+  // Pre-populate user cache and options
+  useEffect(() => {
+    const fetchInitialUsers = async () => {
+      try {
+        const users = await searchUsers({ searchTerm: '', limit: 50 });
+        const formattedUsers = users.map(user => ({
+          id: user.id,
+          name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || user.email || 'Unknown'
+        }));
+        setUserOptions(formattedUsers);
+        updateUserCache(formattedUsers);
+      } catch (error) {
+        console.error('Failed to fetch initial users:', error);
+      }
+    };
+    fetchInitialUsers();
+  }, [updateUserCache]);
+
+  // Search users effect
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!userSearchQuery) {
+        // If query is empty, show document creators + initial list (or just document creators?)
+        // Let's fallback to document creators if available, merged with current options?
+        // Actually, let's just re-fetch default or show document creators.
+        // Simple: Set options to documentCreators merged with whatever we had initially?
+        // Let's just do a default search or rely on documentCreators.
+        setUserOptions(prev => {
+           // Merge document creators into view when search is empty
+           const existing = new Map(prev.map(p => [p.id, p]));
+           documentCreators.forEach(dc => existing.set(dc.id, dc));
+           return Array.from(existing.values()).sort((a,b) => a.name.localeCompare(b.name));
+        });
+        return;
+      }
+
+      try {
+        const users = await searchUsers({ searchTerm: userSearchQuery, limit: 20 });
+        const formattedUsers = users.map(user => ({
+          id: user.id,
+          name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || user.email || 'Unknown'
+        }));
+        setUserOptions(formattedUsers);
+        updateUserCache(formattedUsers);
+      } catch (error) {
+        console.error('Failed to search users:', error);
+      }
+    };
+
+    const timer = setTimeout(fetchUsers, 300);
+    return () => clearTimeout(timer);
+  }, [userSearchQuery, documentCreators, updateUserCache]);
 
   // Sorting state
   const [orderBy, setOrderBy] = useState<OrderBy>('CREATED_AT');
@@ -457,6 +545,14 @@ function QueuePageContent() {
 
   // Archive mutation
   const [archiveMutation, { loading: archiving }] = useMutation(M_ARCHIVE_PENDING_DOCUMENTS);
+
+  // Email notification mutation
+  const [sendEmailMutation, { loading: sendingEmail }] = useMutation(M_SEND_PENDING_DOCUMENT_STATUS_EMAIL);
+
+  // Email notification dialog state
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailDialogDocument, setEmailDialogDocument] = useState<PendingDocument | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
 
   // localStorage key for saved filters
   const QUEUE_FILTERS_KEY = 'flowrms_queue_filters';
@@ -603,15 +699,21 @@ function QueuePageContent() {
       setTotalCount(response?.total || 0);
 
       // Update unique creators list (merge with existing to keep all seen creators)
-      setUniqueCreators(prev => {
-        const existingMap = new Map(prev.map(c => [c.id, c]));
-        items.forEach(doc => {
-          if (doc.createdById && doc.createdBy && !existingMap.has(doc.createdById)) {
-            existingMap.set(doc.createdById, { id: doc.createdById, name: doc.createdBy });
-          }
-        });
-        return Array.from(existingMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+      const creators: { id: string; name: string }[] = [];
+      items.forEach(doc => {
+        if (doc.createdById && doc.createdBy) {
+          creators.push({ id: doc.createdById, name: doc.createdBy });
+        }
       });
+      
+      if (creators.length > 0) {
+        setDocumentCreators(prev => {
+          const next = new Map(prev.map(c => [c.id, c]));
+          creators.forEach(c => next.set(c.id, c));
+          return Array.from(next.values()).sort((a, b) => a.name.localeCompare(b.name));
+        });
+        updateUserCache(creators);
+      }
 
       if (showRefreshToast) {
         toast.success('Queue refreshed');
@@ -631,6 +733,60 @@ function QueuePageContent() {
     fetchDocuments(false);
   }, [fetchDocuments]);
 
+  // Silent auto-refresh every 10 seconds
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      // Silent refresh - don't show loading state or toast
+      const silentRefresh = async () => {
+        try {
+          const offset = (currentPage - 1) * pageSize;
+          const filters = buildFilters();
+          const orderByInput = buildOrderBy();
+
+          const { data } = await apolloClient.query<PaginatedResponse>({
+            query: Q_PENDING_DOCUMENTS_LANDING,
+            variables: {
+              limit: pageSize,
+              offset,
+              filters,
+              orderBy: orderByInput,
+            },
+            fetchPolicy: 'network-only',
+          });
+
+          const response = data?.findLandingPages;
+          const items = response?.records || [];
+          setDocuments(items);
+          setTotalCount(response?.total || 0);
+
+          // Update unique creators list
+          const creators: { id: string; name: string }[] = [];
+          items.forEach(doc => {
+            if (doc.createdById && doc.createdBy) {
+              creators.push({ id: doc.createdById, name: doc.createdBy });
+            }
+          });
+          
+          if (creators.length > 0) {
+            setDocumentCreators(prev => {
+              const next = new Map(prev.map(c => [c.id, c]));
+              creators.forEach(c => next.set(c.id, c));
+              return Array.from(next.values()).sort((a, b) => a.name.localeCompare(b.name));
+            });
+            updateUserCache(creators);
+          }
+        } catch (error) {
+          // Silent fail - don't show error to user for background refresh
+          console.error('Silent refresh failed:', error);
+        }
+      };
+
+      silentRefresh();
+    }, 10000); // 10 seconds
+
+    return () => clearInterval(intervalId);
+  }, [apolloClient, currentPage, pageSize, buildFilters, buildOrderBy]);
+
   // Handle document click - redirect based on workflow status
   // Note: Using new field names from findLandingPages:
   //   - id = pending document ID
@@ -648,14 +804,17 @@ function QueuePageContent() {
 
     const workflowStatus = doc.workflowStatus?.toUpperCase();
 
-    // If workflow status is 'IN_PROGRESS', show toast and do nothing
+    // If workflow status is 'IN_PROGRESS', show email notification dialog
     if (workflowStatus === 'IN_PROGRESS') {
-      toast.info('Document is still being processed. Please wait.');
+      setEmailDialogDocument(doc);
+      setEmailSent(false);
+      setShowEmailDialog(true);
       return;
     }
 
-    // If workflow status is 'COMPLETED' or 'DONE', redirect to upload-complete page
-    if (workflowStatus === 'COMPLETED' || workflowStatus === 'DONE') {
+    // If workflow status is 'COMPLETED', 'DONE', or 'FAILED', redirect to upload-complete page
+    // FAILED status allows users to view the errors and details
+    if (workflowStatus === 'COMPLETED' || workflowStatus === 'DONE' || workflowStatus === 'FAILED') {
       // For TABULAR (spreadsheet) documents, add source=spreadsheet
       if (doc.documentType?.toUpperCase() === 'TABULAR') {
         params.set('source', 'spreadsheet');
@@ -715,6 +874,34 @@ function QueuePageContent() {
       fetchDocuments(false);
     } catch (error) {
       toast.error('Failed to archive documents', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  };
+
+  // Handle email notification request
+  const handleSendEmailNotification = async () => {
+    if (!emailDialogDocument) return;
+
+    try {
+      const result = await sendEmailMutation({
+        variables: {
+          pendingDocumentId: emailDialogDocument.id,
+        },
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const response = (result.data as any)?.sendPendingDocumentStatusEmail as { success?: boolean; message?: string } | undefined;
+      if (response?.success) {
+        setEmailSent(true);
+        toast.success('Email notification set up successfully!', {
+          description: "We'll email you when the document processing is complete.",
+        });
+      } else {
+        throw new Error(response?.message || 'Failed to set up notification');
+      }
+    } catch (error) {
+      toast.error('Failed to set up email notification', {
         description: error instanceof Error ? error.message : 'Unknown error',
       });
     }
@@ -859,20 +1046,73 @@ function QueuePageContent() {
                       </SelectContent>
                     </Select>
 
-                    <Select value={createdByIdFilter} onValueChange={(v) => setCreatedByIdFilter(v)}>
-                      <SelectTrigger className="w-[180px] focus:ring-0 focus:ring-offset-0">
-                        <Users className="w-4 h-4 mr-2 shrink-0" />
-                        <SelectValue placeholder="Created By" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Users</SelectItem>
-                        {uniqueCreators.map((creator) => (
-                          <SelectItem key={creator.id} value={creator.id}>
-                            {creator.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={userSearchOpen}
+                          className="w-[200px] justify-between focus:ring-0 focus:ring-offset-0"
+                        >
+                          <div className="flex items-center truncate">
+                            <Users className="w-4 h-4 mr-2 shrink-0" />
+                            <span className="truncate">
+                              {createdByIdFilter !== 'all'
+                                ? userCache.get(createdByIdFilter) || 'Unknown User'
+                                : "All Users"}
+                            </span>
+                          </div>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[200px] p-0">
+                        <Command shouldFilter={false}>
+                          <CommandInput 
+                            placeholder="Search user..." 
+                            value={userSearchQuery}
+                            onValueChange={setUserSearchQuery}
+                          />
+                          <CommandList>
+                            <CommandEmpty>No user found.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value="all"
+                                onSelect={() => {
+                                  setCreatedByIdFilter("all");
+                                  setUserSearchOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    createdByIdFilter === "all" ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                All Users
+                              </CommandItem>
+                              {(userOptions.length > 0 ? userOptions : documentCreators).map((user) => (
+                                <CommandItem
+                                  key={user.id}
+                                  value={user.id}
+                                  onSelect={() => {
+                                    setCreatedByIdFilter(user.id);
+                                    setUserSearchOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      createdByIdFilter === user.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {user.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
 
                     {hasActiveFilters && (
                       <Button variant="ghost" size="sm" onClick={clearFilters} className="h-10 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0">
@@ -1246,6 +1486,122 @@ function QueuePageContent() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Notification Dialog for In-Progress Documents */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="sm:max-w-[425px] max-w-[90vw] overflow-hidden">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Document Processing Status</DialogTitle>
+            <DialogDescription>Get notified when your document is ready</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center text-center space-y-5 py-2">
+            {/* Animated Icon */}
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full blur-xl animate-pulse" />
+              <div className="relative p-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full shadow-lg shadow-blue-500/25">
+                {emailSent ? (
+                  <CheckCircle className="w-8 h-8 text-white" />
+                ) : (
+                  <ClockIcon className="w-8 h-8 text-white animate-pulse" />
+                )}
+              </div>
+            </div>
+
+            {/* Content */}
+            {emailSent ? (
+              <>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-foreground">
+                    You&apos;re All Set!
+                  </h3>
+                  <p className="text-muted-foreground text-sm">
+                    We&apos;ll send you an email as soon as your document is ready for review.
+                  </p>
+                </div>
+                <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3 w-full">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                    <p className="text-sm text-green-700 dark:text-green-300 text-left truncate">
+                      Email notification confirmed
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-foreground">
+                    Document Still Processing
+                  </h3>
+                  <p className="text-muted-foreground text-sm">
+                    This document is currently being processed. You can safely leave this page and come back later.
+                  </p>
+                </div>
+
+                {/* Document info card */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3 w-full">
+                  <div className="flex items-center gap-3 max-w-full">
+                    <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex-shrink-0">
+                      <Loader2 className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-spin" />
+                    </div>
+                    <div className="text-left min-w-0 flex-1">
+                      <p className="font-medium text-sm text-foreground truncate max-w-[280px]" title={emailDialogDocument?.fileName || 'Document'}>
+                        {emailDialogDocument?.fileName || 'Document'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Status: Processing...
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Email notification offer */}
+                <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 w-full space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm flex-shrink-0">
+                      <Bell className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-semibold text-sm text-foreground">
+                        Want to be notified?
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Get an email when processing is complete
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleSendEmailNotification}
+                    disabled={sendingEmail}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-500/25"
+                  >
+                    {sendingEmail ? (
+                      <>
+                        <Spinner className="w-4 h-4 mr-2 animate-spin" />
+                        Setting up...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-4 h-4 mr-2" />
+                        Notify Me When Ready
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {/* Close button */}
+            <Button
+              variant="outline"
+              onClick={() => setShowEmailDialog(false)}
+              className="w-full"
+            >
+              {emailSent ? 'Done' : 'Maybe Later'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

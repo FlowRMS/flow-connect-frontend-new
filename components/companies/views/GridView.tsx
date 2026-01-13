@@ -5,6 +5,7 @@
 import React from 'react';
 import type { Company } from '../types';
 import { getCompanyInitials, getLogoColor } from '../utils';
+import { COMPANY_SOURCE_TYPE_LABELS } from '../../lib/crm-graphql';
 
 interface GridViewProps {
   companies: Company[];
@@ -32,7 +33,7 @@ export default function GridView({ companies, onCompanyClick }: GridViewProps) {
                     ? 'bg-purple-100 text-purple-700'
                     : 'bg-green-100 text-green-700'
                 }`}>
-                  {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
+                  {COMPANY_SOURCE_TYPE_LABELS[company.companySourceType] || 'Customer'}
                 </span>
               </div>
             </div>

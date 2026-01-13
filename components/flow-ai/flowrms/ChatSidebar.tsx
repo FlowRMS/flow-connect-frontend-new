@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { MessageSquare, Plus, Trash2, Clock, Bot, MoreVertical } from 'lucide-react';
+import { MessageSquare, Plus, Trash2, Clock, Bot, MoreVertical, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { ScrollArea } from '@/components/flow-ai/ui/scroll-area';
 import { cn } from '@/lib/flow-ai/cn';
@@ -20,6 +20,8 @@ interface ChatSidebarProps {
   onNewChat: () => void;
   onDeleteChat?: (chatId: string) => void;
   isLoading?: boolean;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export const ChatSidebar = memo(function ChatSidebar({
@@ -29,6 +31,8 @@ export const ChatSidebar = memo(function ChatSidebar({
   onNewChat,
   onDeleteChat,
   isLoading = false,
+  isCollapsed = false,
+  onToggleCollapse,
 }: ChatSidebarProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -52,13 +56,93 @@ export const ChatSidebar = memo(function ChatSidebar({
     }
   };
 
+  // Collapsed state - show minimal sidebar
+  if (isCollapsed) {
+    return (
+      <div className="flex flex-col h-full bg-card/30 backdrop-blur-sm border-r border-border/40 w-16">
+        {/* Expand Button */}
+        <div className="flex-shrink-0 p-3 border-b border-border/40">
+          {onToggleCollapse && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleCollapse}
+              className="w-full h-10 p-0 hover:bg-accent/50"
+              title="Expand sidebar"
+            >
+              <PanelLeft className="w-5 h-5" />
+            </Button>
+          )}
+        </div>
+
+        {/* New Chat Button */}
+        <div className="flex-shrink-0 p-3">
+          <Button
+            onClick={onNewChat}
+            className="w-full h-10 p-0 gradient-primary hover:shadow-md transition-all duration-200 rounded-lg"
+            disabled={isLoading}
+            title="New Chat"
+          >
+            <Plus className="w-5 h-5" />
+          </Button>
+        </div>
+
+        {/* Chat Icons */}
+        <ScrollArea className="flex-1" showScrollbar>
+          <div className="p-2 space-y-2">
+            {chats.map((chat) => (
+              <Button
+                key={chat.id}
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'w-full h-10 p-0 transition-all duration-200',
+                  activeChat?.id === chat.id
+                    ? 'bg-accent/60 border border-primary/20'
+                    : 'hover:bg-accent/50'
+                )}
+                onClick={() => onSelectChat(chat.id)}
+                title={chat.title || 'New Chat'}
+              >
+                <MessageSquare className={cn(
+                  'w-4 h-4',
+                  activeChat?.id === chat.id ? 'text-primary' : 'text-muted-foreground'
+                )} />
+              </Button>
+            ))}
+          </div>
+        </ScrollArea>
+
+        {/* Footer */}
+        <div className="flex-shrink-0 p-3 border-t border-border/40 bg-muted/20">
+          <div className="flex items-center justify-center">
+            <Bot className="w-4 h-4 text-muted-foreground" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-card/30 backdrop-blur-sm border-r border-border/40">
       {/* Header */}
       <div className="flex-shrink-0 p-5 border-b border-border/40">
-        <h2 className="text-base font-bold mb-3 text-foreground">
-          Chat History
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-bold text-foreground">
+            Chat History
+          </h2>
+          {onToggleCollapse && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleCollapse}
+              className="h-8 w-8 p-0 hover:bg-accent/50"
+              title="Collapse sidebar"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
         <Button
           onClick={onNewChat}
           className="w-full justify-center gap-2 h-10 gradient-primary hover:shadow-md transition-all duration-200 font-medium rounded-lg"
@@ -70,7 +154,7 @@ export const ChatSidebar = memo(function ChatSidebar({
       </div>
 
       {/* Chat List */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1" showScrollbar>
         <div className="p-3 space-y-1.5">
           {isLoading && chats.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">

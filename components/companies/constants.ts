@@ -2,8 +2,14 @@
  * Company Constants and Configurations
  */
 
-// Company types
-export const COMPANY_TYPES = ['All', 'Customer', 'Manufacturer'] as const;
+import { COMPANY_SOURCE_TYPE_LABELS, COMPANY_SOURCE_TYPE_OPTIONS } from '../lib/crm-graphql';
+
+// Company type filter options for the Companies page
+// 'All' shows all companies, plus individual type labels from the GraphQL types
+export const COMPANY_TYPES = [
+  'All',
+  ...COMPANY_SOURCE_TYPE_OPTIONS.map(type => COMPANY_SOURCE_TYPE_LABELS[type])
+] as const;
 
 // Logo color palette
 export const LOGO_COLORS = [

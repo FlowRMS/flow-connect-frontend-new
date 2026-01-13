@@ -69,70 +69,85 @@ const LoadingSpinner: React.FC<{ size?: 'sm' | 'md' }> = ({ size = 'md' }) => (
   </svg>
 );
 
-// Address type selector
+// Address type selector - supports multiple selection
 const AddressTypeSelector: React.FC<{
-  value: AddressType;
-  onChange: (type: AddressType) => void;
+  value: AddressType[];
+  onChange: (types: AddressType[]) => void;
 }> = ({ value, onChange }) => {
   const types: AddressType[] = ['BILLING', 'SHIPPING', 'MAILING', 'OTHER'];
 
-  return (
-    <div className="grid grid-cols-4 gap-2">
-      {types.map((type) => {
-        const config = ADDRESS_TYPE_CONFIG[type];
-        const isSelected = value === type;
+  const handleToggle = (type: AddressType) => {
+    if (value.includes(type)) {
+      // Remove if already selected (but keep at least one)
+      if (value.length > 1) {
+        onChange(value.filter(t => t !== type));
+      }
+    } else {
+      // Add to selection
+      onChange([...value, type]);
+    }
+  };
 
-        return (
-          <button
-            key={type}
-            type="button"
-            onClick={() => onChange(type)}
-            className={`relative flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${
-              isSelected
-                ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
-                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            {/* Icon */}
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center mb-1.5 transition-colors ${
-                isSelected ? 'bg-blue-100' : 'bg-gray-100'
+  return (
+    <div>
+      <div className="grid grid-cols-4 gap-2">
+        {types.map((type) => {
+          const config = ADDRESS_TYPE_CONFIG[type];
+          const isSelected = value.includes(type);
+
+          return (
+            <button
+              key={type}
+              type="button"
+              onClick={() => handleToggle(type)}
+              className={`relative flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${
+                isSelected
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
               }`}
             >
-              {type === 'BILLING' && (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-              )}
-              {type === 'SHIPPING' && (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12l-4 9H8l-4-9h4m0 0V4m0 3v10m4-10v10m-4 0h4" />
-                </svg>
-              )}
-              {type === 'MAILING' && (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              )}
-              {type === 'OTHER' && (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              )}
-            </div>
-            <span className="text-xs font-medium">{config.label}</span>
-            {/* Selected indicator */}
-            {isSelected && (
-              <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
+              {/* Icon */}
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center mb-1.5 transition-colors ${
+                  isSelected ? 'bg-blue-100' : 'bg-gray-100'
+                }`}
+              >
+                {type === 'BILLING' && (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                )}
+                {type === 'SHIPPING' && (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12l-4 9H8l-4-9h4m0 0V4m0 3v10m4-10v10m-4 0h4" />
+                  </svg>
+                )}
+                {type === 'MAILING' && (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                )}
+                {type === 'OTHER' && (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                )}
               </div>
-            )}
-          </button>
-        );
-      })}
+              <span className="text-xs font-medium">{config.label}</span>
+              {/* Selected indicator */}
+              {isSelected && (
+                <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-xs text-gray-500">Click to select multiple types for this address</p>
     </div>
   );
 };
@@ -168,7 +183,7 @@ export function GoogleMapsAddressModal({
 
   // State - all address fields are filled dynamically from Google
   const [formData, setFormData] = useState<AddressFormData>({
-    addressType: defaultAddressType,
+    addressTypes: [defaultAddressType],
     line1: '',
     line2: '',
     city: '',
@@ -218,8 +233,15 @@ export function GoogleMapsAddressModal({
   // Initialize form with initial address data (for edit mode)
   useEffect(() => {
     if (isOpen && initialAddress) {
+      // Use addressTypes if available, otherwise fall back to addressType
+      const types = initialAddress.addressTypes && initialAddress.addressTypes.length > 0
+        ? initialAddress.addressTypes
+        : initialAddress.addressType
+          ? [initialAddress.addressType]
+          : [defaultAddressType];
+
       setFormData({
-        addressType: initialAddress.addressType || defaultAddressType,
+        addressTypes: types,
         line1: initialAddress.line1 || '',
         line2: initialAddress.line2 || '',
         city: initialAddress.city || '',
@@ -247,7 +269,7 @@ export function GoogleMapsAddressModal({
       setShowPredictions(false);
       setHasLocation(false);
       setFormData({
-        addressType: defaultAddressType,
+        addressTypes: [defaultAddressType],
         line1: '',
         line2: '',
         city: '',
@@ -318,7 +340,7 @@ export function GoogleMapsAddressModal({
   // Handle form field change
   const handleFieldChange = useCallback((
     field: keyof AddressFormData,
-    value: string | boolean
+    value: string | boolean | AddressType[]
   ) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   }, []);
@@ -338,13 +360,18 @@ export function GoogleMapsAddressModal({
       alert('Country is required');
       return;
     }
+    if (formData.addressTypes.length === 0) {
+      alert('At least one address type is required');
+      return;
+    }
 
     setIsSaving(true);
     try {
       await onSave({
         sourceId,
         sourceType,
-        addressType: formData.addressType,
+        addressType: formData.addressTypes[0], // Primary type for backwards compatibility
+        addressTypes: formData.addressTypes,
         line1: formData.line1.trim(),
         line2: formData.line2.trim() || undefined,
         city: formData.city.trim(),
@@ -545,10 +572,10 @@ export function GoogleMapsAddressModal({
 
             {/* Address Type */}
             <div>
-              <label className={labelClass}>Address Type</label>
+              <label className={labelClass}>Address Type(s)</label>
               <AddressTypeSelector
-                value={formData.addressType}
-                onChange={(type) => handleFieldChange('addressType', type)}
+                value={formData.addressTypes}
+                onChange={(types) => handleFieldChange('addressTypes', types)}
               />
             </div>
 

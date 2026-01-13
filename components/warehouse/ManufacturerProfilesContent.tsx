@@ -9,7 +9,10 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFactoriesInfinite, useDeleteFactory, type FactoryLandingPage } from './api/useFactoriesApi';
+import { fetchAllFactoryIds } from './api/factoriesApi';
 import DeleteFactoryModal from './modals/DeleteFactoryModal';
+import { useBulkSelection, BulkDeleteModal, BulkActionsToolbar } from '../shared';
+import { toast } from 'sonner';
 
 type SortField = 'title' | 'accountNumber' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
@@ -22,6 +25,7 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [sortField, setSortField] = useState<SortField>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [filterPublished, setFilterPublished] = useState<'all' | 'published' | 'unpublished'>('all');
@@ -52,6 +56,23 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
     if (!factoriesData?.pages || factoriesData.pages.length === 0) return 0;
     return factoriesData.pages[0].total;
   }, [factoriesData]);
+
+  // Bulk selection with shared hook
+  const {
+    selectAllMode,
+    selectedCount,
+    isAllSelected,
+    isPartiallySelected,
+    isItemSelected,
+    handleSelectAll,
+    handleSelectOne,
+    clearSelection,
+    getAllSelectedIds,
+  } = useBulkSelection({
+    items: factories,
+    totalCount,
+    fetchAllIds: fetchAllFactoryIds,
+  });
 
   // Handle scroll for infinite loading
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -122,12 +143,23 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
   const handleDeleteFactory = useCallback(async (id: string) => {
     try {
       await deleteFactoryMutation.mutateAsync(id);
+      toast.success('Manufacturer deleted successfully');
       setDeleteConfirmId(null);
       refetch();
     } catch (err) {
       console.error('Failed to delete factory:', err);
+      // Extract error message from GraphQL error
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete manufacturer';
+      toast.error(errorMessage);
     }
   }, [deleteFactoryMutation, refetch]);
+
+  // Bulk delete success handler
+  const handleBulkDeleteSuccess = useCallback(() => {
+    clearSelection();
+    setShowBulkDeleteModal(false);
+    refetch();
+  }, [clearSelection, refetch]);
 
   const factoryToDelete = factories.find(f => f.id === deleteConfirmId);
 
@@ -220,6 +252,17 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
         </div>
       </div>
 
+      {/* Bulk Actions Toolbar */}
+      <BulkActionsToolbar
+        entityType="FACTORIES"
+        selectedCount={selectedCount}
+        totalCount={totalCount}
+        loadedCount={factories.length}
+        selectAllMode={selectAllMode}
+        onClearSelection={clearSelection}
+        onDelete={() => setShowBulkDeleteModal(true)}
+      />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
@@ -300,6 +343,17 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
             <table className="w-full">
               <thead>
                 <tr className="bg-[var(--muted)]/50 border-b border-[var(--border)]">
+                  <th className="px-4 py-3 text-left w-12">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = isPartiallySelected;
+                      }}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 sm:px-6 py-3 text-left">
                     <button
                       onClick={() => handleSort('title')}
@@ -349,8 +403,18 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
                   <tr
                     key={factory.id}
                     onClick={() => handleFactoryClick(factory)}
-                    className="hover:bg-[var(--muted)]/30 cursor-pointer transition-colors"
+                    className={`hover:bg-[var(--muted)]/30 cursor-pointer transition-colors ${
+                      isItemSelected(factory.id) ? 'bg-[var(--primary)]/5' : ''
+                    }`}
                   >
+                    <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isItemSelected(factory.id)}
+                        onChange={(e) => handleSelectOne(factory.id, e.target.checked)}
+                        className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                      />
+                    </td>
                     <td className="px-4 sm:px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center flex-shrink-0">
@@ -543,6 +607,17 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
           isDeleting={deleteFactoryMutation.isPending}
         />
       )}
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="FACTORIES"
+        selectedCount={selectedCount}
+        getAllSelectedIds={getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['factories']]}
+      />
     </div>
   );
 }

@@ -79,6 +79,11 @@ export function LineItemsTableRow({
               {item.type === 'invoice' ? 'Invoice' : item.type === 'credit' ? 'Credit' : 'Adjustment'}
             </span>
             <span className="text-sm text-[var(--foreground)] font-medium">{item.number || '-'}</span>
+            {item.isNew && (
+              <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-100 text-emerald-700 border border-emerald-300 uppercase tracking-wide animate-pulse">
+                New
+              </span>
+            )}
           </div>
         </td>
       )}
@@ -126,23 +131,23 @@ export function LineItemsTableRow({
       {visibleColumns.has('commissionRate') && (
         <td className="px-4 py-3 text-sm opacity-50">
           <span className="text-[var(--muted-foreground)]">
-            {item.commissionRateExpected.toFixed(3)}%
+            {Number(item.commissionRateExpected).toFixed(3)}%
           </span>
           <span className="mx-1 text-[var(--muted-foreground)]">|</span>
           <span className="text-[var(--muted-foreground)]">
-            {item.commissionRateActual.toFixed(3)}%
+            {Number(item.commissionRateActual).toFixed(3)}%
           </span>
         </td>
       )}
       {visibleColumns.has('expectedCommission') && (
         <td className="px-4 py-3 text-sm text-[var(--muted-foreground)] opacity-50">
-          ${item.expectedCommission.toFixed(4)}
+          ${Number(item.expectedCommission).toFixed(4)}
         </td>
       )}
       {visibleColumns.has('paidCommission') && (
         <td className="px-4 py-3 text-sm text-[var(--foreground)]">
           {status === 'posted' ? (
-            <span>${item.paidCommission.toFixed(4)}</span>
+            <span>${Number(item.paidCommission).toFixed(4)}</span>
           ) : (
             <div className="flex items-center" onClick={handleStatedCommissionClick}>
               <span className="text-[var(--muted-foreground)] mr-1">$</span>
@@ -181,7 +186,7 @@ export function LineItemsTableRow({
                 />
               </svg>
             )}
-            <span className="text-[var(--muted-foreground)]">${item.balance.toFixed(4)}</span>
+            <span className="text-[var(--muted-foreground)]">${Number(item.balance).toFixed(4)}</span>
           </div>
         </td>
       )}

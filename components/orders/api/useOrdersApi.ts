@@ -11,6 +11,7 @@ import {
   createOrder,
   updateOrder,
   deleteOrder,
+  duplicateOrder,
   createOrderFromQuote,
   type Order,
   type OrderLandingPage,
@@ -180,6 +181,22 @@ export function useDeleteOrder() {
 }
 
 /**
+ * Duplicate order mutation
+ */
+export function useDuplicateOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Order, Error, { orderId: string; newOrderNumber: string; newSoldToCustomerId: string }>({
+    mutationFn: ({ orderId, newOrderNumber, newSoldToCustomerId }) =>
+      duplicateOrder(orderId, newOrderNumber, newSoldToCustomerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orderQueryKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: orderQueryKeys.all });
+    },
+  });
+}
+
+/**
  * Create order from quote mutation
  */
 export function useCreateOrderFromQuote() {
@@ -336,13 +353,14 @@ export type {
   ProductSearchResult,
   ProductCpnResult,
   ProductUomResult,
+  ProductPricingTierResult,
 } from '@/components/quotes/api/quotesApi';
 
 // Re-export job search type from central API
 export type { JobSearchResult } from '@/components/lib/api/search';
 
 // Re-export search functions from quotes API
-export { searchCustomers, searchFactories, searchUsers, searchProducts, listProductCpns, getProductCpnByCustomer, listProductUoms } from '@/components/quotes/api/quotesApi';
+export { searchCustomers, searchFactories, searchUsers, searchProducts, listProductCpns, getProductCpnByCustomer, listProductUoms, listProductPricingTiers, getPriceForQuantity } from '@/components/quotes/api/quotesApi';
 
 // Re-export job search from central API
 export { searchJobs, searchOrders } from '@/components/lib/api/search';

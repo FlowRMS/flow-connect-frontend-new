@@ -207,7 +207,7 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
         manufacturerName: selectedManufacturer?.name || 'Coming Soon',
         customerId,
         customerName: selectedCustomer?.name || 'Coming Soon',
-        status: asDraft ? 'draft' : 'open',
+        status: 'OPEN',
         fulfillmentStatus: 'not_started',
         billingStatus: 'not_invoiced',
         commissionStatus: 'pending',

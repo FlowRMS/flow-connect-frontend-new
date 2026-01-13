@@ -107,7 +107,13 @@ export default function CalendarView({ tasks, onToggleComplete, onSelectTask }: 
                     >
                       <div className="font-medium text-[var(--foreground)] truncate">{task.title}</div>
                       <div className="flex items-center gap-1">
-                        <span className="text-[var(--muted-foreground)] truncate">{task.assignedTo}</span>
+                        <span className="text-[var(--muted-foreground)] truncate">
+                          {task.assigneeNames && task.assigneeNames.length > 0
+                            ? (task.assigneeNames.length === 1
+                                ? task.assigneeNames[0].trim() || 'Unknown'
+                                : `${task.assigneeNames.length} assignees`)
+                            : task.assignedTo}
+                        </span>
                         {/* Reminder indicator - show when task is positioned by reminder */}
                         {task.reminderDate && (() => {
                           const status = getReminderStatus(task.reminderDate);

@@ -29,7 +29,7 @@ export const getTabsConfig = (
     },
     {
       id: 'deductions',
-      label: 'Deductions',
+      label: 'Adjustments',
       count: deductionsCount > 0 ? deductionsCount : undefined,
       disabled: isCreateMode,
       disabledReason: 'Save check first',
@@ -49,6 +49,7 @@ export const getTabsConfig = (
     {
       id: 'activity',
       label: 'Activity',
+      comingSoon: true,
       disabled: isCreateMode,
       disabledReason: 'Save check first',
     },
