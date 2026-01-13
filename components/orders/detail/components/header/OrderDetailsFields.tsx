@@ -374,7 +374,7 @@ export function OrderDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Bill To Customer<span className="text-red-500">*</span>
+                Bill To Customer
               </label>
               <SearchableDropdownV2
                 value={(order as any).billToCustomerId || ''}

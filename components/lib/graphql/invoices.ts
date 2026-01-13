@@ -437,6 +437,7 @@ const FIND_INVOICE_BY_ID = `
           companyName
           buyingGroupId
         }
+        billToCustomerId
         shippingTerms
         shipDate
         quoteId
@@ -458,7 +459,6 @@ const FIND_INVOICE_BY_ID = `
         creationType
         createdById
         createdAt
-        billToCustomerId
         balanceId
       }
       locked
@@ -624,6 +624,24 @@ const CREATE_INVOICE = `
         url
         status
         soldToCustomerId
+        soldToCustomer {
+          published
+          parentId
+          isParent
+          id
+          companyName
+          buyingGroupId
+        }
+        billToCustomerId
+        billToCustomer {
+          published
+          parentId
+          isParent
+          id
+          companyName
+          buyingGroupId
+        }
+        customerPo
         shipDate
         shippingTerms
         quoteId
@@ -645,7 +663,6 @@ const CREATE_INVOICE = `
         creationType
         createdById
         createdAt
-        billToCustomerId
         balanceId
       }
       locked
@@ -787,6 +804,24 @@ const UPDATE_INVOICE = `
         url
         status
         soldToCustomerId
+        soldToCustomer {
+          published
+          parentId
+          isParent
+          id
+          companyName
+          buyingGroupId
+        }
+        billToCustomerId
+        billToCustomer {
+          published
+          parentId
+          isParent
+          id
+          companyName
+          buyingGroupId
+        }
+        customerPo
         shipDate
         shippingTerms
         quoteId
@@ -808,7 +843,6 @@ const UPDATE_INVOICE = `
         creationType
         createdById
         createdAt
-        billToCustomerId
         balanceId
       }
       locked

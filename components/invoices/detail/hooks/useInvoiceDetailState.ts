@@ -145,11 +145,10 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
 
   // Get customer names directly from nested order data (no need for separate API calls)
   const soldToCustomerName = order?.soldToCustomer?.companyName || '';
-  // Note: billToCustomer nested object is not available in the API
-  // If billToCustomerId equals soldToCustomerId, use soldToCustomer name
-  // Otherwise, billToCustomerName will need to be populated via separate lookup if needed
-  const billToCustomerId = order?.billToCustomerId || apiInvoice.order?.soldToCustomerId || '';
-  const billToCustomerName = billToCustomerId === apiInvoice.order?.soldToCustomerId ? soldToCustomerName : '';
+  // Bill to customer - we only have the ID from the order, name will be fetched separately
+  // If billToCustomerId equals soldToCustomerId, use soldToCustomer name as fallback
+  const billToCustomerId = order?.billToCustomerId || '';
+  const billToCustomerName = billToCustomerId === order?.soldToCustomerId ? soldToCustomerName : '';
 
   return {
     id: apiInvoice.id,
@@ -199,7 +198,8 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     insideRepName: headerInsideRepName,
     insideSplitRates: headerInsideSplitRates,
     // Order-related fields from nested order data
-    poNumber: order?.customerPo || order?.poNumber || '',
+    // Use orderNumber as PO number (customerPo not available on OrderSemiLiteResponse)
+    poNumber: apiInvoice.order?.orderNumber || '',
     freightTerms: order?.freightTerms || '',
     shippingTerms: order?.shippingTerms || '',
     // Flag that we've populated from order data in invoice query
@@ -341,6 +341,14 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   const endUserIdToFetch = localInvoice?.endUserId || null;
   const { data: endUserCustomer } = useCustomer(endUserIdToFetch || undefined);
 
+  // Fetch bill to customer details when we have a billToCustomerId that differs from soldToCustomerId
+  // (if they're the same, we already have the name from soldToCustomer)
+  const billToCustomerIdToFetch = localInvoice?.billToCustomerId &&
+    localInvoice.billToCustomerId !== localInvoice.soldToCustomerId
+    ? localInvoice.billToCustomerId
+    : null;
+  const { data: billToCustomer } = useCustomer(billToCustomerIdToFetch || undefined);
+
   // Initialize local invoice from API data or empty for create mode
   useEffect(() => {
     if (isCreateMode) {
@@ -471,8 +479,8 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
         endUserId: order.endUserPerLineItem ? '' : (order.endUserId || endUserIdFromLineItem || prev.endUserId || ''),
         endUserName: order.endUserPerLineItem ? '' : (order.endUser?.companyName || prev.endUserName || ''),
 
-        // Order reference fields
-        poNumber: order.customerPo || order.poNumber || '',
+        // Order reference fields - use orderNumber as PO number
+        poNumber: linkedOrder.orderNumber || '',
         jobId: order.job?.id || '',
         jobName: order.job?.jobName || '',
 
@@ -542,6 +550,19 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
       });
     }
   }, [endUserCustomer, localInvoice?.endUserId, localInvoice?.endUserName]);
+
+  // When bill to customer data is loaded, populate the bill to customer name
+  useEffect(() => {
+    if (billToCustomer && localInvoice && localInvoice.billToCustomerId && !localInvoice.billToCustomerName) {
+      setLocalInvoice(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          billToCustomerName: billToCustomer.companyName || '',
+        };
+      });
+    }
+  }, [billToCustomer, localInvoice?.billToCustomerId, localInvoice?.billToCustomerName]);
 
   // Handle invoice selection - copy from existing invoice
   const handleInvoiceSelect = useCallback(async (invoiceId: string, invoiceNumber: string) => {
