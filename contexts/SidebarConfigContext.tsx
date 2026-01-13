@@ -101,7 +101,7 @@ const defaultConfig: SidebarConfig = {
         // { id: 'warehouse-overview', name: 'Overview', href: '/warehouse', enabled: true },
         // { id: 'warehouse-fulfillment', name: 'Fulfillment', href: '/warehouse/fulfillment', enabled: true },
         // { id: 'warehouse-deliveries', name: 'Deliveries', href: '/warehouse/deliveries', enabled: true },
-        // { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
+        { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
         // { id: 'warehouse-cycle-counts', name: 'Cycle Counts', href: '/warehouse/cycle-counts', enabled: true },
         // { id: 'warehouse-reports', name: 'Reports', href: '/warehouse/reports', enabled: true },
         { id: 'warehouse-settings', name: 'Settings', href: '/warehouse/settings', enabled: true },
@@ -155,7 +155,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 25; // Increment this to force a reset of cached sidebar config (updated Flow AI section)
+const CONFIG_VERSION = 26; // Increment this to force a reset of cached sidebar config (enabled warehouse inventory)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 
@@ -179,7 +179,7 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
 
       if (stored) {
         const parsed = JSON.parse(stored) as SidebarConfig;
-        
+
         // Merge: add any new groups from defaultConfig that don't exist in stored config
         const storedGroupIds = new Set(parsed.groups.map(g => g.id));
         const newGroups = defaultConfig.groups.filter(g => !storedGroupIds.has(g.id));
@@ -190,7 +190,7 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
           const insertIndex = foundationalIndex >= 0 ? foundationalIndex : (adminIndex >= 0 ? adminIndex : parsed.groups.length);
           parsed.groups.splice(insertIndex, 0, ...newGroups);
         }
-        
+
         // Merge: add any new items within existing groups, update names/hrefs, and remove items not in defaults
         parsed.groups = parsed.groups.map(group => {
           const defaultGroup = defaultConfig.groups.find(g => g.id === group.id);
@@ -216,7 +216,7 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
           }
           return group;
         });
-        
+
         setConfig(parsed);
       }
     } catch (e) {
@@ -255,11 +255,11 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
       groups: prev.groups.map(group =>
         group.id === groupId
           ? {
-              ...group,
-              items: group.items.map(item =>
-                item.id === itemId ? { ...item, enabled: !item.enabled } : item
-              )
-            }
+            ...group,
+            items: group.items.map(item =>
+              item.id === itemId ? { ...item, enabled: !item.enabled } : item
+            )
+          }
           : group
       )
     }));
