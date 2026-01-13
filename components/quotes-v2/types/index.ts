@@ -202,6 +202,11 @@ export interface LineItemV2 {
   // Status
   status?: QuoteDetailStatus;
 
+  // Pricing source tracking - marks if price was manually set vs auto-calculated
+  isManualPrice?: boolean;
+  // Pricing source for UI display: 'product' | 'cpn' | 'manual' | 'tier:X-Y'
+  pricingSource?: string;
+
   // Split rates - inside and outside reps at line item level
   insideSplitRates?: { id: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
   outsideSplitRates?: { id: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];

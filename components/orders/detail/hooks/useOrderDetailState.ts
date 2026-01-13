@@ -10,7 +10,7 @@ import type { Order, OrderLineItem } from '@/lib/types/rms';
 import type { FulfillmentOrder } from '@/lib/types/warehouse';
 import type { TabType, LineItemAcknowledgement, LineItemCredit, ColumnKey } from '../types';
 import { mockFulfillmentOrders } from '@/lib/data/warehouse-mock';
-import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchCustomers, getProductCpnByCustomer, listProductPricingTiers, getPriceForQuantity, type Order as ApiOrder, type OrderDetail } from '../../api';
+import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchCustomers, getProductCpnByCustomer, type Order as ApiOrder, type OrderDetail } from '../../api';
 import { fetchFactoryById } from '@/components/warehouse/api/factoriesApi';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { useOrderHeader } from './useOrderHeader';
@@ -420,7 +420,8 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   // Track previous customerId to detect changes
   const prevCustomerIdRef = React.useRef<string | undefined>(undefined);
 
-  // Re-fetch CPNs and update pricing when sold-to customer changes
+  // Re-fetch CPNs when sold-to customer changes (ONLY update custPartNumber, NOT pricing)
+  // Pricing is selected by user via dropdown in LineItemsTable
   useEffect(() => {
     // Only re-fetch if customer actually changed (not on initial load) and we have an order with line items
     if (
@@ -431,63 +432,25 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     ) {
       const lineItemsWithProducts = localOrder.lineItems.filter(li => li.productId);
 
-      // Fetch CPNs and pricing tiers for each product in parallel
+      // Fetch CPNs for each product in parallel (only to get customer part number)
       (async () => {
-        const pricingPromises = lineItemsWithProducts.map(async (li) => {
+        const cpnPromises = lineItemsWithProducts.map(async (li) => {
           try {
-            const [cpnResult, tiersResult] = await Promise.all([
-              getProductCpnByCustomer(li.productId!, localOrder.customerId).catch(() => null),
-              listProductPricingTiers(li.productId!).catch(() => [])
-            ]);
-
-            // Determine pricing based on CPN or quantity tiers
-            let unitPrice = li.unitPrice ?? 0;
-            let commissionRate = li.commissionRate ?? 8; // Stored as whole percentage (e.g., 8 for 8%)
-            let custPartNumber = '';
-            let hasCpnPricing = false;
-
-            if (cpnResult) {
-              custPartNumber = cpnResult.customerPartNumber || '';
-              // Use CPN's unit price if available (takes priority)
-              if (cpnResult.unitPrice) {
-                unitPrice = parseFloat(cpnResult.unitPrice);
-                hasCpnPricing = true;
-              }
-              // Use CPN's commission rate if available (already as whole number)
-              if (cpnResult.commissionRate) {
-                commissionRate = parseFloat(cpnResult.commissionRate);
-              }
-            }
-
-            // If no CPN pricing, check quantity tiers
-            if (!hasCpnPricing && tiersResult && tiersResult.length > 0) {
-              unitPrice = getPriceForQuantity(li.quantity || 1, tiersResult, unitPrice);
-            }
-
-            // Calculate derived values
-            const quantity = li.quantity || 1;
-            const divisor = li.divisor || 1;
-            const extendedPrice = quantity * unitPrice / divisor;
-            const commissionAmount = extendedPrice * (commissionRate / 100); // Convert to decimal for calculation
-
+            const cpnResult = await getProductCpnByCustomer(li.productId!, localOrder.customerId).catch(() => null);
             return {
               itemId: li.id,
-              custPartNumber,
-              unitPrice,
-              commissionRate,
-              extendedPrice,
-              commissionAmount,
-              hasCpnPricing
+              custPartNumber: cpnResult?.customerPartNumber || ''
             };
           } catch (err) {
-            // Error fetching pricing
-            return { itemId: li.id, custPartNumber: '', hasCpnPricing: false };
+            return { itemId: li.id, custPartNumber: '' };
           }
         });
 
-        const pricingResults = await Promise.all(pricingPromises);
-        const updateMap = new Map(pricingResults.map(r => [r.itemId, r]));
+        const cpnResults = await Promise.all(cpnPromises);
+        const updateMap = new Map(cpnResults.map(r => [r.itemId, r]));
 
+        // ONLY update custPartNumber - do NOT auto-update pricing
+        // User selects pricing via dropdown in LineItemsTable
         setLocalOrder(prev => ({
           ...prev,
           lineItems: (prev.lineItems || []).map(li => {
@@ -497,10 +460,6 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
             return {
               ...li,
               custPartNumber: update.custPartNumber,
-              ...(update.unitPrice !== undefined && { unitPrice: update.unitPrice }),
-              ...(update.commissionRate !== undefined && { commissionRate: update.commissionRate }),
-              ...(update.extendedPrice !== undefined && { extendedPrice: update.extendedPrice }),
-              ...(update.commissionAmount !== undefined && { commissionAmount: update.commissionAmount }),
             };
           }),
         }));
