@@ -34,6 +34,7 @@ export interface Note {
   content: string;
   mentions: string | string[]; // API returns array of UUIDs when fetching
   tags: string;
+  isPublic: boolean;
   createdBy: string;
   createdAt: string;
 }
@@ -49,6 +50,7 @@ export interface NoteLandingPage {
     title: string;
   }>;
   tags: string;
+  isPublic: boolean;
   createdBy: string;
   createdAt: string;
 }
@@ -59,6 +61,7 @@ export interface CreateNoteInput {
   content: string;
   mentions?: string;
   tags?: string;
+  isPublic?: boolean;
 }
 
 export interface UpdateNoteInput {
@@ -66,6 +69,7 @@ export interface UpdateNoteInput {
   content?: string;
   mentions?: string;
   tags?: string;
+  isPublic?: boolean;
 }
 
 export interface AddNoteConversationInput {
@@ -119,6 +123,7 @@ export interface ParsedNote {
   mentions: string[];
   tags: string[];
   linkedTitles: LinkedTitle[];
+  isPublic: boolean;
   createdBy: string;
   createdAt: string;
   conversationCount?: number;

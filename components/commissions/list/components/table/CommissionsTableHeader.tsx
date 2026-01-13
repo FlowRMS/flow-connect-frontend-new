@@ -13,7 +13,8 @@ interface CommissionsTableHeaderProps {
   // Selection
   filteredChecks: CommissionCheck[];
   areAllEligibleSelected: boolean;
-  onSelectAll: () => void;
+  isPartiallySelected?: boolean;
+  onSelectAll: (checked: boolean) => void;
   // Sorting
   sortField: SortField;
   sortDirection: SortDirection;
@@ -35,6 +36,7 @@ interface CommissionsTableHeaderProps {
 export function CommissionsTableHeader({
   filteredChecks,
   areAllEligibleSelected,
+  isPartiallySelected = false,
   onSelectAll,
   sortField,
   sortDirection,
@@ -60,7 +62,10 @@ export function CommissionsTableHeader({
         <input
           type="checkbox"
           checked={areAllEligibleSelected}
-          onChange={onSelectAll}
+          ref={(el) => {
+            if (el) el.indeterminate = isPartiallySelected;
+          }}
+          onChange={(e) => onSelectAll(e.target.checked)}
           className="rounded border-[var(--border)] accent-[var(--primary)]"
         />
       </div>

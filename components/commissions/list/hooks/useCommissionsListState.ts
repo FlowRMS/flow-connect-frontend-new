@@ -21,7 +21,8 @@ import {
 } from '@/components/orders/api/checksApi';
 import { unpostCheck } from '@/components/lib/graphql/checks';
 import { useCommissionFilters } from './useCommissionFilters';
-import { useCommissionSelection } from './useCommissionSelection';
+import { useBulkSelection } from '../../../shared';
+import { fetchAllCheckIds } from '@/components/orders/api/checksApi';
 
 export function useCommissionsListState() {
   // Fetch checks from real API with infinite scroll
@@ -267,12 +268,28 @@ export function useCommissionsListState() {
   // Integrate filter hook
   const filterState = useCommissionFilters(checks);
 
-  // Integrate selection hook
-  const selectionState = useCommissionSelection();
+  // Integrate bulk selection hook
+  const bulkSelection = useBulkSelection({
+    items: checks,
+    totalCount,
+    fetchAllIds: fetchAllCheckIds,
+  });
+
+  // Compatibility layer for existing code
+  const selectedCheckIds = bulkSelection.selectedIds;
+  const toggleCheckSelection = useCallback((checkId: string) => {
+    bulkSelection.handleSelectOne(checkId, !bulkSelection.isItemSelected(checkId));
+  }, [bulkSelection]);
+  const selectAllChecks = useCallback(() => {
+    bulkSelection.handleSelectAll(true);
+  }, [bulkSelection]);
+  const clearSelection = bulkSelection.clearSelection;
+  const isCheckSelected = bulkSelection.isItemSelected;
+  const areAllEligibleSelected = bulkSelection.isAllSelected;
 
   // Bulk set status - update each check one by one via API
   const bulkSetStatus = useCallback(async (status: CheckStatus) => {
-    const selectedIds = Array.from(selectionState.selectedCheckIds);
+    const selectedIds = Array.from(bulkSelection.selectedIds);
     if (selectedIds.length === 0) return;
 
     setIsBulkUpdating(true);
@@ -322,7 +339,7 @@ export function useCommissionsListState() {
     }
 
     setIsBulkUpdating(false);
-    selectionState.clearSelection();
+    bulkSelection.clearSelection();
 
     if (successCount > 0) {
       toast.success(`${successCount} check(s) updated successfully`);
@@ -332,11 +349,11 @@ export function useCommissionsListState() {
     }
 
     refetchChecks();
-  }, [selectionState, updateCheckMutation, refetchChecks]);
+  }, [bulkSelection, updateCheckMutation, refetchChecks]);
 
   // Bulk delete - delete each check one by one via API
   const bulkDelete = useCallback(async () => {
-    const selectedIds = Array.from(selectionState.selectedCheckIds);
+    const selectedIds = Array.from(bulkSelection.selectedIds);
     if (selectedIds.length === 0) return;
 
     if (!confirm(`Are you sure you want to delete ${selectedIds.length} check(s)? This action cannot be undone.`)) {
@@ -360,7 +377,7 @@ export function useCommissionsListState() {
     }
 
     setIsBulkUpdating(false);
-    selectionState.clearSelection();
+    bulkSelection.clearSelection();
 
     if (successCount > 0) {
       toast.success(`${successCount} check(s) deleted successfully`);
@@ -370,7 +387,7 @@ export function useCommissionsListState() {
     }
 
     refetchChecks();
-  }, [selectionState, deleteCheckMutation, refetchChecks]);
+  }, [bulkSelection, deleteCheckMutation, refetchChecks]);
 
   return {
     // Checks data
@@ -420,8 +437,22 @@ export function useCommissionsListState() {
     // Filter state and actions
     ...filterState,
 
-    // Selection state and actions
-    ...selectionState,
+    // Selection state and actions (compatibility layer)
+    selectedCheckIds,
+    toggleCheckSelection,
+    selectAllChecks,
+    clearSelection,
+    isCheckSelected,
+    areAllEligibleSelected,
+    // New bulk selection values
+    isItemSelected: bulkSelection.isItemSelected,
+    isAllSelected: bulkSelection.isAllSelected,
+    isPartiallySelected: bulkSelection.isPartiallySelected,
+    handleSelectAll: bulkSelection.handleSelectAll,
+    handleSelectOne: bulkSelection.handleSelectOne,
+    selectAllMode: bulkSelection.selectAllMode,
+    selectedCount: bulkSelection.selectedCount,
+    getAllSelectedIds: bulkSelection.getAllSelectedIds,
 
     // Bulk actions
     showBulkActionsMenu,

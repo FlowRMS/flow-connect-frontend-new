@@ -8,7 +8,9 @@ import { MobileSidebarContext } from './Sidebar';
 import UniversalSearch from './UniversalSearch';
 import { useUser } from './providers/user-provider';
 import { useOrgName } from './hooks/useOrgName';
+import { useOrganization } from './hooks/useOrganization';
 import { handleSignOut } from '@/lib/actions';
+import UserGuideModal from './UserGuideModal';
 
 // Key used by useWelcomeAnimation hook
 const WELCOME_SHOWN_KEY = 'flowcrm_welcome_animation_shown';
@@ -29,8 +31,10 @@ export default function TopBar() {
   const user = useUser();
   const pathname = usePathname();
   const { orgName, isLoading: orgLoading } = useOrgName();
+  const { logoUrl } = useOrganization();
   const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showUserGuide, setShowUserGuide] = useState(false);
 
   // Get the document type for AI Uploader based on current page
   const documentType = getDocumentTypeFromPath(pathname);
@@ -94,27 +98,37 @@ export default function TopBar() {
         {!orgLoading && orgName && (
           <div className="hidden md:flex items-center ml-4">
             <div className="group relative cursor-default flex items-center gap-3">
-              
-              {/* Premium icon with gentle pulse */}
+
+              {/* Organization Logo or Premium icon with gentle pulse */}
               <div className="relative flex-shrink-0">
-                <div 
-                  className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-blue-500/25"
-                  style={{ animation: 'gentlePulse 3s ease-in-out infinite' }}
-                >
-                  <svg 
-                    width="18" 
-                    height="18" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    className="text-white"
+                {logoUrl ? (
+                  <div className="w-9 h-9 rounded-xl overflow-hidden bg-white flex items-center justify-center shadow-md">
+                    <img
+                      src={logoUrl}
+                      alt={`${orgName} logo`}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-blue-500/25"
+                    style={{ animation: 'gentlePulse 3s ease-in-out infinite' }}
                   >
-                    <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" opacity="0.95"/>
-                    <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="text-white"
+                    >
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" opacity="0.95"/>
+                      <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                )}
                 {/* Soft ambient glow */}
-                <div 
+                <div
                   className="absolute inset-0 rounded-xl bg-blue-400/20 blur-lg -z-10"
                   style={{ animation: 'gentleGlow 3s ease-in-out infinite' }}
                 ></div>
@@ -195,8 +209,22 @@ export default function TopBar() {
         <UniversalSearch />
       </div>
 
-      {/* Right: AI Uploader, DISC Analytics, Back to FlowRMS & Notifications */}
+      {/* Right: User Guide, AI Uploader, DISC Analytics, Back to FlowRMS & Notifications */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* User Guide Button */}
+        <button
+          onClick={() => setShowUserGuide(true)}
+          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-lg hover:from-indigo-600 hover:to-blue-700 transition-all shadow-sm"
+          title="User Guide"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M12 17h.01" strokeLinecap="round"/>
+          </svg>
+          <span className="hidden sm:inline">Guide</span>
+        </button>
+
         {/* AI Uploader Button */}
         <Link
           href={aiUploaderHref}
@@ -271,6 +299,8 @@ export default function TopBar() {
         </button>
       )}
 
+      {/* User Guide Modal */}
+      <UserGuideModal isOpen={showUserGuide} onClose={() => setShowUserGuide(false)} />
     </div>
   );
 }

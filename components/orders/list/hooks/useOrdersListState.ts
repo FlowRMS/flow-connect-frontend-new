@@ -4,13 +4,14 @@
  * Integrates all sub-hooks and manages overall state
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { Order, OrderSplitRate } from '@/lib/types/rms';
 import { mockSalesReps } from '@/lib/data/rms-mock';
 import { useOrdersInfinite, useOrderSearch, type OrderLandingPage, type OrderSearchResult } from '../../api';
+import { fetchAllOrderIds } from '../../api/ordersApi';
 import { useOrderFilters } from './useOrderFilters';
-import { useOrderSelection } from './useOrderSelection';
 import { useOrderBulkActions } from './useOrderBulkActions';
+import { useBulkSelection } from '../../../shared';
 
 /**
  * Transform OrderLandingPage from API to UI Order type
@@ -26,7 +27,7 @@ function transformLandingPageToOrder(landing: OrderLandingPage): Order {
     customerId: '',
     customerName: landing.soldToCustomerName || '-',
     jobName: landing.jobName || '',
-    status: mapApiStatusToUiStatus(landing.status),
+    status: mapApiStatusToOrderStatus(landing.status),
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
     commissionStatus: 'pending',
@@ -48,25 +49,28 @@ function transformLandingPageToOrder(landing: OrderLandingPage): Order {
 }
 
 /**
- * Map API status to UI status
+ * Map API status to OrderStatus type
+ * Valid statuses: OPEN, PARTIAL_SHIPPED, SHIPPED_COMPLETE, CANCELLED, OVER_SHIPPED, PARTIAL_CANCELLED, OVER_CANCELLED
  */
-function mapApiStatusToUiStatus(status?: string): 'draft' | 'open' | 'partial_shipped' | 'shipped' | 'cancelled' | 'dormant' {
+function mapApiStatusToOrderStatus(status?: string): 'OPEN' | 'PARTIAL_SHIPPED' | 'SHIPPED_COMPLETE' | 'CANCELLED' | 'OVER_SHIPPED' | 'PARTIAL_CANCELLED' | 'OVER_CANCELLED' {
   const s = status?.toUpperCase();
   switch (s) {
-    case 'DRAFT':
-      return 'draft';
     case 'OPEN':
-      return 'open';
+      return 'OPEN';
     case 'PARTIAL_SHIPPED':
-      return 'partial_shipped';
-    case 'SHIPPED':
-      return 'shipped';
+      return 'PARTIAL_SHIPPED';
+    case 'SHIPPED_COMPLETE':
+      return 'SHIPPED_COMPLETE';
     case 'CANCELLED':
-      return 'cancelled';
-    case 'DORMANT':
-      return 'dormant';
+      return 'CANCELLED';
+    case 'OVER_SHIPPED':
+      return 'OVER_SHIPPED';
+    case 'PARTIAL_CANCELLED':
+      return 'PARTIAL_CANCELLED';
+    case 'OVER_CANCELLED':
+      return 'OVER_CANCELLED';
     default:
-      return 'open';
+      return 'OPEN';
   }
 }
 
@@ -81,7 +85,7 @@ function transformSearchResultToOrder(result: OrderSearchResult): Order {
     manufacturerName: '',
     customerId: result.soldToCustomerId || '',
     customerName: '',
-    status: mapApiStatusToUiStatus(result.status),
+    status: mapApiStatusToOrderStatus(result.status),
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
     commissionStatus: 'pending',
@@ -187,15 +191,42 @@ export function useOrdersListState() {
   // Integrate filter hook
   const filterState = useOrderFilters(orders);
 
-  // Integrate selection hook
-  const selectionState = useOrderSelection();
+  // Bulk selection with shared hook (properly handles select all for unloaded items)
+  // Note: Not using isItemEligible for orders since billingStatus/commissionStatus
+  // aren't available from the landing page API - all orders can be selected
+  const bulkSelection = useBulkSelection({
+    items: orders,
+    totalCount,
+    fetchAllIds: fetchAllOrderIds,
+  });
+
+  // Bulk delete modal state
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // Handle bulk delete success
+  const handleBulkDeleteSuccess = useCallback(() => {
+    bulkSelection.clearSelection();
+    setShowBulkDeleteModal(false);
+    refetch();
+  }, [bulkSelection, refetch]);
 
   // Integrate bulk actions hook
   const bulkActionsState = useOrderBulkActions({
-    selectedOrderIds: selectionState.selectedOrderIds,
-    clearSelection: selectionState.clearSelection,
+    selectedOrderIds: bulkSelection.selectedIds,
+    clearSelection: bulkSelection.clearSelection,
     setOrders,
   });
+
+  // Compatibility layer: map shared hook to existing API
+  const selectedOrderIds = bulkSelection.selectedIds;
+  const toggleOrderSelection = useCallback((orderId: string) => {
+    bulkSelection.handleSelectOne(orderId, !bulkSelection.isItemSelected(orderId));
+  }, [bulkSelection]);
+  const selectAllOrders = useCallback(() => {
+    bulkSelection.handleSelectAll(true);
+  }, [bulkSelection]);
+  const clearSelection = bulkSelection.clearSelection;
+  const areAllEligibleSelected = bulkSelection.isAllSelected;
 
   // Commission split editing functions
   const startEditingSplits = () => {
@@ -323,8 +354,25 @@ export function useOrdersListState() {
     splitPercentageTotal,
     // Filter state and actions
     ...filterState,
-    // Selection state and actions
-    ...selectionState,
+    // Selection state and actions (compatibility layer)
+    selectedOrderIds,
+    toggleOrderSelection,
+    selectAllOrders,
+    clearSelection,
+    areAllEligibleSelected,
+    // Bulk selection (new shared hook API)
+    selectAllMode: bulkSelection.selectAllMode,
+    selectedCount: bulkSelection.selectedCount,
+    isAllSelected: bulkSelection.isAllSelected,
+    isPartiallySelected: bulkSelection.isPartiallySelected,
+    isItemSelected: bulkSelection.isItemSelected,
+    handleSelectAll: bulkSelection.handleSelectAll,
+    handleSelectOne: bulkSelection.handleSelectOne,
+    getAllSelectedIds: bulkSelection.getAllSelectedIds,
+    // Bulk delete modal
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleBulkDeleteSuccess,
     // Bulk actions state and actions
     ...bulkActionsState,
   };

@@ -5,16 +5,30 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCommissionsListState } from './hooks/useCommissionsListState';
 import { CommissionsTable } from './components/table/CommissionsTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { CheckDetailPanel } from './components/sidebar/CheckDetailPanel';
+import { BulkDeleteModal } from '@/components/shared/modals/BulkDeleteModal';
 
 export default function CommissionsListContent() {
   const router = useRouter();
   const state = useCommissionsListState();
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // Handler to open bulk delete modal instead of using confirm dialog
+  const handleBulkDelete = () => {
+    if (state.selectedCount === 0) return;
+    setShowBulkDeleteModal(true);
+  };
+
+  // Handler for successful bulk delete
+  const handleBulkDeleteSuccess = () => {
+    state.clearSelection();
+    state.refetchChecks();
+  };
 
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
@@ -122,6 +136,11 @@ export default function CommissionsListContent() {
                 selectAllChecks={state.selectAllChecks}
                 clearSelection={state.clearSelection}
                 areAllEligibleSelected={state.areAllEligibleSelected}
+                isItemSelected={state.isItemSelected}
+                isAllSelected={state.isAllSelected}
+                isPartiallySelected={state.isPartiallySelected}
+                handleSelectAll={state.handleSelectAll}
+                handleSelectOne={state.handleSelectOne}
                 sortField={state.sortField}
                 sortDirection={state.sortDirection}
                 handleSort={state.handleSort}
@@ -134,7 +153,7 @@ export default function CommissionsListContent() {
                 showBulkActionsMenu={state.showBulkActionsMenu}
                 setShowBulkActionsMenu={state.setShowBulkActionsMenu}
                 bulkSetStatus={state.bulkSetStatus}
-                bulkDelete={state.bulkDelete}
+                bulkDelete={handleBulkDelete}
                 setSelectedCheck={state.setSelectedCheck}
                 isBulkUpdating={state.isBulkUpdating}
               />
@@ -166,6 +185,17 @@ export default function CommissionsListContent() {
           isUpdating={state.isUpdatingCheck}
         />
       )}
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="CHECKS"
+        selectedCount={state.selectedCount}
+        getAllSelectedIds={state.getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['checksLandingPage'], ['checksInfinite'], ['checkSearch']]}
+      />
     </main>
   );
 }

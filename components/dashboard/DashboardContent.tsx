@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import AdvancedFilters, { type ActiveFilter, type ActiveSort } from '../AdvancedFilters';
+import AdvancedFilters, { type ActiveFilter, type ActiveSort } from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import { useDashboardFilters } from './hooks/useDashboardFilters';
 import { useActivityFeed } from './hooks/useActivityFeed';

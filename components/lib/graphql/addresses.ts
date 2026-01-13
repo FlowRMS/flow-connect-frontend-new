@@ -6,13 +6,21 @@
 import { crmGraphQLRequest } from './client';
 import type { AddressSourceType, AddressType, Address, CreateAddressInput, UpdateAddressInput } from '../../shared/google-maps-address/types';
 
+// Helper to normalize API response - converts addressTypes array to addressType
+function normalizeAddress(address: Address & { addressTypes?: AddressType[] }): Address {
+  return {
+    ...address,
+    addressType: address.addressTypes?.[0] || address.addressType || 'OTHER',
+  };
+}
+
 // ============================================================================
 // GraphQL Fragments
 // ============================================================================
 
 const ADDRESS_FRAGMENT = `
   id
-  addressType
+  addressTypes
   city
   country
   createdAt
@@ -42,7 +50,7 @@ export async function fetchAddress(id: string): Promise<Address | null> {
     }
   `;
 
-  const response = await crmGraphQLRequest<{ address: Address | null }>({
+  const response = await crmGraphQLRequest<{ address: (Address & { addressTypes?: AddressType[] }) | null }>({
     query,
     variables: { id },
   });
@@ -51,7 +59,8 @@ export async function fetchAddress(id: string): Promise<Address | null> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch address');
   }
 
-  return response.data?.address || null;
+  const address = response.data?.address;
+  return address ? normalizeAddress(address) : null;
 }
 
 /**
@@ -69,7 +78,7 @@ export async function fetchAddressesBySource(
     }
   `;
 
-  const response = await crmGraphQLRequest<{ addressesBySource: Address[] }>({
+  const response = await crmGraphQLRequest<{ addressesBySource: (Address & { addressTypes?: AddressType[] })[] }>({
     query,
     variables: { sourceId, sourceType },
   });
@@ -78,7 +87,7 @@ export async function fetchAddressesBySource(
     throw new Error(response.errors[0]?.message || 'Failed to fetch addresses');
   }
 
-  return response.data?.addressesBySource || [];
+  return (response.data?.addressesBySource || []).map(normalizeAddress);
 }
 
 /**
@@ -93,7 +102,7 @@ export async function fetchAddressesBySourceId(sourceId: string): Promise<Addres
     }
   `;
 
-  const response = await crmGraphQLRequest<{ addressesBySourceId: Address[] }>({
+  const response = await crmGraphQLRequest<{ addressesBySourceId: (Address & { addressTypes?: AddressType[] })[] }>({
     query,
     variables: { sourceId },
   });
@@ -102,7 +111,7 @@ export async function fetchAddressesBySourceId(sourceId: string): Promise<Addres
     throw new Error(response.errors[0]?.message || 'Failed to fetch addresses');
   }
 
-  return response.data?.addressesBySourceId || [];
+  return (response.data?.addressesBySourceId || []).map(normalizeAddress);
 }
 
 // ============================================================================
@@ -112,7 +121,7 @@ export async function fetchAddressesBySourceId(sourceId: string): Promise<Addres
 /**
  * Create a new address
  */
-export async function createAddress(input: CreateAddressInput): Promise<Address> {
+export async function createAddress(input: CreateAddressInput & { addressTypes?: AddressType[] }): Promise<Address> {
   const query = `
     mutation CreateAddress($input: AddressInput!) {
       createAddress(input: $input) {
@@ -121,9 +130,20 @@ export async function createAddress(input: CreateAddressInput): Promise<Address>
     }
   `;
 
-  const response = await crmGraphQLRequest<{ createAddress: Address }>({
+  // Transform input: use addressTypes if provided, otherwise convert addressType to array
+  const { addressType, addressTypes, ...restInput } = input as CreateAddressInput & { addressType?: AddressType; addressTypes?: AddressType[] };
+  const apiInput = {
+    ...restInput,
+    addressTypes: addressTypes && addressTypes.length > 0
+      ? addressTypes
+      : addressType
+        ? [addressType]
+        : ['OTHER'],
+  };
+
+  const response = await crmGraphQLRequest<{ createAddress: Address & { addressTypes?: AddressType[] } }>({
     query,
-    variables: { input },
+    variables: { input: apiInput },
   });
 
   if (response.errors) {
@@ -134,7 +154,7 @@ export async function createAddress(input: CreateAddressInput): Promise<Address>
     throw new Error('Failed to create address');
   }
 
-  return response.data.createAddress;
+  return normalizeAddress(response.data.createAddress);
 }
 
 /**
@@ -142,7 +162,7 @@ export async function createAddress(input: CreateAddressInput): Promise<Address>
  */
 export async function updateAddress(
   id: string,
-  input: UpdateAddressInput
+  input: UpdateAddressInput & { addressTypes?: AddressType[] }
 ): Promise<Address> {
   const query = `
     mutation UpdateAddress($id: UUID!, $input: AddressInput!) {
@@ -152,9 +172,20 @@ export async function updateAddress(
     }
   `;
 
-  const response = await crmGraphQLRequest<{ updateAddress: Address }>({
+  // Transform input: use addressTypes if provided, otherwise convert addressType to array
+  const { addressType, addressTypes, ...restInput } = input as UpdateAddressInput & { addressType?: AddressType; addressTypes?: AddressType[] };
+  const apiInput = {
+    ...restInput,
+    ...(addressTypes && addressTypes.length > 0
+      ? { addressTypes }
+      : addressType
+        ? { addressTypes: [addressType] }
+        : {}),
+  };
+
+  const response = await crmGraphQLRequest<{ updateAddress: Address & { addressTypes?: AddressType[] } }>({
     query,
-    variables: { id, input },
+    variables: { id, input: apiInput },
   });
 
   if (response.errors) {
@@ -165,7 +196,7 @@ export async function updateAddress(
     throw new Error('Failed to update address');
   }
 
-  return response.data.updateAddress;
+  return normalizeAddress(response.data.updateAddress);
 }
 
 /**

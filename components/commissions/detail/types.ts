@@ -91,6 +91,8 @@ export interface LineItem {
   factoryName?: string; // From adjustment.factory.title
   customerName?: string; // From adjustment.customer.companyName
   locked?: boolean;
+  // For tracking new/unsaved items from "Invoices after" search
+  isNew?: boolean; // True for items added via "Invoices after" that haven't been saved yet
 }
 
 // Version info
@@ -107,6 +109,7 @@ export interface TabConfig {
   count?: number;
   disabled?: boolean;
   disabledReason?: string;
+  comingSoon?: boolean;
 }
 
 // Saved view configuration

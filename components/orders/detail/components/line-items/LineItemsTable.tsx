@@ -12,10 +12,20 @@ import type { Order, OrderLineItem } from '@/lib/types/rms';
 import type { ColumnKey, ViewMode } from '../../types';
 import { BulkActionsBar } from './BulkActionsBar';
 import { LineItemsTableHeader } from './LineItemsTableHeader';
-import { useProductSearch, useFactorySearch, useCustomerSearch, useProductCpns, useProductUoms, getProductCpnByCustomer } from '../../../api';
+import { useProductSearch, useFactorySearch, useCustomerSearch, useProductCpns, useProductUoms, getProductCpnByCustomer, listProductPricingTiers } from '../../../api';
+import type { ProductPricingTierResult } from '@/components/quotes/api/quotesApi';
 import { formatCurrency } from '../../utils';
 
 type EditableColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionPercent' | 'manufacturer' | 'endUser';
+
+// Type for rep split rates passed from parent
+interface RepSplitRateInfo {
+  id: string;
+  userId: string;
+  userName: string;
+  splitRate: string;
+  position: number;
+}
 
 interface LineItemsTableProps {
   order: Order;
@@ -46,7 +56,12 @@ interface LineItemsTableProps {
   onDeleteLines: () => void;
   onUpdateLineItems?: (items: OrderLineItem[]) => void;
   showEndUserPerLine?: boolean;
+  showOutsideRepPerLine?: boolean;
+  showInsideRepPerLine?: boolean;
   onOpenAdditionalDetails?: (item: OrderLineItem) => void;
+  // Current reps for inheriting to new line items
+  currentOutsideReps?: RepSplitRateInfo[];
+  currentInsideReps?: RepSplitRateInfo[];
 }
 
 export function LineItemsTable({
@@ -78,13 +93,83 @@ export function LineItemsTable({
   onDeleteLines,
   onUpdateLineItems,
   showEndUserPerLine = false,
+  showOutsideRepPerLine = false,
+  showInsideRepPerLine = false,
   onOpenAdditionalDetails,
+  currentOutsideReps,
+  currentInsideReps,
 }: LineItemsTableProps) {
   // Editable state
   const [editingCell, setEditingCell] = useState<{ itemId: string; column: EditableColumnKey } | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState<{ itemId: string; column: EditableColumnKey; position: { top: number; left: number } } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  // Store pricing tiers per product ID for volume discount calculations
+  const [productPricingTiers, setProductPricingTiers] = useState<Record<string, ProductPricingTierResult[]>>({});
+  // Track which line items have CPN pricing (CPN pricing is fixed and doesn't change with quantity)
+  const [lineItemsWithCpnPricing, setLineItemsWithCpnPricing] = useState<Set<string>>(new Set());
+  // Track pricing source for each line item: 'product' | 'cpn' | 'tier:X-Y' | 'manual'
+  const [lineItemPricingSource, setLineItemPricingSource] = useState<Record<string, string>>({});
+
+  // Track previous customerId to detect changes and update pricing sources
+  const prevCustomerIdRef = React.useRef<string | undefined>(undefined);
+
+  // Re-fetch CPN pricing status when sold-to customer changes
+  useEffect(() => {
+    const customerId = order.customerId;
+    // Only re-fetch if customer actually changed (not on initial load)
+    if (
+      prevCustomerIdRef.current !== undefined &&
+      customerId !== prevCustomerIdRef.current &&
+      order.lineItems?.some(li => li.productId)
+    ) {
+      // Fetch CPN data for all line items with products and update pricing sources
+      const itemsWithProducts = order.lineItems.filter(li => li.productId);
+
+      (async () => {
+        const newCpnPricingSet = new Set<string>();
+        const newPricingSources: Record<string, string> = {};
+
+        await Promise.all(itemsWithProducts.map(async (li) => {
+          try {
+            const [cpnResult, tiersResult] = await Promise.all([
+              customerId
+                ? getProductCpnByCustomer(li.productId!, customerId).catch(() => null)
+                : Promise.resolve(null),
+              listProductPricingTiers(li.productId!).catch(() => [])
+            ]);
+
+            let pricingSource = 'product';
+
+            if (cpnResult?.unitPrice) {
+              newCpnPricingSet.add(li.id);
+              pricingSource = 'cpn';
+            } else if (tiersResult && tiersResult.length > 0) {
+              const tierMatch = tiersResult.find(
+                tier => (li.quantity || 1) >= tier.quantityLow && (li.quantity || 1) <= tier.quantityHigh
+              );
+              if (tierMatch) {
+                pricingSource = `tier:${tierMatch.quantityLow}-${tierMatch.quantityHigh}`;
+              }
+              // Cache the tiers
+              setProductPricingTiers(prev => ({
+                ...prev,
+                [li.productId!]: tiersResult
+              }));
+            }
+
+            newPricingSources[li.id] = pricingSource;
+          } catch (err) {
+            // Keep existing pricing source on error
+          }
+        }));
+
+        setLineItemsWithCpnPricing(newCpnPricingSet);
+        setLineItemPricingSource(prev => ({ ...prev, ...newPricingSources }));
+      })();
+    }
+    prevCustomerIdRef.current = customerId;
+  }, [order.customerId, order.lineItems]);
 
   // Debounce search - trigger immediately on empty (dropdown open)
   useEffect(() => {
@@ -168,12 +253,32 @@ export function LineItemsTable({
         quantityCredited: 0,
         unitPrice: 0,
         extendedPrice: 0,
-        commissionRate: 0.08,
+        commissionRate: 8, // Stored as whole percentage (8 for 8%)
         commissionAmount: 0,
         productId: '',
         isCancelled: false,
         isConsignment: false,
         status: 'open',
+        // Inherit outside reps if per-line-item setting is enabled
+        outsideSplitRates: showOutsideRepPerLine && currentOutsideReps && currentOutsideReps.length > 0
+          ? currentOutsideReps.map((rep, idx) => ({
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }))
+          : undefined,
+        // Inherit inside reps if per-line-item setting is enabled
+        insideSplitRates: showInsideRepPerLine && currentInsideReps && currentInsideReps.length > 0
+          ? currentInsideReps.map((rep, idx) => ({
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }))
+          : undefined,
       };
       onUpdateLineItems([...lineItems, newItem]);
     }
@@ -219,36 +324,103 @@ export function LineItemsTable({
 
   // Handle dropdown selection for products
   // When selecting a product, auto-fill Part#, Description, unitPrice, commissionRate
-  // and auto-fetch CPN for the sold-to customer
+  // and auto-fetch CPN for the sold-to customer (with CPN pricing override)
   const handleProductSelect = async (itemId: string, product: any) => {
     const item = (order.lineItems || []).find(li => li.id === itemId);
     if (!item) return;
 
     const quantity = item.quantity || 1;
     const divisor = product.defaultDivisor || item.divisor || 1;
-    const unitPrice = product.unitPrice || 0;
-    const commissionRate = product.defaultCommissionRate || 0.08;
-    const extendedPrice = quantity * unitPrice / divisor;
+
+    // Default values from product
+    let unitPrice = product.unitPrice || 0;
+    // Commission rate stored as whole percentage (e.g., 8 for 8%)
+    // Product defaultCommissionRate is now stored as whole percentage (8 for 8%)
+    let commissionRate = product.defaultCommissionRate || 8;
 
     // Close dropdown first
     setDropdownOpen(null);
     setSearchQuery('');
 
-    // Fetch CPN first, then do a single atomic update with all data
+    // Fetch CPN and pricing tiers in parallel
     let custPartNumber = '';
     const soldToCustomerId = order.customerId;
-    if (soldToCustomerId && product.id) {
-      try {
-        const cpnResult = await getProductCpnByCustomer(product.id, soldToCustomerId);
-        if (cpnResult?.customerPartNumber) {
-          custPartNumber = cpnResult.customerPartNumber;
+
+    if (product.id) {
+      const [cpnResult, tiersResult] = await Promise.all([
+        // Fetch CPN for the customer
+        soldToCustomerId
+          ? getProductCpnByCustomer(product.id, soldToCustomerId).catch(() => null)
+          : Promise.resolve(null),
+        // Fetch pricing tiers for volume discounts
+        listProductPricingTiers(product.id).catch(() => [])
+      ]);
+
+      // Track if CPN has custom pricing (CPN pricing takes priority over tier pricing)
+      let cpnHasCustomPrice = false;
+
+      if (cpnResult) {
+        custPartNumber = cpnResult.customerPartNumber || '';
+        // Use CPN's unit price if available (override product default)
+        if (cpnResult.unitPrice) {
+          unitPrice = parseFloat(cpnResult.unitPrice);
+          cpnHasCustomPrice = true;
         }
-      } catch (err) {
-        // CPN not found is not an error - just leave it empty
+        // Use CPN's commission rate if available (override product default)
+        // CPN commission rate is stored as whole number (e.g., 3 for 3%)
+        if (cpnResult.commissionRate) {
+          commissionRate = parseFloat(cpnResult.commissionRate);
+        }
       }
+
+      // Track this line item's CPN pricing status for quantity changes
+      if (cpnHasCustomPrice) {
+        setLineItemsWithCpnPricing(prev => new Set([...prev, itemId]));
+      } else {
+        // Remove from CPN pricing set if no CPN price
+        setLineItemsWithCpnPricing(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+      }
+
+      // Determine pricing source and apply tier pricing if applicable
+      let pricingSource = 'product';
+      if (cpnHasCustomPrice) {
+        pricingSource = 'cpn';
+      }
+
+      // Store pricing tiers for quantity-based price updates
+      // Only apply tier pricing if CPN doesn't have custom price
+      if (tiersResult && tiersResult.length > 0) {
+        setProductPricingTiers(prev => ({
+          ...prev,
+          [product.id]: tiersResult
+        }));
+        // Only apply tier pricing if no CPN custom price
+        if (!cpnHasCustomPrice) {
+          const tierMatch = tiersResult.find(
+            tier => quantity >= tier.quantityLow && quantity <= tier.quantityHigh
+          );
+          if (tierMatch) {
+            unitPrice = tierMatch.unitPrice;
+            pricingSource = `tier:${tierMatch.quantityLow}-${tierMatch.quantityHigh}`;
+          }
+        }
+      }
+
+      // Update pricing source for this line item
+      setLineItemPricingSource(prev => ({
+        ...prev,
+        [itemId]: pricingSource
+      }));
     }
 
-    // Single atomic update with all product data including CPN
+    // Calculate derived values with final pricing
+    const extendedPrice = quantity * unitPrice / divisor;
+
+    // Single atomic update with all product data including CPN and tier pricing
     if (onUpdateLineItems) {
       const updatedItems = (order.lineItems || []).map((li) =>
         li.id === itemId ? {
@@ -261,7 +433,8 @@ export function LineItemsTable({
           divisor: divisor,
           commissionRate: commissionRate,
           extendedPrice: extendedPrice,
-          commissionAmount: extendedPrice * commissionRate,
+          // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+          commissionAmount: extendedPrice * (commissionRate / 100),
         } : li
       );
       onUpdateLineItems(updatedItems);
@@ -306,21 +479,22 @@ export function LineItemsTable({
     const quantity = item.quantity || 1;
     const unitPrice = item.unitPrice || 0;
     const extendedPrice = quantity * unitPrice / divisor;
-    const commissionRate = item.commissionRate ?? 0.08;
+    const commissionRate = item.commissionRate ?? 8; // Stored as whole percentage
 
     updateLineItem(itemId, {
       uomId: uom.id,
       uom: uom.title,
       divisor: divisor,
       extendedPrice: extendedPrice,
-      commissionAmount: extendedPrice * commissionRate,
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      commissionAmount: extendedPrice * (commissionRate / 100),
     } as any);
     setDropdownOpen(null);
     setSearchQuery('');
   };
 
   // Handle cell value change
-  const handleCellChange = (itemId: string, column: EditableColumnKey, value: string) => {
+  const handleCellChange = async (itemId: string, column: EditableColumnKey, value: string) => {
     const item = (order.lineItems || []).find((li) => li.id === itemId);
     if (!item) return;
 
@@ -329,10 +503,54 @@ export function LineItemsTable({
     switch (column) {
       case 'quantity': {
         const qty = parseInt(value) || 1;
-        const extendedPrice = qty * item.unitPrice;
+        // Check if product has pricing tiers and apply tier-based pricing
+        // BUT skip tier pricing if this line item has CPN pricing (CPN price is fixed)
+        let unitPrice = item.unitPrice ?? 0;
+        const hasCpnPricing = lineItemsWithCpnPricing.has(itemId);
+        let pricingSource = hasCpnPricing ? 'cpn' : 'product';
+
+        if (!hasCpnPricing && item.productId) {
+          // Fetch pricing tiers on-demand if not cached
+          let tiers = productPricingTiers[item.productId];
+          if (!tiers) {
+            try {
+              tiers = await listProductPricingTiers(item.productId);
+              if (tiers && tiers.length > 0) {
+                setProductPricingTiers(prev => ({
+                  ...prev,
+                  [item.productId!]: tiers
+                }));
+              }
+            } catch (err) {
+              tiers = [];
+            }
+          }
+          if (tiers && tiers.length > 0) {
+            const tierMatch = tiers.find(
+              tier => qty >= tier.quantityLow && qty <= tier.quantityHigh
+            );
+            if (tierMatch) {
+              unitPrice = tierMatch.unitPrice;
+              pricingSource = `tier:${tierMatch.quantityLow}-${tierMatch.quantityHigh}`;
+            }
+          }
+        }
+
+        // Update pricing source
+        setLineItemPricingSource(prev => ({
+          ...prev,
+          [itemId]: pricingSource
+        }));
+
+        const extendedPrice = qty * unitPrice;
         updates.quantity = qty;
+        // Only update unit price if using tier pricing (not CPN)
+        if (!hasCpnPricing) {
+          updates.unitPrice = unitPrice;
+        }
         updates.extendedPrice = extendedPrice;
-        updates.commissionAmount = extendedPrice * (item.commissionRate ?? 0.08);
+        // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+        updates.commissionAmount = extendedPrice * ((item.commissionRate ?? 8) / 100);
         break;
       }
       case 'unitPrice': {
@@ -340,13 +558,26 @@ export function LineItemsTable({
         const extendedPrice = item.quantity * price;
         updates.unitPrice = price;
         updates.extendedPrice = extendedPrice;
-        updates.commissionAmount = extendedPrice * (item.commissionRate ?? 0.08);
+        // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+        updates.commissionAmount = extendedPrice * ((item.commissionRate ?? 8) / 100);
+        // Mark as manual override
+        setLineItemPricingSource(prev => ({
+          ...prev,
+          [itemId]: 'manual'
+        }));
+        // Remove from CPN pricing since user manually changed it
+        setLineItemsWithCpnPricing(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
         break;
       }
       case 'commissionPercent': {
-        const pct = parseFloat(value) / 100 || 0;
+        const pct = parseFloat(value) || 0;
         updates.commissionRate = pct;
-        updates.commissionAmount = item.extendedPrice * pct;
+        // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+        updates.commissionAmount = item.extendedPrice * (pct / 100);
         break;
       }
       case 'divisor':
@@ -411,8 +642,8 @@ export function LineItemsTable({
         editValue = String(item.unitPrice || 0);
         break;
       case 'commissionPercent':
-        displayValue = `${((item.commissionRate || 0) * 100).toFixed(1)}%`;
-        editValue = ((item.commissionRate || 0) * 100).toFixed(1);
+        displayValue = `${Number(item.commissionRate || 0).toFixed(1)}%`;
+        editValue = Number(item.commissionRate || 0).toFixed(1);
         break;
     }
 
@@ -465,6 +696,42 @@ export function LineItemsTable({
           }}
           className={`w-full px-2 py-1 ${alignClass} border border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500`}
         />
+      );
+    }
+
+    // Special rendering for unitPrice to show pricing source tag
+    if (column === 'unitPrice') {
+      const pricingSource = lineItemPricingSource[item.id] || 'product';
+      let tagLabel = '';
+      let tagColor = '';
+
+      if (pricingSource === 'cpn') {
+        tagLabel = 'CPN';
+        tagColor = 'bg-blue-100 text-blue-700';
+      } else if (pricingSource === 'manual') {
+        tagLabel = 'Manual';
+        tagColor = 'bg-gray-100 text-gray-600';
+      } else if (pricingSource.startsWith('tier:')) {
+        // Format range without decimals (e.g., "1-100" not "1.0000-100.0000")
+        const range = pricingSource.replace('tier:', '');
+        const [low, high] = range.split('-').map(n => Math.round(parseFloat(n)));
+        tagLabel = `Qty ${low}-${high}`;
+        tagColor = 'bg-green-100 text-green-700';
+      } else {
+        tagLabel = 'Product';
+        tagColor = 'bg-purple-100 text-purple-700';
+      }
+
+      return (
+        <button
+          onClick={(e) => handleCellClick(item.id, column, e)}
+          className="w-full px-2 py-1 text-right rounded hover:bg-gray-100 transition-colors flex items-center justify-end gap-1.5"
+        >
+          <span>{displayValue}</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${tagColor}`}>
+            {tagLabel}
+          </span>
+        </button>
       );
     }
 
@@ -669,14 +936,14 @@ export function LineItemsTable({
                   {/* Commission */}
                   {visibleColumns.has('commission') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08))}
+                      {formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100))}
                     </td>
                   )}
 
                   {/* Commission Total */}
                   {visibleColumns.has('commissionTotal') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08))}
+                      {formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100))}
                     </td>
                   )}
 
@@ -766,7 +1033,7 @@ export function LineItemsTable({
                   {/* Com $ */}
                   {visibleColumns.has('commissionAmount') && (
                     <td className="px-3 py-2 text-sm text-right text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08))}
+                      {formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100))}
                     </td>
                   )}
 
@@ -787,7 +1054,7 @@ export function LineItemsTable({
                   {/* Earn % */}
                   {visibleColumns.has('earnPercent') && (
                     <td className="px-3 py-2 text-sm text-right">
-                      {(((item.commissionRate ?? 0.08) + 0.15 * 0.85) * 100).toFixed(1)}%
+                      {(((item.commissionRate ?? 8) / 100 + 0.15 * 0.85) * 100).toFixed(1)}%
                     </td>
                   )}
 
@@ -795,7 +1062,7 @@ export function LineItemsTable({
                   {visibleColumns.has('earnAmount') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-green-600">
                       {formatCurrency(
-                        (item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08)) +
+                        (item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100)) +
                         (item.unitPrice * 0.15 * item.quantity * 0.85)
                       )}
                     </td>

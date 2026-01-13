@@ -7,7 +7,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import AdvancedFilters from '../AdvancedFilters';
+import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import { useNotesState } from './hooks/useNotesState';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';

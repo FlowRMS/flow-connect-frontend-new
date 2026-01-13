@@ -151,11 +151,19 @@ const defaultConfig: SidebarConfig = {
         // { id: 'report-scheduler', name: 'Report Scheduler', href: '/report-scheduler', enabled: true },
       ]
     },
+    {
+      id: 'preview',
+      label: 'Preview',
+      collapsed: false,
+      items: [
+        { id: 'flow-agents', name: 'Flow Agents', href: '/preview/ai-agents', enabled: true },
+      ]
+    },
   ]
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 26; // Increment this to force a reset of cached sidebar config (enabled warehouse inventory)
+const CONFIG_VERSION = 26; // Increment this to force a reset of cached sidebar config (added Flow Agents preview)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

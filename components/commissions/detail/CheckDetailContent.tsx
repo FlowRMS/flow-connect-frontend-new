@@ -5,8 +5,9 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { useCheckDetailState } from './hooks';
 import { HeaderTopBar, PricingSummaryBar, CheckDetailsFields } from './components/header';
 import { LineItemsTable } from './components/line-items';
@@ -27,6 +28,7 @@ import {
   AddLineItemModal,
   OrderDetailModal,
 } from './components/modals';
+import * as XLSX from 'xlsx';
 import {
   AdjustmentModal,
   AdjustmentDetailModal,
@@ -45,6 +47,17 @@ export default function CheckDetailContent({
 }: CheckDetailContentProps) {
   const router = useRouter();
   const state = useCheckDetailState({ checkId });
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and check number)
+  useEffect(() => {
+    if (state?.checkNumber && checkId) {
+      setFullEntityContext('commission', checkId, state.checkNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state?.checkNumber, checkId, setFullEntityContext]);
 
   // Adjustments state management - reuse from orders
   const adjustmentsState = useAdjustmentsState();
@@ -96,7 +109,61 @@ export default function CheckDetailContent({
   };
 
   const handleDownloadExcel = () => {
-    alert('Downloading Excel...');
+    // Prepare data for Excel export
+    const paidLineItems = state.lineItems.filter((item) => item.paid);
+
+    // Create worksheet data
+    const worksheetData = [
+      // Header row
+      ['Type', 'Entity Number', 'Order Number', 'Expected Commission', 'Commission Received', 'Sales Amount', 'Outside Sales Rep'],
+      // Data rows
+      ...paidLineItems.map((item) => [
+        item.type.toUpperCase(),
+        item.number,
+        item.orderNumber || '-',
+        item.expectedCommission,
+        item.paidCommission,
+        item.commissionRateActual > 0
+          ? (item.paidCommission / (item.commissionRateActual / 100))
+          : 0,
+        item.salesRep || '-',
+      ]),
+    ];
+
+    // Create summary data
+    const summaryData = [
+      ['Posted Statement Summary'],
+      [''],
+      ['Check Summary'],
+      ['Check Number', state.checkNumber || '-'],
+      ['Factory', state.check?.manufacturerName || '-'],
+      ['Check Date', state.checkDate ? new Date(state.checkDate).toLocaleDateString() : '-'],
+      ['Check Amount', state.isTotalStatedCommission ? state.summary.paidTotal : state.commissionAmount],
+      ['Commission Month', state.commissionMonth || '-'],
+      ['Post Date', state.postedDate ? new Date(state.postedDate).toLocaleDateString() : '-'],
+      [''],
+      ['Commission Summary'],
+      ['Paid Commissions', state.summary.paidTotal],
+      ['Expected Commission', state.summary.expectedTotal],
+      ['Balance', state.summary.paidTotal - state.summary.expectedTotal],
+    ];
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+
+    // Add summary sheet
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+
+    // Add details sheet
+    const detailsSheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    XLSX.utils.book_append_sheet(workbook, detailsSheet, 'Details');
+
+    // Generate filename
+    const filename = `Posted_Statement_${state.checkNumber || 'Check'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    // Download
+    XLSX.writeFile(workbook, filename);
   };
 
   const handleSaveAsNewVersion = () => {
@@ -131,9 +198,11 @@ export default function CheckDetailContent({
         onSaveAndClose={state.handleSaveAndClose}
         onSaveAsNewVersion={handleSaveAsNewVersion}
         onUnpost={state.handleUnpost}
+        onDelete={state.openDeleteConfirmModal}
         isCreateMode={state.isCreateMode}
         isSaving={state.isSaving}
         isUnposting={state.isUnposting}
+        isDeleting={state.isDeleting}
         isOriginallyPosted={state.isOriginallyPosted}
       />
 
@@ -209,11 +278,11 @@ export default function CheckDetailContent({
                 (tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => !tab.disabled && state.setActiveTab(tab.id)}
-                    disabled={tab.disabled}
-                    title={tab.disabled ? tab.disabledReason : undefined}
+                    onClick={() => !tab.disabled && !tab.comingSoon && state.setActiveTab(tab.id)}
+                    disabled={tab.disabled || tab.comingSoon}
+                    title={tab.disabled ? tab.disabledReason : tab.comingSoon ? 'Coming soon' : undefined}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                      tab.disabled
+                      tab.disabled || tab.comingSoon
                         ? 'border-transparent text-gray-300 cursor-not-allowed'
                         : state.activeTab === tab.id
                         ? 'border-[var(--primary)] text-[var(--primary)]'
@@ -221,6 +290,11 @@ export default function CheckDetailContent({
                     }`}
                   >
                     {tab.label}
+                    {tab.comingSoon && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">
+                        SOON
+                      </span>
+                    )}
                     {tab.count !== undefined && tab.count > 0 && (
                       <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${tab.disabled ? 'bg-gray-50 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                         {tab.count}
@@ -322,29 +396,6 @@ export default function CheckDetailContent({
                     </>
                   )}
                 </div>
-
-                {/* Sections Button */}
-                <button
-                  onClick={() => state.setShowSectionsModal(true)}
-                  className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
-                    state.showSections
-                      ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                      : 'border-[var(--border)] hover:bg-[var(--muted)]'
-                  }`}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="3" y="3" width="14" height="4" rx="1" />
-                    <rect x="3" y="10" width="14" height="7" rx="1" />
-                  </svg>
-                  Sections
-                </button>
 
                 {/* Columns Button */}
                 <button
@@ -536,6 +587,17 @@ export default function CheckDetailContent({
           onClose={state.closeOrderDetail}
         />
       )}
+
+      {/* Delete Confirmation Modal for Check */}
+      <DeleteConfirmModal
+        isOpen={state.showDeleteConfirmModal}
+        title="Delete Check?"
+        message="Are you sure you want to delete check"
+        itemName={state.checkNumber || state.check?.checkNumber}
+        isPending={state.isDeleting}
+        onConfirm={state.handleDelete}
+        onCancel={state.closeDeleteConfirmModal}
+      />
     </main>
   );
 }

@@ -55,6 +55,7 @@ export interface Contact {
   firstName: string;
   lastName: string;
   createdBy: string;
+  notes?: string;
   // Extended fields
   addresses?: ContactAddress[];
   customFields?: CustomFieldValue[];
@@ -152,18 +153,25 @@ export function mapAPIContactToUIContact(apiContact: APIContact): Contact {
 
   return {
     id: apiContact.id,
-    name: `${apiContact.firstName} ${apiContact.lastName}`,
-    firstName: apiContact.firstName,
-    lastName: apiContact.lastName,
+    name: `${apiContact.firstName || ''} ${apiContact.lastName || ''}`.trim(),
+    firstName: apiContact.firstName || '',
+    lastName: apiContact.lastName || '',
     email: apiContact.email || '',
     phone: apiContact.phone || '',
+    linkedIn: undefined,
     company: '', // Will be fetched separately if needed
-    role: apiContact.role || '',
-    contactType: extractContactTypes(role),
+    companyId: undefined,
+    role: role,
+    contactType: role ? [role] : [], // Use role directly as contactType
     tags,
     lists: [],
     territory: apiContact.territory || '',
     lastActivity: apiContact.createdAt || new Date().toISOString(),
     createdBy: apiContact.createdBy || '',
+    notes: apiContact.notes || '',
+    addresses: [],
+    customFields: [],
+    isWarehouseContact: false,
+    warehouseRole: '',
   };
 }

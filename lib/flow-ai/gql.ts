@@ -68,6 +68,7 @@ export const Q_GET_PENDING = gql`
       sourceName
       sourceType
       status
+      workflowStatus
       updatedAt
     }
   }
@@ -770,6 +771,18 @@ export const Q_GET_ALL_PENDING_ENTITIES = gql`
     products: pendingEntities(filterInput: { entityType: PRODUCTS, pendingDocumentId: $pendingDocumentId }) {
       ${PENDING_ENTITY_FIELDS}
     }
+    orders: pendingEntities(filterInput: { entityType: ORDERS, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
+    invoices: pendingEntities(filterInput: { entityType: INVOICES, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
+    credits: pendingEntities(filterInput: { entityType: CREDITS, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
+    adjustments: pendingEntities(filterInput: { entityType: ADJUSTMENTS, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
   }
 `;
 
@@ -1120,6 +1133,63 @@ export const M_EXECUTE_DOCUMENT_WORKFLOW = gql`
       message
       success
       taskId
+    }
+  }
+`;
+
+// Query to get processing results for a pending document
+export const Q_PENDING_DOCUMENT_PROCESSINGS = gql`
+  query PendingDocumentProcessings($pendingDocumentId: UUID!) {
+    pendingDocumentProcessings(pendingDocumentId: $pendingDocumentId) {
+      dtoJson
+      entityId
+      errorMessage
+      id
+      pendingDocumentId
+      status
+    }
+  }
+`;
+
+// Mutation to send email notification when pending document status changes
+export const M_SEND_PENDING_DOCUMENT_STATUS_EMAIL = gql`
+  mutation SendPendingDocumentStatusEmail($pendingDocumentId: UUID!) {
+    sendPendingDocumentStatusEmail(pendingDocumentId: $pendingDocumentId) {
+      message
+      success
+      taskId
+    }
+  }
+`;
+
+// Mutation to trigger pending entities by factory
+// Used when factory is matched in CHECKS/INVOICES documents to populate Orders, Invoices, Credits, Adjustments tabs
+export const M_TRIGGER_PENDING_ENTITIES_BY_FACTORY = gql`
+  mutation TriggerPendingEntitiesByFactory($input: TriggerPendingEntitiesInput!) {
+    triggerPendingEntitiesByFactory(input: $input) {
+      bestMatchId
+      bestMatchName
+      bestMatchSimilarity
+      confirmationStatus
+      confirmedAt
+      confirmedByUserId
+      matchCandidates {
+        similarityScore
+        rank
+        name
+        metadata
+        entityId
+      }
+      updatedAt
+      sourceLineNumbers
+      pendingDocumentId
+      id
+      flowIndexDetail
+      extractedData
+      entityType
+      dtoIds
+      displayName
+      createdAt
     }
   }
 `;
