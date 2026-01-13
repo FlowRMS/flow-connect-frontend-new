@@ -88,8 +88,8 @@ export default function OrdersListContent() {
       {/* Main Content */}
       <div className={`flex-1 flex flex-col overflow-hidden ${state.selectedOrder ? 'mr-[480px]' : ''}`}>
         {/* Header */}
-        <div className="p-6 pb-0">
-          <div className="flex items-center justify-between mb-6">
+        <div className="flex-shrink-0 px-6 py-4 bg-white border-b border-gray-200">
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold text-[var(--foreground)]">
                 Orders
@@ -176,18 +176,20 @@ export default function OrdersListContent() {
           </div>
 
           {/* Quick Date Filter */}
-          <QuickDateFilter
-            quickDatePreset={state.quickDatePreset}
-            setQuickDatePreset={state.setQuickDatePreset}
-            quickDateField={state.quickDateField}
-            setQuickDateField={state.setQuickDateField}
-            showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
-            setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
-          />
+          <div className="mt-4">
+            <QuickDateFilter
+              quickDatePreset={state.quickDatePreset}
+              setQuickDatePreset={state.setQuickDatePreset}
+              quickDateField={state.quickDateField}
+              setQuickDateField={state.setQuickDateField}
+              showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
+              setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
+            />
+          </div>
         </div>
 
         {/* Orders Table */}
-        <div className="flex-1 overflow-auto p-6 pt-4" onScroll={state.handleScroll}>
+        <div className="flex-1 overflow-hidden p-6 pt-4 min-h-0 flex flex-col" onScroll={state.handleScroll}>
           <OrdersTable
             filteredOrders={state.filteredOrders}
             isLoading={isLoading}

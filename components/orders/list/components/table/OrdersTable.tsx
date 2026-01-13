@@ -4,7 +4,6 @@
  */
 
 import type { Order } from '@/lib/types/rms';
-import { getGridTemplateColumns } from '../../config/columnConfig';
 import { isOrderLinked, getOrderLinkedReason } from '../../utils';
 import { BulkActionsBar } from './BulkActionsBar';
 import { OrdersTableHeader } from './OrdersTableHeader';
@@ -58,10 +57,8 @@ export function OrdersTable({
   filterOptions,
   columnFilters,
 }: OrdersTableProps) {
-  const gridColumns = getGridTemplateColumns();
-
   return (
-    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
       {/* Bulk Actions Bar */}
       {selectedOrderIds.size > 0 && (
         <BulkActionsBar
@@ -78,38 +75,35 @@ export function OrdersTable({
         // Empty state - don't show table structure
         null
       ) : (
-        <div className="overflow-x-auto">
-          <div className="min-w-[1680px]">
-            {/* Table Header */}
-            <OrdersTableHeader
-              filteredOrders={filteredOrders}
-              areAllEligibleSelected={areAllEligibleSelected(filteredOrders)}
-              onSelectAll={() => selectAllOrders(filteredOrders)}
-              gridColumns={gridColumns}
-              onColumnFiltersChange={onColumnFiltersChange}
-              filterOptions={filterOptions}
-              columnFilters={columnFilters}
-            />
-
-            {/* Table Body */}
-            <div className="divide-y divide-[var(--border)]">
-              {isLoading ? (
-                <OrdersTableSkeleton gridColumns={gridColumns} />
-              ) : (
-                filteredOrders.map((order) => (
-                  <OrderRow
-                    key={order.id}
-                    order={order}
-                    isSelected={selectedOrderIds.has(order.id)}
-                    isLinked={isOrderLinked(order)}
-                    linkedReason={getOrderLinkedReason(order)}
-                    onToggleSelection={() => toggleOrderSelection(order.id)}
-                    onPreview={() => setSelectedOrder(order)}
-                    gridColumns={gridColumns}
-                  />
-                ))
-              )}
-            </div>
+        <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 240px)' }}>
+          <div className="overflow-auto scrollbar-always-visible flex-1">
+            <table className="w-full min-w-[1800px]">
+              <OrdersTableHeader
+                filteredOrders={filteredOrders}
+                areAllEligibleSelected={areAllEligibleSelected(filteredOrders)}
+                onSelectAll={() => selectAllOrders(filteredOrders)}
+                onColumnFiltersChange={onColumnFiltersChange}
+                filterOptions={filterOptions}
+                columnFilters={columnFilters}
+              />
+              <tbody className="divide-y divide-gray-200">
+                {isLoading ? (
+                  <OrdersTableSkeleton rowCount={8} />
+                ) : (
+                  filteredOrders.map((order) => (
+                    <OrderRow
+                      key={order.id}
+                      order={order}
+                      isSelected={selectedOrderIds.has(order.id)}
+                      isLinked={isOrderLinked(order)}
+                      linkedReason={getOrderLinkedReason(order)}
+                      onToggleSelection={() => toggleOrderSelection(order.id)}
+                      onPreview={() => setSelectedOrder(order)}
+                    />
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
