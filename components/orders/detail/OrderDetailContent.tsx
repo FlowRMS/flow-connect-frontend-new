@@ -260,12 +260,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         return;
       }
 
-      if (!order.requestedShipDate && !order.shipDate) {
-        console.error('❌ VALIDATION FAILED: Projected Ship Date is missing');
-        orderToasts.updateError('Projected Ship Date is required.');
-        return;
-      }
-
       // Validate End User based on settings (REQUIRED field)
       const orderEndUserId = (order as any).endUserId;
 
@@ -395,7 +389,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           productId: item.productId || undefined,
           productNameAdhoc: item.partNumber || undefined,
           productDescriptionAdhoc: item.description || undefined,
-          commissionRate: String((item.commissionRate || 0) * 100), // Convert decimal to percent for API
+          commissionRate: String(item.commissionRate || 0), // Already stored as whole percentage (e.g., 8 for 8%)
           divisionFactor: item.divisor ? String(item.divisor) : undefined,
           uomId: item.uomId || undefined, // Send uomId, null becomes undefined
           // Include inside and outside rep splitRates on each line item
@@ -461,7 +455,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         const result = await state.createOrderMutation.mutateAsync(createInput);
         console.log('Order created:', result);
         orderToasts.createSuccess(result.orderNumber || createInput.orderNumber);
-        router.push('/orders');
+        // Navigate to the newly created order detail page instead of landing page
+        router.push(`/orders/${result.id}`);
       } else {
         // Update existing order - split rates are now at detail level
         if (state.updateOrderMutation) {
@@ -615,7 +610,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   };
 
   return (
-    <main className="flex flex-col min-h-full bg-[var(--background)]">
+    <main className="h-full overflow-auto bg-[var(--background)]">
       {/* Header */}
       <OrderDetailHeader
         order={order}
@@ -645,6 +640,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         openInsideRepModal={state.openInsideRepModal}
         onUpdateOrder={state.updateLocalOrder}
         isCreateMode={isCreateMode}
+        hasChanges={state.hasChanges}
+        isSaving={state.createOrderMutation?.isPending || state.updateOrderMutation?.isPending}
         showEndUserPerLine={state.showEndUserPerLine}
         showOutsideRepPerLine={state.showOutsideRepPerLine}
         showInsideRepPerLine={state.showInsideRepPerLine}
@@ -669,9 +666,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex-1 flex flex-col p-6">
+      <div className="p-6">
         {/* Tab Navigation */}
-        <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white pt-4 px-4 -mx-6 -mt-6">
+        <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] bg-white pt-4 px-4 -mx-6 -mt-6">
           <div className="flex gap-1">
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
@@ -765,7 +762,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 pb-32">
+        <div className="pb-32">
           {state.activeTab === 'line-items' && (
             <LineItemsTable
               order={order}
@@ -1114,6 +1111,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         factoryId={order.manufacturerId}
         factoryName={order.manufacturerName}
         lineItems={order.lineItems || []}
+        initialSelectedItemIds={state.selectedLineItems}
         onClose={() => setShowCreateInvoiceModal(false)}
         onSuccess={(invoice) => {
           orderToasts.invoiceCreatedFromOrder(invoice.invoiceNumber || invoice.id);

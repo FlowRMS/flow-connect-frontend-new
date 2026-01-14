@@ -679,7 +679,7 @@ function UploadCompleteContent() {
   // Show full-page loading while waiting for params or initial data load
   if (effectiveParams === null || isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-background flex items-center justify-center">
+      <div className="h-full overflow-y-auto bg-slate-50 dark:bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Loading document data...</p>
@@ -689,7 +689,7 @@ function UploadCompleteContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-background">
+    <div className="h-full overflow-y-auto bg-slate-50 dark:bg-background">
       <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
         {/* Breadcrumb */}
         <WorkflowBreadcrumb currentStep="complete" showMapColumns={isFromSpreadsheet} />

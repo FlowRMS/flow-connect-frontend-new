@@ -224,8 +224,8 @@ export function ListViewV2({
   );
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: 'calc(100vh - 220px)' }}>
-      <div className="overflow-auto scrollbar-always-visible flex-1">
+    <div className="bg-white rounded-lg border border-gray-200">
+      <div className="overflow-x-auto">
         <table className="w-full min-w-[1800px]">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>

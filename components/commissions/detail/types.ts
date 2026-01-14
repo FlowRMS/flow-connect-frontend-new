@@ -65,7 +65,9 @@ export interface LineItem {
   orderId: string; // Order UUID from API (empty for adjustments)
   orderNumber?: string; // Human-readable order number from nested order object
   customer: string;
-  salesRep: string;
+  salesRep: string; // Primary sales rep name
+  salesRepsCount?: number; // Total number of sales reps
+  salesRepsList?: string[]; // List of all sales rep names for tooltip
   commissionRateExpected: number;
   commissionRateActual: number;
   expectedCommission: number;

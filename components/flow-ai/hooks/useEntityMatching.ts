@@ -1287,18 +1287,56 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
     [getEntitiesByStep, loadedSteps]
   );
 
-  // Check if all entities are validated (only for loaded steps)
-  const allValidated = useMemo(() => {
+  // Get visible steps based on document type (matches EntityStepNavigation logic)
+  const visibleSteps = useMemo((): EntityStep[] => {
     const allSteps: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices', 'credits', 'adjustments'];
+    const factoryDependentTabs: EntityStep[] = ['orders', 'invoices', 'credits', 'adjustments'];
+    const normalizedDocType = documentType?.toUpperCase();
 
-    // Check if all steps are loaded
-    if (!allSteps.every(step => loadedSteps.has(step))) {
+    // For CHECKS: Show all tabs
+    if (normalizedDocType === 'CHECKS') {
+      return allSteps;
+    }
+
+    // For INVOICES: Hide invoices, credits, adjustments - only show orders
+    if (normalizedDocType === 'INVOICES') {
+      return allSteps.filter(step =>
+        !['invoices', 'credits', 'adjustments'].includes(step)
+      );
+    }
+
+    // For other document types: Hide orders, invoices, credits, adjustments
+    return allSteps.filter(step =>
+      !factoryDependentTabs.includes(step)
+    );
+  }, [documentType]);
+
+  // Check if all entities are validated (only for visible/loaded steps based on document type)
+  const allValidated = useMemo(() => {
+    // Check if all visible steps are loaded
+    if (!visibleSteps.every(step => loadedSteps.has(step))) {
       return false;
     }
 
-    const allEntities = [...factories, ...customers, ...billToCustomers, ...endUsers, ...products, ...orders, ...invoices, ...credits, ...adjustments];
+    // Get entities only for visible steps
+    const getEntitiesForVisibleSteps = (): PendingEntity[] => {
+      const entitiesMap: Record<EntityStep, PendingEntity[]> = {
+        factories,
+        customers,
+        billtocustomers: billToCustomers,
+        endusers: endUsers,
+        products,
+        orders,
+        invoices,
+        credits,
+        adjustments,
+      };
+      return visibleSteps.flatMap(step => entitiesMap[step]);
+    };
+
+    const allEntities = getEntitiesForVisibleSteps();
     return allEntities.length === 0 || allEntities.every((e) => isResolved(e.confirmationStatus));
-  }, [factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, loadedSteps]);
+  }, [factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, loadedSteps, visibleSteps]);
 
   // Refresh entities for current step
   const refreshCurrentStep = useCallback(async () => {

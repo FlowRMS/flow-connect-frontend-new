@@ -34,103 +34,11 @@ import {
   useDeleteQuoteV2,
   useDuplicateQuoteV2,
 } from './api/quotesV2Api';
-import { searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer, listProductPricingTiers, getPriceForQuantity } from '../quotes/api/quotesApi';
+import { searchUsers, searchCustomers } from '../quotes/api/quotesApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { quoteToasts } from '../lib/toast';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
-
-// Helper function to fetch CPNs and update pricing for line items when customer changes
-async function fetchCpnsAndUpdatePricing(
-  items: LineItemV2[],
-  customerId: string,
-  setLineItems: React.Dispatch<React.SetStateAction<LineItemV2[]>>
-) {
-  if (!customerId || items.length === 0) return;
-
-  // Get line items that have a productId
-  const itemsWithProducts = items.filter(li => li.productId);
-  if (itemsWithProducts.length === 0) return;
-
-  // Fetch CPNs and pricing tiers for each product in parallel
-  const pricingPromises = itemsWithProducts.map(async (li) => {
-    try {
-      const [cpnResult, tiersResult] = await Promise.all([
-        getProductCpnByCustomer(li.productId!, customerId).catch(() => null),
-        listProductPricingTiers(li.productId!).catch(() => [])
-      ]);
-
-      // Determine pricing based on CPN or quantity tiers
-      let unitPrice = li.unitPrice;
-      let commissionRate = li.commissionPercent;
-      let customerPartNumber = '';
-      let hasCpnPricing = false;
-
-      if (cpnResult) {
-        customerPartNumber = cpnResult.customerPartNumber || '';
-        // Use CPN's unit price if available (takes priority)
-        if (cpnResult.unitPrice) {
-          unitPrice = parseFloat(cpnResult.unitPrice);
-          hasCpnPricing = true;
-        }
-        // Use CPN's commission rate if available (stored as whole percentage, e.g., 3 for 3%)
-        if (cpnResult.commissionRate) {
-          commissionRate = parseFloat(cpnResult.commissionRate);
-        }
-      }
-
-      // If no CPN pricing, check quantity tiers
-      if (!hasCpnPricing && tiersResult && tiersResult.length > 0) {
-        unitPrice = getPriceForQuantity(li.quantity || 1, tiersResult, unitPrice);
-      }
-
-      // Calculate derived values
-      const quantity = li.quantity || 1;
-      const divisor = li.divisor || 1;
-      const sellTotal = quantity * unitPrice / divisor;
-      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
-      const commission = quantity > 0 ? sellTotal * (commissionRate / 100) / quantity : 0;
-      const commissionTotal = sellTotal * (commissionRate / 100);
-
-      return {
-        itemId: li.id,
-        customerPartNumber,
-        unitPrice,
-        commissionPercent: commissionRate,
-        sellTotal,
-        commission,
-        commissionTotal,
-        hasCpnPricing
-      };
-    } catch (err) {
-      console.log('Error fetching pricing for product:', li.productId);
-      return { itemId: li.id, customerPartNumber: '', hasCpnPricing: false };
-    }
-  });
-
-  const pricingResults = await Promise.all(pricingPromises);
-
-  // Build map of updates
-  const updateMap = new Map(pricingResults.map(r => [r.itemId, r]));
-
-  // Update line items with fetched CPNs and pricing
-  setLineItems((prev) =>
-    prev.map((li) => {
-      const update = updateMap.get(li.id);
-      if (!update) return li;
-
-      return {
-        ...li,
-        customerPartNumber: update.customerPartNumber,
-        ...(update.unitPrice !== undefined && { unitPrice: update.unitPrice }),
-        ...(update.commissionPercent !== undefined && { commissionPercent: update.commissionPercent }),
-        ...(update.sellTotal !== undefined && { sellTotal: update.sellTotal }),
-        ...(update.commission !== undefined && { commission: update.commission }),
-        ...(update.commissionTotal !== undefined && { commissionTotal: update.commissionTotal }),
-      };
-    })
-  );
-}
 
 type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings' | 'files';
 
@@ -158,6 +66,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   // Line items state
   const [lineItems, setLineItems] = useState<LineItemV2[]>([]);
+
+  // Line item selection state (lifted from LineItemsTabV2 for sharing with header modal)
+  const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<string>>(new Set());
 
   // Current reps with names (for passing to line items when adding new ones)
   const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
@@ -192,49 +103,31 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       originalJobIdRef.current = transformedQuote.jobId;
       prevJobIdRef.current = transformedQuote.jobId;
 
-      // Transform line items
+      // Transform line items - factory names now come directly from detail.factory object
       if (apiQuote.details) {
         const transformedLineItems = apiQuote.details.map((detail) =>
           transformQuoteDetailToLineItemV2(detail, apiQuote.id)
         );
         setLineItems(transformedLineItems);
 
-        // Collect unique factory and end user IDs to fetch their names
-        const factoryIds = new Set<string>();
+        // When factoryPerLineItem is false, populate header-level factory from first detail's factory
+        // (all details should have the same factory when this setting is off)
+        if (apiQuote.factoryPerLineItem === false && apiQuote.details.length > 0) {
+          const firstDetailWithFactory = apiQuote.details.find(d => d.factory);
+          if (firstDetailWithFactory?.factory) {
+            setQuote(prev => ({
+              ...prev,
+              factoryId: firstDetailWithFactory.factory!.id,
+              factoryName: firstDetailWithFactory.factory!.title || '',
+            }));
+          }
+        }
+
+        // Collect unique end user IDs to fetch their names (factory names come from detail.factory now)
         const endUserIds = new Set<string>();
         transformedLineItems.forEach((li) => {
-          if (li.manufacturerId) factoryIds.add(li.manufacturerId);
           if (li.endUserId) endUserIds.add(li.endUserId);
         });
-
-        // Fetch factory names
-        if (factoryIds.size > 0) {
-          searchFactories('', true)
-            .then((factories) => {
-              const factoryMap = new Map(factories.map((f) => [f.id, f.title]));
-              setLineItems((prev) =>
-                prev.map((li) => ({
-                  ...li,
-                  manufacturerName: li.manufacturerId ? factoryMap.get(li.manufacturerId) || '' : '',
-                }))
-              );
-
-              // When factoryPerLineItem is false, populate header-level factory from first line item
-              // (all line items should have the same factory when this setting is off)
-              if (apiQuote.factoryPerLineItem === false && transformedLineItems.length > 0) {
-                const firstLineItemWithFactory = transformedLineItems.find(li => li.manufacturerId);
-                if (firstLineItemWithFactory?.manufacturerId) {
-                  const factoryName = factoryMap.get(firstLineItemWithFactory.manufacturerId) || '';
-                  setQuote(prev => ({
-                    ...prev,
-                    factoryId: firstLineItemWithFactory.manufacturerId,
-                    factoryName: factoryName,
-                  }));
-                }
-              }
-            })
-            .catch((err) => console.error('Failed to fetch factory names:', err));
-        }
 
         // Fetch end user names
         if (endUserIds.size > 0) {
@@ -265,10 +158,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             .catch((err) => console.error('Failed to fetch end user names:', err));
         }
 
-        // Fetch CPNs for line items that have products
-        if (apiQuote.soldToCustomerId && transformedLineItems.some(li => li.productId)) {
-          fetchCpnsAndUpdatePricing(transformedLineItems, apiQuote.soldToCustomerId, setLineItems);
-        }
+        // DO NOT fetch CPN/tier pricing on initial load
+        // The API already sends the correct prices - just use them as-is
+        // The child component will determine pricing source tags for display only
       }
       setHasChanges(false);
 
@@ -401,29 +293,12 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [isNew]);
 
-  // Track previous soldToCustomerId to detect changes
-  const prevSoldToCustomerIdRef = React.useRef<string | undefined>(undefined);
-
   // Track previous jobId to manage quote-job links
   const prevJobIdRef = React.useRef<string | undefined>(undefined);
   // Track if job link is being managed to prevent duplicate operations
   const isManagingJobLinkRef = React.useRef<boolean>(false);
   // Track the original job ID from API for editing scenarios
   const originalJobIdRef = React.useRef<string | undefined>(undefined);
-
-  // Re-fetch CPNs when sold-to customer changes
-  useEffect(() => {
-    // Only re-fetch if customer actually changed (not on initial load)
-    if (
-      prevSoldToCustomerIdRef.current !== undefined &&
-      quote.soldToCustomerId !== prevSoldToCustomerIdRef.current &&
-      quote.soldToCustomerId &&
-      lineItems.some(li => li.productId)
-    ) {
-      fetchCpnsAndUpdatePricing(lineItems, quote.soldToCustomerId, setLineItems);
-    }
-    prevSoldToCustomerIdRef.current = quote.soldToCustomerId;
-  }, [quote.soldToCustomerId, lineItems]);
 
   const handleQuoteChange = useCallback((updates: Partial<QuoteV2>) => {
     setQuote((prev) => ({ ...prev, ...updates }));
@@ -977,7 +852,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   }
 
   return (
-    <div className="min-h-full flex flex-col bg-white">
+    <div className="h-full overflow-auto bg-white">
       {/* Save Error Banner */}
       {saveError && (
         <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between">
@@ -1002,6 +877,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         hasChanges={hasChanges}
         isNew={isNew}
         lineItems={lineItems}
+        selectedLineItemIds={selectedLineItemIds}
         settings={settings}
         onClearLineItemProducts={handleClearLineItemProducts}
         onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
@@ -1010,7 +886,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       />
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 px-6 border-b border-gray-200 flex-shrink-0">
+      <div className="flex items-center gap-1 px-6 border-b border-gray-200">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -1046,7 +922,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1">
+      <div>
         {activeTab === 'lineItems' && (
           <LineItemsTabV2
             lineItems={lineItems}
@@ -1061,6 +937,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             headerFactoryName={quote.factoryName}
             currentOutsideReps={currentOutsideReps}
             currentInsideReps={currentInsideReps}
+            selectedItems={selectedLineItemIds}
+            onSelectedItemsChange={setSelectedLineItemIds}
           />
         )}
 

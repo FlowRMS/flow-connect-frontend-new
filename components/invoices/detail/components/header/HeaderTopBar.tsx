@@ -39,6 +39,10 @@ interface HeaderTopBarProps {
   handleGeneratePDF?: () => void;
   handleSave?: () => void;
   handleSaveAsNew?: () => void;
+  // Unsaved changes
+  isCreateMode?: boolean;
+  hasChanges?: boolean;
+  isSaving?: boolean;
 }
 
 const getStatusColor = (status: InvoiceStatus) => {
@@ -75,6 +79,9 @@ export function HeaderTopBar({
   handleGeneratePDF,
   handleSave,
   handleSaveAsNew,
+  isCreateMode = false,
+  hasChanges = false,
+  isSaving = false,
 }: HeaderTopBarProps) {
   const router = useRouter();
   const overdue = isOverdue(invoice);
@@ -593,12 +600,22 @@ export function HeaderTopBar({
 
           {/* Save Button with Dropdown */}
           <div className="relative">
+            {/* Unsaved changes indicator */}
+            {hasChanges && !isCreateMode && (
+              <span className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" title="You have unsaved changes" />
+            )}
             <div className="flex">
               <button
-                onClick={() => handleSave?.() || alert('Invoice saved!')}
-                className="px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                onClick={() => handleSave?.()}
+                disabled={isSaving || (!isCreateMode && !hasChanges)}
+                className={`px-4 py-2 text-white rounded-l-lg transition-colors text-sm font-medium ${
+                  isSaving || (!isCreateMode && !hasChanges)
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+                title={!isCreateMode && !hasChanges ? 'No changes to save' : undefined}
               >
-                Save
+                {isSaving ? 'Saving...' : isCreateMode ? 'Create' : 'Save'}
               </button>
               <button
                 onClick={() => {
@@ -606,7 +623,12 @@ export function HeaderTopBar({
                   setShowActionsDropdown(false);
                   setShowStatusDropdown(false);
                 }}
-                className="px-2 py-2 bg-green-600 text-white rounded-r-lg hover:bg-green-700 transition-colors border-l border-green-500"
+                disabled={isSaving || (!isCreateMode && !hasChanges)}
+                className={`px-2 py-2 text-white rounded-r-lg transition-colors border-l border-green-500 ${
+                  isSaving || (!isCreateMode && !hasChanges)
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
               >
                 <svg
                   width="12"

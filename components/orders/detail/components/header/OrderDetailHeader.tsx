@@ -45,6 +45,8 @@ interface OrderDetailHeaderProps {
   // New props for field updates
   onUpdateOrder?: (updates: Partial<Order>) => void;
   isCreateMode?: boolean;
+  hasChanges?: boolean;
+  isSaving?: boolean;
   // Settings for per-line-item fields
   showEndUserPerLine?: boolean;
   showOutsideRepPerLine?: boolean;
@@ -103,6 +105,8 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
     // New props for field updates
     onUpdateOrder,
     isCreateMode = false,
+    hasChanges = false,
+    isSaving = false,
     // Settings for per-line-item fields
     showEndUserPerLine = false,
     showOutsideRepPerLine = false,
@@ -130,20 +134,32 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
     onAutoPopulateInsideRepsToLineItems,
   } = props;
 
-  // Calculate totals
+  // Calculate totals from line items
   const totals = React.useMemo(() => {
-    // Filter product lines (non-freight)
-    const productLines = (order.lineItems || []).filter(item => item.partNumber !== 'FREIGHT');
+    const lineItems = order.lineItems || [];
+    const productLines = lineItems.filter(item => item.partNumber !== 'FREIGHT');
 
-    const subtotal = order.subtotal;
-    const freight = order.freight;
-    const total = order.total;
-    const commission = order.totalCommission;
+    // Calculate subtotal from line items
+    const subtotal = productLines.reduce((sum, item) => {
+      const ext = Number(item.extendedPrice) || 0;
+      return sum + ext;
+    }, 0);
 
-    // Calculate overage: unitPrice * 0.15 * quantity * 0.85
-    const totalOvg = productLines.reduce((sum, item) =>
-      sum + (item.unitPrice * 0.15 * item.quantity * 0.85), 0
-    );
+    const freight = Number(order.freight) || 0;
+    const total = subtotal + freight;
+
+    // Calculate commission from line items
+    const commission = productLines.reduce((sum, item) => {
+      const comm = Number(item.commissionAmount) || 0;
+      return sum + comm;
+    }, 0);
+
+    // Calculate overage
+    const totalOvg = productLines.reduce((sum, item) => {
+      const price = Number(item.unitPrice) || 0;
+      const qty = Number(item.quantity) || 0;
+      return sum + (price * 0.15 * qty * 0.85);
+    }, 0);
 
     const totalEarn = commission + totalOvg;
 
@@ -174,6 +190,8 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
         setActiveView={setActiveView}
         onSave={onSave}
         isCreateMode={isCreateMode}
+        hasChanges={hasChanges}
+        isSaving={isSaving}
         updateOrderStatus={updateOrderStatus}
         setShowQuoteLookupModal={setShowQuoteLookupModal}
         handleMakeWarehouseOrder={handleMakeWarehouseOrder}

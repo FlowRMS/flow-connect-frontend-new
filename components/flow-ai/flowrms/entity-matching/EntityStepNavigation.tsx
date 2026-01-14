@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Lock, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/flow-ai/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/flow-ai/ui/tooltip';
 import { useRef, useState, useEffect, useMemo } from 'react';
@@ -26,6 +26,7 @@ interface EntityStepNavigationProps {
   // New props for document type-based tab visibility
   documentType?: DocumentType;
   isFactoryMatched?: boolean;
+  factoryEntitiesLoading?: boolean;
 }
 
 export function EntityStepNavigation({
@@ -42,7 +43,8 @@ export function EntityStepNavigation({
   adjustmentsCount,
   getStepStatus,
   documentType,
-  isFactoryMatched = false
+  isFactoryMatched = false,
+  factoryEntitiesLoading = false
 }: EntityStepNavigationProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -119,6 +121,13 @@ export function EntityStepNavigation({
     return () => window.removeEventListener('resize', checkScrollability);
   }, []);
 
+  // Re-check scrollability when steps change or loading state changes
+  useEffect(() => {
+    // Use setTimeout to ensure DOM has updated after steps change
+    const timeoutId = setTimeout(checkScrollability, 100);
+    return () => clearTimeout(timeoutId);
+  }, [steps, factoryEntitiesLoading]);
+
   const scroll = (direction: 'left' | 'right') => {
     const container = scrollContainerRef.current;
     if (container) {
@@ -183,9 +192,11 @@ export function EntityStepNavigation({
                     }`}>
                       {step.label}
                     </span>
-                    {!disabled && status.validated && (
+                    {!disabled && factoryEntitiesLoading && FACTORY_DEPENDENT_TABS.includes(step.key) ? (
+                      <Loader2 className="w-4 h-4 text-blue-500 flex-shrink-0 animate-spin" />
+                    ) : !disabled && status.validated ? (
                       <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
-                    )}
+                    ) : null}
                   </div>
                   {disabled ? (
                     <div className="text-xs text-gray-400 whitespace-nowrap">

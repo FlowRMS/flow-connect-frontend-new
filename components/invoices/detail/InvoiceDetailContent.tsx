@@ -247,7 +247,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
   };
 
   return (
-    <main className="flex flex-col min-h-full bg-[var(--background)]">
+    <main className="h-full overflow-auto bg-[var(--background)]">
       {/* Header Top Bar */}
       <HeaderTopBar
         invoice={state.invoice}
@@ -272,6 +272,9 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         handleGeneratePDF={handleGeneratePDF}
         handleSave={handleSave}
         handleSaveAsNew={handleSaveAsNew}
+        isCreateMode={state.isCreateMode}
+        hasChanges={state.hasChanges}
+        isSaving={state.isSaving}
       />
 
       {/* Pricing Summary Bar */}
@@ -309,11 +312,11 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex flex-1 min-h-0">
+      <div>
         {/* Main Content */}
-        <div className="flex-1 flex flex-col p-6 min-w-0">
+        <div className="p-6">
           {/* Tabs */}
-          <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
+          <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] bg-white -mx-6 px-6 pt-4 -mt-6">
             <div className="flex gap-1">
               {getTabsConfig(state.invoice.lineItems.length, state.isCreateMode).map((tab) => (
                 <button
@@ -466,7 +469,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
           {/* Tab Content */}
           {state.activeTab === 'line-items' && (
-            <div className="flex-1 overflow-auto pb-32">
+            <div className="pb-32">
               <LineItemsTable
                 invoice={state.invoice}
                 selectedLineItems={state.selectedLineItems}
@@ -492,7 +495,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
           {/* Files Tab */}
           {state.activeTab === 'files' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <FilesTab
                 entityId={invoiceId}
                 entityType="INVOICE"
@@ -502,7 +505,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
           {/* Credits Tab */}
           {state.activeTab === 'credits' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <CreditsTab
                 invoice={state.invoice}
                 lineItemCredits={state.lineItemCredits}
@@ -512,35 +515,35 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
           {/* Notes Tab */}
           {state.activeTab === 'notes' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <NotesTab invoiceId={invoiceId} />
             </div>
           )}
 
           {/* Tasks Tab */}
           {state.activeTab === 'tasks' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <TasksTab invoiceId={invoiceId} />
             </div>
           )}
 
           {/* Activity Tab */}
           {state.activeTab === 'activity' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <ActivityTab />
             </div>
           )}
 
           {/* Linked Objects Tab */}
           {state.activeTab === 'linked-objects' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <LinkedObjectsTab invoiceId={invoiceId} />
             </div>
           )}
 
           {/* Settings Tab */}
           {state.activeTab === 'settings' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <SettingsTab invoice={state.invoice} />
             </div>
           )}

@@ -582,7 +582,7 @@ function ColumnMappingContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex-1 overflow-auto bg-background">
       <div className="container max-w-7xl mx-auto py-8 px-4">
         {/* Header */}
         <div className="mb-8">

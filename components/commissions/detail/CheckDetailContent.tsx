@@ -171,7 +171,7 @@ export default function CheckDetailContent({
   };
 
   return (
-    <main className="flex-1 overflow-auto bg-[var(--background)] flex flex-col">
+    <main className="h-full overflow-auto bg-[var(--background)]">
       {/* Header Top Bar */}
       <HeaderTopBar
         check={state.check}
@@ -204,6 +204,7 @@ export default function CheckDetailContent({
         isUnposting={state.isUnposting}
         isDeleting={state.isDeleting}
         isOriginallyPosted={state.isOriginallyPosted}
+        hasChanges={state.hasChanges}
       />
 
       {/* Pricing Summary Bar */}
@@ -269,10 +270,10 @@ export default function CheckDetailContent({
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex flex-1 overflow-hidden min-h-0">
-        <div className="flex-1 flex flex-col p-6 min-w-0 overflow-hidden">
+      <div>
+        <div className="p-6">
           {/* Tabs */}
-          <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
+          <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] bg-white -mx-6 px-6 pt-4 -mt-6">
             <div className="flex gap-1">
               {getTabsConfig(state.lineItems.length, state.adjustments.length, state.isCreateMode).map(
                 (tab) => (
@@ -426,7 +427,7 @@ export default function CheckDetailContent({
 
           {/* Tab Content */}
           {state.activeTab === 'line-items' && (
-            <div className="flex-1 min-h-0">
+            <div>
               <LineItemsTable
                 lineItems={state.lineItems}
                 visibleColumns={state.visibleColumns}

@@ -7,6 +7,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import type { LineItem, ColumnKey, CheckStatus } from '../../types';
+import { ListPreviewHoverCard } from '@/components/shared/ListPreviewHoverCard';
 
 interface LineItemsTableRowProps {
   item: LineItem;
@@ -119,17 +120,20 @@ export function LineItemsTableRow({
         </td>
       )}
       {visibleColumns.has('customer') && (
-        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)] opacity-50">
+        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
           {item.customer}
         </td>
       )}
       {visibleColumns.has('salesRep') && (
-        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)] opacity-50">
-          {item.salesRep}
+        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]" onClick={(e) => e.stopPropagation()}>
+          <ListPreviewHoverCard
+            items={item.salesRepsList && item.salesRepsList.length > 0 ? item.salesRepsList : [item.salesRep]}
+            type="salesRep"
+          />
         </td>
       )}
       {visibleColumns.has('commissionRate') && (
-        <td className="px-4 py-3 text-sm opacity-50">
+        <td className="px-4 py-3 text-sm">
           <span className="text-[var(--muted-foreground)]">
             {Number(item.commissionRateExpected).toFixed(3)}%
           </span>
@@ -140,7 +144,7 @@ export function LineItemsTableRow({
         </td>
       )}
       {visibleColumns.has('expectedCommission') && (
-        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)] opacity-50">
+        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
           ${Number(item.expectedCommission).toFixed(4)}
         </td>
       )}
@@ -167,7 +171,7 @@ export function LineItemsTableRow({
         </td>
       )}
       {visibleColumns.has('balance') && (
-        <td className="px-4 py-3 text-sm opacity-50">
+        <td className="px-4 py-3 text-sm">
           <div className="flex items-center gap-2">
             {item.balance === 0 && (
               <svg
@@ -175,7 +179,7 @@ export function LineItemsTableRow({
                 height="16"
                 viewBox="0 0 20 20"
                 fill="none"
-                className="text-gray-400"
+                className="text-green-500"
               >
                 <path
                   d="M5 10l3 3 7-7"
@@ -186,12 +190,14 @@ export function LineItemsTableRow({
                 />
               </svg>
             )}
-            <span className="text-[var(--muted-foreground)]">${Number(item.balance).toFixed(4)}</span>
+            <span className={`${item.balance === 0 ? 'text-green-600' : item.balance > 0 ? 'text-orange-500' : 'text-red-500'}`}>
+              ${Number(item.balance).toFixed(4)}
+            </span>
           </div>
         </td>
       )}
       {visibleColumns.has('paid') && (
-        <td className="px-4 py-3 text-center opacity-50">
+        <td className="px-4 py-3 text-center">
           {status === 'posted' ? (
             item.paid ? (
               <svg

@@ -88,6 +88,14 @@ export interface QuoteUom {
   title?: string;
 }
 
+// Factory object returned in quote detail
+export interface QuoteDetailFactory {
+  id: string;
+  title?: string;
+  accountNumber?: string;
+  published?: boolean;
+}
+
 export interface QuoteDetail {
   id: string;
   commission?: number;
@@ -99,6 +107,7 @@ export interface QuoteDetail {
   divisionFactor?: string;
   endUserId?: string;
   factoryId?: string;
+  factory?: QuoteDetailFactory;
   itemNumber?: number;
   leadTime?: string;
   note?: string;
@@ -392,6 +401,12 @@ const FIND_QUOTE_BY_ID = `
         discountRate
         endUserId
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note
@@ -543,6 +558,12 @@ const CREATE_QUOTE = `
         discountRate
         endUserId
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note
@@ -672,6 +693,12 @@ const UPDATE_QUOTE = `
         discountRate
         endUserId
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note
@@ -829,6 +856,12 @@ const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
         discountRate
         endUserId
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note

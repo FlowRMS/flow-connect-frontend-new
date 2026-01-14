@@ -945,7 +945,7 @@ function QueuePageContent() {
   };
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
+    <div className="h-full overflow-y-auto bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
       {/* Main Content */}
       <main className="flex-1 w-full max-w-[1800px] mx-auto px-6 py-8">
         <div className="space-y-6">
