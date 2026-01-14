@@ -17,6 +17,7 @@ import { useOrderHeader } from './useOrderHeader';
 import { useLineItemsTable } from './useLineItemsTable';
 import { useLineItemBulkActions } from './useLineItemBulkActions';
 import { toggleAllLineItems } from '../utils';
+import { useOrderSettings } from '@/contexts/UserSettingsContext';
 
 interface UseOrderDetailStateProps {
   orderId: string;
@@ -281,6 +282,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   const { data: apiOrder, isLoading, error, refetch } = useOrder(isCreateMode ? null : orderId);
   const updateOrderMutation = useUpdateOrder();
   const createOrderMutation = useCreateOrder();
+
+  // User settings hook for applying saved defaults on new orders
+  const { settings: savedOrderSettings, isInitialized: settingsInitialized } = useOrderSettings();
 
   // Local order state for create mode or local edits
   const [localOrder, setLocalOrder] = useState<Order>(() => createEmptyOrder());
@@ -562,13 +566,23 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     new Set()
   );
 
-  // Settings state
+  // Settings state - initialized with defaults, will be updated from API or user settings
   const [showEndUserPerLine, setShowEndUserPerLine] = useState(false);
   const [showOutsideRepPerLine, setShowOutsideRepPerLine] = useState(false);
   const [showInsideRepPerLine, setShowInsideRepPerLine] = useState(false);
   const [customerPartNumberSource, setCustomerPartNumberSource] = useState<
     'soldTo' | 'endUser'
   >('soldTo');
+
+  // Apply saved user settings when creating a new order
+  useEffect(() => {
+    if (isCreateMode && settingsInitialized && savedOrderSettings) {
+      // Apply saved settings from user preferences
+      setShowEndUserPerLine(savedOrderSettings.showEndUserPerLine ?? false);
+      setShowOutsideRepPerLine(savedOrderSettings.showOutsideRepPerLine ?? false);
+      setShowInsideRepPerLine(savedOrderSettings.showInsideRepPerLine ?? false);
+    }
+  }, [isCreateMode, settingsInitialized, savedOrderSettings]);
 
   // Sections state
   const [showSections, setShowSections] = useState(false);

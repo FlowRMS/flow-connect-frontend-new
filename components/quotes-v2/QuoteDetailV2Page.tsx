@@ -40,6 +40,7 @@ import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/use
 import { quoteToasts } from '../lib/toast';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
+import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 
 type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings' | 'files';
 
@@ -58,6 +59,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   const deleteQuoteMutation = useDeleteQuoteV2();
   const duplicateQuoteMutation = useDuplicateQuoteV2();
 
+  // User settings hook for applying saved defaults on new quotes
+  const { settings: savedQuoteSettings, isInitialized: settingsInitialized } = useQuoteSettings();
+
   // Quote state
   const [quote, setQuote] = useState<QuoteV2>(createEmptyQuoteV2());
   const [hasChanges, setHasChanges] = useState(false);
@@ -75,11 +79,31 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
   const [currentInsideReps, setCurrentInsideReps] = useState<RepSplitRate[]>([]);
 
-  // Settings state
+  // Settings state - initialize with defaults, will be updated from API or user settings
   const [settings, setSettings] = useState<QuoteSettingsV2>(defaultQuoteSettingsV2);
 
-  // Column configuration
+  // Column configuration - initialize with defaults, will be updated from API or user settings
   const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(defaultColumnConfigV2);
+
+  // Apply saved user settings when creating a new quote
+  useEffect(() => {
+    if (isNew && settingsInitialized && savedQuoteSettings) {
+      // Apply saved settings from user preferences
+      setSettings(prev => ({
+        ...prev,
+        specifyEndUserPerLine: savedQuoteSettings.specifyEndUserPerLine ?? prev.specifyEndUserPerLine,
+        outsideRepAtLineLevel: savedQuoteSettings.outsideRepAtLineLevel ?? prev.outsideRepAtLineLevel,
+        insideRepAtLineLevel: savedQuoteSettings.insideRepAtLineLevel ?? prev.insideRepAtLineLevel,
+        factoryPerLineItem: savedQuoteSettings.factoryPerLineItem ?? prev.factoryPerLineItem,
+        customerPartNumberSource: savedQuoteSettings.customerPartNumberSource ?? prev.customerPartNumberSource,
+      }));
+
+      // Apply saved column configuration
+      if (savedQuoteSettings.columnConfig && savedQuoteSettings.columnConfig.length > 0) {
+        setColumnConfig(savedQuoteSettings.columnConfig);
+      }
+    }
+  }, [isNew, settingsInitialized, savedQuoteSettings]);
 
   // Modal states
   const [showColumnsModal, setShowColumnsModal] = useState(false);
