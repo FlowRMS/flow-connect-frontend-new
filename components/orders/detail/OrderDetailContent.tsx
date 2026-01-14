@@ -807,6 +807,15 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onOpenAdditionalDetails={state.openAdditionalDetails}
               currentOutsideReps={currentOutsideReps}
               currentInsideReps={currentInsideReps}
+              onViewInvoice={(invoice) => invoicesState.viewInvoice({
+                id: invoice.id,
+                invoiceNumber: invoice.invoiceNumber,
+                status: invoice.status,
+                entityDate: invoice.entityDate,
+                dueDate: invoice.dueDate,
+                creationType: invoice.creationType,
+                locked: invoice.locked,
+              })}
             />
           )}
 

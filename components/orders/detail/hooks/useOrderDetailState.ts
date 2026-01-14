@@ -89,7 +89,21 @@ function createEmptyOrder(): Order {
  */
 function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
   // Map line items from API format to UI format
-  const lineItems: OrderLineItem[] = (apiOrder.details || []).map((detail: OrderDetail, index: number) => ({
+  const lineItems: OrderLineItem[] = (apiOrder.details || []).map((detail: OrderDetail, index: number) => {
+    // Parse values first so we can calculate if API values are missing
+    const quantity = parseFloat(detail.quantity || '0');
+    const unitPrice = parseFloat(detail.unitPrice || '0');
+    const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
+    const commissionRate = parseFloat(detail.commissionRate || '0');
+
+    // Calculate extended price - always calculate from inputs to ensure correctness
+    // The API subtotal/commission fields can be stale or incorrect, so we recalculate
+    const extendedPrice = quantity * unitPrice / divisor;
+
+    // Calculate commission amount based on extended price and commission rate
+    const commissionAmount = extendedPrice * (commissionRate / 100);
+
+    return {
     id: detail.id,
     lineNumber: detail.itemNumber || index + 1,
     productId: detail.productId || '',
@@ -98,12 +112,12 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     description: detail.product?.description || detail.productDescriptionAdhoc || '',
     uom: detail.uom?.title || null,
     uomId: detail.uom?.id || null,
-    divisor: detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1'),
-    quantity: parseFloat(detail.quantity || '0'),
-    unitPrice: parseFloat(detail.unitPrice || '0'),
-    extendedPrice: detail.subtotal || 0,
-    commissionRate: parseFloat(detail.commissionRate || '0'), // Keep as whole percentage (e.g., 8 for 8%)
-    commissionAmount: detail.commission || 0,
+    divisor,
+    quantity,
+    unitPrice,
+    extendedPrice,
+    commissionRate, // Keep as whole percentage (e.g., 8 for 8%)
+    commissionAmount,
     quantityShipped: detail.shippingBalance || 0,
     quantityInvoiced: 0, // API doesn't provide this directly
     quantityCredited: detail.cancelledBalance || 0,
@@ -122,7 +136,18 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     lineDiscountAmount: detail.discount || 0,
     leadTime: detail.leadTime || '',
     note: detail.note || '',
-  }));
+    // Invoice linked to this line item
+    invoice: detail.invoice ? {
+      id: detail.invoice.id,
+      invoiceNumber: detail.invoice.invoiceNumber,
+      status: detail.invoice.status,
+      entityDate: detail.invoice.entityDate,
+      dueDate: detail.invoice.dueDate,
+      creationType: detail.invoice.creationType,
+      locked: detail.invoice.locked,
+    } : undefined,
+  };
+  });
 
   // Extract inside rep from the first line item's insideSplitRates
   const firstDetailWithInsideReps = apiOrder.details?.find(d => d.insideSplitRates && d.insideSplitRates.length > 0);
@@ -500,8 +525,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     const updatedItems = items.map(item => {
       const quantity = item.quantity || 0;
       const unitPrice = item.unitPrice || 0;
+      const divisor = item.divisor || 1;
       const commissionRate = item.commissionRate || 0; // Stored as whole percentage (e.g., 8 for 8%)
-      const extendedPrice = quantity * unitPrice;
+      const extendedPrice = quantity * unitPrice / divisor;
       const commissionAmount = extendedPrice * (commissionRate / 100); // Convert to decimal for calculation
       return {
         ...item,

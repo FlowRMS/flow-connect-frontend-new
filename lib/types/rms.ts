@@ -269,6 +269,16 @@ export interface OrderLineItem {
   // Per-line-item manufacturer
   manufacturerId?: string;
   manufacturerName?: string;
+  // Invoice linked to this line item
+  invoice?: {
+    id: string;
+    invoiceNumber?: string;
+    status?: string;
+    entityDate?: string;
+    dueDate?: string;
+    creationType?: string;
+    locked?: boolean;
+  };
 }
 
 export interface OrderSplitRate {

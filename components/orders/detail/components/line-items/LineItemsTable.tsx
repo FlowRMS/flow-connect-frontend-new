@@ -71,6 +71,8 @@ interface LineItemsTableProps {
   // Current reps for inheriting to new line items
   currentOutsideReps?: RepSplitRateInfo[];
   currentInsideReps?: RepSplitRateInfo[];
+  // Invoice modal callback
+  onViewInvoice?: (invoice: { id: string; invoiceNumber?: string; status?: string; entityDate?: string; dueDate?: string; creationType?: string; locked?: boolean }) => void;
 }
 
 export function LineItemsTable({
@@ -107,6 +109,7 @@ export function LineItemsTable({
   onOpenAdditionalDetails,
   currentOutsideReps,
   currentInsideReps,
+  onViewInvoice,
 }: LineItemsTableProps) {
   // Editable state
   const [editingCell, setEditingCell] = useState<{ itemId: string; column: EditableColumnKey } | null>(null);
@@ -1068,7 +1071,14 @@ export function LineItemsTable({
                   {/* Invoice # */}
                   {visibleColumns.has('linkedInvoice') && (
                     <td className="px-3 py-2 text-sm min-w-[120px]">
-                      {linkedInvoices.length > 0 ? (
+                      {item.invoice ? (
+                        <button
+                          className="text-blue-600 hover:underline font-medium"
+                          onClick={() => onViewInvoice?.(item.invoice!)}
+                        >
+                          {item.invoice.invoiceNumber || `INV-${item.invoice.id.substring(0, 8)}`}
+                        </button>
+                      ) : linkedInvoices.length > 0 ? (
                         <button
                           className="text-blue-600 hover:underline"
                           onMouseEnter={(e) => {
