@@ -132,7 +132,7 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="min-h-full bg-background flex flex-col">
+    <div className="h-full overflow-auto bg-background">
       {/* Page Header */}
       <div className="border-b bg-card/50 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -150,7 +150,7 @@ export default function UploadPage() {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 relative">
+      <main className="relative">
         {isBatchProcessing && (
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
             <div className="flex flex-col items-center gap-6 max-w-lg text-center px-4">

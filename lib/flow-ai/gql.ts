@@ -70,6 +70,10 @@ export const Q_GET_PENDING = gql`
       status
       workflowStatus
       updatedAt
+      cluster {
+        id
+        clusterName
+      }
     }
   }
 `;
@@ -1206,6 +1210,38 @@ export const Q_GET_ALL_AVAILABLE_INSTRUCTIONS = gql`
     }
   }
 `;
+// Mutation to trigger pending entities by factory
+// Used when factory is matched in CHECKS/INVOICES documents to populate Orders, Invoices, Credits, Adjustments tabs
+export const M_TRIGGER_PENDING_ENTITIES_BY_FACTORY = gql`
+  mutation TriggerPendingEntitiesByFactory($input: TriggerPendingEntitiesInput!) {
+    triggerPendingEntitiesByFactory(input: $input) {
+      bestMatchId
+      bestMatchName
+      bestMatchSimilarity
+      confirmationStatus
+      confirmedAt
+      confirmedByUserId
+      matchCandidates {
+        similarityScore
+        rank
+        name
+        metadata
+        entityId
+      }
+      updatedAt
+      sourceLineNumbers
+      pendingDocumentId
+      id
+      flowIndexDetail
+      extractedData
+      entityType
+      dtoIds
+      displayName
+      createdAt
+    }
+  }
+`;
+
 
 export const Q_GET_CUSTOM_INSTRUCTION = gql`
   query GetCustomInstruction($instructionId: UUID!) {

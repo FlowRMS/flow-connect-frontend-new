@@ -437,6 +437,12 @@ const FIND_ORDER_BY_ID = `
       entityDate
       factSoNumber
       factoryId
+      factory {
+        id
+        title
+        accountNumber
+        published
+      }
       freightTerms
       headerStatus
       job {
@@ -1105,4 +1111,30 @@ export async function createOrderFromQuote(input: CreateOrderFromQuoteInput): Pr
   }
 
   return response.data.createOrderFromQuote;
+}
+
+/**
+ * Fetch all order IDs for bulk operations
+ * Handles pagination internally to get all IDs
+ */
+export async function fetchAllOrderIds(
+  filters?: OrderLandingPageFilter[],
+  orderBy?: OrderLandingPageOrderBy[]
+): Promise<string[]> {
+  // First, get total count
+  const initialResult = await fetchOrdersWithPagination(filters, orderBy, { limit: 1, offset: 0 });
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all IDs in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await fetchOrdersWithPagination(filters, orderBy, { limit: batchSize, offset });
+    allIds.push(...result.records.map(r => r.id));
+  }
+
+  return allIds;
 }

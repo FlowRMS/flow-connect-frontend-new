@@ -691,18 +691,18 @@ export default function AIChatPage() {
   }, [streamingDocumentReferences]);
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex flex-1 h-full bg-background overflow-hidden">
       {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
-      
+
       {/* Sidebar */}
       <div className={cn(
-        "flex-shrink-0 z-50 transition-all duration-300 ease-in-out",
+        "flex-shrink-0 z-50 transition-all duration-300 ease-in-out h-full",
         "md:block md:relative md:translate-x-0",
         "fixed inset-y-0 left-0 bg-background",
         isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
@@ -727,9 +727,9 @@ export default function AIChatPage() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Header - minimal version with mobile sidebar toggle and settings */}
-        <header className="flex-shrink-0 border-b border-border/40 backdrop-blur-sm sticky top-0 z-10 bg-background/80">
+        <header className="flex-shrink-0 border-b border-border/40 backdrop-blur-sm bg-background/80 z-10">
           <div className="flex items-center justify-between px-4 md:px-8 py-3 md:py-4">
             <div className="flex items-center gap-2 md:gap-4">
               {/* Mobile Menu Button */}
@@ -767,9 +767,10 @@ export default function AIChatPage() {
           </div>
         </header>
 
-        {/* Messages Area */}
-        <ScrollArea ref={scrollAreaRef} className="flex-1">
-          <div className="max-w-6xl mx-auto px-3 sm:px-6 pb-48 md:pb-72">
+        {/* Messages Area - Takes remaining height after header */}
+        <div className="flex-1 relative min-h-0">
+          <ScrollArea ref={scrollAreaRef} className="h-full" showScrollbar>
+            <div className="max-w-6xl mx-auto px-3 sm:px-6 pb-48 md:pb-72">
             {displayMessages.length === 0 && !streamingMessage ? (
               <div className="flex flex-col items-center justify-center h-full py-16 md:py-32 px-4 md:px-6">
                 <div className="relative mb-6 md:mb-8">
@@ -862,8 +863,8 @@ export default function AIChatPage() {
           </div>
         </ScrollArea>
 
-        {/* Input Area - Floating over chat */}
-        <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-6 py-3 md:py-4 pointer-events-none">
+          {/* Input Area - Floating over chat */}
+          <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-6 py-3 md:py-4 pointer-events-none">
           <div className="max-w-6xl mx-auto space-y-2 md:space-y-3 pointer-events-auto">
             {/* Approval Prompt */}
             {approvalRequired && (
@@ -953,6 +954,7 @@ export default function AIChatPage() {
               AI can make mistakes. Verify important information.
             </p>
           </div>
+        </div>
         </div>
       </div>
 

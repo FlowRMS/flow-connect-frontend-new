@@ -124,11 +124,29 @@ export function FilesTab({ entityId, entityType }: FilesTabProps) {
     try {
       const url = await getFilePresignedUrl(file.id);
       if (url) {
-        window.open(url, '_blank');
+        // Create a temporary link to trigger download
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = file.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
     } catch (err) {
       console.error('Failed to get download URL:', err);
       setError(err instanceof Error ? err.message : 'Failed to download file');
+    }
+  };
+
+  const handleOpenInNewTab = async (file: FileResponse) => {
+    try {
+      const url = await getFilePresignedUrl(file.id);
+      if (url) {
+        window.open(url, '_blank');
+      }
+    } catch (err) {
+      console.error('Failed to get file URL:', err);
+      setError(err instanceof Error ? err.message : 'Failed to open file');
     }
   };
 
@@ -445,6 +463,16 @@ export function FilesTab({ entityId, entityType }: FilesTabProps) {
                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                   <div className="flex items-center gap-1 bg-white rounded-lg shadow-sm border border-gray-200 p-1">
                     <button
+                      onClick={(e) => { e.stopPropagation(); handleOpenInNewTab(file); }}
+                      className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                      title="Open in new tab"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" className="text-gray-500">
+                        <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                        <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                      </svg>
+                    </button>
+                    <button
                       onClick={(e) => { e.stopPropagation(); handleDownload(file); }}
                       className="p-1.5 hover:bg-gray-100 rounded transition-colors"
                       title="Download"
@@ -561,6 +589,16 @@ export function FilesTab({ entityId, entityType }: FilesTabProps) {
                     <td className="px-4 py-3 text-sm text-gray-500">{formatDate(file.createdAt)}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => handleOpenInNewTab(file)}
+                          className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                          title="Open in new tab"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-gray-500">
+                            <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                            <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                          </svg>
+                        </button>
                         <button
                           onClick={() => handleDownload(file)}
                           className="p-1.5 hover:bg-gray-100 rounded transition-colors"

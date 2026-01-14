@@ -24,8 +24,31 @@ interface UseOrderDetailStateProps {
 
 /**
  * Create an empty order for create mode
+ * Includes one default line item so user can start entering data immediately
  */
 function createEmptyOrder(): Order {
+  const defaultLineItem = {
+    id: `li-${Date.now()}`,
+    lineNumber: 1,
+    partNumber: '',
+    description: '',
+    uom: null,
+    uomId: null,
+    divisor: 1,
+    quantity: 1,
+    quantityShipped: 0,
+    quantityInvoiced: 0,
+    quantityCredited: 0,
+    unitPrice: 0,
+    extendedPrice: 0,
+    commissionRate: 8, // Stored as whole percentage (8 for 8%)
+    commissionAmount: 0,
+    productId: '',
+    isCancelled: false,
+    isConsignment: false,
+    status: 'open' as const,
+  };
+
   return {
     id: '',
     orderNumber: '',
@@ -47,7 +70,7 @@ function createEmptyOrder(): Order {
     requestedShipDate: undefined,
     actualShipDate: undefined,
     quoteId: undefined,
-    lineItems: [],
+    lineItems: [defaultLineItem],
     subtotal: 0,
     freight: 0,
     total: 0,
@@ -79,7 +102,7 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     quantity: parseFloat(detail.quantity || '0'),
     unitPrice: parseFloat(detail.unitPrice || '0'),
     extendedPrice: detail.subtotal || 0,
-    commissionRate: parseFloat(detail.commissionRate || '0') / 100, // API returns as percent, convert to decimal
+    commissionRate: parseFloat(detail.commissionRate || '0'), // Keep as whole percentage (e.g., 8 for 8%)
     commissionAmount: detail.commission || 0,
     quantityShipped: detail.shippingBalance || 0,
     quantityInvoiced: 0, // API doesn't provide this directly
@@ -397,7 +420,8 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   // Track previous customerId to detect changes
   const prevCustomerIdRef = React.useRef<string | undefined>(undefined);
 
-  // Re-fetch CPNs when sold-to customer changes
+  // Re-fetch CPNs when sold-to customer changes (ONLY update custPartNumber, NOT pricing)
+  // Pricing is selected by user via dropdown in LineItemsTable
   useEffect(() => {
     // Only re-fetch if customer actually changed (not on initial load) and we have an order with line items
     if (
@@ -408,27 +432,36 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     ) {
       const lineItemsWithProducts = localOrder.lineItems.filter(li => li.productId);
 
-      // Fetch CPNs for each product in parallel
+      // Fetch CPNs for each product in parallel (only to get customer part number)
       (async () => {
         const cpnPromises = lineItemsWithProducts.map(async (li) => {
           try {
-            const cpnResult = await getProductCpnByCustomer(li.productId!, localOrder.customerId);
-            return { itemId: li.id, cpn: cpnResult?.customerPartNumber || '' };
+            const cpnResult = await getProductCpnByCustomer(li.productId!, localOrder.customerId).catch(() => null);
+            return {
+              itemId: li.id,
+              custPartNumber: cpnResult?.customerPartNumber || ''
+            };
           } catch (err) {
-            // CPN not found is not an error
-            return { itemId: li.id, cpn: '' };
+            return { itemId: li.id, custPartNumber: '' };
           }
         });
 
         const cpnResults = await Promise.all(cpnPromises);
-        const cpnMap = new Map(cpnResults.map(r => [r.itemId, r.cpn]));
+        const updateMap = new Map(cpnResults.map(r => [r.itemId, r]));
 
+        // ONLY update custPartNumber - do NOT auto-update pricing
+        // User selects pricing via dropdown in LineItemsTable
         setLocalOrder(prev => ({
           ...prev,
-          lineItems: (prev.lineItems || []).map(li => ({
-            ...li,
-            custPartNumber: cpnMap.has(li.id) ? cpnMap.get(li.id)! : li.custPartNumber,
-          })),
+          lineItems: (prev.lineItems || []).map(li => {
+            const update = updateMap.get(li.id);
+            if (!update) return li;
+
+            return {
+              ...li,
+              custPartNumber: update.custPartNumber,
+            };
+          }),
         }));
       })();
     }
@@ -467,9 +500,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     const updatedItems = items.map(item => {
       const quantity = item.quantity || 0;
       const unitPrice = item.unitPrice || 0;
-      const commissionRate = item.commissionRate || 0;
+      const commissionRate = item.commissionRate || 0; // Stored as whole percentage (e.g., 8 for 8%)
       const extendedPrice = quantity * unitPrice;
-      const commissionAmount = extendedPrice * commissionRate;
+      const commissionAmount = extendedPrice * (commissionRate / 100); // Convert to decimal for calculation
       return {
         ...item,
         extendedPrice,
@@ -719,6 +752,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       error,
       refetch,
       isCreateMode: false,
+      // Unsaved changes tracking
+      hasChanges: false,
+      resetChanges: noop,
       order: null,
       orders: [],
       setOrders: noop,
@@ -899,6 +935,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     refetch,
     // Create mode flag
     isCreateMode,
+    // Unsaved changes tracking
+    hasChanges: isCreateMode || hasLocalEdits,
+    resetChanges: () => setHasLocalEdits(false),
     // Order data
     order,
     orders,

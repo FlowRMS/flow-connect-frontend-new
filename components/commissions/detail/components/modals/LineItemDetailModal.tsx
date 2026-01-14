@@ -343,7 +343,7 @@ export function LineItemDetailModal({
                         </span>
                       </label>
                       <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                        ${item.expectedCommission.toFixed(2)}
+                        ${Number(item.expectedCommission).toFixed(2)}
                       </p>
                     </div>
 
@@ -353,7 +353,7 @@ export function LineItemDetailModal({
                       </label>
                       {status === 'posted' ? (
                         <p className="text-lg font-semibold text-[var(--foreground)]">
-                          ${item.paidCommission.toFixed(2)}
+                          ${Number(item.paidCommission).toFixed(2)}
                         </p>
                       ) : (
                         <input
@@ -377,7 +377,7 @@ export function LineItemDetailModal({
                         </span>
                       </label>
                       <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                        ${item.balance.toFixed(2)}
+                        ${Number(item.balance).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -536,7 +536,7 @@ export function LineItemDetailModal({
                         Original Amount
                       </label>
                       <p className="text-sm text-[var(--foreground)] font-medium">
-                        ${item.amount.toFixed(2)}
+                        ${Number(item.amount).toFixed(2)}
                       </p>
                     </div>
                   )}
@@ -637,7 +637,7 @@ export function LineItemDetailModal({
                   </span>
                 </label>
                 <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                  ${item.expectedCommission.toFixed(2)}
+                  ${Number(item.expectedCommission).toFixed(2)}
                 </p>
               </div>
 
@@ -647,7 +647,7 @@ export function LineItemDetailModal({
                 </label>
                 {status === 'posted' ? (
                   <p className="text-lg font-semibold text-[var(--foreground)]">
-                    ${item.paidCommission.toFixed(2)}
+                    ${Number(item.paidCommission).toFixed(2)}
                   </p>
                 ) : (
                   <input
@@ -671,7 +671,7 @@ export function LineItemDetailModal({
                   </span>
                 </label>
                 <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                  ${item.balance.toFixed(2)}
+                  ${Number(item.balance).toFixed(2)}
                 </p>
               </div>
             </div>

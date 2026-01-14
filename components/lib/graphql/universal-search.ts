@@ -14,6 +14,7 @@ export interface UniversalSearchResult {
   alias?: string;
   resultType: string;
   title: string;
+  extraInfo?: string;
 }
 
 // ============================================================================
@@ -27,6 +28,7 @@ const UNIVERSAL_SEARCH = `
       id
       resultType
       title
+      extraInfo
     }
   }
 `;

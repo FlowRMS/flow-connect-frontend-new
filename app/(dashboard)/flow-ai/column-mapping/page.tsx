@@ -404,12 +404,22 @@ function ColumnMappingContent() {
   }, [selectedDestinations]);
 
   // Check for unmapped required fields
+  // Include both primary mappings (selectedDestinations) and secondary "Also map to" mappings (duplicateColumns)
   const unmappedRequiredFields = useMemo(() => {
     if (!mappingData?.required_fields) return [];
-    
+
+    // Collect all mapped fields from primary mappings
     const mappedFields = new Set(Object.values(selectedDestinations).filter(Boolean));
+
+    // Also include fields from secondary "Also map to" mappings (duplicateColumns)
+    Object.values(duplicateColumns).forEach(targets => {
+      targets.forEach(field => {
+        if (field) mappedFields.add(field);
+      });
+    });
+
     return mappingData.required_fields.filter(field => !mappedFields.has(field));
-  }, [mappingData?.required_fields, selectedDestinations]);
+  }, [mappingData?.required_fields, selectedDestinations, duplicateColumns]);
 
   const { missingRequiredFields, defaultedRequiredFields } = useMemo(() => {
     const missing: string[] = [];
@@ -572,7 +582,7 @@ function ColumnMappingContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex-1 overflow-auto bg-background">
       <div className="container max-w-7xl mx-auto py-8 px-4">
         {/* Header */}
         <div className="mb-8">

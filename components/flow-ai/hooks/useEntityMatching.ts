@@ -8,6 +8,7 @@ import {
   M_CONFIRM_ENTITY_MATCH,
   M_BULK_CONFIRM_ENTITIES,
   M_CREATE_NEW_ENTITY,
+  M_TRIGGER_PENDING_ENTITIES_BY_FACTORY,
 } from '@/lib/flow-ai/gql';
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import type {
@@ -25,6 +26,7 @@ import {
   isResolved,
   needsAction,
 } from '@/components/flow-ai/types/entity-matching';
+import type { DocumentType } from '@/components/flow-ai/flowrms/entity-matching/EntityStepNavigation';
 
 // Type for pending entities response
 interface PendingEntitiesResponse {
@@ -88,11 +90,17 @@ export interface CreateExtraFields {
   factoryId?: string;
 }
 
-export interface UseEntityMatchingOptions {
-  pendingDocumentId: string | null;
+// Type for trigger pending entities by factory response
+interface TriggerPendingEntitiesByFactoryResponse {
+  triggerPendingEntitiesByFactory: PendingEntity[];
 }
 
-export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOptions) {
+export interface UseEntityMatchingOptions {
+  pendingDocumentId: string | null;
+  documentType?: DocumentType;
+}
+
+export function useEntityMatching({ pendingDocumentId, documentType }: UseEntityMatchingOptions) {
   // Entity state by type
   const [factories, setFactories] = useState<PendingEntity[]>([]);
   const [customers, setCustomers] = useState<PendingEntity[]>([]);
@@ -106,6 +114,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
 
   // Track which steps have been loaded
   const [loadedSteps, setLoadedSteps] = useState<Set<EntityStep>>(new Set());
+
+  // Track factory-based entities loading state
+  const [factoryEntitiesLoading, setFactoryEntitiesLoading] = useState(false);
+  const [factoryEntitiesLoaded, setFactoryEntitiesLoaded] = useState(false);
+  // Track the factory ID that was used to load entities (to prevent reloading with same factory)
+  const loadedFactoryIdRef = useRef<string | null>(null);
 
   // UI state
   const [currentStep, setCurrentStep] = useState<EntityStep>('factories');
@@ -251,7 +265,138 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     setCredits([]);
     setAdjustments([]);
     setInitialLoadComplete(false);
+    setFactoryEntitiesLoaded(false);
+    loadedFactoryIdRef.current = null;
   }, [pendingDocumentId]);
+
+  // Compute if factory is matched (any factory entity has CONFIRMED or AUTO_MATCHED status with a bestMatchId)
+  const isFactoryMatched = useMemo(() => {
+    return factories.some(
+      (f) => (f.confirmationStatus === 'CONFIRMED' || f.confirmationStatus === 'AUTO_MATCHED') && f.bestMatchId
+    );
+  }, [factories]);
+
+  // Get the matched factory ID (first confirmed or auto-matched factory with bestMatchId)
+  const matchedFactoryId = useMemo(() => {
+    const matchedFactory = factories.find(
+      (f) => (f.confirmationStatus === 'CONFIRMED' || f.confirmationStatus === 'AUTO_MATCHED') && f.bestMatchId
+    );
+    return matchedFactory?.bestMatchId || null;
+  }, [factories]);
+
+  // Load entities by factory (Orders, Invoices, Credits, Adjustments) when factory is matched
+  // This is only used for CHECKS and INVOICES document types
+  const loadEntitiesByFactory = useCallback(async (factoryId: string) => {
+    if (!pendingDocumentId || !factoryId) return;
+
+    // Prevent reloading with the same factory
+    if (loadedFactoryIdRef.current === factoryId) {
+      console.log('Factory entities already loaded for this factory');
+      return;
+    }
+
+    const normalizedDocType = documentType?.toUpperCase();
+
+    // Only applicable for CHECKS and INVOICES
+    if (normalizedDocType !== 'CHECKS' && normalizedDocType !== 'INVOICES') {
+      return;
+    }
+
+    setFactoryEntitiesLoading(true);
+
+    try {
+      // Determine which entity types to load based on document type
+      const entityTypes: string[] = normalizedDocType === 'CHECKS'
+        ? ['ORDERS', 'INVOICES', 'CREDITS', 'ADJUSTMENTS']
+        : ['ORDERS']; // INVOICES document type only needs Orders
+
+      console.log(`Loading factory-based entities for ${normalizedDocType}:`, entityTypes);
+
+      const result = await flowrmsApolloClient.mutate<TriggerPendingEntitiesByFactoryResponse>({
+        mutation: M_TRIGGER_PENDING_ENTITIES_BY_FACTORY,
+        variables: {
+          input: {
+            pendingDocumentId,
+            entityTypes,
+            factoryId,
+          },
+        },
+      });
+
+      if (!mountedRef.current) return;
+
+      const responseEntities = result.data?.triggerPendingEntitiesByFactory || [];
+
+      // Add originalIndex to each entity for stable sorting
+      const addOriginalIndex = (entities: PendingEntity[]) =>
+        entities.map((entity, index) => ({ ...entity, originalIndex: index }));
+
+      // Group entities by type
+      const ordersData = addOriginalIndex(
+        responseEntities.filter((e) => e.entityType === 'ORDERS')
+      );
+      const invoicesData = addOriginalIndex(
+        responseEntities.filter((e) => e.entityType === 'INVOICES')
+      );
+      const creditsData = addOriginalIndex(
+        responseEntities.filter((e) => e.entityType === 'CREDITS')
+      );
+      const adjustmentsData = addOriginalIndex(
+        responseEntities.filter((e) => e.entityType === 'ADJUSTMENTS')
+      );
+
+      console.log('Factory-based entities loaded:', {
+        orders: ordersData.length,
+        invoices: invoicesData.length,
+        credits: creditsData.length,
+        adjustments: adjustmentsData.length,
+      });
+
+      // Update state with the loaded entities
+      setOrders(ordersData);
+      if (normalizedDocType === 'CHECKS') {
+        setInvoices(invoicesData);
+        setCredits(creditsData);
+        setAdjustments(adjustmentsData);
+      }
+
+      // Mark factory entities as loaded and track which factory was used
+      setFactoryEntitiesLoaded(true);
+      loadedFactoryIdRef.current = factoryId;
+
+      // Update loaded steps
+      setLoadedSteps((prev) => {
+        const newSteps = new Set(prev);
+        newSteps.add('orders');
+        if (normalizedDocType === 'CHECKS') {
+          newSteps.add('invoices');
+          newSteps.add('credits');
+          newSteps.add('adjustments');
+        }
+        return newSteps;
+      });
+
+      toast.success('Factory-related entities loaded');
+    } catch (error) {
+      if (!mountedRef.current) return;
+      console.error('Error loading factory-based entities:', error);
+      toast.error('Failed to load factory-related entities');
+    } finally {
+      if (mountedRef.current) {
+        setFactoryEntitiesLoading(false);
+      }
+    }
+  }, [pendingDocumentId, documentType]);
+
+  // Auto-load factory-based entities when factory becomes matched
+  useEffect(() => {
+    if (isFactoryMatched && matchedFactoryId && !factoryEntitiesLoaded && !factoryEntitiesLoading) {
+      const normalizedDocType = documentType?.toUpperCase();
+      if (normalizedDocType === 'CHECKS' || normalizedDocType === 'INVOICES') {
+        loadEntitiesByFactory(matchedFactoryId);
+      }
+    }
+  }, [isFactoryMatched, matchedFactoryId, factoryEntitiesLoaded, factoryEntitiesLoading, documentType, loadEntitiesByFactory]);
 
   // Get entities for current step
   const getEntitiesByStep = useCallback(
@@ -1142,18 +1287,56 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     [getEntitiesByStep, loadedSteps]
   );
 
-  // Check if all entities are validated (only for loaded steps)
-  const allValidated = useMemo(() => {
+  // Get visible steps based on document type (matches EntityStepNavigation logic)
+  const visibleSteps = useMemo((): EntityStep[] => {
     const allSteps: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices', 'credits', 'adjustments'];
+    const factoryDependentTabs: EntityStep[] = ['orders', 'invoices', 'credits', 'adjustments'];
+    const normalizedDocType = documentType?.toUpperCase();
 
-    // Check if all steps are loaded
-    if (!allSteps.every(step => loadedSteps.has(step))) {
+    // For CHECKS: Show all tabs
+    if (normalizedDocType === 'CHECKS') {
+      return allSteps;
+    }
+
+    // For INVOICES: Hide invoices, credits, adjustments - only show orders
+    if (normalizedDocType === 'INVOICES') {
+      return allSteps.filter(step =>
+        !['invoices', 'credits', 'adjustments'].includes(step)
+      );
+    }
+
+    // For other document types: Hide orders, invoices, credits, adjustments
+    return allSteps.filter(step =>
+      !factoryDependentTabs.includes(step)
+    );
+  }, [documentType]);
+
+  // Check if all entities are validated (only for visible/loaded steps based on document type)
+  const allValidated = useMemo(() => {
+    // Check if all visible steps are loaded
+    if (!visibleSteps.every(step => loadedSteps.has(step))) {
       return false;
     }
 
-    const allEntities = [...factories, ...customers, ...billToCustomers, ...endUsers, ...products, ...orders, ...invoices, ...credits, ...adjustments];
+    // Get entities only for visible steps
+    const getEntitiesForVisibleSteps = (): PendingEntity[] => {
+      const entitiesMap: Record<EntityStep, PendingEntity[]> = {
+        factories,
+        customers,
+        billtocustomers: billToCustomers,
+        endusers: endUsers,
+        products,
+        orders,
+        invoices,
+        credits,
+        adjustments,
+      };
+      return visibleSteps.flatMap(step => entitiesMap[step]);
+    };
+
+    const allEntities = getEntitiesForVisibleSteps();
     return allEntities.length === 0 || allEntities.every((e) => isResolved(e.confirmationStatus));
-  }, [factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, loadedSteps]);
+  }, [factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, loadedSteps, visibleSteps]);
 
   // Refresh entities for current step
   const refreshCurrentStep = useCallback(async () => {
@@ -1199,6 +1382,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     loadingEntities,
     loadedSteps,
 
+    // Factory-based entities state (for CHECKS/INVOICES document types)
+    isFactoryMatched,
+    matchedFactoryId,
+    factoryEntitiesLoading,
+    factoryEntitiesLoaded,
+
     // Computed values
     getCurrentEntities,
     getCurrentEntityType,
@@ -1223,6 +1412,7 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     handleSearchEntities,
     handleSearchUsers,
     refreshCurrentStep,
+    loadEntitiesByFactory,
   };
 }
 

@@ -21,7 +21,6 @@ import {
   useTasksInfinite,
   useUpdateTask,
   useDeleteTask,
-  useContactsMap,
   tasksQueryKeys,
   type TaskLandingPageFilter,
   type TaskLandingPageOrderBy
@@ -62,44 +61,19 @@ export function useTasksState() {
     });
   }, [tasksData]);
   
-  // Extract unique assignedTo values that look like UUIDs (for contact lookup)
-  const assignedToIds = useMemo(() => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const ids = apiTasks
-      .map(task => task.assignedTo)
-      .filter((id): id is string => !!id && uuidRegex.test(id));
-    return [...new Set(ids)];
-  }, [apiTasks]);
-  
-  // Fetch contact names for assigned IDs
-  const { data: contactsMap = new Map<string, string>() } = useContactsMap(assignedToIds);
+  // Note: assignees are now UUIDs - user lookup can be added if needed for display
   
   // Mutations
   const updateTaskMutation = useUpdateTask();
   const deleteTaskMutation = useDeleteTask();
   
-  // Convert API tasks to UI format, resolving assignedTo IDs to names
+  // Convert API tasks to UI format
   // Using the new landing pages endpoint which returns TaskLandingPage type
   const tasks: Task[] = useMemo(() => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     return apiTasks.map((task) => {
-      const uiTask = convertTaskLandingPageToUI(task);
-      
-      // If assignedTo is a UUID, look up the contact name
-      if (task.assignedTo && uuidRegex.test(task.assignedTo)) {
-        const contactName = contactsMap.get(task.assignedTo);
-        if (contactName) {
-          uiTask.assignedTo = contactName;
-          uiTask.assignedToId = task.assignedTo;
-        } else {
-          // Keep it as "Unassigned" until the contact is loaded
-          uiTask.assignedToId = task.assignedTo;
-        }
-      }
-      
-      return uiTask;
+      return convertTaskLandingPageToUI(task);
     });
-  }, [apiTasks, contactsMap]);
+  }, [apiTasks]);
   
   // View mode
   const [viewMode, setViewMode] = useState<TaskViewMode>('grid');
@@ -317,46 +291,47 @@ export function useTasksState() {
     if (!task) return;
     
     try {
-      // CRITICAL: Fetch the full task to get assignedToId (GetTask API has it, landing pages don't)
+      // Fetch the full task to get current assignees
       const fullTask = await fetchTaskApi(taskId);
-      
-      // Determine the correct assignedToId
-      // Priority: 1) explicit update, 2) fullTask.assignedToId from GetTask API
-      let assignedToIdValue: string | undefined = undefined;
-      if (updates.assignedToId !== undefined) {
-        // Explicit update - use it if provided
-        assignedToIdValue = updates.assignedToId || undefined;
-      } else if (fullTask?.assignedToId) {
-        // Use assignedToId from the full task (GetTask API)
-        assignedToIdValue = fullTask.assignedToId;
+
+      // Determine the correct assigneeIds
+      // Priority: 1) explicit update, 2) fullTask.assignees from GetTask API
+      // Note: fullTask.assignees is now TaskAssignee[] (objects), need to extract IDs
+      let assigneeIdsValue: string[] | undefined = undefined;
+      if (updates.assignees !== undefined) {
+        // Explicit update - use it if provided (these are already IDs from the modal)
+        assigneeIdsValue = updates.assignees.map(a => typeof a === 'string' ? a : a.id) || undefined;
+      } else if (fullTask?.assignees) {
+        // Use assignees from the full task (GetTask API) - extract IDs from objects
+        assigneeIdsValue = fullTask.assignees.map(a => a.id);
       }
-      
+
       // Build the COMPLETE API update payload - always include ALL fields
       const apiUpdates = {
         // Required fields - must always include these
         title: updates.title !== undefined ? updates.title : task.title,
-        status: updates.status !== undefined 
-          ? convertUIStatusToAPI(updates.status) 
+        status: updates.status !== undefined
+          ? convertUIStatusToAPI(updates.status)
           : task.apiStatus,
-        priority: updates.priority !== undefined 
-          ? convertUIPriorityToAPI(updates.priority) 
+        priority: updates.priority !== undefined
+          ? convertUIPriorityToAPI(updates.priority)
           : task.apiPriority,
         // ALWAYS include all optional fields to prevent them from being nulled
-        description: updates.description !== undefined 
-          ? updates.description 
+        description: updates.description !== undefined
+          ? updates.description
           : (task.description || ''),
-        dueDate: updates.dueDate !== undefined 
-          ? updates.dueDate 
+        dueDate: updates.dueDate !== undefined
+          ? updates.dueDate
           : (task.dueDate || undefined),
-        reminderDate: updates.reminderDate !== undefined 
-          ? updates.reminderDate 
+        reminderDate: updates.reminderDate !== undefined
+          ? updates.reminderDate
           : (task.reminderDate || undefined),
         // Always include tags - either updated or existing (use fullTask.tags for accuracy)
-        tags: updates.tags !== undefined 
-          ? tagsToString(updates.tags) 
+        tags: updates.tags !== undefined
+          ? tagsToString(updates.tags)
           : (fullTask?.tags || tagsToString(task.tags) || ''),
-        // Always include assignedToId from the fetched full task
-        assignedToId: assignedToIdValue,
+        // Always include assigneeIds from the fetched full task
+        assigneeIds: assigneeIdsValue,
       };
       
       await updateTaskMutation.mutateAsync({
@@ -381,13 +356,13 @@ export function useTasksState() {
     const isCompleting = newStatus === 'COMPLETED';
     
     try {
-      // CRITICAL: Fetch the full task to get assignedToId (GetTask API has it)
+      // Fetch the full task to get current assignees
       const fullTask = await fetchTaskApi(taskId);
-      
-      // Send COMPLETE data - including assignedToId from the fetched full task
+
+      // Send COMPLETE data - including assigneeIds from the fetched full task
       await updateTaskMutation.mutateAsync({
         id: taskId,
-        input: { 
+        input: {
           title: task.title,
           status: newStatus,
           priority: task.apiPriority,
@@ -395,7 +370,7 @@ export function useTasksState() {
           dueDate: task.dueDate || undefined,
           reminderDate: task.reminderDate || undefined,
           tags: fullTask?.tags || tagsToString(task.tags) || '',
-          assignedToId: fullTask?.assignedToId || undefined,
+          assigneeIds: fullTask?.assignees?.map(a => a.id) || undefined,
         }
       });
       
@@ -552,10 +527,10 @@ export function useTasksState() {
     });
 
     try {
-      // Fetch full task to get assignedToId (GetTask API has it)
+      // Fetch full task to get current assignees
       const fullTask = await fetchTaskApi(taskIdToUpdate);
 
-      // Send COMPLETE data - including assignedToId from the fetched full task
+      // Send COMPLETE data - including assigneeIds from the fetched full task
       await updateTaskMutation.mutateAsync({
         id: taskIdToUpdate,
         input: {
@@ -566,7 +541,7 @@ export function useTasksState() {
           dueDate: task.dueDate || undefined,
           reminderDate: task.reminderDate || undefined,
           tags: fullTask?.tags || tagsToString(task.tags) || '',
-          assignedToId: fullTask?.assignedToId || undefined,
+          assigneeIds: fullTask?.assignees?.map(a => a.id) || undefined,
         }
       });
 

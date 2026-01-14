@@ -133,7 +133,7 @@ export function RelatedTasksSection({ entityId, sourceType, sourceEntityType }: 
           dueDate: task.dueDate,
           status: newStatus,
           priority: (task.priority as TaskPriority) || 'NORMAL',
-          assignedToId: task.assignedToId,
+          assigneeIds: task.assignees || [],
           reminderDate: task.reminderDate,
           tags: task.tags,
         },
@@ -271,8 +271,17 @@ export function RelatedTasksSection({ entityId, sourceType, sourceEntityType }: 
                       {task.dueDate && (
                         <span>Due: {formatDate(task.dueDate)}</span>
                       )}
-                      {task.assignedToId && (
-                        <span>Assigned</span>
+                      {/* Display assignees if available */}
+                      {task.assignees && task.assignees.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="10" cy="6" r="3"/>
+                            <path d="M3 18c0-3 3-5 7-5s7 2 7 5" strokeLinecap="round"/>
+                          </svg>
+                          {task.assignees.length === 1
+                            ? '1 assignee'
+                            : `${task.assignees.length} assignees`}
+                        </span>
                       )}
                     </div>
 
