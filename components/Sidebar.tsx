@@ -754,6 +754,7 @@ export default function Sidebar() {
                       >
                         <Link
                           href={item.href}
+                          prefetch={true}
                           onClick={(e) => handleMorphClick(e, item.id, item.href, isVisuallyActive)}
                           title={isCollapsed ? item.name : undefined}
                           className={`

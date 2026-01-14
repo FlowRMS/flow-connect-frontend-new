@@ -1,5 +1,5 @@
-import { PageLoadingSkeleton } from '@/components/ui/PageLoadingSkeleton';
+import { MinimalPageLoading } from '@/components/ui/PageTransition';
 
 export default function InvoicesLoading() {
-  return <PageLoadingSkeleton />;
+  return <MinimalPageLoading />;
 }

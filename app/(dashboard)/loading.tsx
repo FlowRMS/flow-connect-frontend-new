@@ -1,10 +1,9 @@
-import { PageLoadingSkeleton } from '@/components/ui/PageLoadingSkeleton';
+import { MinimalPageLoading } from '@/components/ui/PageTransition';
 
 /**
  * Next.js App Router loading boundary.
- * This component is shown INSTANTLY when navigating between pages,
- * eliminating the perceived delay during navigation.
+ * Uses smooth morph-style fade transition instead of skeleton lines.
  */
 export default function DashboardLoading() {
-  return <PageLoadingSkeleton />;
+  return <MinimalPageLoading />;
 }
