@@ -239,6 +239,8 @@ export function useInvoiceFilters(invoices: Invoice[]) {
     // Sort state
     sortField,
     sortDirection,
+    setSortField,
+    setSortDirection,
     handleSort,
     // Unique values for dropdowns
     uniqueCustomers,

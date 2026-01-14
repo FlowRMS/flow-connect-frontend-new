@@ -8,8 +8,9 @@
 
 import React from 'react';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
+import SortButton from '@/components/SortButton';
 import { useInvoicesListState } from './hooks/useInvoicesListState';
-import { getInvoiceFilterOptions } from './config/filterConfig';
+import { getInvoiceFilterOptions, getInvoiceSortOptions } from './config/filterConfig';
 import { InvoicesTable } from './components/table/InvoicesTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { InvoiceDetailPanel } from './components/sidebar/InvoiceDetailPanel';
@@ -23,6 +24,28 @@ export default function InvoicesListContent() {
   const state = useInvoicesListState();
 
   const filterOptions = getInvoiceFilterOptions();
+  const sortOptions = getInvoiceSortOptions();
+  
+  // Map sortField and sortDirection to ActiveSort format for SortButton
+  // The columnName should match API field names directly
+  const activeSort = state.sortField && state.sortDirection
+    ? {
+        columnName: (() => {
+          const fieldMap: Record<string, string> = {
+            invoiceNumber: 'invoiceNumber',
+            status: 'status',
+            invoiceDate: 'entityDate',
+            dueDate: 'dueDate',
+            total: 'total',
+            balance: 'total', // Note: balance not in API, use total as fallback
+            customerName: 'soldToCustomerName', // Not available yet
+            manufacturerName: 'factoryName', // Not available yet
+          };
+          return fieldMap[state.sortField] || 'entityDate';
+        })(),
+        direction: state.sortDirection.toUpperCase() as 'ASC' | 'DESC',
+      }
+    : undefined;
 
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
@@ -77,6 +100,13 @@ export default function InvoicesListContent() {
                 onFiltersChange={state.handleServerFiltersChange}
                 activeFilters={state.activeFilters}
               />
+              
+              <SortButton
+                sortOptions={sortOptions}
+                onSortChange={state.handleSortChange}
+                activeSort={activeSort}
+              />
+              
               <button
                 onClick={() => state.setShowCreateModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
@@ -125,16 +155,6 @@ export default function InvoicesListContent() {
           </div>
         )}
 
-        {/* Loading State */}
-        {state.isLoading && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)] mx-auto mb-2" />
-              <p className="text-sm text-[var(--muted-foreground)]">Loading invoices...</p>
-            </div>
-          </div>
-        )}
-
         {/* Error State */}
         {state.error && (
           <div className="flex-1 flex items-center justify-center">
@@ -151,13 +171,13 @@ export default function InvoicesListContent() {
         )}
 
         {/* Invoices Table with infinite scroll */}
-        {!state.isLoading && !state.error && (
-          <div
-            className="flex-1 overflow-auto p-6 pt-4"
-            onScroll={state.handleScroll}
-          >
-            <InvoicesTable
+        <div
+          className="flex-1 overflow-auto p-6 pt-4"
+          onScroll={state.handleScroll}
+        >
+          <InvoicesTable
             filteredInvoices={state.filteredInvoices}
+            isLoading={state.isLoading}
             selectedInvoiceIds={state.selectedInvoiceIds}
             toggleInvoiceSelection={state.toggleInvoiceSelection}
             selectAllInvoices={state.selectAllInvoices}
@@ -168,35 +188,31 @@ export default function InvoicesListContent() {
             isPartiallySelected={state.isPartiallySelected}
             handleSelectAll={state.handleSelectAll}
             handleSelectOne={state.handleSelectOne}
-            sortField={state.sortField}
-            sortDirection={state.sortDirection}
-            handleSort={state.handleSort}
+            onColumnFiltersChange={state.handleColumnFiltersChange}
+            filterOptions={state.invoiceFilterOptionsWithValues}
             columnFilters={state.columnFilters}
-            setColumnFilters={state.setColumnFilters}
-            openFilter={state.openFilter}
-            setOpenFilter={state.setOpenFilter}
-            uniqueCustomers={state.uniqueCustomers}
-            uniqueManufacturers={state.uniqueManufacturers}
-            uniqueStatuses={state.uniqueStatuses}
-            uniqueTotals={state.uniqueTotals}
-            uniqueBalances={state.uniqueBalances}
             showBulkActionsMenu={state.showBulkActionsMenu}
             setShowBulkActionsMenu={state.setShowBulkActionsMenu}
             bulkSetStatus={state.bulkSetStatus}
             bulkDelete={state.bulkDelete}
             setSelectedInvoice={state.setSelectedInvoice}
           />
-            {/* Loading more indicator */}
-            {state.isFetchingNextPage && (
-              <div className="flex items-center justify-center py-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)]" />
-                <span className="ml-2 text-sm text-[var(--muted-foreground)]">
-                  Loading more...
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+
+          {/* Empty State - shown outside table when no data */}
+          {!state.isLoading && state.filteredInvoices.length === 0 && (
+            <InvoicesEmptyState />
+          )}
+
+          {/* Loading more indicator */}
+          {state.isFetchingNextPage && (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)]" />
+              <span className="ml-2 text-sm text-[var(--muted-foreground)]">
+                Loading more...
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Sidebar */}

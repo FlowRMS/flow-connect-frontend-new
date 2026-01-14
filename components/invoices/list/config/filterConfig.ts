@@ -17,6 +17,25 @@ export const INVOICE_STATUSES: InvoiceStatus[] = [
 ];
 
 /**
+ * Get sort options for the SortButton component
+ * Note: columnName should match the API InvoiceLandingPage field names
+ */
+export function getInvoiceSortOptions() {
+  return [
+    { columnName: 'invoiceNumber', label: 'Invoice Number' },
+    { columnName: 'status', label: 'Status' },
+    { columnName: 'entityDate', label: 'Invoice Date' },
+    { columnName: 'dueDate', label: 'Due Date' },
+    { columnName: 'total', label: 'Total' },
+    { columnName: 'commission', label: 'Commission' },
+    { columnName: 'orderNumber', label: 'Order Number' },
+    { columnName: 'published', label: 'Published' },
+    // Soon options
+    { columnName: 'factoryName', label: 'Factory Name' }, // Soon
+  ];
+}
+
+/**
  * Get filter options for the AdvancedFilters component
  * Note: columnName should match the API InvoiceLandingPage field names
  */
@@ -72,6 +91,20 @@ export function getInvoiceFilterOptions(): FilterOption[] {
       label: 'Entry Date', 
       type: 'date' as const, 
       columnName: 'createdAt', 
+      available: true 
+    },
+    { 
+      id: 'order-number', 
+      label: 'Order Number', 
+      type: 'text' as const, 
+      columnName: 'orderNumber', 
+      available: true 
+    },
+    { 
+      id: 'published', 
+      label: 'Published', 
+      type: 'boolean' as const, 
+      columnName: 'published', 
       available: true 
     },
     // Soon filters (not yet available in API)

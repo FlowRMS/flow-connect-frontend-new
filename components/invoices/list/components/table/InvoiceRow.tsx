@@ -152,16 +152,31 @@ export function InvoiceRow({
         </span>
       </td>
 
-      {/* Paid */}
+      {/* Published */}
       <td className="px-3 py-3 text-center">
-        {invoice.status === 'paid' || invoice.isPaid ? (
-          <svg className="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
+        {(invoice as any).published === true ? (
+          <svg
+            className="w-5 h-5 text-green-500"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path
+              d="M20 6L9 17l-5-5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         ) : (
-          <svg className="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M15 9l-6 6M9 9l6 6" strokeLinecap="round"/>
+          <svg
+            className="w-5 h-5 text-gray-300"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <circle cx="12" cy="12" r="10" />
           </svg>
         )}
       </td>

@@ -4,15 +4,19 @@
  */
 
 import type { Invoice } from '@/lib/types/rms';
-import type { SortField, SortDirection, ColumnFilters } from '../../types';
 import { isInvoiceLinked, getInvoiceLinkedReason } from '../../utils';
 import { InvoicesTableHeader } from './InvoicesTableHeader';
 import { InvoiceRow } from './InvoiceRow';
 import { InvoicesEmptyState } from './InvoicesEmptyState';
+import { InvoicesTableSkeleton } from './InvoicesTableSkeleton';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { getInvoiceFilterOptions } from '../../config/filterConfig';
 
 interface InvoicesTableProps {
   // Data
   filteredInvoices: Invoice[];
+  // Loading state
+  isLoading?: boolean;
   // Selection (legacy API)
   selectedInvoiceIds: Set<string>;
   toggleInvoiceSelection: (invoiceId: string) => void;
@@ -25,20 +29,10 @@ interface InvoicesTableProps {
   isPartiallySelected?: boolean;
   handleSelectAll?: (checked: boolean) => void;
   handleSelectOne?: (id: string, checked: boolean) => void;
-  // Sorting
-  sortField: SortField;
-  sortDirection: SortDirection;
-  handleSort: (field: SortField) => void;
-  // Filters
-  columnFilters: ColumnFilters;
-  setColumnFilters: (filters: ColumnFilters | ((prev: ColumnFilters) => ColumnFilters)) => void;
-  openFilter: string | null;
-  setOpenFilter: (filterId: string | null) => void;
-  uniqueCustomers: string[];
-  uniqueManufacturers: string[];
-  uniqueStatuses: string[];
-  uniqueTotals: number[];
-  uniqueBalances: number[];
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  filterOptions?: ReturnType<typeof getInvoiceFilterOptions>;
+  columnFilters?: Record<string, ActiveFilter[]>;
   // Bulk actions
   showBulkActionsMenu: boolean;
   setShowBulkActionsMenu: (show: boolean) => void;
@@ -50,6 +44,7 @@ interface InvoicesTableProps {
 
 export function InvoicesTable({
   filteredInvoices,
+  isLoading = false,
   selectedInvoiceIds,
   toggleInvoiceSelection,
   selectAllInvoices,
@@ -60,18 +55,9 @@ export function InvoicesTable({
   isPartiallySelected,
   handleSelectAll,
   handleSelectOne,
-  sortField,
-  sortDirection,
-  handleSort,
+  onColumnFiltersChange,
+  filterOptions = getInvoiceFilterOptions(),
   columnFilters,
-  setColumnFilters,
-  openFilter,
-  setOpenFilter,
-  uniqueCustomers,
-  uniqueManufacturers,
-  uniqueStatuses,
-  uniqueTotals,
-  uniqueBalances,
   showBulkActionsMenu,
   setShowBulkActionsMenu,
   bulkSetStatus,
@@ -90,9 +76,9 @@ export function InvoicesTable({
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
-      {filteredInvoices.length === 0 ? (
+      {!isLoading && filteredInvoices.length === 0 ? (
         // Empty state - don't show table structure
-        <InvoicesEmptyState />
+        null
       ) : (
         <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 240px)' }}>
           <div className="overflow-auto scrollbar-always-visible flex-1">
@@ -110,37 +96,32 @@ export function InvoicesTable({
                     clearSelection();
                   }
                 }}
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
+                onColumnFiltersChange={onColumnFiltersChange}
+                filterOptions={filterOptions}
                 columnFilters={columnFilters}
-                setColumnFilters={setColumnFilters}
-                openFilter={openFilter}
-                setOpenFilter={setOpenFilter}
-                uniqueCustomers={uniqueCustomers}
-                uniqueManufacturers={uniqueManufacturers}
-                uniqueStatuses={uniqueStatuses}
-                uniqueTotals={uniqueTotals}
-                uniqueBalances={uniqueBalances}
               />
               <tbody className="divide-y divide-gray-200">
-                {filteredInvoices.map((invoice) => (
-                  <InvoiceRow
-                    key={invoice.id}
-                    invoice={invoice}
-                    isSelected={checkIsSelected(invoice.id)}
-                    isLinked={isInvoiceLinked(invoice)}
-                    linkedReason={getInvoiceLinkedReason(invoice)}
-                    onToggleSelection={() => {
-                      if (handleSelectOne) {
-                        handleSelectOne(invoice.id, !checkIsSelected(invoice.id));
-                      } else {
-                        toggleInvoiceSelection(invoice.id);
-                      }
-                    }}
-                    onPreview={() => setSelectedInvoice(invoice)}
-                  />
-                ))}
+                {isLoading ? (
+                  <InvoicesTableSkeleton rowCount={8} />
+                ) : (
+                  filteredInvoices.map((invoice) => (
+                    <InvoiceRow
+                      key={invoice.id}
+                      invoice={invoice}
+                      isSelected={checkIsSelected(invoice.id)}
+                      isLinked={isInvoiceLinked(invoice)}
+                      linkedReason={getInvoiceLinkedReason(invoice)}
+                      onToggleSelection={() => {
+                        if (handleSelectOne) {
+                          handleSelectOne(invoice.id, !checkIsSelected(invoice.id));
+                        } else {
+                          toggleInvoiceSelection(invoice.id);
+                        }
+                      }}
+                      onPreview={() => setSelectedInvoice(invoice)}
+                    />
+                  ))
+                )}
               </tbody>
             </table>
           </div>
