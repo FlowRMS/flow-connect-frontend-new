@@ -355,3 +355,64 @@ export function transformLandingPageForV2(quote: QuoteLandingPage): QuoteLanding
 export function transformLandingPagesForV2(quotes: QuoteLandingPage[]): QuoteLandingPageV2Display[] {
   return quotes.map(transformLandingPageForV2);
 }
+
+// ============================================================================
+// Overage Calculation Hooks
+// ============================================================================
+
+import {
+  findEffectiveCommissionRateAndOverage,
+  calculateOverageForLineItems,
+  type OverageRecord,
+  type OverageCalculationInput,
+} from '@/components/lib/crm-graphql';
+
+// Re-export types for convenience
+export type { OverageRecord, OverageCalculationInput };
+
+/**
+ * Query key for overage calculations
+ */
+export const overageQueryKeys = {
+  all: ['overage'] as const,
+  calculation: (productId: string, factoryId: string, detailUnitPrice: number) =>
+    [...overageQueryKeys.all, 'calculation', { productId, factoryId, detailUnitPrice }] as const,
+};
+
+/**
+ * Hook to calculate overage for a single line item
+ *
+ * @param input - The overage calculation input (productId, factoryId, detailUnitPrice, endUserId, quantity)
+ * @param enabled - Whether to run the query
+ */
+export function useOverageCalculation(
+  input: OverageCalculationInput | null,
+  enabled: boolean = true
+) {
+  return useQuery<OverageRecord, Error>({
+    queryKey: input
+      ? overageQueryKeys.calculation(input.productId, input.factoryId, input.detailUnitPrice)
+      : ['overage', 'disabled'],
+    queryFn: () => findEffectiveCommissionRateAndOverage(input!),
+    enabled: enabled && !!input?.productId && !!input?.factoryId && input?.detailUnitPrice > 0,
+    staleTime: 60 * 1000, // Cache for 1 minute
+  });
+}
+
+/**
+ * Hook to calculate overage for multiple line items (batch)
+ *
+ * @param items - Array of line items to calculate
+ * @param enabled - Whether to run the query
+ */
+export function useOverageCalculationBatch(
+  items: OverageCalculationInput[],
+  enabled: boolean = true
+) {
+  return useQuery<OverageRecord[], Error>({
+    queryKey: ['overage', 'batch', items.map(i => `${i.productId}-${i.factoryId}-${i.detailUnitPrice}`)],
+    queryFn: () => calculateOverageForLineItems(items),
+    enabled: enabled && items.length > 0 && items.every(i => i.productId && i.factoryId && i.detailUnitPrice > 0),
+    staleTime: 60 * 1000,
+  });
+}

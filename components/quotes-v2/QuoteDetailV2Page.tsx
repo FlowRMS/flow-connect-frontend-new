@@ -1079,6 +1079,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             headerFactoryName={quote.factoryName}
             currentOutsideReps={currentOutsideReps}
             currentInsideReps={currentInsideReps}
+            viewMode={viewMode}
           />
         )}
 

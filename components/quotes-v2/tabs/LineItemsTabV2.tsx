@@ -2,12 +2,16 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } from '../types';
+import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2, ViewMode } from '../types';
 import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer, listProductPricingTiers } from '../../quotes/api/useQuotesApi';
 import type { ProductPricingTierResult } from '../../quotes/api/quotesApi';
 import { fetchProductById } from '../../products/api/productsApi';
 import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
 import { FIXTURE_SCHEDULE_OPTIONS } from '../config/viewsConfig';
+import { useOverageCalculationBatch, type OverageCalculationInput, type OverageRecord } from '../api/quotesV2Api';
+
+// Extended overage input with line item ID for mapping results back
+type OverageInputWithLineItemId = OverageCalculationInput & { lineItemId: string };
 
 // Type for rep split rates passed from parent
 interface RepSplitRateInfo {
@@ -32,6 +36,8 @@ interface LineItemsTabV2Props {
   // Current reps for inheriting to new line items
   currentOutsideReps?: RepSplitRateInfo[];
   currentInsideReps?: RepSplitRateInfo[];
+  // View mode for overage calculations
+  viewMode?: ViewMode;
 }
 
 export function LineItemsTabV2({
@@ -47,6 +53,7 @@ export function LineItemsTabV2({
   headerFactoryName,
   currentOutsideReps,
   currentInsideReps,
+  viewMode = 'simple',
 }: LineItemsTabV2Props) {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showSectionsMenu, setShowSectionsMenu] = useState(false);
@@ -63,6 +70,67 @@ export function LineItemsTabV2({
 
   // Hook for fetching inside reps from factory when manufacturer changes
   const { fetchInsideRepsFromFactory } = useAutoPopulateReps();
+
+  // Prepare overage calculation inputs when in overage view mode
+  const overageInputs = useMemo<OverageInputWithLineItemId[]>(() => {
+    if (viewMode !== 'overage') return [];
+
+    // DEBUG: Log line items to see what data we have
+    console.log('[DEBUG] Building overageInputs from lineItems:', lineItems.map(li => ({
+      id: li.id,
+      productId: li.productId,
+      manufacturerId: li.manufacturerId,
+      endUserId: li.endUserId,
+      unitPrice: li.unitPrice,
+    })));
+    console.log('[DEBUG] headerFactoryId:', headerFactoryId, 'soldToCustomerId:', soldToCustomerId);
+
+    const inputs = lineItems
+      .filter(li => li.productId && li.unitPrice > 0)
+      .map(li => ({
+        lineItemId: li.id, // Include line item ID for mapping results back
+        productId: li.productId!,
+        detailUnitPrice: Number(li.unitPrice),
+        factoryId: li.manufacturerId || headerFactoryId || '',
+        endUserId: li.endUserId || soldToCustomerId || '',
+        quantity: Number(li.quantity) || 1,
+      }))
+      .filter(input => input.factoryId && input.endUserId);
+
+    console.log('[DEBUG] Final overageInputs after filtering:', inputs);
+    return inputs;
+  }, [lineItems, viewMode, headerFactoryId, soldToCustomerId]);
+
+  // Fetch overage calculations in batch
+  const { data: overageResults, error: overageError, isLoading: overageLoading } = useOverageCalculationBatch(
+    overageInputs,
+    viewMode === 'overage' && overageInputs.length > 0
+  );
+
+  // DEBUG: Log overage API results
+  React.useEffect(() => {
+    if (viewMode === 'overage') {
+      console.log('[DEBUG] Overage API - loading:', overageLoading, 'error:', overageError);
+      console.log('[DEBUG] Overage API - results:', overageResults);
+    }
+  }, [viewMode, overageLoading, overageError, overageResults]);
+
+  // Map overage results to line items by lineItemId for quick lookup
+  const overageByLineItem = useMemo<Record<string, OverageRecord>>(() => {
+    if (!overageResults || overageResults.length === 0) {
+      console.log('[DEBUG] overageByLineItem - no results, returning empty');
+      return {};
+    }
+
+    const map: Record<string, OverageRecord> = {};
+    overageInputs.forEach((input, index) => {
+      if (overageResults[index] && input.lineItemId) {
+        map[input.lineItemId] = overageResults[index];
+      }
+    });
+    console.log('[DEBUG] overageByLineItem map:', map);
+    return map;
+  }, [overageResults, overageInputs]);
 
   // Track previous soldToCustomerId to detect changes and update pricing sources
   const prevSoldToCustomerIdRef = React.useRef<string | undefined>(undefined);
@@ -497,25 +565,76 @@ export function LineItemsTabV2({
       case 'endUser':
         displayValue = item.endUserName || (settings?.specifyEndUserPerLine ? 'Select...' : '—');
         break;
-      // Overage columns
-      case 'percentOver':
-        displayValue = item.percentOver !== undefined ? `${item.percentOver.toFixed(2)}%` : '—';
+      // Overage columns - use calculated values from API
+      case 'percentOver': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.effectiveCommissionRate !== null) {
+          // percentOver = ((sellPrice - basePrice) / basePrice) * 100
+          const basePrice = overage.baseUnitPrice || 0;
+          const pctOver = basePrice > 0 ? ((item.unitPrice - basePrice) / basePrice) * 100 : 0;
+          displayValue = `${pctOver.toFixed(2)}%`;
+        } else {
+          displayValue = item.percentOver !== undefined ? `${item.percentOver.toFixed(2)}%` : '—';
+        }
         break;
-      case 'commissionAmount':
-        displayValue = item.commissionAmount !== undefined ? `$${item.commissionAmount.toFixed(2)}` : '—';
+      }
+      case 'commissionAmount': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.effectiveCommissionRate !== null) {
+          const commAmt = (item.sellTotal || 0) * (overage.effectiveCommissionRate / 100);
+          displayValue = `$${commAmt.toFixed(2)}`;
+        } else {
+          displayValue = item.commissionAmount !== undefined ? `$${item.commissionAmount.toFixed(2)}` : '—';
+        }
         break;
-      case 'ovgPercent':
-        displayValue = item.ovgPercent !== undefined ? `${item.ovgPercent.toFixed(2)}%` : '—';
+      }
+      case 'ovgPercent': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.overageUnitPrice !== null && overage.baseUnitPrice !== null) {
+          // ovgPercent = overage portion as % of sell price
+          const ovgPct = item.unitPrice > 0 ? (overage.overageUnitPrice / item.unitPrice) * 100 : 0;
+          displayValue = `${ovgPct.toFixed(2)}%`;
+        } else {
+          displayValue = item.ovgPercent !== undefined ? `${item.ovgPercent.toFixed(2)}%` : '—';
+        }
         break;
-      case 'ovgAmount':
-        displayValue = item.ovgAmount !== undefined ? `$${item.ovgAmount.toFixed(2)}` : '—';
+      }
+      case 'ovgAmount': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.overageUnitPrice !== null && overage.repShare !== null) {
+          // ovgAmount = overage per unit * quantity * rep share
+          const ovgAmt = overage.overageUnitPrice * (item.quantity || 1) * (overage.repShare / 100);
+          displayValue = `$${ovgAmt.toFixed(2)}`;
+        } else {
+          displayValue = item.ovgAmount !== undefined ? `$${item.ovgAmount.toFixed(2)}` : '—';
+        }
         break;
-      case 'earnPercent':
-        displayValue = item.earnPercent !== undefined ? `${item.earnPercent.toFixed(2)}%` : '—';
+      }
+      case 'earnPercent': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.effectiveCommissionRate !== null && overage.overageUnitPrice !== null && overage.repShare !== null) {
+          // earnPercent = total earnings as % of sell total (commission + overage share)
+          const commAmt = (item.sellTotal || 0) * (overage.effectiveCommissionRate / 100);
+          const ovgAmt = overage.overageUnitPrice * (item.quantity || 1) * (overage.repShare / 100);
+          const earnPct = (item.sellTotal || 0) > 0 ? ((commAmt + ovgAmt) / (item.sellTotal || 1)) * 100 : 0;
+          displayValue = `${earnPct.toFixed(2)}%`;
+        } else {
+          displayValue = item.earnPercent !== undefined ? `${item.earnPercent.toFixed(2)}%` : '—';
+        }
         break;
-      case 'earnAmount':
-        displayValue = item.earnAmount !== undefined ? `$${item.earnAmount.toFixed(2)}` : '—';
+      }
+      case 'earnAmount': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.effectiveCommissionRate !== null && overage.overageUnitPrice !== null && overage.repShare !== null) {
+          // earnAmount = commission + overage share
+          const commAmt = (item.sellTotal || 0) * (overage.effectiveCommissionRate / 100);
+          const ovgAmt = overage.overageUnitPrice * (item.quantity || 1) * (overage.repShare / 100);
+          displayValue = `$${(commAmt + ovgAmt).toFixed(2)}`;
+        } else {
+          displayValue = item.earnAmount !== undefined ? `$${item.earnAmount.toFixed(2)}` : '—';
+        }
         break;
+      }
       case 'fixtureSchedule':
         const fixtureOption = FIXTURE_SCHEDULE_OPTIONS.find(opt => opt.value === item.fixtureSchedule);
         displayValue = fixtureOption?.label || 'Select...';
