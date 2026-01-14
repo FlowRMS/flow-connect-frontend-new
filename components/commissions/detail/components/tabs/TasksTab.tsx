@@ -1,17 +1,17 @@
 /**
  * TasksTab Component
- * Displays tasks for the check
+ * Displays linked tasks for the check using the centralized RelatedTasksSection
  */
 
 'use client';
 
 import React from 'react';
+import { RelatedTasksSection } from '@/components/shared/RelatedTasksSection';
 
-export function TasksTab() {
-  return (
-    <div className="text-center py-12">
-      <p className="text-[var(--muted-foreground)]">No tasks yet</p>
-    </div>
-  );
+interface TasksTabProps {
+  checkId: string;
 }
 
+export function TasksTab({ checkId }: TasksTabProps) {
+  return <RelatedTasksSection entityId={checkId} sourceType="CHECKS" sourceEntityType="CHECK" />;
+}

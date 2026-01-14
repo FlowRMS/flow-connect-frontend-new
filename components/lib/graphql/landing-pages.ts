@@ -166,7 +166,7 @@ const FIND_ALL_LANDING_PAGES = `
       records {
         ... on TaskLandingPage {
           id
-          assignedTo
+          assignees
           createdAt
           createdBy
           description

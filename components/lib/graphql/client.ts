@@ -4,6 +4,7 @@
  * Uses WorkOS AuthKit for authentication
  */
 
+import { isUserNotFoundError, triggerGlobalUnauthorized } from '@/components/lib/unauthorized-handler';
 
 // ============================================================================
 // WorkOS Token Management
@@ -11,6 +12,8 @@
 
 let cachedToken: string | null = null;
 let tokenExpiry: number = 0;
+let authErrorCount = 0;
+const MAX_AUTH_ERRORS = 3;
 
 /**
  * Fetch access token from WorkOS via /api/auth/token endpoint
@@ -30,17 +33,34 @@ async function getAccessToken(): Promise<string | null> {
     const response = await fetch("/api/auth/token");
     if (!response.ok) {
       cachedToken = null;
+      authErrorCount++;
       return null;
     }
     const data = await response.json();
     cachedToken = data.accessToken;
     // Cache for 5 minutes
     tokenExpiry = Date.now() + 5 * 60 * 1000;
+    authErrorCount = 0; // Reset error count on success
     return cachedToken;
   } catch {
     cachedToken = null;
+    authErrorCount++;
     return null;
   }
+}
+
+/**
+ * Check if we've hit too many auth errors (prevents redirect loops)
+ */
+export function hasAuthErrorLoop(): boolean {
+  return authErrorCount >= MAX_AUTH_ERRORS;
+}
+
+/**
+ * Reset auth error count (call after successful sign-out)
+ */
+export function resetAuthErrors(): void {
+  authErrorCount = 0;
 }
 
 /**
@@ -170,10 +190,11 @@ export async function crmGraphQLMultipartRequest<T = unknown>(
   const accessToken = await getAccessToken();
 
   if (!accessToken) {
+    // Redirect to sign-in to re-authenticate (not auth-error which is for unauthorized users)
     if (typeof window !== 'undefined') {
       window.location.href = '/sign-in';
     }
-    throw new Error('Authentication required. Redirecting to sign-in...');
+    throw new Error('Session expired. Please sign in again.');
   }
 
   // Use the upload proxy endpoint
@@ -234,10 +255,11 @@ export async function crmGraphQLMultipartRequest<T = unknown>(
         body: formData,
       });
     } else {
+      // Token refresh failed, redirect to sign-in to re-authenticate
       if (typeof window !== 'undefined') {
         window.location.href = '/sign-in';
       }
-      throw new Error('Authentication expired. Redirecting to sign-in...');
+      throw new Error('Session expired. Please sign in again.');
     }
   }
 
@@ -247,16 +269,26 @@ export async function crmGraphQLMultipartRequest<T = unknown>(
 
   const result = await response.json() as GraphQLResponse<T>;
 
+  // Check for UserNotFoundError - user not authorized on tenancy
+  if (isUserNotFoundError(result.errors)) {
+    clearTokenCache();
+    if (typeof window !== 'undefined') {
+      triggerGlobalUnauthorized();
+    }
+    throw new Error('User not authorized on this tenancy.');
+  }
+
   // Check for signature expired error in GraphQL response
   if (result.errors?.some(error =>
     error.message?.toLowerCase().includes('signature has expired') ||
     error.message?.toLowerCase().includes('unauthorized')
   )) {
     clearTokenCache();
+    // Redirect to sign-in to re-authenticate
     if (typeof window !== 'undefined') {
       window.location.href = '/sign-in';
     }
-    throw new Error('Session expired. Redirecting to sign-in...');
+    throw new Error('Session expired. Please sign in again.');
   }
 
   return result;
@@ -273,11 +305,11 @@ export async function crmGraphQLRequest<T = unknown>(
   const accessToken = await getAccessToken();
 
   if (!accessToken) {
-    // Redirect to sign-in if no token available
+    // Redirect to sign-in to re-authenticate (not auth-error which is for unauthorized users)
     if (typeof window !== 'undefined') {
       window.location.href = '/sign-in';
     }
-    throw new Error('Authentication required. Redirecting to sign-in...');
+    throw new Error('Session expired. Please sign in again.');
   }
 
   const endpoint = getGraphQLEndpoint();
@@ -316,11 +348,11 @@ export async function crmGraphQLRequest<T = unknown>(
         }),
       });
     } else {
-      // Token refresh failed, redirect to sign-in
+      // Token refresh failed, redirect to sign-in to re-authenticate
       if (typeof window !== 'undefined') {
         window.location.href = '/sign-in';
       }
-      throw new Error('Authentication expired. Redirecting to sign-in...');
+      throw new Error('Session expired. Please sign in again.');
     }
   }
 
@@ -330,6 +362,15 @@ export async function crmGraphQLRequest<T = unknown>(
 
   const result = await response.json() as GraphQLResponse<T>;
 
+  // Check for UserNotFoundError - user not authorized on tenancy
+  if (isUserNotFoundError(result.errors)) {
+    clearTokenCache();
+    if (typeof window !== 'undefined') {
+      triggerGlobalUnauthorized();
+    }
+    throw new Error('User not authorized on this tenancy.');
+  }
+
   // Check for signature expired error in GraphQL response
   if (result.errors?.some(error =>
     error.message?.toLowerCase().includes('signature has expired') ||
@@ -338,11 +379,11 @@ export async function crmGraphQLRequest<T = unknown>(
     // Clear the cached token
     clearTokenCache();
 
-    // Redirect to sign-in page
+    // Redirect to sign-in to re-authenticate
     if (typeof window !== 'undefined') {
       window.location.href = '/sign-in';
     }
-    throw new Error('Session expired. Redirecting to sign-in...');
+    throw new Error('Session expired. Please sign in again.');
   }
 
   return result;

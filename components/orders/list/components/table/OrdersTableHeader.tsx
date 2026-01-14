@@ -14,7 +14,8 @@ interface OrdersTableHeaderProps {
   // Selection
   filteredOrders: Order[];
   areAllEligibleSelected: boolean;
-  onSelectAll: () => void;
+  isPartiallySelected?: boolean;
+  onSelectAll: (checked: boolean) => void;
   // Sorting
   sortField: SortField;
   sortDirection: SortDirection;
@@ -37,6 +38,7 @@ interface OrdersTableHeaderProps {
 export function OrdersTableHeader({
   filteredOrders,
   areAllEligibleSelected,
+  isPartiallySelected,
   onSelectAll,
   sortField,
   sortDirection,
@@ -62,7 +64,10 @@ export function OrdersTableHeader({
         <input
           type="checkbox"
           checked={areAllEligibleSelected}
-          onChange={onSelectAll}
+          ref={(el) => {
+            if (el) el.indeterminate = isPartiallySelected ?? false;
+          }}
+          onChange={(e) => onSelectAll(e.target.checked)}
           className="w-4 h-4 accent-[var(--primary)]"
         />
       </div>
@@ -98,11 +103,38 @@ export function OrdersTableHeader({
         />
       </div>
 
-      {/* Factory SO */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Factory SO
-        </span>
+      {/* Commission */}
+      <div className="flex items-center justify-end">
+        <button
+          onClick={() => onSort('totalCommission')}
+          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
+        >
+          Commission
+          <SortIcon
+            field="totalCommission"
+            currentSortField={sortField}
+            currentSortDirection={sortDirection}
+          />
+        </button>
+        <ColumnFilterDropdown
+          type="multiselect"
+          filterId="totalCommission"
+          options={uniqueCommissions.map((c) => ({
+            value: c.toString(),
+            label: formatCurrency(c),
+          }))}
+          value={columnFilters.totalCommission}
+          onChange={(value) =>
+            setColumnFilters((prev) => ({ ...prev, totalCommission: value }))
+          }
+          placeholder="All Commissions"
+          isOpen={openFilter === 'totalCommission'}
+          onToggle={() =>
+            setOpenFilter(
+              openFilter === 'totalCommission' ? null : 'totalCommission'
+            )
+          }
+        />
       </div>
 
       {/* Status */}
@@ -201,6 +233,13 @@ export function OrdersTableHeader({
         </span>
       </div>
 
+      {/* Created By */}
+      <div className="flex items-center">
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+          Created By
+        </span>
+      </div>
+
       {/* Ship Date */}
       <div className="flex items-center">
         <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
@@ -271,54 +310,6 @@ export function OrdersTableHeader({
           isOpen={openFilter === 'customerName'}
           onToggle={() =>
             setOpenFilter(openFilter === 'customerName' ? null : 'customerName')
-          }
-        />
-      </div>
-
-      {/* Inside Rep */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Inside Rep
-        </span>
-      </div>
-
-      {/* Outside Reps */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Outside Reps
-        </span>
-      </div>
-
-      {/* Commission */}
-      <div className="flex items-center justify-end">
-        <button
-          onClick={() => onSort('totalCommission')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Commission
-          <SortIcon
-            field="totalCommission"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="totalCommission"
-          options={uniqueCommissions.map((c) => ({
-            value: c.toString(),
-            label: formatCurrency(c),
-          }))}
-          value={columnFilters.totalCommission}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, totalCommission: value }))
-          }
-          placeholder="All Commissions"
-          isOpen={openFilter === 'totalCommission'}
-          onToggle={() =>
-            setOpenFilter(
-              openFilter === 'totalCommission' ? null : 'totalCommission'
-            )
           }
         />
       </div>

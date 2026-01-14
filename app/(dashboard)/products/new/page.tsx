@@ -36,7 +36,7 @@ export default function CreateProductPage() {
     defaultCommissionRate: undefined,
     productUomId: '',
     productCategoryId: undefined,
-    published: false,
+    published: true,
     approvalNeeded: false,
     description: '',
   });
@@ -88,7 +88,7 @@ export default function CreateProductPage() {
     factorySearchTerm,
     isFactoryDropdownOpen
   );
-  const { data: categories = [], isLoading: isLoadingCategories } = useProductCategories();
+  const { data: categories = [], isLoading: isLoadingCategories } = useProductCategories(selectedFactory?.id);
 
   // Get selected UOM
   const selectedUom = uoms.find(u => u.id === formData.productUomId);
@@ -176,8 +176,14 @@ export default function CreateProductPage() {
     if (!formData.factoryPartNumber?.trim()) {
       newErrors.factoryPartNumber = 'Part Number is required';
     }
+    if (formData.unitPrice === undefined || formData.unitPrice === null) {
+      newErrors.unitPrice = 'Unit Price is required';
+    }
     if (!formData.productUomId) {
       newErrors.productUomId = 'Unit of Measure is required';
+    }
+    if (formData.defaultCommissionRate === undefined || formData.defaultCommissionRate === null) {
+      newErrors.defaultCommissionRate = 'Default Commission Rate is required';
     }
 
     setErrors(newErrors);
@@ -277,14 +283,14 @@ export default function CreateProductPage() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">
+                  {formData.factoryPartNumber || 'New Product'}
+                </h1>
+                <p className="text-sm text-gray-500">
                   {formData.description
                     ? formData.description.length > 50
                       ? `${formData.description.slice(0, 50)}...`
                       : formData.description
-                    : 'New Product'}
-                </h1>
-                <p className="text-sm text-gray-500">
-                  {formData.factoryPartNumber || 'Enter product details below'}
+                    : 'Enter product details below'}
                 </p>
               </div>
             </div>
@@ -553,7 +559,7 @@ export default function CreateProductPage() {
             {/* Pricing */}
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div>
-                <label className={labelClass}>Unit Price</label>
+                <label className={labelClass}>Unit Price *</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                   <input
@@ -561,24 +567,30 @@ export default function CreateProductPage() {
                     step="0.01"
                     value={formData.unitPrice ?? ''}
                     onChange={(e) => handleChange('unitPrice', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    className={`${inputClass} pl-7`}
+                    className={`${inputClass} pl-7 ${errors.unitPrice ? 'border-red-500' : ''}`}
                     placeholder="0.00"
                   />
                 </div>
+                {errors.unitPrice && (
+                  <p className="mt-1 text-xs text-red-500">{errors.unitPrice}</p>
+                )}
               </div>
               <div>
-                <label className={labelClass}>Default Commission Rate</label>
+                <label className={labelClass}>Default Commission Rate *</label>
                 <div className="relative">
                   <input
                     type="number"
                     step="0.1"
-                    value={formData.defaultCommissionRate !== undefined ? formData.defaultCommissionRate * 100 : ''}
-                    onChange={(e) => handleChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
-                    className={`${inputClass} pr-8`}
+                    value={formData.defaultCommissionRate !== undefined ? formData.defaultCommissionRate : ''}
+                    onChange={(e) => handleChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    className={`${inputClass} pr-8 ${errors.defaultCommissionRate ? 'border-red-500' : ''}`}
                     placeholder="0"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
                 </div>
+                {errors.defaultCommissionRate && (
+                  <p className="mt-1 text-xs text-red-500">{errors.defaultCommissionRate}</p>
+                )}
               </div>
             </div>
 
@@ -649,17 +661,20 @@ export default function CreateProductPage() {
                       }
                     }}
                     onFocus={() => {
-                      setIsCategoryDropdownOpen(true);
-                      setCategorySearchTerm('');
+                      if (selectedFactory) {
+                        setIsCategoryDropdownOpen(true);
+                        setCategorySearchTerm('');
+                      }
                     }}
-                    placeholder="Search categories..."
-                    className={inputClass}
+                    placeholder={selectedFactory ? "Search categories..." : "Select factory first"}
+                    disabled={!selectedFactory}
+                    className={`${inputClass} ${!selectedFactory ? 'bg-gray-50 cursor-not-allowed opacity-60' : ''}`}
                   />
                   <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
-                {isCategoryDropdownOpen && isMounted && createPortal(
+                {isCategoryDropdownOpen && selectedFactory && isMounted && createPortal(
                   <div
                     ref={categoryDropdownRef}
                     style={{

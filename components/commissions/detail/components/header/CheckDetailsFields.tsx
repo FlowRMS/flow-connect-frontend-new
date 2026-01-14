@@ -3,17 +3,24 @@
  * Collapsible section with check detail form fields and reconciliation section
  */
 
-import React from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { CommissionCheck } from '@/lib/types/rms';
 import type { CheckStatus, CheckWithUnpostedLines } from '../../types';
+import { searchFactories, searchOpenInvoices, type FactorySearchResult, type OpenInvoiceSearchResult } from '@/components/lib/api/search';
+import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
+import { StyledMonthPicker, parseMonthString, formatMonthToString } from '@/components/shared/StyledMonthPicker';
 
 interface CheckDetailsFieldsProps {
   check: CommissionCheck;
   showHeaderFields: boolean;
   toggleHeaderFields: () => void;
   status: CheckStatus;
+  isCreateMode?: boolean;
   // Form fields
-  factory: string; // Read-only
+  factory: string; // Display name
+  factoryId: string;
+  setFactoryId: (value: string) => void;
+  setFactory: (value: string) => void;
   checkNumber: string;
   setCheckNumber: (value: string) => void;
   checkDate: string;
@@ -52,6 +59,8 @@ interface CheckDetailsFieldsProps {
   setIncludeAllOrdersWithoutInvoices: (value: boolean) => void;
   filteredChecks: CheckWithUnpostedLines[];
   currentCheckId: string;
+  // Callback for open invoices search results
+  onOpenInvoicesLoaded?: (invoices: OpenInvoiceSearchResult[]) => void;
 }
 
 export function CheckDetailsFields({
@@ -59,7 +68,11 @@ export function CheckDetailsFields({
   showHeaderFields,
   toggleHeaderFields,
   status,
+  isCreateMode = false,
   factory,
+  factoryId,
+  setFactoryId,
+  setFactory,
   checkNumber,
   setCheckNumber,
   checkDate,
@@ -71,6 +84,8 @@ export function CheckDetailsFields({
   isTotalStatedCommission,
   setIsTotalStatedCommission,
   isTiedToCommissionUpload,
+  commissionMonth,
+  setCommissionMonth,
   summary,
   totalAdjustments,
   selectedCheckNumbers,
@@ -89,7 +104,103 @@ export function CheckDetailsFields({
   setIncludeAllOrdersWithoutInvoices,
   filteredChecks,
   currentCheckId,
+  onOpenInvoicesLoaded,
 }: CheckDetailsFieldsProps) {
+  // Factory search state
+  const [factorySearch, setFactorySearch] = useState(factory || '');
+  const [factories, setFactories] = useState<FactorySearchResult[]>([]);
+  const [showFactoryDropdown, setShowFactoryDropdown] = useState(false);
+  const [isSearchingFactories, setIsSearchingFactories] = useState(false);
+  const [selectedFactory, setSelectedFactory] = useState<FactorySearchResult | null>(null);
+  const factoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Open invoices search state
+  const [isSearchingOpenInvoices, setIsSearchingOpenInvoices] = useState(false);
+  const [openInvoicesError, setOpenInvoicesError] = useState<string | null>(null);
+  const [openInvoicesCount, setOpenInvoicesCount] = useState<number | null>(null);
+
+  // Update factorySearch when factory prop changes
+  useEffect(() => {
+    setFactorySearch(factory || '');
+  }, [factory]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (factoryDropdownRef.current && !factoryDropdownRef.current.contains(event.target as Node)) {
+        setShowFactoryDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Search factories
+  const handleFactorySearch = async (term: string) => {
+    setFactorySearch(term);
+    setIsSearchingFactories(true);
+    try {
+      const results = await searchFactories(term, true, 20);
+      setFactories(results);
+    } catch (error) {
+      console.error('Error searching factories:', error);
+      setFactories([]);
+    } finally {
+      setIsSearchingFactories(false);
+    }
+  };
+
+  // Handle factory selection
+  const handleSelectFactory = (factoryResult: FactorySearchResult) => {
+    setSelectedFactory(factoryResult);
+    setFactorySearch(factoryResult.title);
+    setFactory(factoryResult.title);
+    setFactoryId(factoryResult.id);
+    setShowFactoryDropdown(false);
+  };
+
+  // Clear factory selection
+  const handleClearFactory = () => {
+    setSelectedFactory(null);
+    setFactorySearch('');
+    setFactory('');
+    setFactoryId('');
+    // Clear open invoices count when factory is cleared
+    setOpenInvoicesCount(null);
+  };
+
+  // Search for open invoices when both factory and date are selected
+  useEffect(() => {
+    const fetchOpenInvoices = async () => {
+      // Only search if we have both factoryId and date
+      if (!factoryId || !unpaidInvoicesAfterDate) {
+        setOpenInvoicesCount(null);
+        return;
+      }
+
+      setIsSearchingOpenInvoices(true);
+      setOpenInvoicesError(null);
+
+      try {
+        const results = await searchOpenInvoices(factoryId, unpaidInvoicesAfterDate);
+        setOpenInvoicesCount(results.length);
+
+        // Notify parent with the results
+        if (onOpenInvoicesLoaded) {
+          onOpenInvoicesLoaded(results);
+        }
+      } catch (error) {
+        console.error('Error searching open invoices:', error);
+        setOpenInvoicesError(error instanceof Error ? error.message : 'Failed to search invoices');
+        setOpenInvoicesCount(null);
+      } finally {
+        setIsSearchingOpenInvoices(false);
+      }
+    };
+
+    fetchOpenInvoices();
+  }, [factoryId, unpaidInvoicesAfterDate, onOpenInvoicesLoaded]);
+
   const checkAmt = isTotalStatedCommission ? summary.paidTotal : commissionAmount;
   const balance = checkAmt - summary.paidTotal + totalAdjustments;
   const reconciledPercentage =
@@ -110,42 +221,115 @@ export function CheckDetailsFields({
     <div className="border-b border-[var(--border)] bg-blue-50/30 flex-shrink-0">
       <button
         onClick={toggleHeaderFields}
-        className="w-full px-6 py-2 flex items-center justify-between text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+        className="w-full px-6 py-3 flex items-center justify-between text-sm text-[var(--muted-foreground)] hover:bg-blue-100/50 transition-colors group"
       >
-        <span className="font-medium">Check Details</span>
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className={`transition-transform ${showHeaderFields ? 'rotate-180' : ''}`}
-        >
-          <path
-            d="M6 8l4 4 4-4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <span className="text-xs font-medium uppercase tracking-wide">Check Details</span>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${showHeaderFields ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-700'}`}>
+          <span className="text-xs font-medium">{showHeaderFields ? 'Collapse' : 'Expand'}</span>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            className={`transition-transform ${showHeaderFields ? 'rotate-180' : ''}`}
+          >
+            <path
+              d="M6 8l4 4 4-4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
       </button>
       {showHeaderFields && (
         <div className="px-6 pb-4">
           <div className="flex gap-6">
             {/* Left side - Form fields */}
             <div className="flex-1">
-              <div className="grid grid-cols-4 gap-4">
-                {/* Factory */}
-                <div>
+              <div className="grid grid-cols-5 gap-4">
+                {/* Factory - Searchable when in create mode, read-only otherwise */}
+                <div ref={factoryDropdownRef} className="relative">
                   <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                    Factory
+                    Factory <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={factory || '-'}
-                    readOnly
-                    className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-[var(--muted-foreground)] cursor-not-allowed"
-                  />
+                  {isCreateMode || !factoryId ? (
+                    <>
+                      <div className="flex gap-1">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={factorySearch}
+                            onChange={(e) => {
+                              handleFactorySearch(e.target.value);
+                              setShowFactoryDropdown(true);
+                              if (selectedFactory && e.target.value !== selectedFactory.title) {
+                                setSelectedFactory(null);
+                              }
+                            }}
+                            onFocus={() => {
+                              setShowFactoryDropdown(true);
+                              if (!factories.length) handleFactorySearch('');
+                            }}
+                            placeholder="Search factories..."
+                            className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                          />
+                          {isSearchingFactories && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--primary)]" />
+                            </div>
+                          )}
+                        </div>
+                        {(selectedFactory || factoryId) && (
+                          <button
+                            onClick={handleClearFactory}
+                            type="button"
+                            className="px-2 py-2 text-gray-500 hover:text-gray-700 border border-[var(--border)] rounded-md hover:bg-[var(--muted)] text-xs"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      {(selectedFactory || factoryId) && (
+                        <p className="mt-1 text-xs text-green-600 truncate">
+                          ✓ {factory || selectedFactory?.title}
+                        </p>
+                      )}
+
+                      {/* Factory Dropdown */}
+                      {showFactoryDropdown && !(selectedFactory || factoryId) && (
+                        <div className="absolute z-30 w-full mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {factories.length > 0 ? (
+                            factories.map((f) => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => handleSelectFactory(f)}
+                                className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="font-medium text-gray-900 text-sm">{f.title}</div>
+                                {f.accountNumber && (
+                                  <div className="text-xs text-gray-500">Acct: {f.accountNumber}</div>
+                                )}
+                              </button>
+                            ))
+                          ) : !isSearchingFactories ? (
+                            <div className="p-3 text-center text-gray-500 text-sm">
+                              {factorySearch ? `No factories found` : 'No factories available'}
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <input
+                      type="text"
+                      value={factory || '-'}
+                      readOnly
+                      className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-[var(--muted-foreground)] cursor-not-allowed"
+                    />
+                  )}
                 </div>
 
                 {/* Check Number */}
@@ -160,15 +344,19 @@ export function CheckDetailsFields({
                     className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
                   />
                   <div className="relative inline-block group">
-                    <div className="flex items-center gap-1.5 mt-1.5">
+                    <div className="flex items-center gap-1.5 mt-1.5 opacity-50">
                       <input
                         type="checkbox"
                         checked={isTiedToCommissionUpload}
                         readOnly
-                        className="w-3.5 h-3.5 accent-[var(--primary)] pointer-events-none"
+                        disabled
+                        className="w-3.5 h-3.5 accent-[var(--primary)] pointer-events-none cursor-not-allowed"
                       />
                       <span className="text-xs text-[var(--muted-foreground)] border-b border-dashed border-[var(--muted-foreground)] cursor-help">
                         Tied to commission upload
+                      </span>
+                      <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
+                        Coming Soon
                       </span>
                     </div>
                     <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
@@ -184,11 +372,11 @@ export function CheckDetailsFields({
                   <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                     Check Date
                   </label>
-                  <input
-                    type="date"
-                    value={checkDate}
-                    onChange={(e) => setCheckDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
+                  <StyledDatePicker
+                    selected={parseDateString(checkDate)}
+                    onChange={(date) => setCheckDate(formatDateToString(date))}
+                    placeholder="Select date..."
+                    className="!py-2 !px-3 !rounded-md !text-sm"
                   />
                 </div>
 
@@ -198,11 +386,11 @@ export function CheckDetailsFields({
                     <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                       Posted Date
                     </label>
-                    <input
-                      type="date"
-                      value={postedDate}
-                      onChange={(e) => setPostedDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
+                    <StyledDatePicker
+                      selected={parseDateString(postedDate)}
+                      onChange={(date) => setPostedDate(formatDateToString(date))}
+                      placeholder="Select date..."
+                      className="!py-2 !px-3 !rounded-md !text-sm"
                     />
                   </div>
                 )}
@@ -231,127 +419,61 @@ export function CheckDetailsFields({
                       }`}
                     />
                   </div>
-                  <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                  <label className="flex items-center gap-1.5 mt-1.5 cursor-not-allowed opacity-50">
                     <input
                       type="checkbox"
                       checked={isTotalStatedCommission}
-                      onChange={(e) =>
-                        setIsTotalStatedCommission(e.target.checked)
-                      }
-                      className="w-3.5 h-3.5 accent-[var(--primary)]"
+                      disabled
+                      className="w-3.5 h-3.5 accent-[var(--primary)] cursor-not-allowed"
                     />
                     <span className="text-xs text-[var(--muted-foreground)]">
                       Is Total Stated Commission
                     </span>
+                    <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
+                      Coming Soon
+                    </span>
                   </label>
+                </div>
+
+                {/* Commission Month */}
+                <div>
+                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                    Commission Month
+                  </label>
+                  <StyledMonthPicker
+                    selected={parseMonthString(commissionMonth)}
+                    onChange={(date) => setCommissionMonth(formatMonthToString(date))}
+                    placeholder="Select month..."
+                    className="!py-2 !px-3 !rounded-md !text-sm"
+                  />
                 </div>
               </div>
 
               {/* Lines to Reconcile Section - Only show when unposted */}
               {status === 'unposted' && (
                 <div className="mt-4">
-                  <span className="text-sm font-medium text-[var(--muted-foreground)]">
-                    Lines to Reconcile
-                  </span>
-                  <div className="grid grid-cols-4 gap-4 mt-2">
-                    {/* Check Number Multi-Select */}
-                    <div>
-                      <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                        Check Number
-                      </label>
-                      <div className="relative">
-                        <button
-                          onClick={() =>
-                            setShowCheckNumbersDropdown(!showCheckNumbersDropdown)
-                          }
-                          className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm text-left flex items-center justify-between"
-                        >
-                          <span
-                            className={
-                              selectedCheckNumbers.length > 0
-                                ? 'text-[var(--foreground)]'
-                                : 'text-[var(--muted-foreground)]'
-                            }
-                          >
-                            {selectedCheckNumbers.length > 0
-                              ? `${selectedCheckNumbers.length} check${selectedCheckNumbers.length > 1 ? 's' : ''} selected`
-                              : 'Select checks...'}
-                          </span>
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <path
-                              d="M6 8l4 4 4-4"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
-                        {showCheckNumbersDropdown && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-40"
-                              onClick={() => setShowCheckNumbersDropdown(false)}
-                            />
-                            <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50 max-h-64 overflow-hidden">
-                              <div className="p-2 border-b border-[var(--border)]">
-                                <input
-                                  type="text"
-                                  placeholder="Search checks..."
-                                  value={checkNumberSearch}
-                                  onChange={(e) =>
-                                    setCheckNumberSearch(e.target.value)
-                                  }
-                                  className="w-full px-2 py-1.5 bg-[var(--muted)] border-0 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              </div>
-                              <div className="max-h-48 overflow-y-auto">
-                                {filteredChecks.map((chk) => {
-                                  const isCurrentCheck =
-                                    chk.id === currentCheckId;
-                                  return (
-                                    <label
-                                      key={chk.id}
-                                      className={`flex items-center gap-2 px-3 py-2 hover:bg-[var(--muted)] ${
-                                        isCurrentCheck
-                                          ? 'cursor-not-allowed bg-[var(--muted)]/50'
-                                          : 'cursor-pointer'
-                                      }`}
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedCheckNumbers.includes(
-                                          chk.id
-                                        )}
-                                        disabled={isCurrentCheck}
-                                        onChange={() => toggleCheckNumber(chk.id)}
-                                        className="accent-[var(--primary)]"
-                                      />
-                                      <span className="text-sm">
-                                        {chk.checkNumber}
-                                      </span>
-                                      {isCurrentCheck && (
-                                        <span className="text-xs text-[var(--muted-foreground)]">
-                                          (current)
-                                        </span>
-                                      )}
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </>
-                        )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-[var(--muted-foreground)]">
+                      Lines to Reconcile
+                    </span>
+                    {isSearchingOpenInvoices && (
+                      <div className="flex items-center gap-1.5 text-xs text-blue-600">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600" />
+                        <span>Searching invoices...</span>
                       </div>
-                    </div>
-
+                    )}
+                    {!isSearchingOpenInvoices && openInvoicesCount !== null && (
+                      <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                        {openInvoicesCount} invoice{openInvoicesCount !== 1 ? 's' : ''} found
+                      </span>
+                    )}
+                    {openInvoicesError && (
+                      <span className="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                        Error: {openInvoicesError}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-2">
                     {/* Unpaid Invoices After */}
                     <div>
                       <div className="relative inline-block group">
@@ -364,57 +486,32 @@ export function CheckDetailsFields({
                           <div className="absolute top-full left-4 border-4 border-transparent border-t-gray-900"></div>
                         </div>
                       </div>
-                      <input
-                        type="date"
-                        value={unpaidInvoicesAfterDate}
-                        onChange={(e) =>
-                          setUnpaidInvoicesAfterDate(e.target.value)
-                        }
-                        className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
-                      />
-                      <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                      <div className="relative">
+                        <StyledDatePicker
+                          selected={parseDateString(unpaidInvoicesAfterDate)}
+                          onChange={(date) => setUnpaidInvoicesAfterDate(formatDateToString(date))}
+                          placeholder="Select date..."
+                          disabled={!factoryId}
+                          className="!py-2 !px-3 !rounded-md !text-sm"
+                        />
+                        {isSearchingOpenInvoices && (
+                          <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600" />
+                          </div>
+                        )}
+                      </div>
+                      {!factoryId && (
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1 italic">
+                          Select a factory first
+                        </p>
+                      )}
+                      <label className={`flex items-center gap-1.5 mt-1.5 ${!factoryId ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                         <input
                           type="checkbox"
                           checked={includeAllUnpaid}
-                          onChange={(e) =>
-                            setIncludeAllUnpaid(e.target.checked)
-                          }
-                          className="w-3.5 h-3.5 accent-[var(--primary)]"
-                        />
-                        <span className="text-xs text-[var(--muted-foreground)]">
-                          All
-                        </span>
-                      </label>
-                    </div>
-
-                    {/* Orders Without Invoices After */}
-                    <div>
-                      <div className="relative inline-block group">
-                        <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1 cursor-help border-b border-dashed border-[var(--muted-foreground)] inline-block">
-                          Orders without invoices after:
-                        </label>
-                        <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                          Does not include orders marked "dormant" or on other
-                          checks
-                          <div className="absolute top-full left-4 border-4 border-transparent border-t-gray-900"></div>
-                        </div>
-                      </div>
-                      <input
-                        type="date"
-                        value={ordersWithoutInvoicesAfterDate}
-                        onChange={(e) =>
-                          setOrdersWithoutInvoicesAfterDate(e.target.value)
-                        }
-                        className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
-                      />
-                      <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={includeAllOrdersWithoutInvoices}
-                          onChange={(e) =>
-                            setIncludeAllOrdersWithoutInvoices(e.target.checked)
-                          }
-                          className="w-3.5 h-3.5 accent-[var(--primary)]"
+                          onChange={(e) => setIncludeAllUnpaid(e.target.checked)}
+                          disabled={!factoryId}
+                          className={`w-3.5 h-3.5 accent-[var(--primary)] ${!factoryId ? 'cursor-not-allowed' : ''}`}
                         />
                         <span className="text-xs text-[var(--muted-foreground)]">
                           All
@@ -448,7 +545,7 @@ export function CheckDetailsFields({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-[var(--muted-foreground)]">
-                        Deductions
+                        Adjustments
                       </span>
                       <span
                         className={`text-sm font-medium ${

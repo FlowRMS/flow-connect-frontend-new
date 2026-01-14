@@ -21,6 +21,7 @@ export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalP
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [tags, setTags] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [contentMentions, setContentMentions] = useState<SelectedContact[]>([]);
   const [fieldMentions, setFieldMentions] = useState<SelectedContact[]>([]);
   const [selectedLinks, setSelectedLinks] = useState<SelectedLink[]>([]);
@@ -61,6 +62,7 @@ export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalP
         content: content.trim(),
         tags: tags.trim(),
         mentions: getMentionsString(),
+        isPublic,
       });
 
       // Create links for the note
@@ -96,6 +98,7 @@ export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalP
     setTitle('');
     setContent('');
     setTags('');
+    setIsPublic(false);
     setContentMentions([]);
     setFieldMentions([]);
     setSelectedLinks([]);
@@ -181,7 +184,7 @@ export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalP
                   onMentionsChange={setContentMentions}
                   rows={6}
                   className={`${inputClass} resize-none`}
-                  placeholder="Write your note content here... Type @ to mention contacts"
+                  placeholder="Write your note content here... Type @ to mention users"
                 />
               </div>
             </div>
@@ -229,7 +232,28 @@ export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalP
                   className={inputClass}
                 />
                 <p className="text-xs text-gray-500 mt-1.5">
-                  Search and select contacts to mention
+                  Search and select users to mention
+                </p>
+              </div>
+
+              {/* Public Toggle */}
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isPublic}
+                    onChange={(e) => setIsPublic(e.target.checked)}
+                    className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                  />
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm font-medium text-gray-700">Make this note public</span>
+                  </div>
+                </label>
+                <p className="text-xs text-gray-500 mt-1.5 ml-7">
+                  Public notes can be viewed by anyone with access to linked entities
                 </p>
               </div>
             </div>

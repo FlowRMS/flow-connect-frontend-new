@@ -24,12 +24,13 @@ export function BulkActionsBar({
   onBulkDelete,
 }: BulkActionsBarProps) {
   const orderStatuses: OrderStatus[] = [
-    'draft',
-    'open',
-    'partial_shipped',
-    'shipped',
-    'cancelled',
-    'dormant',
+    'OPEN',
+    'PARTIAL_SHIPPED',
+    'SHIPPED_COMPLETE',
+    'CANCELLED',
+    'OVER_SHIPPED',
+    'PARTIAL_CANCELLED',
+    'OVER_CANCELLED',
   ];
 
   return (

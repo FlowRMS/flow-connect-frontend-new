@@ -11,3 +11,12 @@ export * from './header';
 
 // Utility Modals
 export * from './utility';
+
+// Credits Modals
+export * from './credits';
+
+// Adjustments Modals
+export * from './adjustments';
+
+// Acknowledgements Modals
+export * from './acknowledgements';

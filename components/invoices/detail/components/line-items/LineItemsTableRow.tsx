@@ -7,14 +7,14 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import type { InvoiceLineItem, Invoice, Order } from '@/lib/types/rms';
-import type { ColumnKey, ViewMode, LineItemCredit } from '../../types';
+import type { Order } from '@/lib/types/rms';
+import type { ColumnKey, ViewMode, LineItemCredit, InvoiceLineItem, EditableInvoice } from '../../types';
 import { formatCurrency } from '../../utils';
 import { getLinkedOrdersForInvoiceLine, getLinkedChecksForInvoice } from '../../utils';
 
-interface LineItemsTableRowProps {
+export interface LineItemsTableRowProps {
   item: InvoiceLineItem;
-  invoice: Invoice;
+  invoice: EditableInvoice;
   isSelected: boolean;
   onToggleSelection: (id: string) => void;
   visibleColumns: Set<ColumnKey>;
@@ -23,6 +23,24 @@ interface LineItemsTableRowProps {
   onShowOrderTooltip: (x: number, y: number, orders: Order[]) => void;
   mockOrders: Order[];
   mockChecks: any[];
+  // Editing props
+  editingCell?: { rowId: string; column: ColumnKey } | null;
+  editValue?: string;
+  onStartEdit?: (rowId: string, column: ColumnKey, currentValue: string) => void;
+  onEditValueChange?: (value: string) => void;
+  onFinishEdit?: (save?: boolean) => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+  isEditable?: boolean;
+  // Product search props
+  productSearchTerm?: string;
+  setProductSearchTerm?: (term: string) => void;
+  setProductSearchEnabled?: (enabled: boolean) => void;
+  productOptions?: { id: string; label: string; sublabel?: string; data: any }[];
+  isProductSearchLoading?: boolean;
+  onProductSelect?: (lineItemId: string, productId: string, product: any) => void;
+  // Actions
+  onOpenAdditionalDetails?: (lineItem: InvoiceLineItem) => void;
+  onDeleteLineItem?: (lineItemId: string) => void;
 }
 
 export function LineItemsTableRow({
@@ -36,6 +54,24 @@ export function LineItemsTableRow({
   onShowOrderTooltip,
   mockOrders,
   mockChecks,
+  // Editing props (optional)
+  editingCell,
+  editValue,
+  onStartEdit,
+  onEditValueChange,
+  onFinishEdit,
+  onKeyDown,
+  isEditable,
+  // Product search props (optional)
+  productSearchTerm,
+  setProductSearchTerm,
+  setProductSearchEnabled,
+  productOptions,
+  isProductSearchLoading,
+  onProductSelect,
+  // Actions (optional)
+  onOpenAdditionalDetails,
+  onDeleteLineItem,
 }: LineItemsTableRowProps) {
   const router = useRouter();
 
@@ -300,21 +336,21 @@ export function LineItemsTableRow({
       {/* Commission % (simple view) */}
       {visibleColumns.has('commissionPercent') && viewMode === 'simple' && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {`${((item.commissionRate || 0.08) * 100).toFixed(0)}%`}
+          {`${((item.commissionRate ?? 0.08) * 100).toFixed(0)}%`}
         </td>
       )}
 
       {/* Commission */}
       {visibleColumns.has('commission') && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {formatCurrency(item.amount * (item.commissionRate || 0.08))}
+          {formatCurrency(item.amount * (item.commissionRate ?? 0.08))}
         </td>
       )}
 
       {/* Commission Total */}
       {visibleColumns.has('commissionTotal') && (
         <td className="px-3 py-2 text-sm text-right text-purple-600 font-medium">
-          {formatCurrency(item.amount * (item.commissionRate || 0.08))}
+          {formatCurrency(item.amount * (item.commissionRate ?? 0.08))}
         </td>
       )}
 
@@ -326,14 +362,14 @@ export function LineItemsTableRow({
       {/* Commission % (overage view) */}
       {visibleColumns.has('commissionPercent') && viewMode === 'overage' && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {`${((item.commissionRate || 0.08) * 100).toFixed(0)}%`}
+          {`${((item.commissionRate ?? 0.08) * 100).toFixed(0)}%`}
         </td>
       )}
 
       {/* Commission Amount */}
       {visibleColumns.has('commissionAmount') && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {formatCurrency(item.amount * (item.commissionRate || 0.08))}
+          {formatCurrency(item.amount * (item.commissionRate ?? 0.08))}
         </td>
       )}
 
@@ -360,7 +396,7 @@ export function LineItemsTableRow({
       {visibleColumns.has('earnAmount') && (
         <td className="px-3 py-2 text-sm text-right text-green-600 font-medium">
           {formatCurrency(
-            item.amount * (item.commissionRate || 0.08) +
+            item.amount * (item.commissionRate ?? 0.08) +
               item.unitPrice * 0.15 * item.quantity * 0.85
           )}
         </td>

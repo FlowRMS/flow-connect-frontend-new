@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import AdvancedFilters from '../AdvancedFilters';
+import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import { useCustomersState } from './hooks/useCustomersState';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
@@ -15,6 +15,7 @@ import { getCustomerFilterOptions, getCustomerSortOptions } from './config/filte
 import { ListView } from './views/ListView';
 import { GridView } from './views/GridView';
 import { DeleteCustomerModal } from './modals/DeleteCustomerModal';
+import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
 
 export default function CustomersContent() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function CustomersContent() {
     selectedType,
     setSelectedType,
     filteredCustomers,
+    totalCount,
     deleteConfirmId,
     setDeleteConfirmId,
     isLoading,
@@ -41,6 +43,22 @@ export default function CustomersContent() {
     clientSortColumns,
     handleMultiSortChange,
     handleCustomerDeleted,
+    // Bulk selection (from shared hook)
+    selectedIds,
+    excludedIds,
+    selectAllMode,
+    selectedCount,
+    isAllSelected,
+    isPartiallySelected,
+    isItemSelected,
+    handleSelectAll,
+    handleSelectOne,
+    clearSelection,
+    getAllSelectedIds,
+    // Bulk delete modal
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleBulkDeleteSuccess,
   } = useCustomersState();
 
   // Navigate to customer edit page
@@ -166,6 +184,17 @@ export default function CustomersContent() {
         </div>
       </div>
 
+      {/* Bulk Actions Toolbar */}
+      <BulkActionsToolbar
+        entityType="CUSTOMERS"
+        selectedCount={selectedCount}
+        totalCount={totalCount}
+        loadedCount={filteredCustomers.length}
+        selectAllMode={selectAllMode}
+        onClearSelection={clearSelection}
+        onDelete={() => setShowBulkDeleteModal(true)}
+      />
+
       {/* Loading State */}
       {(!isMounted || isLoading) && (
         <div className="flex items-center justify-center py-20">
@@ -203,6 +232,11 @@ export default function CustomersContent() {
           onCustomerClick={handleCustomerClick}
           onEditClick={handleEditCustomer}
           onDeleteClick={(customer) => setDeleteConfirmId(customer.id)}
+          selectedIds={selectedIds}
+          excludedIds={excludedIds}
+          selectAllMode={selectAllMode}
+          isItemSelected={isItemSelected}
+          onSelectOne={handleSelectOne}
         />
       )}
 
@@ -212,6 +246,14 @@ export default function CustomersContent() {
           onCustomerClick={handleCustomerClick}
           onEditClick={handleEditCustomer}
           onDeleteClick={(customer) => setDeleteConfirmId(customer.id)}
+          selectedIds={selectedIds}
+          excludedIds={excludedIds}
+          selectAllMode={selectAllMode}
+          isItemSelected={isItemSelected}
+          onSelectAll={handleSelectAll}
+          onSelectOne={handleSelectOne}
+          isAllSelected={isAllSelected}
+          isPartiallySelected={isPartiallySelected}
         />
       )}
 
@@ -242,6 +284,17 @@ export default function CustomersContent() {
           onSuccess={handleCustomerDeleted}
         />
       )}
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="CUSTOMERS"
+        selectedCount={selectedCount}
+        getAllSelectedIds={getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['customers']]}
+      />
     </main>
   );
 }

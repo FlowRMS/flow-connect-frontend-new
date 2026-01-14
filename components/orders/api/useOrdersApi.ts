@@ -11,6 +11,8 @@ import {
   createOrder,
   updateOrder,
   deleteOrder,
+  duplicateOrder,
+  createOrderFromQuote,
   type Order,
   type OrderLandingPage,
   type OrderLandingPageFilter,
@@ -18,6 +20,7 @@ import {
   type PaginatedOrdersResult,
   type CreateOrderInput,
   type UpdateOrderInput,
+  type CreateOrderFromQuoteInput,
 } from './ordersApi';
 // Import order search from central API
 import { searchOrders, type OrderSearchResult } from '@/components/lib/api/search';
@@ -177,6 +180,37 @@ export function useDeleteOrder() {
   });
 }
 
+/**
+ * Duplicate order mutation
+ */
+export function useDuplicateOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Order, Error, { orderId: string; newOrderNumber: string; newSoldToCustomerId: string }>({
+    mutationFn: ({ orderId, newOrderNumber, newSoldToCustomerId }) =>
+      duplicateOrder(orderId, newOrderNumber, newSoldToCustomerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orderQueryKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: orderQueryKeys.all });
+    },
+  });
+}
+
+/**
+ * Create order from quote mutation
+ */
+export function useCreateOrderFromQuote() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Order, Error, CreateOrderFromQuoteInput>({
+    mutationFn: createOrderFromQuote,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orderQueryKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: orderQueryKeys.all });
+    },
+  });
+}
+
 // ============================================================================
 // Search Hooks (Trigger-based for dropdowns)
 // ============================================================================
@@ -319,13 +353,14 @@ export type {
   ProductSearchResult,
   ProductCpnResult,
   ProductUomResult,
+  ProductPricingTierResult,
 } from '@/components/quotes/api/quotesApi';
 
 // Re-export job search type from central API
 export type { JobSearchResult } from '@/components/lib/api/search';
 
 // Re-export search functions from quotes API
-export { searchCustomers, searchFactories, searchUsers, searchProducts, listProductCpns, getProductCpnByCustomer, listProductUoms } from '@/components/quotes/api/quotesApi';
+export { searchCustomers, searchFactories, searchUsers, searchProducts, listProductCpns, getProductCpnByCustomer, listProductUoms, listProductPricingTiers, getPriceForQuantity } from '@/components/quotes/api/quotesApi';
 
 // Re-export job search from central API
 export { searchJobs, searchOrders } from '@/components/lib/api/search';
@@ -335,8 +370,11 @@ export type { OrderSearchResult } from '@/components/lib/api/search';
 
 /**
  * Search orders hook with debounce
+ * @param searchTerm - The search term to search for
+ * @param limit - Maximum number of results to return
+ * @param allowEmptySearch - If true, allows searching with empty string to get all orders
  */
-export function useOrderSearch(searchTerm: string, limit: number = 50) {
+export function useOrderSearch(searchTerm: string, limit: number = 50, allowEmptySearch: boolean = false) {
   const [debouncedTerm, setDebouncedTerm] = useState(searchTerm);
 
   useEffect(() => {
@@ -346,10 +384,15 @@ export function useOrderSearch(searchTerm: string, limit: number = 50) {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Enable query if:
+  // - allowEmptySearch is true and term is empty, OR
+  // - term has at least 2 characters
+  const isEnabled = allowEmptySearch ? true : debouncedTerm.length >= 2;
+
   return useQuery<OrderSearchResult[], Error>({
     queryKey: orderQueryKeys.orderSearch(debouncedTerm),
     queryFn: () => searchOrders(debouncedTerm, limit),
-    enabled: debouncedTerm.length >= 2,
+    enabled: isEnabled,
     staleTime: 30 * 1000,
   });
 }

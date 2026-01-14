@@ -5,8 +5,9 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { useCheckDetailState } from './hooks';
 import { HeaderTopBar, PricingSummaryBar, CheckDetailsFields } from './components/header';
 import { LineItemsTable } from './components/line-items';
@@ -18,11 +19,22 @@ import {
   DeductionsTab,
   SettingsTab,
 } from './components/tabs';
+import { FilesTab } from '@/components/shared/FilesTab';
 import {
   PostedStatementModal,
   RepSplitsModal,
   ColumnsModal,
+  LineItemDetailModal,
+  AddLineItemModal,
+  OrderDetailModal,
 } from './components/modals';
+import * as XLSX from 'xlsx';
+import {
+  AdjustmentModal,
+  AdjustmentDetailModal,
+  DeleteConfirmModal,
+} from '@/components/orders/detail/components/modals';
+import { useAdjustmentsState } from '@/components/orders/detail/hooks/useAdjustmentsState';
 import { getTabsConfig } from './config/tabsConfig';
 import { SAVED_VIEWS, getDefaultView } from './config/viewsConfig';
 
@@ -35,6 +47,32 @@ export default function CheckDetailContent({
 }: CheckDetailContentProps) {
   const router = useRouter();
   const state = useCheckDetailState({ checkId });
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and check number)
+  useEffect(() => {
+    if (state?.checkNumber && checkId) {
+      setFullEntityContext('commission', checkId, state.checkNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state?.checkNumber, checkId, setFullEntityContext]);
+
+  // Adjustments state management - reuse from orders
+  const adjustmentsState = useAdjustmentsState();
+
+  // Loading state
+  if (state?.isLoading) {
+    return (
+      <main className="flex-1 overflow-auto bg-[var(--background)] p-6">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
+          <p className="text-[var(--muted-foreground)]">Loading check...</p>
+        </div>
+      </main>
+    );
+  }
 
   if (!state || !state.check) {
     return (
@@ -71,16 +109,61 @@ export default function CheckDetailContent({
   };
 
   const handleDownloadExcel = () => {
-    alert('Downloading Excel...');
-  };
+    // Prepare data for Excel export
+    const paidLineItems = state.lineItems.filter((item) => item.paid);
 
-  const handleSave = () => {
-    alert('Saved!');
-  };
+    // Create worksheet data
+    const worksheetData = [
+      // Header row
+      ['Type', 'Entity Number', 'Order Number', 'Expected Commission', 'Commission Received', 'Sales Amount', 'Outside Sales Rep'],
+      // Data rows
+      ...paidLineItems.map((item) => [
+        item.type.toUpperCase(),
+        item.number,
+        item.orderNumber || '-',
+        item.expectedCommission,
+        item.paidCommission,
+        item.commissionRateActual > 0
+          ? (item.paidCommission / (item.commissionRateActual / 100))
+          : 0,
+        item.salesRep || '-',
+      ]),
+    ];
 
-  const handleSaveAndClose = () => {
-    handleSave();
-    router.push('/commissions');
+    // Create summary data
+    const summaryData = [
+      ['Posted Statement Summary'],
+      [''],
+      ['Check Summary'],
+      ['Check Number', state.checkNumber || '-'],
+      ['Factory', state.check?.manufacturerName || '-'],
+      ['Check Date', state.checkDate ? new Date(state.checkDate).toLocaleDateString() : '-'],
+      ['Check Amount', state.isTotalStatedCommission ? state.summary.paidTotal : state.commissionAmount],
+      ['Commission Month', state.commissionMonth || '-'],
+      ['Post Date', state.postedDate ? new Date(state.postedDate).toLocaleDateString() : '-'],
+      [''],
+      ['Commission Summary'],
+      ['Paid Commissions', state.summary.paidTotal],
+      ['Expected Commission', state.summary.expectedTotal],
+      ['Balance', state.summary.paidTotal - state.summary.expectedTotal],
+    ];
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+
+    // Add summary sheet
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+
+    // Add details sheet
+    const detailsSheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    XLSX.utils.book_append_sheet(workbook, detailsSheet, 'Details');
+
+    // Generate filename
+    const filename = `Posted_Statement_${state.checkNumber || 'Check'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    // Download
+    XLSX.writeFile(workbook, filename);
   };
 
   const handleSaveAsNewVersion = () => {
@@ -88,7 +171,7 @@ export default function CheckDetailContent({
   };
 
   return (
-    <main className="flex-1 overflow-auto bg-[var(--background)] flex flex-col">
+    <main className="h-full overflow-auto bg-[var(--background)]">
       {/* Header Top Bar */}
       <HeaderTopBar
         check={state.check}
@@ -111,9 +194,17 @@ export default function CheckDetailContent({
         onReconcileCheck={handleReconcileCheck}
         onSeePostedStatement={handleSeePostedStatement}
         onDownloadExcel={handleDownloadExcel}
-        onSave={handleSave}
-        onSaveAndClose={handleSaveAndClose}
+        onSave={state.handleSave}
+        onSaveAndClose={state.handleSaveAndClose}
         onSaveAsNewVersion={handleSaveAsNewVersion}
+        onUnpost={state.handleUnpost}
+        onDelete={state.openDeleteConfirmModal}
+        isCreateMode={state.isCreateMode}
+        isSaving={state.isSaving}
+        isUnposting={state.isUnposting}
+        isDeleting={state.isDeleting}
+        isOriginallyPosted={state.isOriginallyPosted}
+        hasChanges={state.hasChanges}
       />
 
       {/* Pricing Summary Bar */}
@@ -133,7 +224,11 @@ export default function CheckDetailContent({
           state.setShowHeaderFields(!state.showHeaderFields)
         }
         status={state.status}
+        isCreateMode={state.isCreateMode}
         factory={state.factory}
+        factoryId={state.factoryId}
+        setFactoryId={state.setFactoryId}
+        setFactory={state.setFactory}
         checkNumber={state.checkNumber}
         setCheckNumber={state.setCheckNumber}
         checkDate={state.checkDate}
@@ -171,33 +266,48 @@ export default function CheckDetailContent({
         }
         filteredChecks={state.filteredChecks}
         currentCheckId={checkId}
+        onOpenInvoicesLoaded={state.handleOpenInvoicesLoaded}
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex flex-1 overflow-hidden min-h-0">
-        <div className="flex-1 flex flex-col p-6 min-w-0 overflow-hidden">
+      <div>
+        <div className="p-6">
           {/* Tabs */}
-          <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
+          <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] bg-white -mx-6 px-6 pt-4 -mt-6">
             <div className="flex gap-1">
-              {getTabsConfig(state.lineItems.length, state.adjustments.length).map(
+              {getTabsConfig(state.lineItems.length, state.adjustments.length, state.isCreateMode).map(
                 (tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => state.setActiveTab(tab.id)}
+                    onClick={() => !tab.disabled && !tab.comingSoon && state.setActiveTab(tab.id)}
+                    disabled={tab.disabled || tab.comingSoon}
+                    title={tab.disabled ? tab.disabledReason : tab.comingSoon ? 'Coming soon' : undefined}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                      state.activeTab === tab.id
+                      tab.disabled || tab.comingSoon
+                        ? 'border-transparent text-gray-300 cursor-not-allowed'
+                        : state.activeTab === tab.id
                         ? 'border-[var(--primary)] text-[var(--primary)]'
                         : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
                     }`}
                   >
                     {tab.label}
+                    {tab.comingSoon && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">
+                        SOON
+                      </span>
+                    )}
                     {tab.count !== undefined && tab.count > 0 && (
-                      <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+                      <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${tab.disabled ? 'bg-gray-50 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                         {tab.count}
                       </span>
                     )}
                   </button>
                 )
+              )}
+              {state.isCreateMode && (
+                <span className="ml-auto text-xs text-[var(--muted-foreground)] italic pr-2">
+                  Some tabs will unlock after saving
+                </span>
               )}
             </div>
 
@@ -288,29 +398,6 @@ export default function CheckDetailContent({
                   )}
                 </div>
 
-                {/* Sections Button */}
-                <button
-                  onClick={() => state.setShowSectionsModal(true)}
-                  className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
-                    state.showSections
-                      ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                      : 'border-[var(--border)] hover:bg-[var(--muted)]'
-                  }`}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="3" y="3" width="14" height="4" rx="1" />
-                    <rect x="3" y="10" width="14" height="7" rx="1" />
-                  </svg>
-                  Sections
-                </button>
-
                 {/* Columns Button */}
                 <button
                   onClick={() => state.setShowColumnsModal(true)}
@@ -340,7 +427,7 @@ export default function CheckDetailContent({
 
           {/* Tab Content */}
           {state.activeTab === 'line-items' && (
-            <div className="space-y-4">
+            <div>
               <LineItemsTable
                 lineItems={state.lineItems}
                 visibleColumns={state.visibleColumns}
@@ -348,30 +435,41 @@ export default function CheckDetailContent({
                 status={state.status}
                 onTogglePaid={state.togglePaid}
                 onAddNewLine={state.addNewLine}
+                onRowClick={state.openLineItemDetail}
+                onUpdateStatedCommission={state.updateLineItemAmount}
+                onOrderClick={state.openOrderDetail}
               />
             </div>
+          )}
+
+          {/* Files Tab */}
+          {state.activeTab === 'files' && (
+            <FilesTab
+              entityId={checkId}
+              entityType="CHECK"
+            />
           )}
 
           {/* Other Tabs */}
           {state.activeTab === 'deductions' && (
             <DeductionsTab
-              check={state.check}
-              adjustments={state.adjustments}
-              totalAdjustments={state.totalAdjustments}
-              onAddAdjustment={state.addAdjustment}
-              onDeleteAdjustment={state.deleteAdjustment}
-              onUpdateAdjustment={state.updateAdjustment}
-              onOpenRepSplitsModal={state.openRepSplitsModal}
+              adjustments={adjustmentsState.adjustments}
+              isLoading={adjustmentsState.isLoadingAdjustments}
+              error={adjustmentsState.adjustmentsError}
+              onAddAdjustment={adjustmentsState.openCreateAdjustmentModal}
+              onViewAdjustment={adjustmentsState.viewAdjustment}
+              onEditAdjustment={adjustmentsState.openEditAdjustmentModal}
+              onDeleteAdjustment={adjustmentsState.handleDeleteAdjustment}
             />
           )}
 
-          {state.activeTab === 'notes' && <NotesTab />}
+          {state.activeTab === 'notes' && <NotesTab checkId={checkId} />}
 
-          {state.activeTab === 'tasks' && <TasksTab />}
+          {state.activeTab === 'tasks' && <TasksTab checkId={checkId} />}
 
           {state.activeTab === 'activity' && <ActivityTab />}
 
-          {state.activeTab === 'linked-objects' && <LinkedObjectsTab />}
+          {state.activeTab === 'linked-objects' && <LinkedObjectsTab checkId={checkId} />}
 
           {state.activeTab === 'settings' && (
             <SettingsTab
@@ -430,6 +528,77 @@ export default function CheckDetailContent({
           onClose={() => state.setShowColumnsModal(false)}
         />
       )}
+
+      {/* Line Item Detail Modal */}
+      {state.showLineItemDetailModal && state.selectedLineItem && (
+        <LineItemDetailModal
+          item={state.selectedLineItem}
+          status={state.status}
+          onClose={state.closeLineItemDetail}
+          onTogglePaid={state.togglePaid}
+          onDelete={state.deleteLineItem}
+          onUpdateAmount={state.updateLineItemAmount}
+        />
+      )}
+
+      {/* Add Line Item Modal */}
+      {state.showAddLineItemModal && (
+        <AddLineItemModal
+          onClose={() => state.setShowAddLineItemModal(false)}
+          onAdd={state.handleAddLineItem}
+          factoryId={state.factoryId}
+        />
+      )}
+
+      {/* Adjustments Modals - reused from orders */}
+      <AdjustmentModal
+        isOpen={adjustmentsState.showAdjustmentModal}
+        onClose={adjustmentsState.closeAdjustmentModal}
+        order={null}
+        adjustment={adjustmentsState.adjustmentToEdit}
+        onSubmit={adjustmentsState.handleSaveAdjustment}
+        isLoading={adjustmentsState.isSavingAdjustment}
+        isLoadingAdjustmentDetails={adjustmentsState.isLoadingAdjustmentDetails}
+      />
+
+      <AdjustmentDetailModal
+        isOpen={adjustmentsState.showAdjustmentDetailModal}
+        onClose={adjustmentsState.closeAdjustmentDetailModal}
+        adjustment={adjustmentsState.selectedAdjustment}
+        onEdit={adjustmentsState.editAdjustmentFromDetail}
+        onDelete={adjustmentsState.deleteAdjustmentFromDetail}
+        isDeleting={adjustmentsState.isDeletingAdjustment}
+      />
+
+      {/* Delete Confirmation Modal for Adjustments */}
+      <DeleteConfirmModal
+        isOpen={adjustmentsState.showDeleteConfirmModal}
+        title="Delete Adjustment?"
+        message="Are you sure you want to delete adjustment"
+        itemName={adjustmentsState.adjustmentToDelete?.adjustmentNumber || adjustmentsState.adjustmentToDelete?.id?.substring(0, 8)}
+        isPending={adjustmentsState.isDeletingAdjustment}
+        onConfirm={adjustmentsState.handleConfirmDelete}
+        onCancel={adjustmentsState.closeDeleteConfirmModal}
+      />
+
+      {/* Order Detail Modal */}
+      {state.showOrderDetailModal && state.selectedOrderId && (
+        <OrderDetailModal
+          orderId={state.selectedOrderId}
+          onClose={state.closeOrderDetail}
+        />
+      )}
+
+      {/* Delete Confirmation Modal for Check */}
+      <DeleteConfirmModal
+        isOpen={state.showDeleteConfirmModal}
+        title="Delete Check?"
+        message="Are you sure you want to delete check"
+        itemName={state.checkNumber || state.check?.checkNumber}
+        isPending={state.isDeleting}
+        onConfirm={state.handleDelete}
+        onCancel={state.closeDeleteConfirmModal}
+      />
     </main>
   );
 }

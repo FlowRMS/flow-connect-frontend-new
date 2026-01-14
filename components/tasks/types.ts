@@ -4,12 +4,11 @@
  */
 
 // Import API types from the new tasks API module
-import type { 
-  Task as APITask, 
-  TaskLandingPage, 
+import type {
+  Task as APITask,
+  TaskLandingPage,
   TaskConversation,
-  TaskRelatedEntities,
-  TaskPriority as TaskPriorityAPI, 
+  TaskPriority as TaskPriorityAPI,
   TaskStatus as TaskStatusAPI,
   CreateTaskInput,
   UpdateTaskInput,
@@ -18,15 +17,16 @@ import type {
   ContactSearchResult,
   JobSearchResult,
   NoteSearchResult,
+  RelatedEntities,
+  TaskAssignee,
 } from './api';
 
 // Re-export API types for backward compatibility
-export type { 
+export type {
   APITask,
-  TaskLandingPage, 
+  TaskLandingPage,
   TaskConversation,
-  TaskRelatedEntities,
-  TaskPriorityAPI, 
+  TaskPriorityAPI,
   TaskStatusAPI,
   CreateTaskInput,
   UpdateTaskInput,
@@ -35,7 +35,13 @@ export type {
   ContactSearchResult,
   JobSearchResult,
   NoteSearchResult,
+  RelatedEntities,
+  TaskAssignee,
 };
+
+// Legacy type alias for backward compatibility
+/** @deprecated Use RelatedEntities instead */
+export type TaskRelatedEntities = RelatedEntities;
 
 // Task status types for UI display
 export type TaskStatus = 'Today' | 'Overdue' | 'Upcoming' | 'Waiting' | 'Completed';
@@ -93,7 +99,8 @@ export interface Task {
   dueDate: string;
   reminderDate?: string;
   assignedTo: string;
-  assignedToId?: string;
+  assigneeNames?: string[]; // Array of assignee names for display (from landing pages)
+  assignees?: TaskAssignee[]; // Array of user objects (from single task query)
   taskType: string;
   status: TaskStatus;
   apiStatus: TaskStatusAPI;
@@ -116,10 +123,12 @@ export interface TaskEntities {
   notes?: Array<{ id: string; name: string }>;
 }
 
-// Comment type for task conversations (legacy format)
+// Comment type for task conversations
 export interface TaskComment {
   id: string;
   author: string;
+  authorInside?: boolean;
+  authorOutside?: boolean;
   content: string;
   timestamp: string;
 }
@@ -186,7 +195,7 @@ export interface ParsedTask {
   dueDate: string;
   reminderDate: string;
   assignedTo: string;
-  assignedToId: string;
+  assignees?: TaskAssignee[]; // Array of user objects
   status: TaskStatus;
   apiStatus: TaskStatusAPI;
   priority: TaskPriority;

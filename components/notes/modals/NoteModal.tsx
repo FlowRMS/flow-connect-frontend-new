@@ -8,17 +8,19 @@
 import React, { useState, useMemo } from 'react';
 import type { ParsedNote, NoteConversation } from '../types';
 import { formatTimestamp, formatTimeAgo, getInitials, getAvatarColor, parseNote } from '../utils';
-import { 
-  useNoteConversations, 
-  useNoteRelatedEntities, 
-  useAddNoteConversation, 
+import {
+  useNoteConversations,
+  useRelatedEntities,
+  useAddNoteConversation,
   useUpdateNoteConversation,
   useDeleteNoteConversation,
   useDeleteNote,
-  useContactSearch,
-  type EntityType 
+  useUserSearch,
+  useFetchNote,
+  type EntityType
 } from '../api';
 import { noteToasts, showSuccessToast, showErrorToast } from '../../lib/toast';
+import { RelatedEntityHoverCard, type EntityType as HoverCardEntityType } from '../../shared/RelatedEntityHoverCard';
 
 interface NoteModalProps {
   note: ParsedNote;
@@ -34,63 +36,104 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
   const [editingCommentContent, setEditingCommentContent] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
-  
-  // Fetch contacts for mention resolution
-  const { data: contacts = [] } = useContactSearch('');
-  
-  // Fetch related entities for this note
-  const { data: relatedEntities } = useNoteRelatedEntities(note.id);
-  
-  // Resolve mention IDs to contact names for display
+
+  // Fetch the full note data (includes mentions) - landing pages don't include mentions
+  const { data: fullNoteData } = useFetchNote(note.id);
+
+  // Fetch users for mention resolution
+  const { data: users = [] } = useUserSearch('');
+
+  // Fetch related entities for this note using centralized endpoint
+  const { data: relatedEntities } = useRelatedEntities(note.id, 'NOTES');
+
+  // Get mentions from the full note data (API returns mentions as an array of UUIDs)
+  const noteMentions = useMemo(() => {
+    if (!fullNoteData?.mentions) return [];
+    // The API returns mentions as an array of UUIDs
+    if (Array.isArray(fullNoteData.mentions)) {
+      return fullNoteData.mentions.filter((id: string) => id);
+    }
+    // Fallback: if it's a string (comma-separated), parse it
+    if (typeof fullNoteData.mentions === 'string' && fullNoteData.mentions.trim()) {
+      return fullNoteData.mentions.split(',').map((id: string) => id.trim()).filter((id: string) => id);
+    }
+    return [];
+  }, [fullNoteData?.mentions]);
+
+  // Resolve mention IDs to user names for display
   const mentionNames = useMemo(() => {
-    return note.mentions.map(mentionId => {
-      const contact = contacts.find(c => c.id === mentionId);
-      if (contact) {
-        return `${contact.firstName} ${contact.lastName}`;
+    return noteMentions.map(mentionId => {
+      const user = users.find(u => u.id === mentionId);
+      if (user) {
+        return user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
       }
-      return mentionId; // Return the ID if contact not found
+      return mentionId; // Return the ID if user not found
     });
-  }, [note.mentions, contacts]);
+  }, [noteMentions, users]);
   
-  // Resolve related entities for display
+  // Map API entity types to hover card entity types
+  const mapToHoverCardType = (type: EntityType): HoverCardEntityType => {
+    const typeMap: Record<string, HoverCardEntityType> = {
+      'COMPANY': 'company',
+      'CONTACT': 'contact',
+      'JOB': 'job',
+      'TASK': 'task',
+      'NOTE': 'note',
+      'QUOTE': 'quote',
+      'ORDER': 'order',
+      'INVOICE': 'invoice',
+      'CHECK': 'check',
+      'PRE_OPPORTUNITY': 'preOpportunity',
+      'FACTORY': 'factory',
+      'CUSTOMER': 'customer',
+      'PRODUCT': 'product',
+    };
+    return typeMap[type] || 'note';
+  };
+
+  // Resolve related entities for display (includes full entity for hover card)
   const resolvedLinks = useMemo(() => {
     if (!relatedEntities) return [];
-    
-    const links: Array<{ id: string; type: EntityType; name: string; entityId: string }> = [];
-    
+
+    const links: Array<{ id: string; type: EntityType; name: string; entityId: string; entity: unknown }> = [];
+
     relatedEntities.companies?.forEach(company => {
       links.push({
         id: company.id,
         type: 'COMPANY',
         name: company.name,
         entityId: company.id,
+        entity: company,
       });
     });
-    
+
     relatedEntities.contacts?.forEach(contact => {
       links.push({
         id: contact.id,
         type: 'CONTACT',
         name: `${contact.firstName} ${contact.lastName}`,
         entityId: contact.id,
+        entity: contact,
       });
     });
-    
+
     relatedEntities.jobs?.forEach(job => {
       links.push({
         id: job.id,
         type: 'JOB',
         name: job.jobName,
         entityId: job.id,
+        entity: job,
       });
     });
-    
+
     relatedEntities.tasks?.forEach(task => {
       links.push({
         id: task.id,
         type: 'TASK',
         name: task.title,
         entityId: task.id,
+        entity: task,
       });
     });
 
@@ -100,6 +143,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'PRE_OPPORTUNITY',
         name: preOpp.entityNumber || 'Unknown Pre-Opportunity',
         entityId: preOpp.id,
+        entity: preOpp,
       });
     });
 
@@ -107,8 +151,9 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
       links.push({
         id: quote.id,
         type: 'QUOTE',
-        name: quote.quoteNumber || quote.jobName || 'Unknown Quote',
+        name: quote.quoteNumber || 'Unknown Quote',
         entityId: quote.id,
+        entity: quote,
       });
     });
 
@@ -116,8 +161,9 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
       links.push({
         id: order.id,
         type: 'ORDER',
-        name: order.orderNumber || order.jobName || 'Unknown Order',
+        name: order.orderNumber || 'Unknown Order',
         entityId: order.id,
+        entity: order,
       });
     });
 
@@ -127,6 +173,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'INVOICE',
         name: invoice.invoiceNumber || 'Unknown Invoice',
         entityId: invoice.id,
+        entity: invoice,
       });
     });
 
@@ -136,6 +183,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'CHECK',
         name: check.checkNumber || 'Unknown Check',
         entityId: check.id,
+        entity: check,
       });
     });
 
@@ -145,6 +193,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'FACTORY',
         name: factory.title || 'Unknown Factory',
         entityId: factory.id,
+        entity: factory,
       });
     });
 
@@ -154,6 +203,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'CUSTOMER',
         name: customer.companyName || 'Unknown Customer',
         entityId: customer.id,
+        entity: customer,
       });
     });
 
@@ -163,9 +213,10 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'PRODUCT',
         name: product.factoryPartNumber || 'Unknown Product',
         entityId: product.id,
+        entity: product,
       });
     });
-    
+
     return links;
   }, [relatedEntities]);
   
@@ -404,6 +455,17 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
                   <span className="font-medium text-[var(--foreground)]">{note.createdBy}</span>
                   <span className="text-gray-300">·</span>
                   <span>{formatTimestamp(note.createdAt)}</span>
+                  {note.isPublic && (
+                    <>
+                      <span className="text-gray-300">·</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Public
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -455,13 +517,14 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
                   Note Content
                 </h3>
                 <div className="p-4 bg-[var(--muted)]/30 rounded-lg border border-[var(--border)]">
-                  <p className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-wrap">
-                    {note.content ? (
-                      <div dangerouslySetInnerHTML={{ __html: note.content }} />
-                    ) : (
-                      <span className="text-[var(--muted-foreground)] italic">No content</span>
-                    )}
-                  </p>
+                  {note.content ? (
+                    <div
+                      className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-wrap"
+                      dangerouslySetInnerHTML={{ __html: note.content }}
+                    />
+                  ) : (
+                    <p className="text-sm text-[var(--muted-foreground)] italic">No content</p>
+                  )}
                 </div>
               </div>
 
@@ -511,13 +574,18 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
                   </h3>
                   <div className="flex gap-2 flex-wrap">
                     {resolvedLinks.map((link) => (
-                      <span 
-                        key={link.id} 
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${getLinkTypeColor(link.type)}`}
+                      <RelatedEntityHoverCard
+                        key={link.id}
+                        entity={link.entity as never}
+                        type={mapToHoverCardType(link.type)}
                       >
-                        {getLinkTypeIcon(link.type)}
-                        <span className="max-w-[200px] truncate">{link.name}</span>
-                      </span>
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all hover:shadow-md hover:scale-105 ${getLinkTypeColor(link.type)}`}
+                        >
+                          {getLinkTypeIcon(link.type)}
+                          <span className="max-w-[200px] truncate">{link.name}</span>
+                        </span>
+                      </RelatedEntityHoverCard>
                     ))}
                   </div>
                 </div>
@@ -549,90 +617,105 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
                       <p className="text-sm">No comments yet. Be the first to comment!</p>
                     </div>
                   ) : (
-                    conversations.map((conversation) => (
-                      <div key={conversation.id} className="flex gap-3 group">
-                        <div className={`w-8 h-8 rounded-full ${getAvatarColor('User')} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
-                          {getInitials('User')}
-                        </div>
-                        <div className="flex-1">
-                          {editingCommentId === conversation.id ? (
-                            // Edit mode
-                            <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                              <textarea
-                                value={editingCommentContent}
-                                onChange={(e) => setEditingCommentContent(e.target.value)}
-                                className="w-full p-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                                rows={3}
-                                autoFocus
-                              />
-                              <div className="flex justify-end gap-2 mt-2">
-                                <button
-                                  onClick={handleCancelEdit}
-                                  className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={handleSaveEditComment}
-                                  disabled={updateConversationMutation.isPending || !editingCommentContent.trim()}
-                                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-1"
-                                >
-                                  {updateConversationMutation.isPending ? (
-                                    <>
-                                      <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                                      </svg>
-                                      Saving...
-                                    </>
-                                  ) : 'Save'}
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            // View mode
-                            <div className="bg-[var(--muted)]/30 rounded-lg p-3 border border-[var(--border)]">
-                              <div className="flex items-center justify-between mb-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-semibold text-[var(--foreground)]">
-                                    User
-                                  </span>
-                                  <span className="text-xs text-[var(--muted-foreground)]">
-                                    {formatTimeAgo(conversation.createdAt)}
-                                  </span>
+                    conversations.map((conversation) => {
+                      const creatorName = conversation.createdBy?.fullName
+                        || (conversation.createdBy?.firstName && conversation.createdBy?.lastName
+                            ? `${conversation.createdBy.firstName} ${conversation.createdBy.lastName}`
+                            : conversation.createdBy?.email || 'Unknown User');
+                      const isInside = conversation.createdBy?.inside;
+                      const isOutside = conversation.createdBy?.outside;
+
+                      return (
+                        <div key={conversation.id} className="flex gap-3 group">
+                          <div className={`w-8 h-8 rounded-full ${getAvatarColor(creatorName)} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
+                            {getInitials(creatorName)}
+                          </div>
+                          <div className="flex-1">
+                            {editingCommentId === conversation.id ? (
+                              // Edit mode
+                              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                <textarea
+                                  value={editingCommentContent}
+                                  onChange={(e) => setEditingCommentContent(e.target.value)}
+                                  className="w-full p-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                  rows={3}
+                                  autoFocus
+                                />
+                                <div className="flex justify-end gap-2 mt-2">
+                                  <button
+                                    onClick={handleCancelEdit}
+                                    className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={handleSaveEditComment}
+                                    disabled={updateConversationMutation.isPending || !editingCommentContent.trim()}
+                                    className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                  >
+                                    {updateConversationMutation.isPending ? (
+                                      <>
+                                        <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                        </svg>
+                                        Saving...
+                                      </>
+                                    ) : 'Save'}
+                                  </button>
                                 </div>
-                                {canEditComment(conversation) && (
-                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                    <button
-                                      onClick={() => handleEditComment(conversation)}
-                                      className="p-1.5 hover:bg-blue-50 rounded text-blue-600 transition-colors"
-                                      title="Edit comment"
-                                    >
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round"/>
-                                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" strokeLinecap="round" strokeLinejoin="round"/>
-                                      </svg>
-                                    </button>
-                                    <button
-                                      onClick={() => setCommentToDelete(conversation.id)}
-                                      className="p-1.5 hover:bg-red-50 rounded text-red-500 transition-colors"
-                                      title="Delete comment"
-                                    >
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" strokeLinecap="round" strokeLinejoin="round"/>
-                                        <line x1="10" y1="11" x2="10" y2="17" strokeLinecap="round"/>
-                                        <line x1="14" y1="11" x2="14" y2="17" strokeLinecap="round"/>
-                                      </svg>
-                                    </button>
-                                  </div>
-                                )}
                               </div>
-                              <p className="text-sm text-[var(--foreground)]">{conversation.content}</p>
-                            </div>
-                          )}
+                            ) : (
+                              // View mode
+                              <div className="bg-[var(--muted)]/30 rounded-lg p-3 border border-[var(--border)]">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm font-semibold text-[var(--foreground)]">
+                                      {creatorName}
+                                    </span>
+                                    {isInside && (
+                                      <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded">Inside</span>
+                                    )}
+                                    {isOutside && (
+                                      <span className="px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded">Outside</span>
+                                    )}
+                                    <span className="text-xs text-[var(--muted-foreground)]">
+                                      {formatTimeAgo(conversation.createdAt)}
+                                    </span>
+                                  </div>
+                                  {canEditComment(conversation) && (
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                      <button
+                                        onClick={() => handleEditComment(conversation)}
+                                        className="p-1.5 hover:bg-blue-50 rounded text-blue-600 transition-colors"
+                                        title="Edit comment"
+                                      >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round"/>
+                                          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                      </button>
+                                      <button
+                                        onClick={() => setCommentToDelete(conversation.id)}
+                                        className="p-1.5 hover:bg-red-50 rounded text-red-500 transition-colors"
+                                        title="Delete comment"
+                                      >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" strokeLinecap="round" strokeLinejoin="round"/>
+                                          <line x1="10" y1="11" x2="10" y2="17" strokeLinecap="round"/>
+                                          <line x1="14" y1="11" x2="14" y2="17" strokeLinecap="round"/>
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-sm text-[var(--foreground)]">{conversation.content}</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

@@ -1,14 +1,15 @@
 /**
  * Create Pre-Opportunity Modal (Refactored)
  * Modular modal for creating new pre-opportunities with improved UX
+ * Now supports factory-grouped line items
  */
 
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { useCreateCRMPreOpportunity, useCRMCustomerSearch, useCRMProductSearch, useCRMFactorySearch, useCRMJobSearch } from '../../hooks/useCRMApi';
-import type { CreatePreOpportunityInput, PreOpportunityDetailInput, PreOpportunityStatus, ProductSearchResult, FactorySearchResult, CustomerSearchResult, JobSearchResult } from '../types';
-import { preOpportunityToasts, showWarningToast } from '../../lib/toast';
+import { useCreateCRMPreOpportunity, useCRMCustomerSearch, useCRMJobSearch } from '../../hooks/useCRMApi';
+import type { CreatePreOpportunityInput, PreOpportunityDetailInput, PreOpportunityStatus, CustomerSearchResult, JobSearchResult, FactoryGroup } from '../types';
+import { preOpportunityToasts } from '../../lib/toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { formatLocalDate } from '../../lib/date-utils';
 
@@ -17,28 +18,13 @@ import { BasicInfoSection } from './sections/BasicInfoSection';
 import { CustomerSelectionSection } from './sections/CustomerSelectionSection';
 import { JobSelectionSection } from './sections/JobSelectionSection';
 import { AdditionalDetailsSection } from './sections/AdditionalDetailsSection';
-import { FactorySelectionSection } from './sections/FactorySelectionSection';
-import { LineItemEditor } from '../components/LineItemEditor';
+import { FactoryGroupedLineItems } from '../components/FactoryGroupedLineItems';
 
 interface CreatePreOpportunityModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   initialStatus?: PreOpportunityStatus;
-}
-
-interface LineItem {
-  id: string;
-  itemNumber: number;
-  productId: string;
-  factoryPartNumber?: string;
-  factoryName?: string;
-  quantity: number;
-  unitPrice: number;
-  discountRate: number;
-  leadTime?: string;
-  endUserId?: string;
-  endUserName?: string;
 }
 
 export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialStatus }: CreatePreOpportunityModalProps) {
@@ -63,36 +49,23 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
   const [jobId, setJobId] = useState('');
   const [jobName, setJobName] = useState('');
 
-  // Factory State
-  const [factoryId, setFactoryId] = useState('');
-  const [factoryName, setFactoryName] = useState('');
-
   // Additional Details State
   const [customerRef, setCustomerRef] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('');
   const [freightTerms, setFreightTerms] = useState('');
 
-  // Line Items State
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  // Factory-Grouped Line Items State
+  const [factoryGroups, setFactoryGroups] = useState<FactoryGroup[]>([]);
 
   // Search States (with allowEmpty support)
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [customerSearchEnabled, setCustomerSearchEnabled] = useState(false);
   const [jobSearchTerm, setJobSearchTerm] = useState('');
   const [jobSearchEnabled, setJobSearchEnabled] = useState(false);
-  const [factorySearchTerm, setFactorySearchTerm] = useState('');
-  const [factorySearchEnabled, setFactorySearchEnabled] = useState(false);
-  const [productSearchTerm, setProductSearchTerm] = useState('');
-  const [productSearchEnabled, setProductSearchEnabled] = useState(false);
-  const [endUserSearchTerm, setEndUserSearchTerm] = useState('');
-  const [endUserSearchEnabled, setEndUserSearchEnabled] = useState(false);
 
   // Debounced search terms
   const debouncedCustomerSearch = useDebounce(customerSearchTerm, 300);
   const debouncedJobSearch = useDebounce(jobSearchTerm, 300);
-  const debouncedFactorySearch = useDebounce(factorySearchTerm, 300);
-  const debouncedProductSearch = useDebounce(productSearchTerm, 300);
-  const debouncedEndUserSearch = useDebounce(endUserSearchTerm, 300);
 
   // API Queries with allowEmpty support
   const { data: customers = [], isLoading: isLoadingCustomers } = useCRMCustomerSearch(
@@ -103,21 +76,6 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
   const { data: jobs = [], isLoading: isLoadingJobs } = useCRMJobSearch(
     debouncedJobSearch,
     jobSearchEnabled
-  );
-  const { data: factories = [], isLoading: isLoadingFactories } = useCRMFactorySearch(
-    debouncedFactorySearch,
-    undefined,
-    factorySearchEnabled
-  );
-  const { data: products = [], isLoading: isLoadingProducts } = useCRMProductSearch(
-    debouncedProductSearch,
-    factoryId || undefined,
-    productSearchEnabled
-  );
-  const { data: endUsers = [], isLoading: isLoadingEndUsers } = useCRMCustomerSearch(
-    debouncedEndUserSearch,
-    undefined,
-    endUserSearchEnabled
   );
 
   // Customer handlers
@@ -163,43 +121,31 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
     setJobName('');
   }, []);
 
-  // Factory handlers
-  const handleFactorySearch = useCallback((term: string, allowEmpty: boolean) => {
-    setFactorySearchTerm(term);
-    setFactorySearchEnabled(allowEmpty || term.length > 0);
-  }, []);
+  // Convert factory groups to flat line items for API
+  const flattenLineItems = (): PreOpportunityDetailInput[] => {
+    const details: PreOpportunityDetailInput[] = [];
+    let itemNumber = 1;
 
-  const handleFactorySelect = useCallback((factory: FactorySearchResult) => {
-    setFactoryId(factory.id);
-    setFactoryName(factory.title);
-  }, []);
+    for (const group of factoryGroups) {
+      for (const item of group.lineItems) {
+        details.push({
+          itemNumber: itemNumber++,
+          productId: item.productId,
+          factoryId: item.factoryId || group.factoryId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discountRate: item.discountRate,
+          leadTime: item.leadTime || undefined,
+          endUserId: item.endUserId || soldToCustomerId,
+        });
+      }
+    }
 
-  const handleFactoryClear = useCallback(() => {
-    setFactoryId('');
-    setFactoryName('');
-  }, []);
+    return details;
+  };
 
-  // Product handlers for LineItemEditor
-  const handleProductSearch = useCallback((term: string) => {
-    setProductSearchTerm(term);
-    setProductSearchEnabled(true);
-  }, []);
-
-  const handleProductFocus = useCallback(() => {
-    setProductSearchTerm('');
-    setProductSearchEnabled(true);
-  }, []);
-
-  // End user handlers for LineItemEditor
-  const handleEndUserSearch = useCallback((term: string) => {
-    setEndUserSearchTerm(term);
-    setEndUserSearchEnabled(true);
-  }, []);
-
-  const handleEndUserFocus = useCallback(() => {
-    setEndUserSearchTerm('');
-    setEndUserSearchEnabled(true);
-  }, []);
+  // Calculate total line items count
+  const totalLineItems = factoryGroups.reduce((sum, group) => sum + group.lineItems.length, 0);
 
   // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -210,16 +156,7 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
       return;
     }
 
-    // Map line items to API format (optional)
-    const details: PreOpportunityDetailInput[] = lineItems.map(item => ({
-      itemNumber: item.itemNumber,
-      productId: item.productId,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      discountRate: item.discountRate,
-      leadTime: item.leadTime,
-      endUserId: item.endUserId || soldToCustomerId,
-    }));
+    const details = flattenLineItems();
 
     const input: CreatePreOpportunityInput = {
       entityNumber,
@@ -261,12 +198,10 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
     setBillToCustomerName('');
     setJobId('');
     setJobName('');
-    setFactoryId('');
-    setFactoryName('');
     setCustomerRef('');
     setPaymentTerms('');
     setFreightTerms('');
-    setLineItems([]);
+    setFactoryGroups([]);
     setSoldToCustomerError('');
   };
 
@@ -282,7 +217,7 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4" onClick={handleClose}>
       <div className="bg-[var(--card)] rounded-xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-        {/* Header - Jobs Style */}
+        {/* Header */}
         <div className="bg-gray-50 px-4 sm:px-6 py-4 sm:py-5 border-b border-[var(--border)] flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 sm:gap-3">
@@ -363,60 +298,34 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
               setFreightTerms={setFreightTerms}
             />
 
-            {/* Factory Filter & Line Items */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-                Products & Line Items <span className="text-gray-400 text-xs font-normal">(optional)</span>
-              </h3>
-              
-              <FactorySelectionSection
-                factoryId={factoryId}
-                factoryName={factoryName}
-                onFactorySelect={handleFactorySelect}
-                onFactoryClear={handleFactoryClear}
-                factories={factories}
-                isLoadingFactories={isLoadingFactories}
-                onFactorySearch={handleFactorySearch}
-              />
-
-              <LineItemEditor
-                items={lineItems}
-                onItemsChange={setLineItems}
-                products={products}
-                isLoadingProducts={isLoadingProducts}
-                onProductSearch={handleProductSearch}
-                onProductFocus={handleProductFocus}
-                customers={endUsers}
-                isLoadingCustomers={isLoadingEndUsers}
-                onCustomerSearch={handleEndUserSearch}
-                onCustomerFocus={handleEndUserFocus}
+            {/* Factory-Grouped Line Items */}
+            <div className="bg-gray-50 rounded-xl p-4 sm:p-5">
+              <FactoryGroupedLineItems
+                groups={factoryGroups}
+                onGroupsChange={setFactoryGroups}
                 defaultEndUserId={soldToCustomerId}
                 defaultEndUserName={soldToCustomerName}
-                factoryName={factoryName}
               />
             </div>
           </div>
         </form>
 
-        {/* Footer - Jobs Style */}
+        {/* Footer */}
         <div className="border-t border-gray-200 px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 flex items-center justify-between flex-shrink-0">
           <div className="text-xs sm:text-sm text-gray-500 hidden sm:flex">
-            {lineItems.length === 0 ? (
+            {totalLineItems === 0 ? (
               <span className="text-gray-500 flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                No line items (optional)
+                No products added (optional)
               </span>
             ) : (
               <span className="text-green-600 flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                {lineItems.length} line item{lineItems.length !== 1 ? 's' : ''} added
+                {factoryGroups.length} factor{factoryGroups.length !== 1 ? 'ies' : 'y'}, {totalLineItems} product{totalLineItems !== 1 ? 's' : ''} added
               </span>
             )}
           </div>

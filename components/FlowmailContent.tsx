@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import AdvancedFilters from './AdvancedFilters';
+import AdvancedFilters from './advancedFilters/AdvancedFilters';
 import CampaignCompose from './flowmail/CampaignCompose';
 import WorkflowSelector from './flowmail/WorkflowSelector';
 import { mockSpecSheets } from '@/lib/data/submittals-mock';

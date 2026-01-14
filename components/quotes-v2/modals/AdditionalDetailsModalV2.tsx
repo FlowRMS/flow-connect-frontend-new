@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { LineItemV2, QuoteSettingsV2 } from '../types';
 import { SearchableDropdownV2 } from '../components/SearchableDropdownV2';
 import { useCustomerSearch, useUserSearch } from '../../quotes/api/useQuotesApi';
-import { searchUsers } from '../../quotes/api/quotesApi';
+import { fetchUserById } from '../../lib/api/search';
+import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
 
 // Commission split rep interface
 interface CommissionSplitRep {
@@ -44,6 +45,9 @@ export function AdditionalDetailsModalV2({
   const [insideSplitReps, setInsideSplitReps] = useState<CommissionSplitRep[]>([]);
   const [outsideSplitReps, setOutsideSplitReps] = useState<CommissionSplitRep[]>([]);
 
+  // Auto-populate reps hook
+  const { fetchOutsideRepsFromCustomer } = useAutoPopulateReps();
+
   // Search states
   const [endUserSearchTerm, setEndUserSearchTerm] = useState('');
   const [endUserSearchEnabled, setEndUserSearchEnabled] = useState(false);
@@ -59,12 +63,13 @@ export function AdditionalDetailsModalV2({
   );
   const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(
     insideRepSearchTerm,
-    true, // enabled flag
-    insideRepSearchEnabled && !!settings?.insideRepAtLineLevel
+    true, // isInside
+    insideRepSearchEnabled && !!settings?.insideRepAtLineLevel,
+    false // isOutside
   );
   const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(
     outsideRepSearchTerm,
-    true,
+    false, // isInside
     outsideRepSearchEnabled && !!settings?.outsideRepAtLineLevel,
     true // isOutside
   );
@@ -112,26 +117,45 @@ export function AdditionalDetailsModalV2({
 
       // Initialize inside split reps from line item
       if (lineItem.insideSplitRates && lineItem.insideSplitRates.length > 0) {
-        // Fetch user names for inside reps
-        searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
-          .then((users) => {
-            const repsWithNames: CommissionSplitRep[] = lineItem.insideSplitRates!.map((rep, idx) => {
-              const matchingUser = users.find(u => u.id === rep.userId);
+        // Fetch user names for inside reps by their IDs
+        Promise.all(
+          lineItem.insideSplitRates.map(async (rep, idx) => {
+            // If userName is already stored, use it
+            if (rep.userName) {
               return {
                 id: rep.id || crypto.randomUUID(),
                 userId: rep.userId || '',
-                userName: matchingUser?.fullName || '',
+                userName: rep.userName,
                 splitRate: rep.splitRate || '100',
                 position: rep.position || idx + 1,
               };
-            });
-            setInsideSplitReps(repsWithNames);
+            }
+            // Otherwise fetch by ID
+            if (rep.userId) {
+              const user = await fetchUserById(rep.userId);
+              return {
+                id: rep.id || crypto.randomUUID(),
+                userId: rep.userId,
+                userName: user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Unknown',
+                splitRate: rep.splitRate || '100',
+                position: rep.position || idx + 1,
+              };
+            }
+            return {
+              id: rep.id || crypto.randomUUID(),
+              userId: '',
+              userName: 'Unknown',
+              splitRate: rep.splitRate || '100',
+              position: rep.position || idx + 1,
+            };
           })
+        )
+          .then((repsWithNames) => setInsideSplitReps(repsWithNames))
           .catch(() => {
             setInsideSplitReps(lineItem.insideSplitRates!.map((rep, idx) => ({
               id: rep.id || crypto.randomUUID(),
               userId: rep.userId || '',
-              userName: '',
+              userName: rep.userName || 'Unknown',
               splitRate: rep.splitRate || '100',
               position: rep.position || idx + 1,
             })));
@@ -142,26 +166,45 @@ export function AdditionalDetailsModalV2({
 
       // Initialize outside split reps from line item
       if (lineItem.outsideSplitRates && lineItem.outsideSplitRates.length > 0) {
-        // Fetch user names for outside reps
-        searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
-          .then((users) => {
-            const repsWithNames: CommissionSplitRep[] = lineItem.outsideSplitRates!.map((rep, idx) => {
-              const matchingUser = users.find(u => u.id === rep.userId);
+        // Fetch user names for outside reps by their IDs
+        Promise.all(
+          lineItem.outsideSplitRates.map(async (rep, idx) => {
+            // If userName is already stored, use it
+            if (rep.userName) {
               return {
                 id: rep.id || crypto.randomUUID(),
                 userId: rep.userId || '',
-                userName: matchingUser?.fullName || '',
+                userName: rep.userName,
                 splitRate: rep.splitRate || '100',
                 position: rep.position || idx + 1,
               };
-            });
-            setOutsideSplitReps(repsWithNames);
+            }
+            // Otherwise fetch by ID
+            if (rep.userId) {
+              const user = await fetchUserById(rep.userId);
+              return {
+                id: rep.id || crypto.randomUUID(),
+                userId: rep.userId,
+                userName: user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Unknown',
+                splitRate: rep.splitRate || '100',
+                position: rep.position || idx + 1,
+              };
+            }
+            return {
+              id: rep.id || crypto.randomUUID(),
+              userId: '',
+              userName: 'Unknown',
+              splitRate: rep.splitRate || '100',
+              position: rep.position || idx + 1,
+            };
           })
+        )
+          .then((repsWithNames) => setOutsideSplitReps(repsWithNames))
           .catch(() => {
             setOutsideSplitReps(lineItem.outsideSplitRates!.map((rep, idx) => ({
               id: rep.id || crypto.randomUUID(),
               userId: rep.userId || '',
-              userName: '',
+              userName: rep.userName || 'Unknown',
               splitRate: rep.splitRate || '100',
               position: rep.position || idx + 1,
             })));
@@ -181,7 +224,7 @@ export function AdditionalDetailsModalV2({
     const setReps = isInside ? setInsideSplitReps : setOutsideSplitReps;
 
     const newRep: CommissionSplitRep = {
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.id,
       userName: repName,
       splitRate: '0',
@@ -263,7 +306,11 @@ export function AdditionalDetailsModalV2({
   // Validate split totals - only check if per-line-item is enabled AND reps are added
   const isInsideSplitValid = !settings?.insideRepAtLineLevel || insideSplitReps.length === 0 || insideSplitTotal === 100;
   const isOutsideSplitValid = !settings?.outsideRepAtLineLevel || outsideSplitReps.length === 0 || outsideSplitTotal === 100;
-  const canSave = isInsideSplitValid && isOutsideSplitValid;
+
+  // Validate End User - only check if per-line-item is enabled
+  const isEndUserValid = !settings?.specifyEndUserPerLine || (formData.endUserId && formData.endUserId.trim() !== '');
+
+  const canSave = isInsideSplitValid && isOutsideSplitValid && isEndUserValid;
 
   return (
     <>
@@ -300,12 +347,28 @@ export function AdditionalDetailsModalV2({
                 <SearchableDropdownV2
                   value={formData.endUserId}
                   displayValue={formData.endUserName}
-                  onChange={(id, label) => {
+                  onChange={async (id, label) => {
                     setFormData({
                       ...formData,
                       endUserId: id,
                       endUserName: label,
                     });
+                    // Auto-populate outside reps from end user when both end user per line item
+                    // AND outside rep per line item are enabled
+                    if (id && settings?.outsideRepAtLineLevel) {
+                      const reps = await fetchOutsideRepsFromCustomer(id);
+                      if (reps.length > 0) {
+                        // Convert to the format expected by this modal
+                        const newOutsideSplitReps = reps.map((rep, idx) => ({
+                          id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+                          userId: rep.userId,
+                          userName: rep.userName,
+                          splitRate: rep.splitRate,
+                          position: idx + 1,
+                        }));
+                        setOutsideSplitReps(newOutsideSplitReps);
+                      }
+                    }
                   }}
                   options={endUserOptions}
                   placeholder="Search end user..."
@@ -550,9 +613,11 @@ export function AdditionalDetailsModalV2({
           {/* Footer */}
           <div className="px-6 py-4 border-t border-gray-200 flex-shrink-0">
             {!canSave && (
-              <p className="text-xs text-red-500 mb-2 text-center">
-                Split percentages must total 100%
-              </p>
+              <div className="text-xs text-red-500 mb-2 text-center space-y-1">
+                {!isInsideSplitValid && <p>Inside rep split percentages must total 100%</p>}
+                {!isOutsideSplitValid && <p>Outside rep split percentages must total 100%</p>}
+                {!isEndUserValid && <p>End User is required for this line item</p>}
+              </div>
             )}
             <button
               onClick={handleSave}

@@ -1,16 +1,15 @@
 /**
  * Pre-Opportunity Detail View Component
  * Combines all detail components into a single view
+ * Now uses factory-grouped line items for better organization
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { PreOpportunityDetailHeader } from './PreOpportunityDetailHeader';
 import { PreOpportunityDetailsForm, type EditFormData } from './PreOpportunityDetailsForm';
-import { PreOpportunityLineItems } from './PreOpportunityLineItems';
+import { FactoryGroupedLineItemsView } from './FactoryGroupedLineItemsView';
 import { PreOpportunitySummary } from './PreOpportunitySummary';
-import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
-import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
-import { AddLinkModal } from '../modals/AddLinkModal';
+import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import { CreateQuoteFromPreOppModal } from '../modals/CreateQuoteFromPreOppModal';
 import type { PreOpportunity, PreOpportunityDetailInput } from '../types';
 
@@ -44,26 +43,7 @@ export function PreOpportunityDetailView({
   onLineItemsChange,
 }: PreOpportunityDetailViewProps) {
   // Modal states
-  const [showAddLinkModal, setShowAddLinkModal] = useState(false);
-  const [addLinkEntityType, setAddLinkEntityType] = useState<'TASK' | 'NOTE'>('TASK');
-  const [tasksSectionKey, setTasksSectionKey] = useState(0);
-  const [notesSectionKey, setNotesSectionKey] = useState(0);
   const [showCreateQuoteModal, setShowCreateQuoteModal] = useState(false);
-
-  // Handle link success - trigger refetch via key change
-  const handleLinkSuccess = () => {
-    if (addLinkEntityType === 'TASK') {
-      setTasksSectionKey(prev => prev + 1);
-    } else {
-      setNotesSectionKey(prev => prev + 1);
-    }
-  };
-
-  // Open add link modal for specific entity type
-  const openAddLinkModal = (entityType: 'TASK' | 'NOTE') => {
-    setAddLinkEntityType(entityType);
-    setShowAddLinkModal(true);
-  };
 
   return (
     <main className="flex-1 overflow-y-auto bg-gray-50 p-3 md:p-6">
@@ -89,30 +69,19 @@ export function PreOpportunityDetailView({
             editFormData={editFormData}
             onChange={onEditChange}
           />
-          <PreOpportunityLineItems
+          <FactoryGroupedLineItemsView
             preOpp={preOpp}
             isEditing={isEditing}
             onLineItemsChange={onLineItemsChange}
           />
 
-          {/* Connected Tasks */}
-          <ConnectedTasksSection
-            key={`tasks-${tasksSectionKey}`}
+          {/* Connected Entities - All entities except pre-opportunities */}
+          <ConnectedEntitiesSection
             entityId={preOpp.id}
-            entityType="PRE_OPPORTUNITY"
-            title="Connected Tasks"
-            onAddClick={() => openAddLinkModal('TASK')}
-            onUnlinkSuccess={() => setTasksSectionKey(prev => prev + 1)}
-          />
-
-          {/* Connected Notes */}
-          <ConnectedNotesSection
-            key={`notes-${notesSectionKey}`}
-            entityId={preOpp.id}
-            entityType="PRE_OPPORTUNITY"
-            title="Connected Notes"
-            onAddClick={() => openAddLinkModal('NOTE')}
-            onUnlinkSuccess={() => setNotesSectionKey(prev => prev + 1)}
+            sourceEntityType="PRE_OPPORTUNITY"
+            enabledCategories={['contacts', 'companies', 'jobs', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+            title="Connected Entities"
+            showAddLinkButton={true}
           />
         </div>
 
@@ -121,15 +90,6 @@ export function PreOpportunityDetailView({
           <PreOpportunitySummary preOpp={preOpp} />
         </div>
       </div>
-
-      {/* Add Link Modal */}
-      <AddLinkModal
-        isOpen={showAddLinkModal}
-        preOpportunityId={preOpp.id}
-        initialEntityType={addLinkEntityType}
-        onClose={() => setShowAddLinkModal(false)}
-        onSuccess={handleLinkSuccess}
-      />
 
       {/* Create Quote Modal */}
       <CreateQuoteFromPreOppModal

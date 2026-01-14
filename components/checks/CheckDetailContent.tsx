@@ -54,7 +54,7 @@ const columnLabels: Record<ColumnKey, string> = {
   salesRep: 'Sales Rep',
   commissionRate: 'Commission Rate',
   expectedCommission: 'Expected Commission',
-  paidCommission: 'Stated Commission',
+  paidCommission: 'Paid Commission',
   balance: 'Balance',
   paid: 'On Check',
 };
@@ -154,7 +154,7 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
   const [checkNumber, setCheckNumber] = useState(check?.checkNumber || '');
   const [commissionAmount, setCommissionAmount] = useState(check?.netAmount || 0);
   const [checkDate, setCheckDate] = useState(check?.checkDate || '');
-  const [status, setStatus] = useState<CheckStatus>(check?.status === 'posted' ? 'posted' : 'unposted');
+  const [status, setStatus] = useState<CheckStatus>(check?.status === 'POSTED' ? 'posted' : 'unposted');
   const [postedDate, setPostedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [isTotalStatedCommission, setIsTotalStatedCommission] = useState(false);
   const [isTiedToCommissionUpload, setIsTiedToCommissionUpload] = useState(true); // Default to true if check is associated
@@ -672,7 +672,7 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
                         onChange={(e) => setIsTotalStatedCommission(e.target.checked)}
                         className="w-3.5 h-3.5 accent-[var(--primary)]"
                       />
-                      <span className="text-xs text-[var(--muted-foreground)]">Is Total Stated Commission</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">Is Total Paid Commission</span>
                     </label>
                   </div>
                 </div>
@@ -821,7 +821,7 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
                             <span className="text-sm font-medium text-[var(--foreground)]">${checkAmt.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-sm text-[var(--muted-foreground)]">Stated Commissions</span>
+                            <span className="text-sm text-[var(--muted-foreground)]">Paid Commissions</span>
                             <span className="text-sm font-medium text-[var(--foreground)]">-${summary.paidTotal.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between">
@@ -1004,7 +1004,7 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
                         </th>
                       )}
                       {visibleColumns.has('paidCommission') && (
-                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Stated Commission</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Paid Commission</th>
                       )}
                       {visibleColumns.has('balance') && (
                         <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Balance</th>

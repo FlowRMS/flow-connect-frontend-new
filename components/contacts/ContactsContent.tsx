@@ -6,7 +6,8 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import AdvancedFilters from '../AdvancedFilters';
+import { useFlowChat } from '@/contexts/FlowChatContext';
+import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import ContactDetailView from './detail/ContactDetailView';
 import ListView from './views/ListView';
@@ -19,12 +20,25 @@ import { getContactFilterOptions, getContactSortOptions } from './config/filterC
 import { CONTACT_TYPES } from './constants';
 import { mapAPIContactToUIContact } from './types';
 import type { DuplicateGroup } from './types';
-import type { Job as APIJob, Company as APICompany } from '../lib/crm-graphql';
+import type { RelatedEntityCompany, RelatedEntityJob } from '../lib/crm-graphql';
 
 export default function ContactsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const state = useContactsState();
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and contact name)
+  useEffect(() => {
+    if (state.selectedContact?.name && state.selectedContact?.id) {
+      setFullEntityContext('contact', state.selectedContact.id, state.selectedContact.name);
+    } else {
+      setFullEntityContext(null, null, null);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state.selectedContact?.name, state.selectedContact?.id, setFullEntityContext]);
 
   // Infinite scroll trigger
   const { loadMoreRef } = useInfiniteScroll({
@@ -82,11 +96,11 @@ export default function ContactsContent() {
   };
 
   // Navigation handlers for related entities
-  const handleJobClick = (job: APIJob) => {
+  const handleJobClick = (job: RelatedEntityJob) => {
     router.push(`/jobs?id=${job.id}`);
   };
 
-  const handleCompanyClick = (company: APICompany) => {
+  const handleCompanyClick = (company: RelatedEntityCompany) => {
     router.push(`/companies?id=${company.id}`);
   };
 
@@ -100,39 +114,6 @@ export default function ContactsContent() {
 
   // Mock duplicate groups (would come from API in the future)
   const duplicateGroups: DuplicateGroup[] = [];
-
-  // Show connection required message
-  if (!state.isConnected) {
-    return (
-      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Contacts</h1>
-        </div>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-2xl">
-          <div className="flex items-start gap-4">
-            <svg className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <div>
-              <h3 className="text-lg font-medium text-yellow-800">CRM Not Connected</h3>
-              <p className="text-sm text-yellow-700 mt-1">
-                Please configure your CRM API tokens to view and manage contacts.
-              </p>
-              <a
-                href="/dashboard/apps/flow-crm/auth"
-                className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-lg hover:bg-yellow-700 transition-colors"
-              >
-                Go to Auth Settings
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </a>
-            </div>
-          </div>
-        </div>
-      </main>
-    );
-  }
 
   // Show loading state (also check isMounted for hydration safety)
   if (!state.isMounted || state.isLoading) {

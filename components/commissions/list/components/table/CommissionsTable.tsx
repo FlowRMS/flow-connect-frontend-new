@@ -4,6 +4,7 @@
  */
 
 import type { CommissionCheck } from '@/lib/types/rms';
+import type { CheckStatus } from '@/components/lib/graphql/checks';
 import type { SortField, SortDirection, ColumnFilters } from '../../types';
 import { getGridTemplateColumns } from '../../config/columnConfig';
 import { isCheckLinked, getCheckLinkedReason } from '../../utils';
@@ -15,12 +16,18 @@ import { CommissionsEmptyState } from './CommissionsEmptyState';
 interface CommissionsTableProps {
   // Data
   filteredChecks: CommissionCheck[];
-  // Selection
+  // Selection (legacy API)
   selectedCheckIds: Set<string>;
   toggleCheckSelection: (checkId: string) => void;
   selectAllChecks: (checks: CommissionCheck[]) => void;
   clearSelection: () => void;
-  areAllEligibleSelected: (checks: CommissionCheck[]) => boolean;
+  areAllEligibleSelected: ((checks: CommissionCheck[]) => boolean) | boolean;
+  // Selection (new API for proper select all)
+  isItemSelected?: (id: string) => boolean;
+  isAllSelected?: boolean;
+  isPartiallySelected?: boolean;
+  handleSelectAll?: (checked: boolean) => void;
+  handleSelectOne?: (id: string, checked: boolean) => void;
   // Sorting
   sortField: SortField;
   sortDirection: SortDirection;
@@ -37,8 +44,9 @@ interface CommissionsTableProps {
   // Bulk actions
   showBulkActionsMenu: boolean;
   setShowBulkActionsMenu: (show: boolean) => void;
-  bulkSetStatus: (status: any) => void;
+  bulkSetStatus: (status: CheckStatus) => void;
   bulkDelete: () => void;
+  isBulkUpdating?: boolean;
   // Selected check for preview
   setSelectedCheck: (check: CommissionCheck) => void;
 }
@@ -50,6 +58,11 @@ export function CommissionsTable({
   selectAllChecks,
   clearSelection,
   areAllEligibleSelected,
+  isItemSelected,
+  isAllSelected,
+  isPartiallySelected,
+  handleSelectAll,
+  handleSelectOne,
   sortField,
   sortDirection,
   handleSort,
@@ -63,13 +76,24 @@ export function CommissionsTable({
   setShowBulkActionsMenu,
   bulkSetStatus,
   bulkDelete,
+  isBulkUpdating = false,
   setSelectedCheck,
 }: CommissionsTableProps) {
   const gridColumns = getGridTemplateColumns();
 
+  // Compatibility layer: use new API if available, fall back to legacy
+  const checkIsSelected = (id: string) =>
+    isItemSelected ? isItemSelected(id) : selectedCheckIds.has(id);
+  const allSelected = isAllSelected !== undefined
+    ? isAllSelected
+    : (typeof areAllEligibleSelected === 'function' ? areAllEligibleSelected(filteredChecks) : areAllEligibleSelected);
+  const partiallySelected = isPartiallySelected !== undefined
+    ? isPartiallySelected
+    : (selectedCheckIds.size > 0 && !allSelected);
+
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-      {/* Bulk Actions Bar */}
+      {/* Bulk Actions Bar - shown when items are selected */}
       {selectedCheckIds.size > 0 && (
         <BulkActionsBar
           selectedCount={selectedCheckIds.size}
@@ -78,6 +102,7 @@ export function CommissionsTable({
           onClearSelection={clearSelection}
           onBulkSetStatus={bulkSetStatus}
           onBulkDelete={bulkDelete}
+          isLoading={isBulkUpdating}
         />
       )}
 
@@ -86,8 +111,17 @@ export function CommissionsTable({
           {/* Table Header */}
           <CommissionsTableHeader
             filteredChecks={filteredChecks}
-            areAllEligibleSelected={areAllEligibleSelected(filteredChecks)}
-            onSelectAll={() => selectAllChecks(filteredChecks)}
+            areAllEligibleSelected={allSelected}
+            isPartiallySelected={partiallySelected}
+            onSelectAll={(checked) => {
+              if (handleSelectAll) {
+                handleSelectAll(checked);
+              } else if (checked) {
+                selectAllChecks(filteredChecks);
+              } else {
+                clearSelection();
+              }
+            }}
             sortField={sortField}
             sortDirection={sortDirection}
             onSort={handleSort}

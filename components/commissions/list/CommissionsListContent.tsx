@@ -5,14 +5,30 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useCommissionsListState } from './hooks/useCommissionsListState';
 import { CommissionsTable } from './components/table/CommissionsTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { CheckDetailPanel } from './components/sidebar/CheckDetailPanel';
+import { BulkDeleteModal } from '@/components/shared/modals/BulkDeleteModal';
 
 export default function CommissionsListContent() {
+  const router = useRouter();
   const state = useCommissionsListState();
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // Handler to open bulk delete modal instead of using confirm dialog
+  const handleBulkDelete = () => {
+    if (state.selectedCount === 0) return;
+    setShowBulkDeleteModal(true);
+  };
+
+  // Handler for successful bulk delete
+  const handleBulkDeleteSuccess = () => {
+    state.clearSelection();
+    state.refetchChecks();
+  };
 
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
@@ -41,28 +57,40 @@ export default function CommissionsListContent() {
                     Commission Check
                   </h1>
                   <p className="text-sm text-[var(--muted-foreground)]">
-                    {state.checks.length} checks
+                    {state.totalCount > 0 ? `${state.checks.length} of ${state.totalCount} checks` : `${state.checks.length} checks`}
                   </p>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
+              <div className="relative group">
+                <button
+                  disabled
+                  className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium opacity-50 cursor-not-allowed"
                 >
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-                Upload
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  Upload
+                </button>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  Coming Soon
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                </div>
+              </div>
+              <button
+                onClick={() => router.push('/commissions/new')}
+                className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+              >
                 <svg
                   width="16"
                   height="16"
@@ -91,29 +119,59 @@ export default function CommissionsListContent() {
         </div>
 
         {/* Commissions Table */}
-        <div className="flex-1 overflow-auto p-6 pt-4">
-          <CommissionsTable
-            filteredChecks={state.filteredChecks}
-            selectedCheckIds={state.selectedCheckIds}
-            toggleCheckSelection={state.toggleCheckSelection}
-            selectAllChecks={state.selectAllChecks}
-            clearSelection={state.clearSelection}
-            areAllEligibleSelected={state.areAllEligibleSelected}
-            sortField={state.sortField}
-            sortDirection={state.sortDirection}
-            handleSort={state.handleSort}
-            columnFilters={state.columnFilters}
-            setColumnFilters={state.setColumnFilters}
-            openFilter={state.openFilter}
-            setOpenFilter={state.setOpenFilter}
-            uniqueStatuses={state.uniqueStatuses}
-            uniqueManufacturers={state.uniqueManufacturers}
-            showBulkActionsMenu={state.showBulkActionsMenu}
-            setShowBulkActionsMenu={state.setShowBulkActionsMenu}
-            bulkSetStatus={state.bulkSetStatus}
-            bulkDelete={state.bulkDelete}
-            setSelectedCheck={state.setSelectedCheck}
-          />
+        <div className="flex-1 overflow-auto p-6 pt-4" onScroll={state.handleScroll}>
+          {state.isLoadingChecks ? (
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-12">
+              <div className="flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--primary)] mb-4" />
+                <p className="text-[var(--muted-foreground)] text-sm">Loading checks...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <CommissionsTable
+                filteredChecks={state.filteredChecks}
+                selectedCheckIds={state.selectedCheckIds}
+                toggleCheckSelection={state.toggleCheckSelection}
+                selectAllChecks={state.selectAllChecks}
+                clearSelection={state.clearSelection}
+                areAllEligibleSelected={state.areAllEligibleSelected}
+                isItemSelected={state.isItemSelected}
+                isAllSelected={state.isAllSelected}
+                isPartiallySelected={state.isPartiallySelected}
+                handleSelectAll={state.handleSelectAll}
+                handleSelectOne={state.handleSelectOne}
+                sortField={state.sortField}
+                sortDirection={state.sortDirection}
+                handleSort={state.handleSort}
+                columnFilters={state.columnFilters}
+                setColumnFilters={state.setColumnFilters}
+                openFilter={state.openFilter}
+                setOpenFilter={state.setOpenFilter}
+                uniqueStatuses={state.uniqueStatuses}
+                uniqueManufacturers={state.uniqueManufacturers}
+                showBulkActionsMenu={state.showBulkActionsMenu}
+                setShowBulkActionsMenu={state.setShowBulkActionsMenu}
+                bulkSetStatus={state.bulkSetStatus}
+                bulkDelete={handleBulkDelete}
+                setSelectedCheck={state.setSelectedCheck}
+                isBulkUpdating={state.isBulkUpdating}
+              />
+              {/* Infinite Scroll Loading Indicator */}
+              {state.isFetchingNextPage && (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)] mr-2" />
+                  <span className="text-sm text-[var(--muted-foreground)]">Loading more checks...</span>
+                </div>
+              )}
+              {/* End of List Indicator */}
+              {!state.hasNextPage && state.checks.length > 0 && (
+                <div className="text-center py-4 text-sm text-[var(--muted-foreground)]">
+                  All {state.totalCount} checks loaded
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -122,8 +180,22 @@ export default function CommissionsListContent() {
         <CheckDetailPanel
           check={state.selectedCheck}
           onClose={() => state.setSelectedCheck(null)}
+          onPostCheck={state.handlePostCheck}
+          onUnpostCheck={state.handleUnpostCheck}
+          isUpdating={state.isUpdatingCheck}
         />
       )}
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="CHECKS"
+        selectedCount={state.selectedCount}
+        getAllSelectedIds={state.getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['checksLandingPage'], ['checksInfinite'], ['checkSearch']]}
+      />
     </main>
   );
 }

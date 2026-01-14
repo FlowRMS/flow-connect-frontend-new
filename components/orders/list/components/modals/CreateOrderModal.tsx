@@ -68,7 +68,7 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
       description: '',
       quantity: 1,
       unitPrice: 0,
-      commissionRate: selectedManufacturer?.baseCommissionRate || 0.08,
+      commissionRate: (selectedManufacturer?.baseCommissionRate || 0.08) * 100, // Convert decimal to whole percentage
     };
 
     setLineItems([...lineItems, newItem]);
@@ -139,7 +139,7 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
       // Build insideSplitRates for line items
       const insideSplitRates: OrderSplitRateInput[] = splitRates.map((sr, idx) => ({
         userId: sr.salesRepId,
-        splitRate: sr.splitPercentage.toString(),
+        splitRate: sr.splitPercentage,
         position: idx + 1,
       }));
 
@@ -207,7 +207,7 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
         manufacturerName: selectedManufacturer?.name || 'Coming Soon',
         customerId,
         customerName: selectedCustomer?.name || 'Coming Soon',
-        status: asDraft ? 'draft' : 'open',
+        status: 'OPEN',
         fulfillmentStatus: 'not_started',
         billingStatus: 'not_invoiced',
         commissionStatus: 'pending',

@@ -8,8 +8,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Task, TaskComment, TaskStatusAPI, TaskPriorityAPI } from '../types';
 import { getInitials, getAvatarColor, getStatusColor, getPriorityColor, formatDate, parseTagsString, convertRelatedEntitiesToUI } from '../utils';
-import { 
-  useTaskConversations, 
+import {
+  useTaskConversations,
   useAddTaskConversation,
   useTask,
   useUpdateTask,
@@ -30,8 +30,9 @@ import {
   useFactorySearch,
   useCustomerSearch,
   useProductSearch,
-  tasksQueryKeys
 } from '../api';
+import { crmQueryKeys } from '../../hooks/useCRMApi';
+import { RelatedEntityHoverCard } from '../../shared/RelatedEntityHoverCard';
 import { useQueryClient } from '@tanstack/react-query';
 import { taskToasts } from '../../lib/toast';
 import { API_STATUS_OPTIONS, API_PRIORITY_OPTIONS, AVAILABLE_TAGS } from '../constants';
@@ -68,9 +69,14 @@ export default function TaskModal({
   // Local task state for immediate UI updates
   const [localTask, setLocalTask] = useState(task);
   
-  // Assignee editing state
-  const [editAssigneeName, setEditAssigneeName] = useState(task.assignedTo || 'Unassigned');
-  const [editAssigneeId, setEditAssigneeId] = useState(task.assignedToId || '');
+  // Assignee editing state - now supports multiple assignees
+  // task.assignees is TaskAssignee[] (objects) from single task query, or undefined from landing page
+  const [editAssignees, setEditAssignees] = useState<Array<{ id: string; name: string }>>(
+    task.assignees?.map(assignee => ({
+      id: assignee.id,
+      name: assignee.fullName?.trim() || [assignee.firstName, assignee.lastName].filter(Boolean).join(' ').trim() || assignee.email || 'Unknown'
+    })) || []
+  );
   const [assigneeSearch, setAssigneeSearch] = useState('');
   const [debouncedAssigneeSearch, setDebouncedAssigneeSearch] = useState('');
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
@@ -154,9 +160,7 @@ export default function TaskModal({
     setLocalTask(task);
   }, [task]);
 
-  // Update edit state when full task loads (for tags, reminderDate, and assignedToId)
-  // CRITICAL: fullTask from useTask has assignedToId (UUID), while the landing page task
-  // only has assignedTo (name string). We must use fullTask.assignedToId for API updates.
+  // Update edit state when full task loads (for tags, reminderDate, and assignees)
   useEffect(() => {
     if (fullTask) {
       if (fullTask.tags) {
@@ -165,9 +169,12 @@ export default function TaskModal({
       if (fullTask.reminderDate) {
         setEditReminderDate(fullTask.reminderDate);
       }
-      // CRITICAL: Update assignedToId from fullTask - this is the actual UUID
-      if (fullTask.assignedToId) {
-        setEditAssigneeId(fullTask.assignedToId);
+      // Update assignees from fullTask (assignees are now user objects)
+      if (fullTask.assignees && fullTask.assignees.length > 0) {
+        setEditAssignees(fullTask.assignees.map(assignee => ({
+          id: assignee.id,
+          name: assignee.fullName?.trim() || [assignee.firstName, assignee.lastName].filter(Boolean).join(' ').trim() || assignee.email || 'Unknown'
+        })));
       }
     }
   }, [fullTask]);
@@ -227,12 +234,21 @@ export default function TaskModal({
   }, []);
 
   // Convert API conversations to TaskComment format
-  const conversation: TaskComment[] = apiConversations.map(conv => ({
-    id: conv.id,
-    author: conv.createdBy || 'Unknown',
-    content: conv.content,
-    timestamp: conv.createdAt,
-  }));
+  const conversation: TaskComment[] = apiConversations.map(conv => {
+    const createdBy = conv.createdBy;
+    const authorName = createdBy?.fullName
+      || (createdBy?.firstName && createdBy?.lastName
+          ? `${createdBy.firstName} ${createdBy.lastName}`
+          : createdBy?.email || 'Unknown User');
+    return {
+      id: conv.id,
+      author: authorName,
+      authorInside: createdBy?.inside,
+      authorOutside: createdBy?.outside,
+      content: conv.content,
+      timestamp: conv.createdAt,
+    };
+  });
 
   // Get tags from full task or fallback to landing page task
   const displayTags = fullTask?.tags ? parseTagsString(fullTask.tags) : task.tags;
@@ -266,19 +282,8 @@ export default function TaskModal({
 
   const handleSaveEdit = async () => {
     try {
-      // CRITICAL: Determine the correct assignedToId to send
-      // Priority: 1) User's edited value if they changed it, 2) fullTask.assignedToId from GetTask API
-      // We MUST send assignedToId to preserve the assignment, otherwise it gets unassigned
-      let finalAssignedToId: string | undefined = undefined;
-
-      if (editAssigneeId && editAssigneeId.trim() !== '') {
-        // User has set/edited an assignee
-        finalAssignedToId = editAssigneeId;
-      } else if (fullTask?.assignedToId) {
-        // Preserve existing assignment from the full task data (GetTask API has assignedToId)
-        finalAssignedToId = fullTask.assignedToId;
-      }
-      // If both are empty, finalAssignedToId stays undefined (truly unassigned)
+      // Send assigneeIds array for multiple assignees
+      const assigneeIds = editAssignees.length > 0 ? editAssignees.map(a => a.id) : undefined;
 
       await updateTaskMutation.mutateAsync({
         id: localTask.id,
@@ -290,9 +295,14 @@ export default function TaskModal({
           dueDate: editDueDate || undefined,
           reminderDate: editReminderDate || undefined,
           tags: editTags.join(','),
-          assignedToId: finalAssignedToId,
+          assigneeIds: assigneeIds,
         }
       });
+
+      // Format assignees display for local state
+      const assignedToDisplay = editAssignees.length > 0
+        ? (editAssignees.length === 1 ? editAssignees[0].name : `${editAssignees[0].name} +${editAssignees.length - 1}`)
+        : 'Unassigned';
 
       // Update local state immediately for UI feedback
       setLocalTask(prev => ({
@@ -306,8 +316,9 @@ export default function TaskModal({
         dueDate: editDueDate,
         reminderDate: editReminderDate,
         tags: editTags,
-        assignedTo: editAssigneeName,
-        assignedToId: finalAssignedToId || '',
+        assignedTo: assignedToDisplay,
+        // Convert editAssignees back to TaskAssignee format for local state
+        assignees: editAssignees.map(a => ({ id: a.id, fullName: a.name })),
       }));
 
       setIsEditMode(false);
@@ -327,12 +338,36 @@ export default function TaskModal({
     setEditDueDate(localTask.dueDate);
     setEditReminderDate(fullTask?.reminderDate || localTask.reminderDate || '');
     setEditTags(fullTask?.tags ? parseTagsString(fullTask.tags) : localTask.tags);
-    setEditAssigneeName(localTask.assignedTo || 'Unassigned');
-    // CRITICAL: Use fullTask.assignedToId (UUID) when available, fallback to localTask.assignedToId
-    setEditAssigneeId(fullTask?.assignedToId || localTask.assignedToId || '');
+    // Reset assignees from fullTask (user objects) or localTask (may have assigneeNames as strings)
+    if (fullTask?.assignees && fullTask.assignees.length > 0) {
+      setEditAssignees(fullTask.assignees.map(assignee => ({
+        id: assignee.id,
+        name: assignee.fullName?.trim() || [assignee.firstName, assignee.lastName].filter(Boolean).join(' ').trim() || assignee.email || 'Unknown'
+      })));
+    } else if (localTask.assigneeNames && localTask.assigneeNames.length > 0) {
+      // From landing page - we only have names, no IDs, so we can't edit them properly
+      // Best effort: show names but without IDs they can't be removed/managed
+      setEditAssignees([]);
+    } else {
+      setEditAssignees([]);
+    }
     setIsEditMode(false);
     setAddEntityType(null);
     setEntitySearch('');
+  };
+
+  const handleAddAssignee = (user: { id: string; firstName?: string | null; lastName?: string | null; fullName?: string | null; email?: string | null }) => {
+    const name = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown';
+    if (!editAssignees.some(a => a.id === user.id)) {
+      setEditAssignees([...editAssignees, { id: user.id, name }]);
+    }
+    setAssigneeSearch('');
+    setShowAssigneeDropdown(false);
+    setAssigneeDropdownPosition(null);
+  };
+
+  const handleRemoveAssignee = (assigneeId: string) => {
+    setEditAssignees(editAssignees.filter(a => a.id !== assigneeId));
   };
 
   const handleDeleteTask = async () => {
@@ -374,7 +409,7 @@ export default function TaskModal({
         targetEntityId: entityId
       });
       // Invalidate related entities cache
-      queryClient.invalidateQueries({ queryKey: tasksQueryKeys.relatedEntities(task.id) });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.relatedEntities(task.id, 'TASKS') });
     } catch (error) {
       console.error('Failed to delete relation:', error);
     }
@@ -389,7 +424,7 @@ export default function TaskModal({
         targetEntityId: entityId
       });
       // Invalidate related entities cache
-      queryClient.invalidateQueries({ queryKey: tasksQueryKeys.relatedEntities(task.id) });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.relatedEntities(task.id, 'TASKS') });
       setAddEntityType(null);
       setEntitySearch('');
       setDropdownPosition(null);
@@ -643,105 +678,119 @@ export default function TaskModal({
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 uppercase tracking-wider">
-                    Assigned To
+                    Assignees
                   </h3>
                   {isEditMode ? (
-                    <div className="relative">
-                      <input
-                        ref={assigneeInputRef}
-                        type="text"
-                        value={assigneeSearch || editAssigneeName}
-                        onChange={(e) => {
-                          setAssigneeSearch(e.target.value);
-                          setShowAssigneeDropdown(true);
-                        }}
-                        onFocus={() => {
-                          setShowAssigneeDropdown(true);
-                          // Update position when focused
-                          setTimeout(() => {
-                            if (assigneeInputRef.current) {
-                              const rect = assigneeInputRef.current.getBoundingClientRect();
-                              setAssigneeDropdownPosition({
-                                top: rect.bottom + 4,
-                                left: rect.left,
-                                width: rect.width,
-                              });
-                            }
-                          }, 0);
-                        }}
-                        placeholder="Search users..."
-                        className={inputClass}
-                      />
-                      {showAssigneeDropdown && isMounted && assigneeDropdownPosition && createPortal(
-                        <div
-                          ref={assigneeDropdownRef}
-                          style={{
-                            position: 'fixed',
-                            top: assigneeDropdownPosition.top,
-                            left: assigneeDropdownPosition.left,
-                            width: assigneeDropdownPosition.width,
-                            zIndex: 9999,
-                          }}
-                          className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                        >
-                          {isLoadingAssignees ? (
-                            <div className="px-4 py-3 text-center text-sm text-gray-500">Loading...</div>
-                          ) : assigneeUsers.length === 0 ? (
-                            <div className="px-4 py-3 text-center text-sm text-gray-500">
-                              {assigneeSearch ? 'No users found' : 'Type to search users'}
-                            </div>
-                          ) : (
-                            assigneeUsers.slice(0, 10).map((user) => {
-                              const userName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown User';
-                              return (
-                                <button
-                                  key={user.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setEditAssigneeName(userName);
-                                    setEditAssigneeId(user.id);
-                                    setAssigneeSearch('');
-                                    setShowAssigneeDropdown(false);
-                                    setAssigneeDropdownPosition(null);
-                                  }}
-                                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors flex items-center gap-2"
-                                >
-                                  <div className={`w-6 h-6 rounded-full ${getAvatarColor(userName)} flex items-center justify-center text-white text-xs font-semibold`}>
-                                    {getInitials(userName)}
-                                  </div>
-                                  <div className="flex flex-col">
-                                    <span>{userName}</span>
-                                    {user.email && <span className="text-xs text-gray-400">{user.email}</span>}
-                                  </div>
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>,
-                        document.body
+                    <div className="space-y-2">
+                      {/* Selected assignees */}
+                      {editAssignees.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {editAssignees.map((assignee) => (
+                            <span key={assignee.id} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs flex items-center gap-1">
+                              <div className={`w-5 h-5 rounded-full ${getAvatarColor(assignee.name)} flex items-center justify-center text-white text-[10px] font-semibold`}>
+                                {getInitials(assignee.name)}
+                              </div>
+                              {assignee.name}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAssignee(assignee.id)}
+                                className="ml-1 hover:text-blue-900"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </span>
+                          ))}
+                        </div>
                       )}
-                      {editAssigneeName && editAssigneeName !== 'Unassigned' && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditAssigneeName('Unassigned');
-                            setEditAssigneeId('');
-                            setAssigneeSearch('');
+                      {/* Search input */}
+                      <div className="relative">
+                        <input
+                          ref={assigneeInputRef}
+                          type="text"
+                          value={assigneeSearch}
+                          onChange={(e) => {
+                            setAssigneeSearch(e.target.value);
+                            setShowAssigneeDropdown(true);
                           }}
-                          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      )}
+                          onFocus={() => {
+                            setShowAssigneeDropdown(true);
+                            setTimeout(() => {
+                              if (assigneeInputRef.current) {
+                                const rect = assigneeInputRef.current.getBoundingClientRect();
+                                setAssigneeDropdownPosition({
+                                  top: rect.bottom + 4,
+                                  left: rect.left,
+                                  width: rect.width,
+                                });
+                              }
+                            }, 0);
+                          }}
+                          placeholder="Search users to add..."
+                          className={inputClass}
+                        />
+                        {showAssigneeDropdown && isMounted && assigneeDropdownPosition && createPortal(
+                          <div
+                            ref={assigneeDropdownRef}
+                            style={{
+                              position: 'fixed',
+                              top: assigneeDropdownPosition.top,
+                              left: assigneeDropdownPosition.left,
+                              width: assigneeDropdownPosition.width,
+                              zIndex: 9999,
+                            }}
+                            className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                          >
+                            {isLoadingAssignees ? (
+                              <div className="px-4 py-3 text-center text-sm text-gray-500">Loading...</div>
+                            ) : assigneeUsers.length === 0 ? (
+                              <div className="px-4 py-3 text-center text-sm text-gray-500">
+                                {assigneeSearch ? 'No users found' : 'Type to search users'}
+                              </div>
+                            ) : (
+                              assigneeUsers
+                                .filter(user => !editAssignees.some(a => a.id === user.id))
+                                .slice(0, 10)
+                                .map((user) => {
+                                  const userName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown User';
+                                  return (
+                                    <button
+                                      key={user.id}
+                                      type="button"
+                                      onClick={() => handleAddAssignee(user)}
+                                      className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors flex items-center gap-2"
+                                    >
+                                      <div className={`w-6 h-6 rounded-full ${getAvatarColor(userName)} flex items-center justify-center text-white text-xs font-semibold`}>
+                                        {getInitials(userName)}
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span>{userName}</span>
+                                        {user.email && <span className="text-xs text-gray-400">{user.email}</span>}
+                                      </div>
+                                    </button>
+                                  );
+                                })
+                            )}
+                          </div>,
+                          document.body
+                        )}
+                      </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-full ${getAvatarColor(editAssigneeName)} flex items-center justify-center text-white text-xs font-semibold`}>
-                        {getInitials(editAssigneeName)}
-                      </div>
-                      <span className="text-sm text-[var(--foreground)]">{editAssigneeName}</span>
+                    <div className="flex flex-wrap gap-2">
+                      {editAssignees.length > 0 ? (
+                        editAssignees.map((assignee) => (
+                          <div key={assignee.id} className="flex items-center gap-2">
+                            <div className={`w-8 h-8 rounded-full ${getAvatarColor(assignee.name)} flex items-center justify-center text-white text-xs font-semibold`}>
+                              {getInitials(assignee.name)}
+                            </div>
+                            <span className="text-sm text-[var(--foreground)]">{assignee.name}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-sm text-[var(--muted-foreground)]">Unassigned</span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -756,7 +805,7 @@ export default function TaskModal({
                       placeholderText="Select due date..."
                     />
                   ) : (
-                    <p className="text-sm text-[var(--foreground)]">{formatDate(task.dueDate)}</p>
+                    <p className="text-sm text-[var(--foreground)]">{formatDate(localTask.dueDate)}</p>
                   )}
                 </div>
               </div>
@@ -774,7 +823,7 @@ export default function TaskModal({
                       placeholderText="Select reminder date..."
                     />
                   ) : (
-                    <p className="text-sm text-[var(--foreground)]">{task.reminderDate ? formatDate(task.reminderDate) : 'Not set'}</p>
+                    <p className="text-sm text-[var(--foreground)]">{localTask.reminderDate ? formatDate(localTask.reminderDate) : 'Not set'}</p>
                   )}
                 </div>
                 <div />
@@ -796,7 +845,7 @@ export default function TaskModal({
                 ) : (
                   <div className="p-4 bg-[var(--muted)]/30 rounded-lg">
                     <p className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-wrap">
-                      {task.description || 'No description'}
+                      {localTask.description || 'No description'}
                     </p>
                   </div>
                 )}
@@ -813,25 +862,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Jobs:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.jobs.map((job) => (
-                          <span
-                            key={job.id}
-                            className="px-2.5 py-1 bg-green-100 text-green-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            {job.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('JOB', job.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={job.id} entity={job.entity} type="job" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-green-100 text-green-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-green-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                              {job.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('JOB', job.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -841,25 +891,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Contacts:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.contacts.map((contact) => (
-                          <span
-                            key={contact.id}
-                            className="px-2.5 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            {contact.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('CONTACT', contact.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={contact.id} entity={contact.entity} type="contact" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-orange-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                              {contact.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('CONTACT', contact.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -869,25 +920,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Companies:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.companies.map((company) => (
-                          <span
-                            key={company.id}
-                            className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                            {company.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('COMPANY', company.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={company.id} entity={company.entity} type="company" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-indigo-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                              </svg>
+                              {company.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('COMPANY', company.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -897,25 +949,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Notes:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.notes.map((note) => (
-                          <span
-                            key={note.id}
-                            className="px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            {note.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('NOTE', note.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={note.id} entity={note.entity} type="note" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-yellow-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              {note.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('NOTE', note.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -925,25 +978,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Pre-Opps:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.preOpportunities.map((preOpp) => (
-                          <span
-                            key={preOpp.id}
-                            className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            {preOpp.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('PRE_OPPORTUNITY', preOpp.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={preOpp.id} entity={preOpp.entity} type="preOpportunity" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-purple-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                              {preOpp.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('PRE_OPPORTUNITY', preOpp.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -953,25 +1007,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Quotes:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.quotes.map((quote) => (
-                          <span
-                            key={quote.id}
-                            className="px-2.5 py-1 bg-cyan-100 text-cyan-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                            </svg>
-                            {quote.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('QUOTE', quote.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={quote.id} entity={quote.entity} type="quote" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-cyan-100 text-cyan-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-cyan-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                              </svg>
+                              {quote.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('QUOTE', quote.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -981,25 +1036,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Orders:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.orders.map((order) => (
-                          <span
-                            key={order.id}
-                            className="px-2.5 py-1 bg-teal-100 text-teal-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                            </svg>
-                            {order.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('ORDER', order.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={order.id} entity={order.entity} type="order" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-teal-100 text-teal-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-teal-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                              </svg>
+                              {order.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('ORDER', order.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -1009,25 +1065,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Invoices:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.invoices.map((invoice) => (
-                          <span
-                            key={invoice.id}
-                            className="px-2.5 py-1 bg-rose-100 text-rose-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
-                            </svg>
-                            {invoice.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('INVOICE', invoice.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={invoice.id} entity={invoice.entity} type="invoice" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-rose-100 text-rose-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-rose-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+                              </svg>
+                              {invoice.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('INVOICE', invoice.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -1037,25 +1094,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Checks:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.checks.map((check) => (
-                          <span
-                            key={check.id}
-                            className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                            </svg>
-                            {check.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('CHECK', check.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={check.id} entity={check.entity} type="check" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-emerald-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                              </svg>
+                              {check.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('CHECK', check.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -1065,25 +1123,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Factories:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.factories.map((factory) => (
-                          <span
-                            key={factory.id}
-                            className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                            {factory.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('FACTORY', factory.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={factory.id} entity={factory.entity} type="factory" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-slate-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                              </svg>
+                              {factory.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('FACTORY', factory.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -1093,25 +1152,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Customers:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.customers.map((customer) => (
-                          <span
-                            key={customer.id}
-                            className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                            {customer.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('CUSTOMER', customer.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={customer.id} entity={customer.entity} type="customer" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-amber-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                              </svg>
+                              {customer.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('CUSTOMER', customer.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -1121,25 +1181,26 @@ export default function TaskModal({
                       <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Products:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {linkedEntities.products.map((product) => (
-                          <span
-                            key={product.id}
-                            className="px-2.5 py-1 bg-lime-100 text-lime-700 rounded text-xs font-medium flex items-center gap-1 group"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                            </svg>
-                            {product.name}
-                            {isEditMode && (
-                              <button
-                                onClick={() => handleDeleteRelation('PRODUCT', product.id)}
-                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
+                          <RelatedEntityHoverCard key={product.id} entity={product.entity} type="product" disabled={isEditMode}>
+                            <span
+                              className="px-2.5 py-1 bg-lime-100 text-lime-700 rounded text-xs font-medium flex items-center gap-1 group cursor-pointer hover:bg-lime-200 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                              </svg>
+                              {product.name}
+                              {isEditMode && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRelation('PRODUCT', product.id); }}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          </RelatedEntityHoverCard>
                         ))}
                       </div>
                     </div>
@@ -1464,10 +1525,16 @@ export default function TaskModal({
                         <div className="flex-1">
                           <div className="bg-[var(--muted)]/30 rounded-lg p-3">
                             <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-semibold text-[var(--foreground)]">
                                   {comment.author}
                                 </span>
+                                {comment.authorInside && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded">Inside</span>
+                                )}
+                                {comment.authorOutside && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded">Outside</span>
+                                )}
                                 <span className="text-xs text-[var(--muted-foreground)]">
                                   {formatTimestamp(comment.timestamp)}
                                 </span>

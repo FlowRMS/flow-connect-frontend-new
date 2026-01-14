@@ -21,8 +21,7 @@ export function Header({ onToggleSidebar }) {
 
   const handleBackClick = React.useCallback(() => {
     clearAllEntries();
-    window.location.href =
-      process.env.NEXT_PUBLIC_LOGIN_URL || "https://app2.flowrms.com";
+    window.location.href = "/";
   }, [clearAllEntries]);
 
   return (

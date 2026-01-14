@@ -4,8 +4,10 @@
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useCustomersInfinite, type CustomerLandingPage, type CustomerLandingPageFilter, type CustomerLandingPageOrderBy } from '../api/useCustomersApi';
-import type { ActiveFilter } from '../../AdvancedFilters';
+import { useCustomersInfinite, useCustomerSearch, type CustomerLandingPage, type CustomerLandingPageFilter, type CustomerLandingPageOrderBy, type CustomerSearchResult } from '../api/useCustomersApi';
+import { fetchAllCustomerIds } from '../api/customersApi';
+import { useBulkSelection } from '../../shared/hooks/useBulkSelection';
+import type { ActiveFilter } from '../../advancedFilters/AdvancedFilters';
 
 export type ViewMode = 'list' | 'grid';
 
@@ -60,6 +62,9 @@ export function useCustomersState() {
   // Delete modal state (other modals replaced by dedicated pages)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // Bulk delete modal state
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
   // Filter & sort state
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [clientSortColumns, setClientSortColumns] = useState<ActiveSort[]>([]);
@@ -94,23 +99,51 @@ export function useCustomersState() {
     isFetchingNextPage,
   } = useCustomersInfinite(serverFilters, serverOrderBy);
 
+  // Search customers using server-side search
+  const { data: searchResults, isLoading: isSearching } = useCustomerSearch(searchQuery, 100);
+
   // Flatten paginated data
   const customers: CustomerLandingPage[] = useMemo(() => {
     if (!data?.pages) return [];
     return data.pages.flatMap(page => page.records);
   }, [data]);
 
-  // Apply client-side search filtering
-  const filteredCustomers = useMemo(() => {
-    let result = customers;
+  // Get total count from API
+  const totalCount = useMemo(() => {
+    if (!data?.pages || data.pages.length === 0) return 0;
+    return data.pages[0].total;
+  }, [data]);
 
-    // Apply search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(customer =>
-        customer.companyName?.toLowerCase().includes(query)
-      );
+  // Transform search results to CustomerLandingPage format
+  const transformSearchResultToLandingPage = (result: CustomerSearchResult): CustomerLandingPage => ({
+    id: result.id,
+    companyName: result.companyName,
+    isParent: result.isParent ?? false,
+    published: result.published ?? true,
+    createdAt: undefined,
+    createdBy: undefined,
+    insideReps: undefined,
+    outsideReps: undefined,
+  });
+
+  // Apply filtering - use server search results when searching, otherwise use paginated data
+  const filteredCustomers = useMemo(() => {
+    // If searching and we have results, use search results
+    if (searchQuery.length >= 2 && searchResults) {
+      let result = searchResults.map(transformSearchResultToLandingPage);
+
+      // Apply type filter to search results
+      if (selectedType === 'Parent') {
+        result = result.filter(c => c.isParent);
+      } else if (selectedType === 'Child') {
+        result = result.filter(c => !c.isParent);
+      }
+
+      return result;
     }
+
+    // Otherwise use paginated data with type filter only
+    let result = customers;
 
     // Apply type filter
     if (selectedType === 'Parent') {
@@ -120,7 +153,19 @@ export function useCustomersState() {
     }
 
     return result;
-  }, [customers, searchQuery, selectedType]);
+  }, [customers, searchQuery, searchResults, selectedType]);
+
+  // Function to fetch all customer IDs for bulk operations
+  const fetchAllIds = useCallback(async (): Promise<string[]> => {
+    return fetchAllCustomerIds(serverFilters, serverOrderBy);
+  }, [serverFilters, serverOrderBy]);
+
+  // Use shared bulk selection hook
+  const bulkSelection = useBulkSelection({
+    items: filteredCustomers,
+    totalCount,
+    fetchAllIds,
+  });
 
   // Unique values for filter dropdowns
   const uniqueCompanyNames = useMemo(() => getUniqueValues(customers, 'companyName'), [customers]);
@@ -138,6 +183,11 @@ export function useCustomersState() {
     setDeleteConfirmId(null);
   }, []);
 
+  const handleBulkDeleteSuccess = useCallback(() => {
+    bulkSelection.resetSelection();
+    setShowBulkDeleteModal(false);
+  }, [bulkSelection]);
+
   return {
     // State
     viewMode,
@@ -148,13 +198,23 @@ export function useCustomersState() {
     setSelectedType,
     customers,
     filteredCustomers,
+    totalCount,
 
     // Delete modal state
     deleteConfirmId,
     setDeleteConfirmId,
 
+    // Bulk delete modal state
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleBulkDeleteSuccess,
+
+    // Bulk selection (from shared hook)
+    ...bulkSelection,
+
     // Loading state
     isLoading,
+    isSearching,
     error,
     refetch,
     isMounted,
@@ -169,6 +229,8 @@ export function useCustomersState() {
     setActiveFilters,
     clientSortColumns,
     setClientSortColumns,
+    serverFilters,
+    serverOrderBy,
     uniqueCompanyNames,
     handleFiltersChange,
     handleMultiSortChange,

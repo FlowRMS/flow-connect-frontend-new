@@ -7,8 +7,9 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import type { DragEndEvent, DragStartEvent, DragOverEvent } from '@dnd-kit/core';
-import AdvancedFilters, { ActiveFilter, ActiveSort } from '../AdvancedFilters';
+import AdvancedFilters, { ActiveFilter, ActiveSort } from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import CreateJobModal from '../CreateJobModal';
 import { useCRMJobLandingPagesInfinite, useCRMJobStatuses, useUpdateCRMJob, useCRMJob, useDeleteCRMJob } from '../hooks/useCRMApi';
@@ -18,20 +19,19 @@ import { parseApiError } from '../lib/error-utils';
 import { useJobsState } from './hooks/useJobsState';
 import { getJobFilterOptions, getJobSortOptions } from './config/filterConfig';
 import { JobDetailView } from './detail/JobDetailView';
-import { CompanyDetailView } from './detail/CompanyDetailView';
 import { KanbanView } from './views/KanbanView';
 import { ListView } from './views/ListView';
-import { getCompanyDetails } from './mockData';
 import type { Job } from './types';
 import { mapAPIJobToUIJob } from './types';
-import type { Company, Contact, JobLandingPage, LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
+import type { JobLandingPage, LandingPageFilter, LandingPageOrderBy, RelatedEntityCompany, RelatedEntityContact } from '../lib/crm-graphql';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 export default function JobsContent() {
   // Router for navigation
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+  const { setFullEntityContext } = useFlowChat();
+
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
 
@@ -74,7 +74,6 @@ export default function JobsContent() {
   }, []);
 
   // CRM API hooks with infinite scroll pagination - now with server-side filters
-  const isConnected = isMounted ? true : false;
   const {
     data: jobsData,
     isLoading: jobsLoading,
@@ -115,7 +114,6 @@ export default function JobsContent() {
     selectedJob, setSelectedJob,
     isEditing, setIsEditing,
     editFormData, setEditFormData,
-    selectedCompany, setSelectedCompany,
     activeId, setActiveId,
     overId, setOverId,
     showCreateJobModal, setShowCreateJobModal,
@@ -190,6 +188,18 @@ export default function JobsContent() {
       }
     }
   }, [selectedJob?.id, isMounted, router, searchParams]);
+
+  // Set full entity context for global chatbot (type, id, and job name)
+  useEffect(() => {
+    if (detailedJob?.name && detailedJob?.id) {
+      setFullEntityContext('job', detailedJob.id, detailedJob.name);
+    } else {
+      setFullEntityContext(null, null, null);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [detailedJob?.name, detailedJob?.id, setFullEntityContext]);
 
   // Filter and sort configuration
   const jobFilterOptions = getJobFilterOptions(uniqueJobNames, uniqueStatuses, uniqueTypes, uniqueCreators);
@@ -402,7 +412,20 @@ export default function JobsContent() {
     // Use detailedJob if available, otherwise fallback to selectedJob
     const currentJob = detailedJob || selectedJob;
     if (!currentJob) return;
-    
+
+    // Validate end date is not before start date
+    const startDate = editFormData.startDate && editFormData.startDate !== '-' ? editFormData.startDate : null;
+    const endDate = editFormData.endDate && editFormData.endDate !== '-' ? editFormData.endDate : null;
+
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (end < start) {
+        jobToasts.updateError('End date cannot be before start date');
+        return;
+      }
+    }
+
     try {
       // Find the statusId from the job's current status name
       const currentStatus = apiStatuses?.find(s => s.name === currentJob.status);
@@ -518,39 +541,6 @@ export default function JobsContent() {
     );
   }
 
-  // Show connection required message if not connected
-  if (!isConnected) {
-    return (
-      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Jobs</h1>
-        </div>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-2xl">
-          <div className="flex items-start gap-4">
-            <svg className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <div>
-              <h3 className="text-lg font-medium text-yellow-800">CRM Not Connected</h3>
-              <p className="text-sm text-yellow-700 mt-1">
-                Please configure your CRM API tokens to view and manage jobs.
-              </p>
-              <a
-                href="/dashboard/apps/flow-crm/auth"
-                className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-lg hover:bg-yellow-700 transition-colors"
-              >
-                Go to Auth Settings
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </a>
-            </div>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
   // Show error state with user-friendly message
   if (jobsError) {
     return (
@@ -580,19 +570,6 @@ export default function JobsContent() {
           </div>
         </div>
       </main>
-    );
-  }
-
-  // Company detail view
-  if (selectedCompany) {
-    const companyDetails = getCompanyDetails(selectedCompany.id);
-    if (!companyDetails) return null;
-    
-    return (
-      <CompanyDetailView
-        company={companyDetails}
-        onBack={() => setSelectedCompany(null)}
-      />
     );
   }
 
@@ -647,8 +624,8 @@ export default function JobsContent() {
         onDelete={handleDeleteJob}
         onRepTypeChange={setRepType}
         onToggleRepTypeModal={setShowRepTypeModal}
-        onCompanyClick={(company: Company) => setSelectedCompany(company)}
-        onContactClick={(contact: Contact) => router.push(`/contacts?id=${contact.id}`)}
+        onCompanyClick={(company: RelatedEntityCompany) => router.push(`/companies?id=${company.id}`)}
+        onContactClick={(contact: RelatedEntityContact) => router.push(`/contacts?id=${contact.id}`)}
       />
     );
   }
@@ -664,15 +641,16 @@ export default function JobsContent() {
           </div>
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             <button
-              onClick={() => setShowDedupeModal(true)}
-              className="hidden sm:flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-medium bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors shadow-sm"
+              disabled
+              className="hidden sm:flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-medium bg-gray-400 text-white rounded-full cursor-not-allowed opacity-60 shadow-sm"
+              title="Coming Soon"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="sm:w-[18px] sm:h-[18px]">
                 <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               <span className="hidden md:inline">Find Duplicates</span>
               <span className="md:hidden">Dedupe</span>
-              ({duplicateGroups.length})
+              <span className="text-[10px] sm:text-xs ml-1">(Coming Soon)</span>
             </button>
 
             {/* View Mode Toggle */}

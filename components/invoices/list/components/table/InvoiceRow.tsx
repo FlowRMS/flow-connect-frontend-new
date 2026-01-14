@@ -6,7 +6,8 @@
 import { useRouter } from 'next/navigation';
 import type { Invoice } from '@/lib/types/rms';
 import { invoiceStatusColors, invoiceStatusLabels } from '../../constants';
-import { formatCurrency, formatDate, isOverdue, getOutsideRepsDisplay } from '../../utils';
+import { formatCurrency, formatDate, isOverdue } from '../../utils';
+import { AvatarInline } from '@/components/ui/CreatedByBadge';
 
 interface InvoiceRowProps {
   invoice: Invoice;
@@ -29,7 +30,6 @@ export function InvoiceRow({
 }: InvoiceRowProps) {
   const router = useRouter();
   const overdue = isOverdue(invoice);
-  const outsideReps = getOutsideRepsDisplay(invoice);
 
   const handleRowClick = () => {
     router.push(`/invoices/${invoice.id}`);
@@ -131,24 +131,10 @@ export function InvoiceRow({
         </span>
       </div>
 
-      {/* Factory */}
+      {/* Factory - uses factoryName from API if available */}
       <div className="flex items-center">
         <span className="text-sm text-[var(--foreground)] truncate">
-          {invoice.manufacturerName}
-        </span>
-      </div>
-
-      {/* Inside Rep */}
-      <div className="flex items-center">
-        <span className="text-sm text-[var(--muted-foreground)] truncate">
-          {invoice.insideRepName || '-'}
-        </span>
-      </div>
-
-      {/* Outside Reps */}
-      <div className="flex items-center">
-        <span className="text-xs text-[var(--muted-foreground)] truncate" title={outsideReps}>
-          {outsideReps}
+          {(invoice as any).factoryName || invoice.manufacturerName || '-'}
         </span>
       </div>
 
@@ -157,6 +143,11 @@ export function InvoiceRow({
         <span className="text-xs text-[var(--muted-foreground)]">
           {invoice.entryDate ? formatDate(invoice.entryDate) : '-'}
         </span>
+      </div>
+
+      {/* Created By */}
+      <div className="flex items-center">
+        <AvatarInline name={(invoice as any).createdBy} size="sm" />
       </div>
 
       {/* Due Date */}

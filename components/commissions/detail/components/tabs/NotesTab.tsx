@@ -1,17 +1,17 @@
 /**
  * NotesTab Component
- * Displays notes for the check
+ * Displays linked notes for the check using the centralized RelatedNotesSection
  */
 
 'use client';
 
 import React from 'react';
+import { RelatedNotesSection } from '@/components/shared/RelatedNotesSection';
 
-export function NotesTab() {
-  return (
-    <div className="text-center py-12">
-      <p className="text-[var(--muted-foreground)]">No notes yet</p>
-    </div>
-  );
+interface NotesTabProps {
+  checkId: string;
 }
 
+export function NotesTab({ checkId }: NotesTabProps) {
+  return <RelatedNotesSection entityId={checkId} sourceType="CHECKS" sourceEntityType="CHECK" />;
+}

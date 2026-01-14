@@ -3,10 +3,13 @@
  * Top bar with back button, order number, and all action buttons/dropdowns
  */
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Order } from '@/lib/types/rms';
 import type { ViewMode, VersionInfo } from '../../types';
 import { orderStatusLabels } from '../../constants';
+import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
+import { PDFBuilder } from '@/components/shared/pdf-builder';
 
 interface HeaderTopBarProps {
   order: Order;
@@ -34,22 +37,27 @@ interface HeaderTopBarProps {
   // Actions
   onSave: () => void;
   isCreateMode?: boolean;
+  hasChanges?: boolean;
+  isSaving?: boolean;
   updateOrderStatus: (status: Order['status']) => void;
   setShowQuoteLookupModal: (show: boolean) => void;
   handleMakeWarehouseOrder: () => void;
   handleGenerateFulfillmentRequest: () => void;
+  onCreateInvoice?: () => void;
+  onDuplicateOrder?: () => void;
 }
 
 const getStatusColor = (status: Order['status']) => {
   const colors: Record<Order['status'], string> = {
-    draft: 'bg-gray-100 text-gray-700',
-    open: 'bg-blue-100 text-blue-700',
-    partial_shipped: 'bg-yellow-100 text-yellow-700',
-    shipped: 'bg-green-100 text-green-700',
-    cancelled: 'bg-red-100 text-red-700',
-    dormant: 'bg-gray-100 text-gray-600',
+    OPEN: 'bg-blue-100 text-blue-700',
+    PARTIAL_SHIPPED: 'bg-yellow-100 text-yellow-700',
+    SHIPPED_COMPLETE: 'bg-green-100 text-green-700',
+    CANCELLED: 'bg-red-100 text-red-700',
+    OVER_SHIPPED: 'bg-orange-100 text-orange-700',
+    PARTIAL_CANCELLED: 'bg-red-100 text-red-600',
+    OVER_CANCELLED: 'bg-red-100 text-red-800',
   };
-  return colors[status] || colors.draft;
+  return colors[status] || colors.OPEN;
 };
 
 export function HeaderTopBar({
@@ -74,12 +82,17 @@ export function HeaderTopBar({
   setActiveView,
   onSave,
   isCreateMode = false,
+  hasChanges = false,
+  isSaving = false,
   updateOrderStatus,
   setShowQuoteLookupModal,
   handleMakeWarehouseOrder,
   handleGenerateFulfillmentRequest,
+  onCreateInvoice,
+  onDuplicateOrder,
 }: HeaderTopBarProps) {
   const router = useRouter();
+  const [showPDFBuilder, setShowPDFBuilder] = useState(false);
 
   return (
     <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
@@ -96,6 +109,11 @@ export function HeaderTopBar({
               </svg>
             </button>
             <h1 className="text-2xl font-semibold text-[var(--foreground)]">{order.orderNumber}</h1>
+            <CreatedByBadge
+              createdBy={order.createdBy}
+              createdAt={order.createdAt}
+              size="sm"
+            />
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -118,10 +136,11 @@ export function HeaderTopBar({
               <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
                 <button
                   onClick={() => {
-                    router.push(`/invoices?order=${order.id}`);
                     setShowActionsDropdown(false);
+                    onCreateInvoice?.();
                   }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center gap-2"
+                  disabled={isCreateMode || !order.id}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
@@ -130,10 +149,11 @@ export function HeaderTopBar({
                 </button>
                 <button
                   onClick={() => {
-                    alert('Duplicate order');
                     setShowActionsDropdown(false);
+                    onDuplicateOrder?.();
                   }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                  disabled={isCreateMode || !order.id}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="6" y="6" width="12" height="12" rx="2"/>
@@ -142,27 +162,26 @@ export function HeaderTopBar({
                   Duplicate Order
                 </button>
                 <button
-                  onClick={() => {
-                    setShowQuoteLookupModal(true);
-                    setShowActionsDropdown(false);
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                  disabled
+                  className="w-full px-4 py-2 text-left text-sm transition-colors flex items-center gap-2 opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   Add New Lines from Quotes
+                  <span className="ml-auto px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
                 </button>
                 <div className="border-t border-[var(--border)]" />
                 <button
-                  onClick={handleMakeWarehouseOrder}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2 text-teal-600"
+                  disabled
+                  className="w-full px-4 py-2 text-left text-sm transition-colors flex items-center gap-2 opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M3 7h14l-1.5 9H4.5L3 7z" strokeLinecap="round" strokeLinejoin="round"/>
                     <path d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   Convert Products to Warehouse
+                  <span className="ml-auto px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
                 </button>
               </div>
             )}
@@ -199,8 +218,8 @@ export function HeaderTopBar({
               </svg>
             </button>
             {showStatusDropdown && (
-              <div className="absolute top-full left-0 mt-1 w-40 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                {(['draft', 'open', 'partial_shipped', 'shipped', 'cancelled', 'dormant'] as Order['status'][]).map((status) => (
+              <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                {(['OPEN', 'PARTIAL_SHIPPED', 'SHIPPED_COMPLETE', 'CANCELLED', 'OVER_SHIPPED', 'PARTIAL_CANCELLED', 'OVER_CANCELLED'] as Order['status'][]).map((status) => (
                   <button
                     key={status}
                     onClick={() => {
@@ -226,130 +245,38 @@ export function HeaderTopBar({
           {/* Version Dropdown */}
           <div className="relative">
             <button
-              onClick={() => {
-                setShowVersionDropdown(!showVersionDropdown);
-                setShowActionsDropdown(false);
-                setShowStatusDropdown(false);
-                setShowSaveDropdown(false);
-              }}
-              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              disabled
+              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium transition-colors opacity-50 cursor-not-allowed"
             >
               v{currentVersion}
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
             </button>
-            {showVersionDropdown && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowVersionDropdown(false)} />
-                <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                  {availableVersions.map((v) => (
-                    <button
-                      key={v.version}
-                      onClick={() => {
-                        setCurrentVersion(v.version);
-                        setShowVersionDropdown(false);
-                      }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
-                        currentVersion === v.version ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>v{v.version}</span>
-                        {v.isLatest && (
-                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs">Latest</span>
-                        )}
-                      </div>
-                      <span className="text-xs text-[var(--muted-foreground)]">{v.date}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
 
           {/* View Mode Dropdown */}
           <div className="relative">
             <button
-              onClick={() => {
-                setShowViewModeDropdown(!showViewModeDropdown);
-                setShowActionsDropdown(false);
-                setShowStatusDropdown(false);
-                setShowVersionDropdown(false);
-                setShowSaveDropdown(false);
-              }}
-              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              disabled
+              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium transition-colors opacity-50 cursor-not-allowed"
             >
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M1 10s4-6 9-6 9 6 9 6-4 6-9 6-9-6-9-6z" strokeLinecap="round" strokeLinejoin="round"/>
                 <circle cx="10" cy="10" r="3"/>
               </svg>
-              {viewMode === 'simple' ? 'Simple View' : 'Overage View'}
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              Simple View
+              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
             </button>
-            {showViewModeDropdown && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowViewModeDropdown(false)} />
-                <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
-                  <button
-                    onClick={() => {
-                      setViewMode('simple');
-                      setVisibleColumns(new Set(['partNumber', 'custPartNumber', 'description', 'quantity', 'uom', 'divisor', 'unitPrice', 'lineStatus', 'sellTotal', 'commissionPercent', 'commission', 'commissionTotal', 'linkedQuote', 'linkedInvoice', 'linkedCheck', 'linkedFulfillment', 'iconAcknowledgement', 'iconDocumentSpecific', 'iconWarehouse', 'iconCredit']));
-                      setActiveView('default');
-                      setShowViewModeDropdown(false);
-                    }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center justify-between ${
-                      viewMode === 'simple' ? 'text-[var(--primary)] font-medium' : ''
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="3" width="14" height="14" rx="2"/>
-                        <path d="M3 8h14"/>
-                      </svg>
-                      Simple View
-                    </span>
-                    {viewMode === 'simple' && (
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setViewMode('overage');
-                      setVisibleColumns(new Set(['quantity', 'uom', 'unitPrice', 'percentOver', 'sellTotal', 'commissionPercent', 'commissionAmount', 'ovgPercent', 'ovgAmount', 'earnPercent', 'earnAmount']));
-                      setActiveView('overage');
-                      setShowViewModeDropdown(false);
-                    }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center justify-between ${
-                      viewMode === 'overage' ? 'text-[var(--primary)] font-medium' : ''
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 2v6l4-2-4-2z" fill="currentColor"/>
-                        <path d="M2 10h16M2 6h8M2 14h12"/>
-                      </svg>
-                      Overage View
-                    </span>
-                    {viewMode === 'overage' && (
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
           </div>
 
           {/* Generate PDF Button */}
           <button
-            onClick={() => alert('Generate PDF')}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+            onClick={() => setShowPDFBuilder(true)}
+            disabled={isCreateMode || !order.id}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isCreateMode || !order.id
+                ? 'bg-red-600 text-white opacity-50 cursor-not-allowed'
+                : 'bg-red-600 text-white hover:bg-red-700'
+            }`}
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
@@ -361,12 +288,22 @@ export function HeaderTopBar({
 
           {/* Save/Create Button with Dropdown */}
           <div className="relative">
+            {/* Unsaved changes indicator */}
+            {hasChanges && !isCreateMode && (
+              <span className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" title="You have unsaved changes" />
+            )}
             <div className="flex">
               <button
                 onClick={onSave}
-                className="px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                disabled={isSaving || (!isCreateMode && !hasChanges)}
+                className={`px-4 py-2 text-white rounded-l-lg transition-colors text-sm font-medium ${
+                  isSaving || (!isCreateMode && !hasChanges)
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+                title={!isCreateMode && !hasChanges ? 'No changes to save' : undefined}
               >
-                {isCreateMode ? 'Create' : 'Save'}
+                {isSaving ? 'Saving...' : isCreateMode ? 'Create' : 'Save'}
               </button>
               <button
                 onClick={() => {
@@ -374,7 +311,12 @@ export function HeaderTopBar({
                   setShowActionsDropdown(false);
                   setShowStatusDropdown(false);
                 }}
-                className="px-2 py-2 bg-green-600 text-white rounded-r-lg hover:bg-green-700 transition-colors border-l border-green-500"
+                disabled={isSaving || (!isCreateMode && !hasChanges)}
+                className={`px-2 py-2 text-white rounded-r-lg transition-colors border-l border-green-500 ${
+                  isSaving || (!isCreateMode && !hasChanges)
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
               >
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -392,24 +334,14 @@ export function HeaderTopBar({
                     Save
                   </button>
                   <button
-                    onClick={() => {
-                      const newVersion = Math.max(...availableVersions.map(v => v.version)) + 1;
-                      const today = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-                      const newVersions = [
-                        ...availableVersions.map(v => ({ ...v, isLatest: false })),
-                        { version: newVersion, date: today, isLatest: true }
-                      ];
-                      setAvailableVersions(newVersions);
-                      setCurrentVersion(newVersion);
-                      setShowSaveDropdown(false);
-                      alert(`Saved as version ${newVersion}`);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                    disabled
+                    className="w-full text-left px-4 py-2 text-sm transition-colors flex items-center gap-2 opacity-50 cursor-not-allowed"
                   >
                     <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
                     </svg>
                     Save as New Version
+                    <span className="ml-auto px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
                   </button>
                 </div>
               </>
@@ -417,6 +349,14 @@ export function HeaderTopBar({
           </div>
         </div>
       </div>
+
+      {/* PDF Builder */}
+      <PDFBuilder
+        entityId={order.id}
+        entityType="ORDERS"
+        isOpen={showPDFBuilder}
+        onClose={() => setShowPDFBuilder(false)}
+      />
     </div>
   );
 }

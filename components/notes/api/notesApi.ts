@@ -33,6 +33,17 @@ export {
   type ProductSearchResult,
 } from '../../lib/api/search';
 
+// Re-export file functions from files module
+export {
+  searchFiles,
+  fetchFilesByLinkedEntity,
+  linkFileToEntity,
+  formatFileSize,
+  getFileIcon,
+  type FileResponse,
+  type FileEntityType,
+} from '../../lib/graphql/files';
+
 type CreatedByResponse =
   | string
   | null
@@ -68,10 +79,25 @@ export interface Note {
   id: string;
   title: string;
   content: string;
-  mentions: string;
+  mentions: string | string[]; // API returns array of UUIDs, but also accepts string
   tags: string;
+  isPublic: boolean;
   createdBy: string;
   createdAt: string;
+}
+
+export interface ConversationCreatedBy {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  inside?: boolean;
+  lastName?: string;
+  outside?: boolean;
+  role?: string;
+  username?: string;
 }
 
 export interface NoteConversation {
@@ -79,6 +105,7 @@ export interface NoteConversation {
   noteId: string;
   content: string;
   createdAt: string;
+  createdBy?: ConversationCreatedBy;
 }
 
 export interface NoteLandingPage {
@@ -92,6 +119,7 @@ export interface NoteLandingPage {
   }>;
   mentions: string;
   tags: string[];
+  isPublic: boolean;
   createdBy: string;
   createdAt: string;
 }
@@ -102,6 +130,7 @@ export interface CreateNoteInput {
   content: string;
   mentions?: string;
   tags?: string;
+  isPublic?: boolean;
 }
 
 export interface UpdateNoteInput {
@@ -109,6 +138,7 @@ export interface UpdateNoteInput {
   content: string;
   mentions?: string;
   tags?: string;
+  isPublic?: boolean;
 }
 
 export interface AddNoteConversationInput {
@@ -122,156 +152,7 @@ export interface UpdateNoteConversationInput {
   content: string;
 }
 
-export interface NoteRelatedEntities {
-  checks: Array<{
-    id: string;
-    checkNumber: string;
-    commission: number;
-    commissionMonth: string;
-    createdBy: string;
-    creationType: string;
-    entityDate: string;
-    entryDate: string;
-    factoryId: string;
-    postDate: string;
-    status: string;
-    userOwnerIds: string[];
-  }>;
-  companies: Array<{
-    id: string;
-    name: string;
-    companySourceType: string;
-    createdAt: string;
-    createdBy: string;
-    parentCompanyId: string;
-    phone: string;
-    tags: string;
-    website: string;
-  }>;
-  contacts: Array<{
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    role: string;
-    notes: string;
-    territory: string;
-    tags: string;
-    companyId: string;
-    createdAt: string;
-  }>;
-  customers: Array<{
-    id: string;
-    companyName: string;
-    insideRepId: string;
-    parentId: string;
-  }>;
-  factories: Array<{
-    id: string;
-    title: string;
-  }>;
-  invoices: Array<{
-    id: string;
-    invoiceNumber: string;
-    balanceId: string;
-    createdBy: string;
-    creationType: string;
-    dueDate: string;
-    entityDate: string;
-    entryDate: string;
-    factoryId: string;
-    locked: boolean;
-    orderId: string;
-    published: boolean;
-    status: string;
-    userOwnerIds: string[];
-  }>;
-  jobs: Array<{
-    id: string;
-    jobName: string;
-    jobType: string;
-    description: string;
-    startDate: string;
-    endDate: string;
-    status: { id: string; name: string };
-    requesterId: string;
-    additionalInformation: string;
-    structuralDetails: string;
-    structuralInformation: string;
-    tags: string;
-    createdAt: string;
-    createdBy: string;
-  }>;
-  orders: Array<{
-    id: string;
-    orderNumber: string;
-    balanceId: string;
-    billToCustomerId: string;
-    dueDate: string;
-    entityDate: string;
-    entryDate: string;
-    factoryId: string;
-    factSoNumber: string;
-    jobName: string;
-    quoteId: string;
-    shipDate: string;
-    soldToCustomerId: string;
-    status: string;
-    userOwnerIds: string[];
-  }>;
-  preOpportunities: Array<{
-    id: string;
-    entityNumber: string;
-    entityDate: string;
-    status: string;
-    acceptDate: string;
-    billToCustomerAddressId: string;
-    billToCustomerId: string;
-    createdAt: string;
-    createdById: string;
-    customerRef: string;
-    expDate: string;
-    freightTerms: string;
-    jobId: string;
-    paymentTerms: string;
-    reviseDate: string;
-    soldToCustomerAddressId: string;
-    soldToCustomerId: string;
-    tags: string;
-  }>;
-  products: Array<{
-    id: string;
-    factoryId: string;
-    factoryPartNumber: string;
-  }>;
-  quotes: Array<{
-    id: string;
-    quoteNumber: string;
-    billToCustomerId: string;
-    blanket: boolean;
-    createdBy: string;
-    entityDate: string;
-    entryDate: string;
-    expDate: string;
-    jobName: string;
-    soldToCustomerId: string;
-    userOwnerIds: string[];
-  }>;
-  tasks: Array<{
-    id: string;
-    title: string;
-    description: string;
-    status: string;
-    priority: string;
-    dueDate: string;
-    reminderDate: string;
-    assignedToId: string;
-    tags: string;
-    createdAt: string;
-    createdBy: string;
-  }>;
-}
+// NoteRelatedEntities type removed - use RelatedEntities from ../../lib/graphql/types instead
 
 // Search result types are imported and re-exported from central search API above
 // Entity types are re-exported from entity-links.ts
@@ -301,6 +182,7 @@ const FIND_NOTES_LANDING_PAGES = `
           content
           createdAt
           createdBy
+          isPublic
           linkedEntities {
             entityType
             id
@@ -324,6 +206,7 @@ const GET_NOTE = `
       content
       mentions
       tags
+      isPublic
       createdBy {
         email
         firstName
@@ -349,6 +232,7 @@ const CREATE_NOTE = `
         lastName
       }
       id
+      isPublic
       mentions
       tags
       title
@@ -369,6 +253,7 @@ const UPDATE_NOTE = `
         lastName
       }
       id
+      isPublic
       mentions
       tags
       title
@@ -382,11 +267,28 @@ const DELETE_NOTE = `
   }
 `;
 
+const CONVERSATION_CREATED_BY_FIELDS = `
+  createdBy {
+    authProviderId
+    email
+    enabled
+    firstName
+    fullName
+    id
+    inside
+    lastName
+    outside
+    role
+    username
+  }
+`;
+
 const ADD_NOTE_CONVERSATION = `
   mutation AddNoteConversation($input: NoteConversationInput!) {
     addNoteConversation(input: $input) {
       content
       createdAt
+      ${CONVERSATION_CREATED_BY_FIELDS}
       id
       noteId
     }
@@ -398,6 +300,7 @@ const UPDATE_NOTE_CONVERSATION = `
     updateNoteConversation(noteConversationId: $noteConversationId, input: $input) {
       content
       createdAt
+      ${CONVERSATION_CREATED_BY_FIELDS}
       id
       noteId
     }
@@ -415,186 +318,14 @@ const GET_NOTE_CONVERSATIONS = `
     noteConversations(noteId: $noteId) {
       content
       createdAt
+      ${CONVERSATION_CREATED_BY_FIELDS}
       id
       noteId
     }
   }
 `;
 
-const GET_NOTE_RELATED_ENTITIES = `
-  query GetNoteRelatedEntities($noteId: UUID!) {
-    noteRelatedEntities(noteId: $noteId) {
-      checks {
-        checkNumber
-        commission
-        commissionMonth
-        createdBy
-        creationType
-        entityDate
-        entryDate
-        factoryId
-        id
-        postDate
-        status
-        userOwnerIds
-      }
-      companies {
-        companySourceType
-        createdAt
-        createdBy {
-          email
-          firstName
-          fullName
-          id
-          lastName
-        }
-        id
-        name
-        parentCompanyId
-        phone
-        tags
-        website
-      }
-      contacts {
-        createdAt
-        email
-        firstName
-        id
-        lastName
-        notes
-        phone
-        role
-        tags
-        territory
-      }
-      customers {
-        companyName
-        id
-        insideRepId
-        parentId
-      }
-      factories {
-        id
-        title
-      }
-      invoices {
-        balanceId
-        createdBy
-        creationType
-        dueDate
-        entityDate
-        entryDate
-        factoryId
-        id
-        invoiceNumber
-        locked
-        orderId
-        published
-        status
-        userOwnerIds
-      }
-      jobs {
-        additionalInformation
-        createdAt
-        createdBy {
-          email
-          firstName
-          fullName
-          id
-          lastName
-        }
-        description
-        endDate
-        id
-        jobName
-        jobType
-        requesterId
-        startDate
-        status {
-          id
-          name
-        }
-        structuralDetails
-        structuralInformation
-        tags
-      }
-      orders {
-        balanceId
-        billToCustomerId
-        dueDate
-        entityDate
-        factSoNumber
-        entryDate
-        factoryId
-        id
-        jobName
-        orderNumber
-        quoteId
-        shipDate
-        soldToCustomerId
-        status
-        userOwnerIds
-      }
-      preOpportunities {
-        acceptDate
-        billToCustomerAddressId
-        billToCustomerId
-        createdAt
-        createdById
-        customerRef
-        entityDate
-        entityNumber
-        expDate
-        freightTerms
-        id
-        jobId
-        paymentTerms
-        reviseDate
-        soldToCustomerAddressId
-        soldToCustomerId
-        status
-        tags
-      }
-      products {
-        factoryId
-        factoryPartNumber
-        id
-      }
-      quotes {
-        billToCustomerId
-        blanket
-        createdBy
-        entityDate
-        entryDate
-        expDate
-        id
-        jobName
-        quoteNumber
-        soldToCustomerId
-        userOwnerIds
-      }
-      tasks {
-        assignedToId
-        createdAt
-        createdBy {
-          email
-          firstName
-          fullName
-          id
-          lastName
-        }
-        description
-        dueDate
-        id
-        priority
-        status
-        reminderDate
-        tags
-        title
-      }
-    }
-  }
-`;
+// GET_NOTE_RELATED_ENTITIES query removed - use fetchRelatedEntities(noteId, 'NOTES') from entity-links.ts instead
 
 // Search queries are now in the central search API (components/lib/api/search.ts)
 // Link functions are imported from entity-links.ts
@@ -707,14 +438,16 @@ export async function fetchNote(id: string): Promise<Note | null> {
  * Create a new note
  */
 export async function createNote(input: CreateNoteInput): Promise<Note> {
-  // Build input object, excluding mentions if empty (API expects UUID or undefined)
-  const apiInput: { title: string; content: string; tags?: string; mentions?: string } = {
+  // Build input object, converting mentions from comma-separated string to array of UUIDs
+  const apiInput: { title: string; content: string; tags?: string; mentions?: string[]; isPublic?: boolean } = {
     title: input.title,
     content: input.content,
     tags: input.tags,
+    isPublic: input.isPublic ?? false,
   };
   if (input.mentions && input.mentions.trim()) {
-    apiInput.mentions = input.mentions;
+    // Convert comma-separated string to array of UUIDs
+    apiInput.mentions = input.mentions.split(',').map(id => id.trim()).filter(id => id);
   }
 
   const response = await crmGraphQLRequest<{ createNote: Note }>({
@@ -740,14 +473,16 @@ export async function updateNote(
   id: string,
   input: UpdateNoteInput
 ): Promise<Note> {
-  // Build input object, excluding mentions if empty (API expects UUID or undefined)
-  const apiInput: { title: string; content: string; tags?: string; mentions?: string } = {
+  // Build input object, converting mentions from comma-separated string to array of UUIDs
+  const apiInput: { title: string; content: string; tags?: string; mentions?: string[]; isPublic?: boolean } = {
     title: input.title,
     content: input.content,
     tags: input.tags,
+    isPublic: input.isPublic ?? false,
   };
   if (input.mentions && input.mentions.trim()) {
-    apiInput.mentions = input.mentions;
+    // Convert comma-separated string to array of UUIDs
+    apiInput.mentions = input.mentions.split(',').map(id => id.trim()).filter(id => id);
   }
 
   const response = await crmGraphQLRequest<{ updateNote: Note }>({
@@ -862,49 +597,7 @@ export async function fetchNoteConversations(noteId: string): Promise<NoteConver
   return response.data?.noteConversations || [];
 }
 
-/**
- * Fetch related entities (companies, contacts, jobs, tasks, preOpportunities, checks, invoices, orders, quotes, etc.) for a note
- */
-export async function fetchNoteRelatedEntities(noteId: string): Promise<NoteRelatedEntities> {
-  const response = await crmGraphQLRequest<{ noteRelatedEntities: NoteRelatedEntities }>({
-    query: GET_NOTE_RELATED_ENTITIES,
-    variables: { noteId },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to fetch related entities');
-  }
-
-  return (
-    (response.data?.noteRelatedEntities && {
-      checks: response.data.noteRelatedEntities.checks || [],
-      companies: mapFormattedCreatedBy(response.data.noteRelatedEntities.companies),
-      contacts: response.data.noteRelatedEntities.contacts || [],
-      customers: response.data.noteRelatedEntities.customers || [],
-      factories: response.data.noteRelatedEntities.factories || [],
-      invoices: response.data.noteRelatedEntities.invoices || [],
-      jobs: mapFormattedCreatedBy(response.data.noteRelatedEntities.jobs),
-      orders: response.data.noteRelatedEntities.orders || [],
-      preOpportunities: response.data.noteRelatedEntities.preOpportunities || [],
-      products: response.data.noteRelatedEntities.products || [],
-      quotes: response.data.noteRelatedEntities.quotes || [],
-      tasks: mapFormattedCreatedBy(response.data.noteRelatedEntities.tasks),
-    }) || {
-      checks: [],
-      companies: [],
-      contacts: [],
-      customers: [],
-      factories: [],
-      invoices: [],
-      jobs: [],
-      orders: [],
-      preOpportunities: [],
-      products: [],
-      quotes: [],
-      tasks: [],
-    }
-  );
-}
+// fetchNoteRelatedEntities removed - use fetchRelatedEntities(noteId, 'NOTES') from ../../lib/graphql/entity-links instead
 
 // Search functions are now imported and re-exported from central search API (components/lib/api/search.ts)
 // Link functions are re-exported from entity-links.ts

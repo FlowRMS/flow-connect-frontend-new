@@ -8,7 +8,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  useCRMJobRelatedEntities,
+  useRelatedEntities,
   useCreateCRMLink,
 } from '../../hooks/useCRMApi';
 import {
@@ -245,26 +245,26 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
   const { data: customers = [], isLoading: customersLoading } = useCustomerSearch(searchTerm, isOpen);
   const { data: products = [], isLoading: productsLoading } = useProductSearch(searchTerm, isOpen);
   
-  // Fetch already linked entities for this job
-  const { data: relatedEntities } = useCRMJobRelatedEntities(jobId);
+  // Fetch already linked entities for this job using centralized endpoint
+  const { data: relatedEntities } = useRelatedEntities(jobId, 'JOBS');
 
   // Create link mutation
   const createLinkMutation = useCreateCRMLink();
 
-  // Get IDs of already linked entities (tasks and notes are not returned by jobRelatedEntities)
+  // Get IDs of already linked entities
   const linkedIds = useMemo(() => ({
-    companies: new Set(relatedEntities?.companies?.map(c => c.id) || []),
-    contacts: new Set(relatedEntities?.contacts?.map(c => c.id) || []),
-    preOpportunities: new Set(relatedEntities?.preOpportunities?.map(p => p.id) || []),
-    tasks: new Set<string>(),
-    notes: new Set<string>(),
-    quotes: new Set(relatedEntities?.quotes?.map(q => q.id) || []),
-    orders: new Set(relatedEntities?.orders?.map(o => o.id) || []),
-    invoices: new Set(relatedEntities?.invoices?.map(i => i.id) || []),
-    checks: new Set(relatedEntities?.checks?.map(c => c.id) || []),
-    factories: new Set<string>(),
-    customers: new Set<string>(),
-    products: new Set<string>(),
+    companies: new Set(relatedEntities?.companies?.map((c: { id: string }) => c.id) || []),
+    contacts: new Set(relatedEntities?.contacts?.map((c: { id: string }) => c.id) || []),
+    preOpportunities: new Set(relatedEntities?.preOpportunities?.map((p: { id: string }) => p.id) || []),
+    tasks: new Set(relatedEntities?.tasks?.map((t: { id: string }) => t.id) || []),
+    notes: new Set(relatedEntities?.notes?.map((n: { id: string }) => n.id) || []),
+    quotes: new Set(relatedEntities?.quotes?.map((q: { id: string }) => q.id) || []),
+    orders: new Set(relatedEntities?.orders?.map((o: { id: string }) => o.id) || []),
+    invoices: new Set(relatedEntities?.invoices?.map((i: { id: string }) => i.id) || []),
+    checks: new Set(relatedEntities?.checks?.map((c: { id: string }) => c.id) || []),
+    factories: new Set(relatedEntities?.factories?.map((f: { id: string }) => f.id) || []),
+    customers: new Set(relatedEntities?.customers?.map((c: { id: string }) => c.id) || []),
+    products: new Set(relatedEntities?.products?.map((p: { id: string }) => p.id) || []),
   }), [relatedEntities]);
 
   // Get display info for an entity

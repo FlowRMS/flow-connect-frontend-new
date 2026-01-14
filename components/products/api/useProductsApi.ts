@@ -301,11 +301,13 @@ export function useDeleteProductUom() {
 
 /**
  * Fetch product categories
+ * Fetches all categories when no factoryId is provided, or filtered by factoryId
  */
 export function useProductCategories(factoryId?: string, parentId?: string, grandparentId?: string) {
   return useQuery<ProductCategory[], Error>({
     queryKey: productQueryKeys.categories(factoryId),
     queryFn: () => fetchProductCategories(factoryId, parentId, grandparentId),
+    enabled: true, // Always enabled - fetch all categories or filtered by factoryId
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }

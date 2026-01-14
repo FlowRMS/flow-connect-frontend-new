@@ -134,10 +134,25 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
     }
 
     try {
-      // Combine inside and outside rep entries into split rates
-      const insideSplitRates = entriesToSplitRateInputs(insideRepEntries, 'INSIDE');
-      const outsideSplitRates = entriesToSplitRateInputs(outsideRepEntries, 'OUTSIDE');
-      const allSplitRates = [...insideSplitRates, ...outsideSplitRates];
+      // Convert entries to the format expected by the API
+      // The API expects insideSplitRates and outsideSplitRates as arrays
+      const insideSplitRates = insideRepEntries
+        .filter(entry => entry.userId && entry.splitRate)
+        .map((entry, index) => ({
+          userId: entry.userId,
+          splitRate: entry.splitRate,
+          position: index + 1,
+          ...(entry.id && !entry.id.startsWith('temp_') ? { id: entry.id } : {}),
+        }));
+
+      const outsideSplitRates = outsideRepEntries
+        .filter(entry => entry.userId && entry.splitRate)
+        .map((entry, index) => ({
+          userId: entry.userId,
+          splitRate: entry.splitRate,
+          position: index + 1,
+          ...(entry.id && !entry.id.startsWith('temp_') ? { id: entry.id } : {}),
+        }));
 
       await updateMutation.mutateAsync({
         id: customer.id,
@@ -145,7 +160,8 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
           companyName: companyName.trim(),
           isParent,
           published,
-          splitRates: allSplitRates.length > 0 ? allSplitRates : undefined,
+          insideSplitRates: insideSplitRates.length > 0 ? insideSplitRates : undefined,
+          outsideSplitRates: outsideSplitRates.length > 0 ? outsideSplitRates : undefined,
         },
       });
 

@@ -43,24 +43,42 @@ export function useOrderHeader({ order, setOrders }: UseOrderHeaderProps) {
 
   // Initialize inside rep states from order when order changes
   // Similar to quotes-v2: sync split commission state and fetch rep names
+  // IMPORTANT: When insidePerLineItem is false, reps are still stored at line-item level
+  // but should be displayed at header level (take from first line item)
   useEffect(() => {
+    if (!order?.id) return; // Don't run if no order loaded yet
+
     const insideReps = (order as any)?.insideReps || [];
     const hasMultipleInsideReps = insideReps.length > 1;
+
+    console.log('🔧 useOrderHeader inside rep init:', {
+      orderId: order?.id,
+      insideRepId: order?.insideRepId,
+      insideRepsCount: insideReps.length,
+      insideReps: insideReps,
+      firstInsideRepUserId: insideReps[0]?.userId,
+    });
 
     // Set split checkbox based on count
     setSplitInsideCommission(hasMultipleInsideReps);
 
-    // Set primary inside rep
-    if (order?.insideRepId) {
-      setOrderInsideRep(order.insideRepId);
+    // Set primary inside rep - use insideRepId if available, otherwise take from first insideReps entry
+    const primaryInsideRepId = order?.insideRepId || insideReps[0]?.userId;
+    console.log('🔧 Setting orderInsideRep to:', primaryInsideRepId);
+    if (primaryInsideRepId) {
+      setOrderInsideRep(primaryInsideRepId);
+    } else {
+      setOrderInsideRep('');
     }
 
     // Initialize insideRepSplits from order data with names
     if (insideReps.length > 0) {
       searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
         .then((users) => {
+          console.log('🔧 Found inside users:', users.length);
           const repsWithNames: RepSplit[] = insideReps.map((rep: any, idx: number) => {
             const matchingUser = users.find((u) => u.id === rep.userId);
+            console.log('🔧 Matching user for', rep.userId, ':', matchingUser?.fullName || 'NOT FOUND');
             return {
               repId: rep.userId || '',
               repName: matchingUser?.fullName || `${matchingUser?.firstName || ''} ${matchingUser?.lastName || ''}`.trim() || '',
@@ -83,28 +101,46 @@ export function useOrderHeader({ order, setOrders }: UseOrderHeaderProps) {
     } else {
       setInsideRepSplits([]);
     }
-  }, [order?.id, order?.insideRepId]);
+  // Use order object reference to detect any changes to order
+  }, [order]);
 
   // Initialize outside rep states from order when order changes
+  // IMPORTANT: When outsidePerLineItem is false, reps are still stored at line-item level
+  // but should be displayed at header level (take from first line item)
   useEffect(() => {
+    if (!order?.id) return; // Don't run if no order loaded yet
+
     const outsideReps = (order as any)?.outsideReps || [];
     const hasMultipleOutsideReps = outsideReps.length > 1;
+
+    console.log('🔧 useOrderHeader outside rep init:', {
+      orderId: order?.id,
+      outsideRepId: (order as any)?.outsideRepId,
+      outsideRepsCount: outsideReps.length,
+      outsideReps: outsideReps,
+      firstOutsideRepUserId: outsideReps[0]?.userId,
+    });
 
     // Set split checkbox based on count
     setSplitOutsideCommission(hasMultipleOutsideReps);
 
-    // Set primary outside rep
-    const outsideRepId = (order as any)?.outsideRepId;
-    if (outsideRepId) {
-      setOrderOutsideRep(outsideRepId);
+    // Set primary outside rep - use outsideRepId if available, otherwise take from first outsideReps entry
+    const primaryOutsideRepId = (order as any)?.outsideRepId || outsideReps[0]?.userId;
+    console.log('🔧 Setting orderOutsideRep to:', primaryOutsideRepId);
+    if (primaryOutsideRepId) {
+      setOrderOutsideRep(primaryOutsideRepId);
+    } else {
+      setOrderOutsideRep('');
     }
 
     // Initialize outsideRepSplits from order data with names
     if (outsideReps.length > 0) {
       searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
         .then((users) => {
+          console.log('🔧 Found outside users:', users.length);
           const repsWithNames: RepSplit[] = outsideReps.map((rep: any, idx: number) => {
             const matchingUser = users.find((u) => u.id === rep.userId);
+            console.log('🔧 Matching user for', rep.userId, ':', matchingUser?.fullName || 'NOT FOUND');
             return {
               repId: rep.userId || '',
               repName: matchingUser?.fullName || `${matchingUser?.firstName || ''} ${matchingUser?.lastName || ''}`.trim() || '',
@@ -127,7 +163,8 @@ export function useOrderHeader({ order, setOrders }: UseOrderHeaderProps) {
     } else {
       setOutsideRepSplits([]);
     }
-  }, [order?.id]);
+  // Use order object reference to detect any changes to order
+  }, [order]);
 
   // Commission splits editing (from order splitRates)
   const [editingSplits, setEditingSplits] = useState(false);

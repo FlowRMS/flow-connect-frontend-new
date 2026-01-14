@@ -3,6 +3,7 @@
  * Main sidebar panel that displays check details
  */
 
+import { useRouter } from 'next/navigation';
 import type { CommissionCheck } from '@/lib/types/rms';
 import { CheckStatusSection } from './CheckStatusSection';
 import { CheckDetailsSection } from './CheckDetailsSection';
@@ -12,9 +13,39 @@ import { CheckTotalsSection } from './CheckTotalsSection';
 interface CheckDetailPanelProps {
   check: CommissionCheck;
   onClose: () => void;
+  onPostCheck?: (checkId: string) => void;
+  onUnpostCheck?: (checkId: string) => void;
+  isUpdating?: boolean;
 }
 
-export function CheckDetailPanel({ check, onClose }: CheckDetailPanelProps) {
+export function CheckDetailPanel({
+  check,
+  onClose,
+  onPostCheck,
+  onUnpostCheck,
+  isUpdating = false,
+}: CheckDetailPanelProps) {
+  const router = useRouter();
+  const status = check.status?.toUpperCase();
+  const isPosted = status === 'POSTED';
+  const isOpen = status === 'OPEN' || status === 'DRAFT';
+
+  const handleEditClick = () => {
+    router.push(`/commissions/${check.id}`);
+  };
+
+  const handlePostClick = () => {
+    if (onPostCheck) {
+      onPostCheck(check.id);
+    }
+  };
+
+  const handleUnpostClick = () => {
+    if (onUnpostCheck) {
+      onUnpostCheck(check.id);
+    }
+  };
+
   return (
     <div className="fixed right-0 top-0 bottom-0 w-[480px] bg-[var(--card)] border-l border-[var(--border)] overflow-y-auto shadow-xl z-40">
       {/* Header */}
@@ -60,24 +91,57 @@ export function CheckDetailPanel({ check, onClose }: CheckDetailPanelProps) {
 
         {/* Actions */}
         <div className="flex gap-3 pt-4 border-t border-[var(--border)]">
-          {check.status === 'draft' && (
+          {isOpen && (
             <>
-              <button className="flex-1 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
+              <button
+                onClick={handleEditClick}
+                disabled={isUpdating}
+                className="flex-1 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Edit Check
               </button>
-              <button className="flex-1 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors">
-                Post Check
+              <button
+                onClick={handlePostClick}
+                disabled={isUpdating}
+                className="flex-1 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isUpdating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    Posting...
+                  </>
+                ) : (
+                  'Post Check'
+                )}
               </button>
             </>
           )}
-          {check.status === 'posted' && (
-            <button className="flex-1 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
-              Print Check
-            </button>
+          {isPosted && (
+            <>
+              <button
+                onClick={handleEditClick}
+                className="flex-1 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              >
+                View Check
+              </button>
+              <button
+                onClick={handleUnpostClick}
+                disabled={isUpdating}
+                className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isUpdating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    Unposting...
+                  </>
+                ) : (
+                  'Unpost Check'
+                )}
+              </button>
+            </>
           )}
         </div>
       </div>
     </div>
   );
 }
-

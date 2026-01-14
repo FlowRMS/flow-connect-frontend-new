@@ -42,7 +42,7 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -55,9 +55,9 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
     setIsMounted(true);
   }, []);
 
-  // Update position when opening
-  useEffect(() => {
-    if (isOpen && triggerRef.current) {
+  // Calculate position based on trigger element
+  const updatePosition = () => {
+    if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       const calendarHeight = 320;
@@ -65,16 +65,41 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
       // Position above if not enough space below
       if (spaceBelow < calendarHeight && rect.top > calendarHeight) {
         setPosition({
-          top: rect.top + window.scrollY - calendarHeight - 4,
-          left: rect.left + window.scrollX,
+          top: rect.top - calendarHeight - 4,
+          left: rect.left,
         });
       } else {
         setPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
+          top: rect.bottom + 4,
+          left: rect.left,
         });
       }
     }
+  };
+
+  // Update position when opening
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+    }
+  }, [isOpen]);
+
+  // Update position on scroll/resize
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+
+    // Listen to scroll on all scrollable ancestors
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
   }, [isOpen]);
 
   // Close datepicker when clicking outside
@@ -95,7 +120,7 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const datePickerContent = isOpen && !disabled && portalTarget && createPortal(
+  const datePickerContent = isOpen && !disabled && portalTarget && position && createPortal(
     <div
       className="shared-datepicker-portal fixed z-[9999]"
       style={{ top: position.top, left: position.left }}

@@ -80,6 +80,15 @@ export type TaskPriority = 'LOW' | 'NORMAL' | 'URGENT' | 'CRITICAL';
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 // CRMEntityType is re-exported from entity-links.ts above
 
+// TaskAssignee type for the user objects returned in assignees array
+export interface TaskAssignee {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  email?: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -89,7 +98,8 @@ export interface Task {
   dueDate: string;
   reminderDate: string;
   tags: string;
-  assignedToId: string;
+  assigneeIds?: string[];
+  assignees?: TaskAssignee[]; // Array of user objects
   createdBy: string;
   createdAt: string;
 }
@@ -108,165 +118,35 @@ export interface TaskLandingPage {
   }>;
   reminderDate: string;
   tags: string[];
-  assignedTo: string;
+  assignees: string[]; // Array of assignee names from findLandingPages
   createdBy: string;
   createdAt: string;
+}
+
+export interface ConversationCreatedBy {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  inside?: boolean;
+  lastName?: string;
+  outside?: boolean;
+  role?: string;
+  username?: string;
 }
 
 export interface TaskConversation {
   id: string;
   taskId: string;
   content: string;
-  createdBy: string;
+  createdBy?: ConversationCreatedBy;
   createdAt: string;
 }
 
-export interface TaskRelatedEntities {
-  checks: Array<{
-    id: string;
-    checkNumber: string;
-    commission: number;
-    commissionMonth: string;
-    createdBy: string;
-    creationType: string;
-    entityDate: string;
-    entryDate: string;
-    factoryId: string;
-    postDate: string;
-    status: string;
-    userOwnerIds: string[];
-  }>;
-  companies: Array<{
-    id: string;
-    name: string;
-    companySourceType: string;
-    createdAt: string;
-    createdBy: string;
-    parentCompanyId: string;
-    phone: string;
-    tags: string;
-    website: string;
-  }>;
-  contacts: Array<{
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    role: string;
-    notes: string;
-    territory: string;
-    tags: string;
-    companyId: string;
-    createdAt: string;
-  }>;
-  customers: Array<{
-    id: string;
-    companyName: string;
-    insideRepId: string;
-    parentId: string;
-  }>;
-  factories: Array<{
-    id: string;
-    title: string;
-  }>;
-  invoices: Array<{
-    id: string;
-    invoiceNumber: string;
-    balanceId: string;
-    createdBy: string;
-    creationType: string;
-    dueDate: string;
-    entityDate: string;
-    entryDate: string;
-    factoryId: string;
-    locked: boolean;
-    orderId: string;
-    published: boolean;
-    status: string;
-    userOwnerIds: string[];
-  }>;
-  jobs: Array<{
-    id: string;
-    jobName: string;
-    jobType: string;
-    description: string;
-    startDate: string;
-    endDate: string;
-    status: { id: string; name: string };
-    requesterId: string;
-    additionalInformation: string;
-    structuralDetails: string;
-    structuralInformation: string;
-    tags: string;
-    createdAt: string;
-    createdBy: string;
-  }>;
-  notes: Array<{
-    id: string;
-    title: string;
-    content: string;
-    mentions: string;
-    tags: string;
-    createdAt: string;
-    createdBy: string;
-  }>;
-  orders: Array<{
-    id: string;
-    orderNumber: string;
-    balanceId: string;
-    billToCustomerId: string;
-    dueDate: string;
-    entityDate: string;
-    entryDate: string;
-    factoryId: string;
-    factSoNumber: string;
-    jobName: string;
-    quoteId: string;
-    shipDate: string;
-    soldToCustomerId: string;
-    status: string;
-    userOwnerIds: string[];
-  }>;
-  preOpportunities: Array<{
-    id: string;
-    entityNumber: string;
-    entityDate: string;
-    status: string;
-    acceptDate: string;
-    billToCustomerAddressId: string;
-    billToCustomerId: string;
-    createdAt: string;
-    createdById: string;
-    customerRef: string;
-    expDate: string;
-    freightTerms: string;
-    jobId: string;
-    paymentTerms: string;
-    reviseDate: string;
-    soldToCustomerAddressId: string;
-    soldToCustomerId: string;
-    tags: string;
-  }>;
-  products: Array<{
-    id: string;
-    factoryId: string;
-    factoryPartNumber: string;
-  }>;
-  quotes: Array<{
-    id: string;
-    quoteNumber: string;
-    billToCustomerId: string;
-    blanket: boolean;
-    createdBy: string;
-    entityDate: string;
-    entryDate: string;
-    expDate: string;
-    jobName: string;
-    soldToCustomerId: string;
-    userOwnerIds: string[];
-  }>;
-}
+// Note: TaskRelatedEntities type has been removed.
+// Use RelatedEntities from '../../lib/graphql/types' instead.
 
 // Search result types are imported and re-exported from central search API above
 // EntityLink is re-exported from entity-links.ts above
@@ -280,7 +160,7 @@ export interface CreateTaskInput {
   dueDate?: string;
   reminderDate?: string;
   tags?: string;
-  assignedToId?: string;
+  assigneeIds?: string[];
 }
 
 export interface UpdateTaskInput {
@@ -291,7 +171,7 @@ export interface UpdateTaskInput {
   dueDate?: string;
   reminderDate?: string;
   tags?: string;
-  assignedToId?: string;
+  assigneeIds?: string[];
 }
 
 // Task relation types
@@ -321,7 +201,8 @@ export interface TaskByEntity {
   dueDate: string;
   reminderDate: string;
   tags: string;
-  assignedToId: string;
+  assigneeIds?: string[];
+  assignees?: TaskAssignee[]; // Array of user objects
   createdBy: string;
   createdAt: string;
 }
@@ -357,7 +238,7 @@ const FIND_TASKS_LANDING_PAGES = `
       records {
         ... on TaskLandingPage {
           id
-          assignedTo
+          assignees
           createdAt
           createdBy
           description
@@ -382,7 +263,13 @@ const FIND_TASKS_LANDING_PAGES = `
 const GET_TASK = `
   query GetTask($id: UUID!) {
     task(id: $id) {
-      assignedToId
+      assignees {
+        id
+        firstName
+        lastName
+        fullName
+        email
+      }
       createdAt
       createdBy {
         email
@@ -406,7 +293,13 @@ const GET_TASK = `
 const CREATE_TASK = `
   mutation CreateTask($input: TaskInput!) {
     createTask(input: $input) {
-      assignedToId
+      assignees {
+        id
+        firstName
+        lastName
+        fullName
+        email
+      }
       createdAt
       createdBy {
         email
@@ -430,7 +323,13 @@ const CREATE_TASK = `
 const UPDATE_TASK = `
   mutation UpdateTask($id: UUID!, $input: TaskInput!) {
     updateTask(id: $id, input: $input) {
-      assignedToId
+      assignees {
+        id
+        firstName
+        lastName
+        fullName
+        email
+      }
       createdAt
       createdBy {
         email
@@ -457,11 +356,28 @@ const DELETE_TASK = `
   }
 `;
 
+const TASK_CONVERSATION_CREATED_BY_FIELDS = `
+  createdBy {
+    authProviderId
+    email
+    enabled
+    firstName
+    fullName
+    id
+    inside
+    lastName
+    outside
+    role
+    username
+  }
+`;
+
 const ADD_TASK_CONVERSATION = `
   mutation AddTaskConversation($input: TaskConversationInput!) {
     addTaskConversation(input: $input) {
       content
       createdAt
+      ${TASK_CONVERSATION_CREATED_BY_FIELDS}
       id
       taskId
     }
@@ -479,182 +395,14 @@ const GET_TASK_CONVERSATIONS = `
     taskConversations(taskId: $taskId) {
       content
       createdAt
+      ${TASK_CONVERSATION_CREATED_BY_FIELDS}
       id
       taskId
     }
   }
 `;
 
-const GET_TASK_RELATED_ENTITIES = `
-  query GetTaskRelatedEntities($taskId: UUID!) {
-    taskRelatedEntities(taskId: $taskId) {
-      checks {
-        checkNumber
-        commission
-        commissionMonth
-        createdBy
-        creationType
-        entityDate
-        entryDate
-        factoryId
-        id
-        postDate
-        status
-        userOwnerIds
-      }
-      companies {
-        companySourceType
-        createdAt
-        createdBy {
-          email
-          firstName
-          fullName
-          id
-          lastName
-        }
-        id
-        name
-        parentCompanyId
-        phone
-        tags
-        website
-      }
-      contacts {
-        createdAt
-        email
-        firstName
-        id
-        lastName
-        notes
-        phone
-        role
-        tags
-        territory
-      }
-      customers {
-        companyName
-        id
-        insideRepId
-        parentId
-      }
-      factories {
-        id
-        title
-      }
-      invoices {
-        balanceId
-        createdBy
-        creationType
-        dueDate
-        entityDate
-        entryDate
-        factoryId
-        id
-        invoiceNumber
-        locked
-        orderId
-        published
-        status
-        userOwnerIds
-      }
-      jobs {
-        additionalInformation
-        createdAt
-        createdBy {
-          email
-          firstName
-          fullName
-          id
-          lastName
-        }
-        description
-        endDate
-        id
-        jobName
-        jobType
-        requesterId
-        startDate
-        status {
-          id
-          name
-        }
-        structuralDetails
-        structuralInformation
-        tags
-      }
-      notes {
-        content
-        createdAt
-        createdBy {
-          email
-          firstName
-          lastName
-          id
-          fullName
-        }
-        id
-        mentions
-        tags
-        title
-      }
-      orders {
-        balanceId
-        billToCustomerId
-        dueDate
-        entityDate
-        factSoNumber
-        entryDate
-        factoryId
-        id
-        jobName
-        orderNumber
-        quoteId
-        shipDate
-        soldToCustomerId
-        status
-        userOwnerIds
-      }
-      preOpportunities {
-        acceptDate
-        billToCustomerAddressId
-        billToCustomerId
-        createdAt
-        createdById
-        customerRef
-        entityDate
-        entityNumber
-        expDate
-        freightTerms
-        id
-        jobId
-        paymentTerms
-        reviseDate
-        soldToCustomerAddressId
-        soldToCustomerId
-        status
-        tags
-      }
-      products {
-        factoryId
-        factoryPartNumber
-        id
-      }
-      quotes {
-        billToCustomerId
-        blanket
-        createdBy
-        entityDate
-        entryDate
-        expDate
-        id
-        jobName
-        quoteNumber
-        soldToCustomerId
-        userOwnerIds
-      }
-    }
-  }
-`;
+// Note: GET_TASK_RELATED_ENTITIES query removed - use fetchRelatedEntities(taskId, 'TASKS') from entity-links.ts instead
 
 // Search queries are now in the central search API (components/lib/api/search.ts)
 // Note: GET_CONTACT is kept locally as it's specific to tasks for fetching contact by ID
@@ -714,6 +462,7 @@ const UPDATE_TASK_CONVERSATION = `
     updateTaskConversation(taskConversationId: $taskConversationId, input: $input) {
       content
       createdAt
+      ${TASK_CONVERSATION_CREATED_BY_FIELDS}
       id
       taskId
     }
@@ -731,7 +480,13 @@ const GET_TASKS_BY_ENTITY = `
       dueDate
       reminderDate
       tags
-      assignedToId
+      assignees {
+        id
+        firstName
+        lastName
+        fullName
+        email
+      }
       createdBy {
         email
         firstName
@@ -963,49 +718,9 @@ export async function deleteTaskConversation(id: string): Promise<boolean> {
 // API Functions - Task Related Entities
 // ============================================================================
 
-/**
- * Fetch related entities (companies, contacts, jobs, notes, checks, invoices, orders, quotes, etc.) for a task
- */
-export async function fetchTaskRelatedEntities(taskId: string): Promise<TaskRelatedEntities> {
-  const response = await crmGraphQLRequest<{ taskRelatedEntities: TaskRelatedEntities }>({
-    query: GET_TASK_RELATED_ENTITIES,
-    variables: { taskId },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to fetch task related entities');
-  }
-
-  return (
-    (response.data?.taskRelatedEntities && {
-      checks: response.data.taskRelatedEntities.checks || [],
-      companies: mapFormattedCreatedBy(response.data.taskRelatedEntities.companies),
-      contacts: response.data.taskRelatedEntities.contacts || [],
-      customers: response.data.taskRelatedEntities.customers || [],
-      factories: response.data.taskRelatedEntities.factories || [],
-      invoices: response.data.taskRelatedEntities.invoices || [],
-      jobs: mapFormattedCreatedBy(response.data.taskRelatedEntities.jobs),
-      notes: mapFormattedCreatedBy(response.data.taskRelatedEntities.notes),
-      orders: response.data.taskRelatedEntities.orders || [],
-      preOpportunities: response.data.taskRelatedEntities.preOpportunities || [],
-      products: response.data.taskRelatedEntities.products || [],
-      quotes: response.data.taskRelatedEntities.quotes || [],
-    }) || {
-      checks: [],
-      companies: [],
-      contacts: [],
-      customers: [],
-      factories: [],
-      invoices: [],
-      jobs: [],
-      notes: [],
-      orders: [],
-      preOpportunities: [],
-      products: [],
-      quotes: [],
-    }
-  );
-}
+// Note: fetchTaskRelatedEntities has been removed.
+// Use fetchRelatedEntities(taskId, 'TASKS') from entity-links.ts instead.
+// The hook useRelatedEntities(taskId, 'TASKS') from useCRMApi.ts should be used in components.
 
 // Search functions are now imported and re-exported from central search API (components/lib/api/search.ts)
 

@@ -51,6 +51,52 @@ export function MobileSidebarProvider({ children }: { children: React.ReactNode 
 
 // Icon mapping for each nav item
 const iconMap: Record<string, React.ReactNode> = {
+  // FlowAI icons
+  'flow-ai-scan': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+      <path d="M14 2v6h6"/>
+      <path d="M16 13H8"/>
+      <path d="M16 17H8"/>
+      <path d="M10 9H8"/>
+    </svg>
+  ),
+  'flow-ai-queue': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+    </svg>
+  ),
+  'flow-ai-upload': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+  ),
+  'flow-ai-templates': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <path d="M3 9h18"/>
+      <path d="M9 21V9"/>
+    </svg>
+  ),
+  'flow-ai-workflows': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="6" height="6" rx="1"/>
+      <rect x="15" y="3" width="6" height="6" rx="1"/>
+      <rect x="9" y="15" width="6" height="6" rx="1"/>
+      <path d="M6 9v3a2 2 0 002 2h2"/>
+      <path d="M18 9v3a2 2 0 01-2 2h-2"/>
+    </svg>
+  ),
+  'flow-ai-chat': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+      <circle cx="9" cy="10" r="1" fill="currentColor"/>
+      <circle cx="12" cy="10" r="1" fill="currentColor"/>
+      <circle cx="15" cy="10" r="1" fill="currentColor"/>
+    </svg>
+  ),
   'activity-feed': (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <rect x="3" y="3" width="7" height="7" rx="1"/>
@@ -145,6 +191,18 @@ const iconMap: Record<string, React.ReactNode> = {
       <path d="M16 10a4 4 0 01-8 0"/>
     </svg>
   ),
+  'adjustments': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+      <circle cx="12" cy="12" r="4"/>
+    </svg>
+  ),
+  'acknowledgements': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M9 12l2 2 4-4"/>
+      <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+  ),
   'invoices': (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -201,6 +259,11 @@ const iconMap: Record<string, React.ReactNode> = {
       <path d="M16 3.13a4 4 0 010 7.75"/>
     </svg>
   ),
+  'files': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+    </svg>
+  ),
   'settings': (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="12" r="3"/>
@@ -226,6 +289,13 @@ const iconMap: Record<string, React.ReactNode> = {
     </svg>
   ),
   'manufacturer-integrations': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M2 20h20M4 20V10l8-6 8 6v10"/>
+      <path d="M9 20v-6h6v6"/>
+      <path d="M9 10h.01M15 10h.01"/>
+    </svg>
+  ),
+  'manufacturers': (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M2 20h20M4 20V10l8-6 8 6v10"/>
       <path d="M9 20v-6h6v6"/>
@@ -394,6 +464,17 @@ const iconMap: Record<string, React.ReactNode> = {
       <path d="M3 9h18M9 3v18"/>
     </svg>
   ),
+  // Preview section
+  'flow-agents': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="8" r="4"/>
+      <path d="M12 12v4"/>
+      <path d="M8 20h8"/>
+      <path d="M9 16l-2 4"/>
+      <path d="M15 16l2 4"/>
+      <circle cx="12" cy="8" r="1" fill="currentColor"/>
+    </svg>
+  ),
 };
 
 export default function Sidebar() {
@@ -505,7 +586,12 @@ export default function Sidebar() {
               {(isCollapsed || !group.collapsed) && (
                 <div className={!isCollapsed ? 'mt-1' : ''}>
                   {enabledItems.map((item) => {
-                    const isActive = pathname === item.href;
+                    // Check if current path matches exactly OR starts with the item href (for nested routes)
+                    // For root paths like "/" or "/flow-ai" we need exact match to avoid over-matching
+                    const isExactMatchOnly = item.href === '/' || item.href === '/flow-ai';
+                    const isActive = isExactMatchOnly
+                      ? pathname === item.href
+                      : pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
                       <Link
                         key={item.id}

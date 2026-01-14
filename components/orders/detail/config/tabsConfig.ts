@@ -35,6 +35,7 @@ export const getTabsConfig = (lineItemsCount: number = 0): TabConfig[] => {
     {
       id: 'activity',
       label: 'Activity',
+      comingSoon: true,
     },
     {
       id: 'linked-objects',

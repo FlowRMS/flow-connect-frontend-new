@@ -6,25 +6,85 @@
 
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFactories, useDeleteFactory, type FactoryLandingPage } from './api/useFactoriesApi';
+import { useFactoriesInfinite, useDeleteFactory, type FactoryLandingPage } from './api/useFactoriesApi';
+import { fetchAllFactoryIds } from './api/factoriesApi';
 import DeleteFactoryModal from './modals/DeleteFactoryModal';
+import { useBulkSelection, BulkDeleteModal, BulkActionsToolbar } from '../shared';
+import { toast } from 'sonner';
 
 type SortField = 'title' | 'accountNumber' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
-export default function ManufacturerProfilesContent() {
+interface ManufacturerProfilesContentProps {
+  basePath?: string;
+}
+
+export default function ManufacturerProfilesContent({ basePath = '/warehouse/manufacturer-profiles' }: ManufacturerProfilesContentProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [sortField, setSortField] = useState<SortField>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [filterPublished, setFilterPublished] = useState<'all' | 'published' | 'unpublished'>('all');
 
-  // Fetch factories from API
-  const { data: factories = [], isLoading, error, refetch } = useFactories();
+  // Fetch factories from API with infinite scroll
+  const {
+    data: factoriesData,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useFactoriesInfinite();
   const deleteFactoryMutation = useDeleteFactory();
+
+  // Scroll container ref for infinite scroll
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Flatten paginated data
+  const factories = useMemo(() => {
+    if (!factoriesData?.pages) return [];
+    return factoriesData.pages.flatMap(page => page.records);
+  }, [factoriesData]);
+
+  // Get total count from first page
+  const totalCount = useMemo(() => {
+    if (!factoriesData?.pages || factoriesData.pages.length === 0) return 0;
+    return factoriesData.pages[0].total;
+  }, [factoriesData]);
+
+  // Bulk selection with shared hook
+  const {
+    selectAllMode,
+    selectedCount,
+    isAllSelected,
+    isPartiallySelected,
+    isItemSelected,
+    handleSelectAll,
+    handleSelectOne,
+    clearSelection,
+    getAllSelectedIds,
+  } = useBulkSelection({
+    items: factories,
+    totalCount,
+    fetchAllIds: fetchAllFactoryIds,
+  });
+
+  // Handle scroll for infinite loading
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    const { scrollTop, scrollHeight, clientHeight } = target;
+    // Load more when within 200px of bottom
+    if (scrollHeight - scrollTop - clientHeight < 200) {
+      if (hasNextPage && !isFetchingNextPage && !searchQuery) {
+        fetchNextPage();
+      }
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, searchQuery]);
 
   // Filter and sort factories
   const filteredFactories = useMemo(() => {
@@ -77,27 +137,38 @@ export default function ManufacturerProfilesContent() {
   }, [sortField]);
 
   const handleFactoryClick = useCallback((factory: FactoryLandingPage) => {
-    router.push(`/warehouse/manufacturer-profiles/${factory.id}/edit`);
-  }, [router]);
+    router.push(`${basePath}/${factory.id}/edit`);
+  }, [router, basePath]);
 
   const handleDeleteFactory = useCallback(async (id: string) => {
     try {
       await deleteFactoryMutation.mutateAsync(id);
+      toast.success('Manufacturer deleted successfully');
       setDeleteConfirmId(null);
       refetch();
     } catch (err) {
       console.error('Failed to delete factory:', err);
+      // Extract error message from GraphQL error
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete manufacturer';
+      toast.error(errorMessage);
     }
   }, [deleteFactoryMutation, refetch]);
 
+  // Bulk delete success handler
+  const handleBulkDeleteSuccess = useCallback(() => {
+    clearSelection();
+    setShowBulkDeleteModal(false);
+    refetch();
+  }, [clearSelection, refetch]);
+
   const factoryToDelete = factories.find(f => f.id === deleteConfirmId);
 
-  // Stats calculations
+  // Stats calculations (use totalCount from API for accurate total)
   const stats = useMemo(() => ({
-    total: factories.length,
+    total: totalCount || factories.length,
     published: factories.filter(f => f.published).length,
     unpublished: factories.filter(f => !f.published).length,
-  }), [factories]);
+  }), [factories, totalCount]);
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) {
@@ -119,7 +190,11 @@ export default function ManufacturerProfilesContent() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[var(--background)]">
+    <div
+      ref={scrollContainerRef}
+      onScroll={handleScroll}
+      className="flex-1 overflow-y-auto bg-[var(--background)]"
+    >
       {/* Header */}
       <div className="mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
@@ -148,7 +223,7 @@ export default function ManufacturerProfilesContent() {
             </div>
 
             <button
-              onClick={() => router.push('/warehouse/manufacturer-profiles/new')}
+              onClick={() => router.push(`${basePath}/new`)}
               className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
@@ -176,6 +251,17 @@ export default function ManufacturerProfilesContent() {
           />
         </div>
       </div>
+
+      {/* Bulk Actions Toolbar */}
+      <BulkActionsToolbar
+        entityType="FACTORIES"
+        selectedCount={selectedCount}
+        totalCount={totalCount}
+        loadedCount={factories.length}
+        selectAllMode={selectAllMode}
+        onClearSelection={clearSelection}
+        onDelete={() => setShowBulkDeleteModal(true)}
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
@@ -257,6 +343,17 @@ export default function ManufacturerProfilesContent() {
             <table className="w-full">
               <thead>
                 <tr className="bg-[var(--muted)]/50 border-b border-[var(--border)]">
+                  <th className="px-4 py-3 text-left w-12">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = isPartiallySelected;
+                      }}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 sm:px-6 py-3 text-left">
                     <button
                       onClick={() => handleSort('title')}
@@ -306,8 +403,18 @@ export default function ManufacturerProfilesContent() {
                   <tr
                     key={factory.id}
                     onClick={() => handleFactoryClick(factory)}
-                    className="hover:bg-[var(--muted)]/30 cursor-pointer transition-colors"
+                    className={`hover:bg-[var(--muted)]/30 cursor-pointer transition-colors ${
+                      isItemSelected(factory.id) ? 'bg-[var(--primary)]/5' : ''
+                    }`}
                   >
+                    <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isItemSelected(factory.id)}
+                        onChange={(e) => handleSelectOne(factory.id, e.target.checked)}
+                        className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                      />
+                    </td>
                     <td className="px-4 sm:px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center flex-shrink-0">
@@ -454,7 +561,7 @@ export default function ManufacturerProfilesContent() {
               </p>
               {!searchQuery && filterPublished === 'all' && (
                 <button
-                  onClick={() => router.push('/warehouse/manufacturer-profiles/new')}
+                  onClick={() => router.push(`${basePath}/new`)}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -466,12 +573,25 @@ export default function ManufacturerProfilesContent() {
             </div>
           )}
 
-          {/* Results count */}
+          {/* Results count and loading more indicator */}
           {filteredFactories.length > 0 && (
             <div className="px-6 py-3 border-t border-[var(--border)] bg-[var(--muted)]/30">
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Showing {filteredFactories.length} of {factories.length} manufacturers
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  {searchQuery
+                    ? `${filteredFactories.length} results for "${searchQuery}"`
+                    : `Showing ${factories.length} of ${totalCount} manufacturers`}
+                </p>
+                {isFetchingNextPage && (
+                  <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    Loading more...
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -487,6 +607,17 @@ export default function ManufacturerProfilesContent() {
           isDeleting={deleteFactoryMutation.isPending}
         />
       )}
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="FACTORIES"
+        selectedCount={selectedCount}
+        getAllSelectedIds={getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['factories']]}
+      />
     </div>
   );
 }

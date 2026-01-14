@@ -10,7 +10,8 @@ import type { Order, OrderLineItem } from '@/lib/types/rms';
 import type { FulfillmentOrder } from '@/lib/types/warehouse';
 import type { TabType, LineItemAcknowledgement, LineItemCredit, ColumnKey } from '../types';
 import { mockFulfillmentOrders } from '@/lib/data/warehouse-mock';
-import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer, type Order as ApiOrder, type OrderDetail } from '../../api';
+import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchCustomers, getProductCpnByCustomer, type Order as ApiOrder, type OrderDetail } from '../../api';
+import { fetchFactoryById } from '@/components/warehouse/api/factoriesApi';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { useOrderHeader } from './useOrderHeader';
 import { useLineItemsTable } from './useLineItemsTable';
@@ -23,8 +24,31 @@ interface UseOrderDetailStateProps {
 
 /**
  * Create an empty order for create mode
+ * Includes one default line item so user can start entering data immediately
  */
 function createEmptyOrder(): Order {
+  const defaultLineItem = {
+    id: `li-${Date.now()}`,
+    lineNumber: 1,
+    partNumber: '',
+    description: '',
+    uom: null,
+    uomId: null,
+    divisor: 1,
+    quantity: 1,
+    quantityShipped: 0,
+    quantityInvoiced: 0,
+    quantityCredited: 0,
+    unitPrice: 0,
+    extendedPrice: 0,
+    commissionRate: 8, // Stored as whole percentage (8 for 8%)
+    commissionAmount: 0,
+    productId: '',
+    isCancelled: false,
+    isConsignment: false,
+    status: 'open' as const,
+  };
+
   return {
     id: '',
     orderNumber: '',
@@ -35,7 +59,7 @@ function createEmptyOrder(): Order {
     customerName: '',
     jobId: undefined,
     jobName: undefined,
-    status: 'draft',
+    status: 'OPEN',
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
     commissionStatus: 'pending',
@@ -46,7 +70,7 @@ function createEmptyOrder(): Order {
     requestedShipDate: undefined,
     actualShipDate: undefined,
     quoteId: undefined,
-    lineItems: [],
+    lineItems: [defaultLineItem],
     subtotal: 0,
     freight: 0,
     total: 0,
@@ -72,19 +96,20 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     partNumber: detail.product?.factoryPartNumber || detail.productNameAdhoc || '',
     custPartNumber: '',
     description: detail.product?.description || detail.productDescriptionAdhoc || '',
-    uom: detail.uom?.title || 'EA',
-    divisor: parseFloat(detail.divisionFactor || '1'),
+    uom: detail.uom?.title || null,
+    uomId: detail.uom?.id || null,
+    divisor: detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1'),
     quantity: parseFloat(detail.quantity || '0'),
     unitPrice: parseFloat(detail.unitPrice || '0'),
     extendedPrice: detail.subtotal || 0,
-    commissionRate: parseFloat(detail.commissionRate || '0') / 100, // API returns as percent, convert to decimal
+    commissionRate: parseFloat(detail.commissionRate || '0'), // Keep as whole percentage (e.g., 8 for 8%)
     commissionAmount: detail.commission || 0,
     quantityShipped: detail.shippingBalance || 0,
     quantityInvoiced: 0, // API doesn't provide this directly
     quantityCredited: detail.cancelledBalance || 0,
     isCancelled: detail.status === 'CANCELLED',
     isConsignment: false,
-    status: detail.status === 'CANCELLED' ? 'cancelled' : detail.status === 'SHIPPED' ? 'shipped' : 'open',
+    status: detail.status?.toLowerCase() as ('open' | 'shipped' | 'partial_shipped' | 'cancelled' | 'invoiced') || 'open',
     // Store additional fields for line item
     endUserId: detail.endUserId,
     endUserName: '', // Will be fetched separately
@@ -118,7 +143,7 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     customerName: apiOrder.soldToCustomer?.companyName || '',
     jobId: apiOrder.job?.id,
     jobName: apiOrder.job?.jobName,
-    status: mapApiStatusToUiStatus(apiOrder.headerStatus),
+    status: mapApiStatusToOrderStatus(apiOrder.status),
     fulfillmentStatus: 'not_started', // API doesn't provide this directly
     billingStatus: 'not_invoiced', // API doesn't provide this directly
     commissionStatus: 'pending', // API doesn't provide this directly
@@ -198,25 +223,28 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
 }
 
 /**
- * Map API status/headerStatus to UI status
+ * Map API status to OrderStatus type
+ * Valid statuses: OPEN, PARTIAL_SHIPPED, SHIPPED_COMPLETE, CANCELLED, OVER_SHIPPED, PARTIAL_CANCELLED, OVER_CANCELLED
  */
-function mapApiStatusToUiStatus(headerStatus?: string): 'draft' | 'open' | 'partial_shipped' | 'shipped' | 'cancelled' | 'dormant' {
-  const hs = headerStatus?.toUpperCase();
-  switch (hs) {
-    case 'DRAFT':
-      return 'draft';
+function mapApiStatusToOrderStatus(status?: string): 'OPEN' | 'PARTIAL_SHIPPED' | 'SHIPPED_COMPLETE' | 'CANCELLED' | 'OVER_SHIPPED' | 'PARTIAL_CANCELLED' | 'OVER_CANCELLED' {
+  const s = status?.toUpperCase();
+  switch (s) {
     case 'OPEN':
-      return 'open';
+      return 'OPEN';
     case 'PARTIAL_SHIPPED':
-      return 'partial_shipped';
-    case 'SHIPPED':
-      return 'shipped';
+      return 'PARTIAL_SHIPPED';
+    case 'SHIPPED_COMPLETE':
+      return 'SHIPPED_COMPLETE';
     case 'CANCELLED':
-      return 'cancelled';
-    case 'DORMANT':
-      return 'dormant';
+      return 'CANCELLED';
+    case 'OVER_SHIPPED':
+      return 'OVER_SHIPPED';
+    case 'PARTIAL_CANCELLED':
+      return 'PARTIAL_CANCELLED';
+    case 'OVER_CANCELLED':
+      return 'OVER_CANCELLED';
     default:
-      return 'open';
+      return 'OPEN';
   }
 }
 
@@ -266,9 +294,8 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
 
       // Fetch factory name if we have a factoryId
       if (transformedOrder.manufacturerId) {
-        const factoryPromise = searchFactories('', true)
-          .then((factories) => {
-            const factory = factories.find(f => f.id === transformedOrder.manufacturerId);
+        const factoryPromise = fetchFactoryById(transformedOrder.manufacturerId)
+          .then((factory) => {
             if (factory) {
               setLocalOrder(prev => ({ ...prev, manufacturerName: factory.title }));
             }
@@ -393,7 +420,8 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   // Track previous customerId to detect changes
   const prevCustomerIdRef = React.useRef<string | undefined>(undefined);
 
-  // Re-fetch CPNs when sold-to customer changes
+  // Re-fetch CPNs when sold-to customer changes (ONLY update custPartNumber, NOT pricing)
+  // Pricing is selected by user via dropdown in LineItemsTable
   useEffect(() => {
     // Only re-fetch if customer actually changed (not on initial load) and we have an order with line items
     if (
@@ -404,27 +432,36 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     ) {
       const lineItemsWithProducts = localOrder.lineItems.filter(li => li.productId);
 
-      // Fetch CPNs for each product in parallel
+      // Fetch CPNs for each product in parallel (only to get customer part number)
       (async () => {
         const cpnPromises = lineItemsWithProducts.map(async (li) => {
           try {
-            const cpnResult = await getProductCpnByCustomer(li.productId!, localOrder.customerId);
-            return { itemId: li.id, cpn: cpnResult?.customerPartNumber || '' };
+            const cpnResult = await getProductCpnByCustomer(li.productId!, localOrder.customerId).catch(() => null);
+            return {
+              itemId: li.id,
+              custPartNumber: cpnResult?.customerPartNumber || ''
+            };
           } catch (err) {
-            // CPN not found is not an error
-            return { itemId: li.id, cpn: '' };
+            return { itemId: li.id, custPartNumber: '' };
           }
         });
 
         const cpnResults = await Promise.all(cpnPromises);
-        const cpnMap = new Map(cpnResults.map(r => [r.itemId, r.cpn]));
+        const updateMap = new Map(cpnResults.map(r => [r.itemId, r]));
 
+        // ONLY update custPartNumber - do NOT auto-update pricing
+        // User selects pricing via dropdown in LineItemsTable
         setLocalOrder(prev => ({
           ...prev,
-          lineItems: (prev.lineItems || []).map(li => ({
-            ...li,
-            custPartNumber: cpnMap.has(li.id) ? cpnMap.get(li.id)! : li.custPartNumber,
-          })),
+          lineItems: (prev.lineItems || []).map(li => {
+            const update = updateMap.get(li.id);
+            if (!update) return li;
+
+            return {
+              ...li,
+              custPartNumber: update.custPartNumber,
+            };
+          }),
         }));
       })();
     }
@@ -463,9 +500,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     const updatedItems = items.map(item => {
       const quantity = item.quantity || 0;
       const unitPrice = item.unitPrice || 0;
-      const commissionRate = item.commissionRate || 0;
+      const commissionRate = item.commissionRate || 0; // Stored as whole percentage (e.g., 8 for 8%)
       const extendedPrice = quantity * unitPrice;
-      const commissionAmount = extendedPrice * commissionRate;
+      const commissionAmount = extendedPrice * (commissionRate / 100); // Convert to decimal for calculation
       return {
         ...item,
         extendedPrice,
@@ -715,6 +752,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       error,
       refetch,
       isCreateMode: false,
+      // Unsaved changes tracking
+      hasChanges: false,
+      resetChanges: noop,
       order: null,
       orders: [],
       setOrders: noop,
@@ -843,18 +883,6 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       // Bulk actions stubs
       showLineItemsBulkActionsMenu: false,
       setShowLineItemsBulkActionsMenu: noop,
-      showLineCreditModal: false,
-      openCreditModal: noop,
-      closeCreditModal: noop,
-      saveCredit: noop,
-      creditName: '',
-      setCreditName: noop,
-      creditDate: '',
-      setCreditDate: noop,
-      creditNote: '',
-      setCreditNote: noop,
-      creditLineItems: [],
-      setCreditLineItems: noop,
       showLineAcknowledgementModal: false,
       openAcknowledgementModal: noop,
       closeAcknowledgementModal: noop,
@@ -907,6 +935,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     refetch,
     // Create mode flag
     isCreateMode,
+    // Unsaved changes tracking
+    hasChanges: isCreateMode || hasLocalEdits,
+    resetChanges: () => setHasLocalEdits(false),
     // Order data
     order,
     orders,

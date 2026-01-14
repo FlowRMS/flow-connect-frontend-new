@@ -2,18 +2,168 @@
  * useInvoicesListState Hook
  * Main state management hook for the invoices list
  * Integrates all sub-hooks and manages overall state
+ * Uses real API data with infinite scroll and search
  */
 
-import { useState } from 'react';
-import type { Invoice, OrderSplitRate } from '@/lib/types/rms';
-import { mockInvoices, mockSalesReps } from '@/lib/data/rms-mock';
+import { useState, useMemo, useCallback } from 'react';
+import type { Invoice, OrderSplitRate, InvoiceStatus } from '@/lib/types/rms';
+import { mockSalesReps } from '@/lib/data/rms-mock';
+import { useInvoicesInfinite, useInvoiceSearch, type InvoiceLandingPage, fetchAllInvoiceIds } from '../../api';
 import { useInvoiceFilters } from './useInvoiceFilters';
-import { useInvoiceSelection } from './useInvoiceSelection';
 import { useInvoiceBulkActions } from './useInvoiceBulkActions';
+import { useBulkSelection } from '../../../shared';
+import { isInvoiceLinked } from '../utils';
+
+/**
+ * Map API status to RMS InvoiceStatus type
+ * RMS uses: 'open' | 'paid' | 'partial_paid' | 'void' | 'dormant'
+ */
+function mapApiStatusToInvoiceStatus(status?: string): InvoiceStatus {
+  const s = status?.toLowerCase();
+  switch (s) {
+    case 'open':
+      return 'open';
+    case 'paid':
+      return 'paid';
+    case 'partial_paid':
+    case 'partial':
+      return 'partial_paid';
+    case 'void':
+      return 'void';
+    case 'dormant':
+      return 'dormant';
+    default:
+      return 'open';
+  }
+}
+
+/**
+ * Transform InvoiceLandingPage from API to UI Invoice type
+ * Maps API fields to the existing UI structure
+ */
+function transformLandingPageToInvoice(landing: InvoiceLandingPage): Invoice {
+  return {
+    id: landing.id,
+    invoiceNumber: landing.invoiceNumber || '',
+    orderId: landing.orderId || '',
+    orderNumber: landing.orderNumber || '',
+    // Use factoryName from API if available
+    customerId: '',
+    customerName: '-',
+    manufacturerId: '',
+    manufacturerName: landing.factoryName || '-',
+    status: mapApiStatusToInvoiceStatus(landing.status),
+    isLocked: landing.locked || false,
+    invoiceDate: landing.entityDate || '',
+    entryDate: landing.entityDate || '',
+    dueDate: landing.dueDate || '',
+    createdAt: landing.createdAt || '',
+    createdBy: typeof landing.createdBy === 'string' ? landing.createdBy : '',
+    updatedAt: landing.createdAt || '',
+    lineItems: [],
+    subtotal: landing.total || 0,
+    freight: 0,
+    total: landing.total || 0,
+    amountPaid: 0,
+    amountCredited: 0,
+    balance: landing.total || 0,
+    totalCommission: landing.commission || 0,
+    splitRates: [],
+    // Pass through new field directly
+    factoryName: landing.factoryName,
+  } as Invoice;
+}
 
 export function useInvoicesListState() {
-  // Invoices data
-  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch invoices from API with infinite scroll
+  const {
+    data: invoicesData,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInvoicesInfinite();
+
+  // Search invoices
+  const { data: searchResults, isLoading: isSearching } = useInvoiceSearch(searchQuery, searchQuery.length >= 2);
+
+  // Flatten paginated data
+  const allInvoicesData = useMemo(() => {
+    if (!invoicesData?.pages) return [];
+    return invoicesData.pages.flatMap(page => page.records);
+  }, [invoicesData]);
+
+  // Get total count
+  const totalCount = useMemo(() => {
+    if (!invoicesData?.pages || invoicesData.pages.length === 0) return 0;
+    return invoicesData.pages[0].total;
+  }, [invoicesData]);
+
+  // Transform API data to UI format, using search results when searching
+  const invoices: Invoice[] = useMemo(() => {
+    // If searching and we have results, transform search results
+    if (searchQuery.length >= 2 && searchResults) {
+      return searchResults.map((result: any): Invoice => ({
+        id: result.id,
+        invoiceNumber: result.invoiceNumber || '',
+        orderId: result.orderId || '',
+        orderNumber: '',
+        customerId: '',
+        customerName: '',
+        manufacturerId: '',
+        manufacturerName: '',
+        status: mapApiStatusToInvoiceStatus(result.status),
+        isLocked: result.locked || false,
+        invoiceDate: result.entityDate || '',
+        entryDate: result.entityDate || '',
+        dueDate: result.dueDate || '',
+        createdAt: result.createdAt || '',
+        createdBy: '',
+        updatedAt: result.createdAt || '',
+        lineItems: [],
+        subtotal: 0,
+        freight: 0,
+        total: 0,
+        amountPaid: 0,
+        amountCredited: 0,
+        balance: 0,
+        totalCommission: 0,
+        splitRates: [],
+      }));
+    }
+
+    if (!allInvoicesData.length) return [];
+    return allInvoicesData.map(transformLandingPageToInvoice);
+  }, [allInvoicesData, searchQuery, searchResults]);
+
+  // Scroll handler for infinite scroll
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    const { scrollTop, scrollHeight, clientHeight } = target;
+    // Load more when within 200px of bottom
+    if (scrollHeight - scrollTop - clientHeight < 200) {
+      if (hasNextPage && !isFetchingNextPage && !searchQuery) {
+        fetchNextPage();
+      }
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, searchQuery]);
+
+  // Local invoices state for optimistic updates (bulk actions, etc.)
+  const [localInvoices, setLocalInvoices] = useState<Invoice[]>([]);
+
+  // Setter that updates local invoices
+  const setInvoices = (updater: Invoice[] | ((prev: Invoice[]) => Invoice[])) => {
+    if (typeof updater === 'function') {
+      setLocalInvoices(prev => updater(prev.length > 0 ? prev : invoices));
+    } else {
+      setLocalInvoices(updater);
+    }
+  };
 
   // Selected invoice for detail panel
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -31,13 +181,39 @@ export function useInvoicesListState() {
   // Integrate filter hook
   const filterState = useInvoiceFilters(invoices);
 
-  // Integrate selection hook
-  const selectionState = useInvoiceSelection();
+  // Integrate shared bulk selection hook
+  // Note: Not using isItemEligible - individual row checkboxes handle disabled state
+  const bulkSelection = useBulkSelection({
+    items: invoices,
+    totalCount,
+    fetchAllIds: fetchAllInvoiceIds,
+  });
+
+  // Bulk delete modal state
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // Handle successful bulk delete
+  const handleBulkDeleteSuccess = useCallback(() => {
+    bulkSelection.clearSelection();
+    setShowBulkDeleteModal(false);
+    refetch();
+  }, [bulkSelection, refetch]);
+
+  // Compatibility layer for existing selection API
+  const selectedInvoiceIds = bulkSelection.selectedIds;
+  const toggleInvoiceSelection = useCallback((invoiceId: string) => {
+    bulkSelection.handleSelectOne(invoiceId, !bulkSelection.isItemSelected(invoiceId));
+  }, [bulkSelection]);
+  const selectAllInvoices = useCallback(() => {
+    bulkSelection.handleSelectAll(true);
+  }, [bulkSelection]);
+  const clearSelection = bulkSelection.clearSelection;
+  const areAllEligibleSelected = bulkSelection.isAllSelected;
 
   // Integrate bulk actions hook
   const bulkActionsState = useInvoiceBulkActions({
-    selectedInvoiceIds: selectionState.selectedInvoiceIds,
-    clearSelection: selectionState.clearSelection,
+    selectedInvoiceIds: bulkSelection.selectedIds,
+    clearSelection: bulkSelection.clearSelection,
     setInvoices,
   });
 
@@ -121,16 +297,39 @@ export function useInvoicesListState() {
     0
   );
 
+  // Handle create invoice
+  const handleCreateInvoice = (newInvoice: Invoice) => {
+    setInvoices([newInvoice, ...invoices]);
+    setShowCreateModal(false);
+    // Refetch to get fresh data from API
+    refetch();
+  };
+
   return {
     // Invoices data
     invoices,
     setInvoices,
+    // Loading and error state
+    isLoading,
+    isSearching,
+    error,
+    refetch,
+    // Pagination
+    totalCount,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    handleScroll,
+    // Search
+    searchQuery,
+    setSearchQuery,
     // Selected invoice
     selectedInvoice,
     setSelectedInvoice,
     // Create modal
     showCreateModal,
     setShowCreateModal,
+    handleCreateInvoice,
     // Payment modal
     showPaymentModal,
     setShowPaymentModal,
@@ -149,10 +348,26 @@ export function useInvoicesListState() {
     splitPercentageTotal,
     // Filter state and actions
     ...filterState,
-    // Selection state and actions
-    ...selectionState,
+    // Selection state and actions (using shared bulk selection)
+    selectedInvoiceIds,
+    toggleInvoiceSelection,
+    selectAllInvoices,
+    clearSelection,
+    areAllEligibleSelected,
+    // New bulk selection values for proper "select all" functionality
+    isItemSelected: bulkSelection.isItemSelected,
+    isAllSelected: bulkSelection.isAllSelected,
+    isPartiallySelected: bulkSelection.isPartiallySelected,
+    handleSelectAll: bulkSelection.handleSelectAll,
+    handleSelectOne: bulkSelection.handleSelectOne,
+    selectAllMode: bulkSelection.selectAllMode,
+    selectedCount: bulkSelection.selectedCount,
+    getAllSelectedIds: bulkSelection.getAllSelectedIds,
+    // Bulk delete modal
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleBulkDeleteSuccess,
     // Bulk actions state and actions
     ...bulkActionsState,
   };
 }
-

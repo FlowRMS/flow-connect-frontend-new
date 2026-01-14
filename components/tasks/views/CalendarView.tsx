@@ -10,9 +10,10 @@ import { generateCalendarDays, getTasksForDate, isToday, getPriorityBorderColor,
 interface CalendarViewProps {
   tasks: Task[];
   onToggleComplete: (id: string) => void;
+  onSelectTask?: (task: Task) => void;
 }
 
-export default function CalendarView({ tasks, onToggleComplete }: CalendarViewProps) {
+export default function CalendarView({ tasks, onToggleComplete, onSelectTask }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const currentMonth = currentDate.getMonth();
@@ -101,12 +102,18 @@ export default function CalendarView({ tasks, onToggleComplete }: CalendarViewPr
                       className={`text-xs p-1.5 bg-white border-l-2 ${getPriorityBorderColor(task.priority)} rounded cursor-pointer hover:shadow-sm transition-shadow ${
                         task.status === 'Completed' ? 'opacity-50 line-through' : ''
                       }`}
-                      onClick={() => onToggleComplete(task.id)}
+                      onClick={() => onSelectTask ? onSelectTask(task) : onToggleComplete(task.id)}
                       title={task.title}
                     >
                       <div className="font-medium text-[var(--foreground)] truncate">{task.title}</div>
                       <div className="flex items-center gap-1">
-                        <span className="text-[var(--muted-foreground)] truncate">{task.assignedTo}</span>
+                        <span className="text-[var(--muted-foreground)] truncate">
+                          {task.assigneeNames && task.assigneeNames.length > 0
+                            ? (task.assigneeNames.length === 1
+                                ? task.assigneeNames[0].trim() || 'Unknown'
+                                : `${task.assigneeNames.length} assignees`)
+                            : task.assignedTo}
+                        </span>
                         {/* Reminder indicator - show when task is positioned by reminder */}
                         {task.reminderDate && (() => {
                           const status = getReminderStatus(task.reminderDate);

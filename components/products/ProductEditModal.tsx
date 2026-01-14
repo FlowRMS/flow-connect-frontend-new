@@ -332,7 +332,7 @@ export default function ProductEditModal({
 
               {/* Row 2 */}
               <div>
-                <label className={labelClass}>Unit Price</label>
+                <label className={labelClass}>Unit Price*</label>
                 <input
                   type="number"
                   step="0.01"
@@ -522,8 +522,8 @@ export default function ProductEditModal({
                         <input
                           type="number"
                           step="0.1"
-                          value={item.commissionRate != null ? (item.commissionRate * 100).toFixed(1) : ''}
-                          onChange={(e) => updateCustomerPartNumber(index, 'commissionRate', e.target.value ? parseFloat(e.target.value) / 100 : 0)}
+                          value={item.commissionRate != null ? item.commissionRate : ''}
+                          onChange={(e) => updateCustomerPartNumber(index, 'commissionRate', e.target.value ? parseFloat(e.target.value) : 0)}
                           className={`${inputClass} pr-8`}
                           placeholder="0"
                         />

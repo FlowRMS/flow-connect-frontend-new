@@ -39,7 +39,7 @@ export function OutsideRepSplitsModal({
   // Search for outside reps using API
   const { data: repResults, isLoading: isRepLoading } = useUserSearch(
     searchTerm,
-    { isOutside: true },
+    { isInside: false, isOutside: true },
     searchEnabled
   );
 
@@ -59,7 +59,7 @@ export function OutsideRepSplitsModal({
   useEffect(() => {
     if (isOpen) {
       const initialSplits: CommissionSplitRep[] = splits.map((s, idx) => ({
-        id: crypto.randomUUID(),
+        id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
         repId: s.repId,
         repName: s.repName,
         percentage: s.percentage,
@@ -77,7 +77,7 @@ export function OutsideRepSplitsModal({
   // Add rep to split
   const addRepToSplit = useCallback((rep: { id: string; label: string }) => {
     const newRep: CommissionSplitRep = {
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       repId: rep.id,
       repName: rep.label,
       percentage: 0,

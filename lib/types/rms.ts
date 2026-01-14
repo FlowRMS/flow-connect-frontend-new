@@ -139,13 +139,15 @@ export interface ProductActivity {
 // Order Types
 // -----------------------------------------------------------------------------
 
+// API Order Status values (uppercase for API compatibility)
 export type OrderStatus =
-  | 'draft'
-  | 'open'
-  | 'partial_shipped'
-  | 'shipped'
-  | 'cancelled'
-  | 'dormant';
+  | 'OPEN'
+  | 'PARTIAL_SHIPPED'
+  | 'SHIPPED_COMPLETE'
+  | 'CANCELLED'
+  | 'OVER_SHIPPED'
+  | 'PARTIAL_CANCELLED'
+  | 'OVER_CANCELLED';
 
 export type FulfillmentStatus =
   | 'not_started'
@@ -220,8 +222,8 @@ export interface OrderLineItem {
   partNumber?: string; // Optional for order-level credits
   custPartNumber?: string;
   description: string;
-  uom?: string;  // Unit of measure (EA, BOX, etc.)
-  uomId?: string;  // UOM ID for API
+  uom?: string | null;  // Unit of measure (EA, BOX, etc.)
+  uomId?: string | null;  // UOM ID for API
   divisor?: number;  // Pricing divisor
   quantity: number;
   unitPrice: number;
@@ -254,6 +256,15 @@ export interface OrderLineItem {
   // Optional overrides
   splitRateOverride?: OrderSplitRate[];
   notes?: string;
+  // Per-line-item rep split rates
+  outsideSplitRates?: { id?: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
+  insideSplitRates?: { id?: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
+  // Per-line-item end user
+  endUserId?: string;
+  endUserName?: string;
+  // Per-line-item manufacturer
+  manufacturerId?: string;
+  manufacturerName?: string;
 }
 
 export interface OrderSplitRate {
@@ -387,7 +398,7 @@ export interface CreditReason {
 // Commission Check Types
 // -----------------------------------------------------------------------------
 
-export type CheckStatus = 'draft' | 'posted' | 'void';
+export type CheckStatus = 'OPEN' | 'POSTED' | 'VOID';
 
 export interface CommissionCheck {
   id: string;
@@ -575,21 +586,23 @@ export interface CommissionFilters {
 // -----------------------------------------------------------------------------
 
 export const orderStatusLabels: Record<OrderStatus, string> = {
-  draft: 'Draft',
-  open: 'Open',
-  partial_shipped: 'Partial Shipped',
-  shipped: 'Shipped',
-  cancelled: 'Cancelled',
-  dormant: 'Dormant',
+  OPEN: 'Open',
+  PARTIAL_SHIPPED: 'Partial Shipped',
+  SHIPPED_COMPLETE: 'Shipped Complete',
+  CANCELLED: 'Cancelled',
+  OVER_SHIPPED: 'Over Shipped',
+  PARTIAL_CANCELLED: 'Partial Cancelled',
+  OVER_CANCELLED: 'Over Cancelled',
 };
 
 export const orderStatusColors: Record<OrderStatus, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  open: 'bg-blue-100 text-blue-700',
-  partial_shipped: 'bg-yellow-100 text-yellow-700',
-  shipped: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
-  dormant: 'bg-purple-100 text-purple-700',
+  OPEN: 'bg-blue-100 text-blue-700',
+  PARTIAL_SHIPPED: 'bg-yellow-100 text-yellow-700',
+  SHIPPED_COMPLETE: 'bg-green-100 text-green-700',
+  CANCELLED: 'bg-red-100 text-red-700',
+  OVER_SHIPPED: 'bg-orange-100 text-orange-700',
+  PARTIAL_CANCELLED: 'bg-red-100 text-red-600',
+  OVER_CANCELLED: 'bg-red-100 text-red-800',
 };
 
 export const fulfillmentStatusLabels: Record<FulfillmentStatus, string> = {
@@ -659,15 +672,15 @@ export const creditStatusColors: Record<CreditStatus, string> = {
 };
 
 export const checkStatusLabels: Record<CheckStatus, string> = {
-  draft: 'Draft',
-  posted: 'Posted',
-  void: 'Void',
+  OPEN: 'Open',
+  POSTED: 'Posted',
+  VOID: 'Void',
 };
 
 export const checkStatusColors: Record<CheckStatus, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  posted: 'bg-green-100 text-green-700',
-  void: 'bg-red-100 text-red-700',
+  OPEN: 'bg-yellow-100 text-yellow-700',
+  POSTED: 'bg-green-100 text-green-700',
+  VOID: 'bg-red-100 text-red-700',
 };
 
 // -----------------------------------------------------------------------------

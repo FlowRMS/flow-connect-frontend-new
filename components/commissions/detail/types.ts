@@ -8,6 +8,7 @@ import type { CommissionCheck } from '@/lib/types/rms';
 // Tab types
 export type TabType =
   | 'line-items'
+  | 'files'
   | 'deductions'
   | 'notes'
   | 'tasks'
@@ -52,22 +53,48 @@ export interface Adjustment {
   allocationMethod: AllocationMethod;
   allocationTarget: string; // Customer name for 'customer' method
   repSplits: RepSplit[]; // For 'rep-split' method
+  // ID for API operations
+  adjustmentId?: string;
 }
 
-// Line item interface
+// Line item interface - supports invoice, credit, and adjustment types
 export interface LineItem {
   id: string;
-  type: 'invoice' | 'credit';
-  number: string;
-  orderNumber: string;
+  type: 'invoice' | 'credit' | 'adjustment';
+  number: string; // Invoice number, credit number, or adjustment number
+  orderId: string; // Order UUID from API (empty for adjustments)
+  orderNumber?: string; // Human-readable order number from nested order object
   customer: string;
-  salesRep: string;
+  salesRep: string; // Primary sales rep name
+  salesRepsCount?: number; // Total number of sales reps
+  salesRepsList?: string[]; // List of all sales rep names for tooltip
   commissionRateExpected: number;
   commissionRateActual: number;
   expectedCommission: number;
   paidCommission: number;
   balance: number;
   paid: boolean;
+  // IDs for API operations
+  invoiceId?: string;
+  creditId?: string;
+  adjustmentId?: string;
+  // Additional data from API
+  entityDate?: string;
+  dueDate?: string;
+  status?: string;
+  createdAt?: string;
+  url?: string;
+  // For credits
+  creditType?: string;
+  reason?: string;
+  // For adjustments
+  amount?: number;
+  factoryId?: string;
+  factoryName?: string; // From adjustment.factory.title
+  customerName?: string; // From adjustment.customer.companyName
+  locked?: boolean;
+  // For tracking new/unsaved items from "Invoices after" search
+  isNew?: boolean; // True for items added via "Invoices after" that haven't been saved yet
 }
 
 // Version info
@@ -82,6 +109,9 @@ export interface TabConfig {
   id: TabType;
   label: string;
   count?: number;
+  disabled?: boolean;
+  disabledReason?: string;
+  comingSoon?: boolean;
 }
 
 // Saved view configuration

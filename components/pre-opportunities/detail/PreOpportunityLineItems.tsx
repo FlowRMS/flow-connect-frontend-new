@@ -15,7 +15,7 @@ interface EditableLineItem {
   id: string;
   itemNumber: number;
   productId: string;
-  productCpnId?: string;
+  factoryId?: string;
   factoryPartNumber: string;
   description?: string;
   quantity: number;
@@ -90,7 +90,7 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
         id: d.id,
         itemNumber: d.itemNumber,
         productId: d.productId,
-        productCpnId: d.productCpnId,
+        factoryId: d.factoryId,
         factoryPartNumber: d.product.factoryPartNumber,
         description: d.product.description,
         quantity: d.quantity,
@@ -125,7 +125,7 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
         id: item.isNew ? undefined : item.id,
         itemNumber: item.itemNumber,
         productId: item.productId,
-        productCpnId: item.productCpnId,
+        factoryId: item.factoryId || '',
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         discountRate: item.discountRate,
@@ -296,7 +296,9 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
                       className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0 text-sm"
                     >
                       <div className="font-medium text-gray-900">{product.factoryPartNumber}</div>
-                      <div className="text-xs text-gray-500">Factory: {product.factory.title}</div>
+                      {product.description && (
+                        <div className="text-xs text-gray-500 truncate">{product.description}</div>
+                      )}
                     </button>
                   ))}
                 </div>

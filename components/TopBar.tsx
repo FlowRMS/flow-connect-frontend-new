@@ -1,21 +1,67 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { MobileSidebarContext } from './Sidebar';
-import AIUploaderModal from './ai-uploader/AIUploaderModal';
 import UniversalSearch from './UniversalSearch';
 import { useUser } from './providers/user-provider';
 import { useOrgName } from './hooks/useOrgName';
+import { useOrganization } from './hooks/useOrganization';
 import { handleSignOut } from '@/lib/actions';
+import UserGuideModal from './UserGuideModal';
+import { getAvatarColors, getInitials } from '@/lib/utils/avatar';
+
+// Key used by useWelcomeAnimation hook
+const WELCOME_SHOWN_KEY = 'flowcrm_welcome_animation_shown';
+
+// Map route paths to document types for AI Uploader pre-selection
+const getDocumentTypeFromPath = (pathname: string): string | null => {
+  if (pathname.startsWith('/orders')) return 'orders';
+  if (pathname.startsWith('/quotes')) return 'quotes';
+  if (pathname.startsWith('/invoices')) return 'invoices';
+  if (pathname.startsWith('/checks') || pathname.startsWith('/commissions')) return 'checks';
+  if (pathname.startsWith('/products')) return 'products';
+  if (pathname.startsWith('/customers')) return 'customers';
+  if (pathname.startsWith('/manufacturers') || pathname.startsWith('/factories')) return 'factories';
+  return null;
+};
 
 export default function TopBar() {
   const user = useUser();
+  const pathname = usePathname();
   const { orgName, isLoading: orgLoading } = useOrgName();
+  const { logoUrl } = useOrganization();
   const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
-  const [isUploaderOpen, setIsUploaderOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showUserGuide, setShowUserGuide] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close account menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setShowAccountMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Get user display name and avatar colors
+  const userName = user?.firstName && user?.lastName
+    ? `${user.firstName} ${user.lastName}`
+    : user?.firstName || user?.email?.split('@')[0] || 'User';
+  const avatarColors = getAvatarColors(userName);
+  const initials = getInitials(userName);
+
+  // Get the document type for AI Uploader based on current page
+  const documentType = getDocumentTypeFromPath(pathname);
+  const aiUploaderHref = documentType
+    ? `/flow-ai/upload?type=${documentType}`
+    : '/flow-ai/upload';
 
   return (
     <div className="relative">
@@ -73,27 +119,37 @@ export default function TopBar() {
         {!orgLoading && orgName && (
           <div className="hidden md:flex items-center ml-4">
             <div className="group relative cursor-default flex items-center gap-3">
-              
-              {/* Premium icon with gentle pulse */}
+
+              {/* Organization Logo or Premium icon with gentle pulse */}
               <div className="relative flex-shrink-0">
-                <div 
-                  className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-blue-500/25"
-                  style={{ animation: 'gentlePulse 3s ease-in-out infinite' }}
-                >
-                  <svg 
-                    width="18" 
-                    height="18" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    className="text-white"
+                {logoUrl ? (
+                  <div className="w-9 h-9 rounded-xl overflow-hidden bg-white flex items-center justify-center shadow-md">
+                    <img
+                      src={logoUrl}
+                      alt={`${orgName} logo`}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-blue-500/25"
+                    style={{ animation: 'gentlePulse 3s ease-in-out infinite' }}
                   >
-                    <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" opacity="0.95"/>
-                    <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="text-white"
+                    >
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" opacity="0.95"/>
+                      <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                )}
                 {/* Soft ambient glow */}
-                <div 
+                <div
                   className="absolute inset-0 rounded-xl bg-blue-400/20 blur-lg -z-10"
                   style={{ animation: 'gentleGlow 3s ease-in-out infinite' }}
                 ></div>
@@ -174,11 +230,25 @@ export default function TopBar() {
         <UniversalSearch />
       </div>
 
-      {/* Right: AI Uploader, DISC Analytics, Back to FlowRMS & Notifications */}
+      {/* Right: User Guide, AI Uploader, DISC Analytics, Back to FlowRMS & Notifications */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* AI Uploader Button */}
+        {/* User Guide Button */}
         <button
-          onClick={() => setIsUploaderOpen(true)}
+          onClick={() => setShowUserGuide(true)}
+          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-lg hover:from-indigo-600 hover:to-blue-700 transition-all shadow-sm"
+          title="User Guide"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M12 17h.01" strokeLinecap="round"/>
+          </svg>
+          <span className="hidden sm:inline">Guide</span>
+        </button>
+
+        {/* AI Uploader Button */}
+        <Link
+          href={aiUploaderHref}
           className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg hover:from-violet-600 hover:to-purple-700 transition-all shadow-sm"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
@@ -186,10 +256,10 @@ export default function TopBar() {
           </svg>
           <span className="hidden sm:inline">AI Uploader</span>
           <span className="sm:hidden">AI</span>
-        </button>
+        </Link>
 
-        {/* DISC Analytics Button */}
-        <Link
+        {/* DISC Analytics Button - HIDDEN */}
+        {/* <Link
           href="/disc-analytics"
           className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
         >
@@ -200,30 +270,128 @@ export default function TopBar() {
           </svg>
           <span className="hidden sm:inline">DISC Analytics</span>
           <span className="sm:hidden">DISC</span>
-        </Link>
+        </Link> */}
         
-        {/* User info and Sign Out */}
-        {user && (
-          <span className="hidden sm:inline text-xs text-[var(--muted-foreground)]">
-            {user.email}
-          </span>
-        )}
-        <form action={handleSignOut}>
-          <button
-            type="submit"
-            className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-[var(--destructive)] border border-[var(--destructive)] rounded-lg hover:bg-[var(--destructive)] hover:text-white transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span className="hidden sm:inline">Sign Out</span>
-          </button>
-        </form>
+        {/* Notifications */}
         <button className="p-1.5 sm:p-2 hover:bg-[var(--muted)] rounded-lg transition-colors relative">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-5 sm:h-5">
             <path d="M10 5a3 3 0 013 3v3l1.5 3h-9L7 11V8a3 3 0 013-3zM8.5 16a1.5 1.5 0 003 0" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
+
+        {/* Account Avatar Dropdown */}
+        <div className="relative" ref={accountMenuRef}>
+          <button
+            onClick={() => setShowAccountMenu(!showAccountMenu)}
+            className="flex items-center gap-2 p-1 rounded-full hover:bg-[var(--muted)] transition-colors"
+            aria-label="Account menu"
+          >
+            {user?.profilePictureUrl ? (
+              <img
+                src={user.profilePictureUrl}
+                alt={userName}
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover ring-2 ring-[var(--border)] hover:ring-[var(--primary)] transition-all"
+              />
+            ) : (
+              <div
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center text-sm font-semibold ring-2 ring-[var(--border)] hover:ring-[var(--primary)] transition-all`}
+              >
+                {initials}
+              </div>
+            )}
+          </button>
+
+          {/* Dropdown Menu */}
+          {showAccountMenu && (
+            <div className="absolute right-0 top-full mt-2 w-72 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-lg overflow-hidden z-50">
+              {/* User Info Section */}
+              <div className="p-4 border-b border-[var(--border)] bg-gradient-to-br from-[var(--muted)]/50 to-transparent">
+                <div className="flex items-center gap-3">
+                  {user?.profilePictureUrl ? (
+                    <img
+                      src={user.profilePictureUrl}
+                      alt={userName}
+                      className="w-12 h-12 rounded-full object-cover ring-2 ring-[var(--border)]"
+                    />
+                  ) : (
+                    <div
+                      className={`w-12 h-12 rounded-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center text-lg font-semibold ring-2 ring-[var(--border)]`}
+                    >
+                      {initials}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[var(--foreground)] truncate">
+                      {userName}
+                    </p>
+                    {user?.email && (
+                      <p className="text-xs text-[var(--muted-foreground)] truncate">
+                        {user.email}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tenant/Organization Section */}
+              {!orgLoading && orgName && (
+                <div className="px-4 py-3 border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    {logoUrl ? (
+                      <div className="w-6 h-6 rounded-md overflow-hidden bg-white flex items-center justify-center">
+                        <img
+                          src={logoUrl}
+                          alt={`${orgName} logo`}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="text-white">
+                          <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor"/>
+                          <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs text-[var(--muted-foreground)]">Organization</p>
+                      <p className="text-sm font-medium text-[var(--foreground)]">{orgName}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Menu Items */}
+              <div className="py-2">
+                <Link
+                  href="/settings"
+                  onClick={() => setShowAccountMenu(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span>Settings</span>
+                </Link>
+
+                <button
+                  onClick={() => {
+                    setShowAccountMenu(false);
+                    sessionStorage.removeItem(WELCOME_SHOWN_KEY);
+                    handleSignOut();
+                  }}
+                  className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-[var(--destructive)] hover:bg-[var(--destructive)]/10 transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       </div>
 
@@ -248,11 +416,8 @@ export default function TopBar() {
         </button>
       )}
 
-      {/* AI Uploader Modal */}
-      <AIUploaderModal
-        isOpen={isUploaderOpen}
-        onClose={() => setIsUploaderOpen(false)}
-      />
+      {/* User Guide Modal */}
+      <UserGuideModal isOpen={showUserGuide} onClose={() => setShowUserGuide(false)} />
     </div>
   );
 }

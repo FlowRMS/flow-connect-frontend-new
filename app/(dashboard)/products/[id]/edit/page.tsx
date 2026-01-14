@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import {
   useProduct,
   useUpdateProduct,
@@ -68,6 +69,17 @@ export default function ProductEditPage() {
   const { data: product, isLoading: isLoadingProduct, error: productError } = useProduct(productId);
   const updateProductMutation = useUpdateProduct();
   const { data: uoms = [] } = useProductUoms();
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and product part number)
+  useEffect(() => {
+    if (product?.factoryPartNumber && productId) {
+      setFullEntityContext('product', productId, product.factoryPartNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [product?.factoryPartNumber, productId, setFullEntityContext]);
 
   // CPN Hooks
   const { data: cpns = [], isLoading: isLoadingCpns, refetch: refetchCpns } = useProductCpns(productId);
@@ -100,7 +112,7 @@ export default function ProductEditPage() {
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const categoryInputRef = useRef<HTMLInputElement>(null);
-  const { data: allCategories = [], isLoading: isLoadingCategories } = useProductCategories();
+  const { data: allCategories = [], isLoading: isLoadingCategories } = useProductCategories(formData.selectedFactoryId);
 
   // Filter categories based on search term (client-side filtering)
   const categoryResults = categorySearchTerm
@@ -165,6 +177,9 @@ export default function ProductEditPage() {
     'category-details': null,
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Flag to disable scroll spy during programmatic scrolling
+  const isScrollingRef = useRef(false);
 
   // ============================================================================
   // Effects
@@ -234,14 +249,18 @@ export default function ProductEditPage() {
     const tabIds: TabId[] = ['overview', 'customer-part-numbers', 'quantity-pricing', 'factory-details', 'uom-details', 'category-details'];
 
     const handleScroll = () => {
-      const scrollTop = container.scrollTop;
+      // Skip scroll spy updates during programmatic scrolling
+      if (isScrollingRef.current) return;
+
+      const containerRect = container.getBoundingClientRect();
       let currentSection: TabId = 'overview';
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
         if (section) {
-          const sectionTop = section.offsetTop;
-          if (scrollTop >= sectionTop - 100) {
+          const sectionRect = section.getBoundingClientRect();
+          // Check if section top is at or above the container top + offset
+          if (sectionRect.top <= containerRect.top + 100) {
             currentSection = tabId;
           }
         }
@@ -250,9 +269,8 @@ export default function ProductEditPage() {
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [isLoadingProduct]);
+  }, []);
 
   // ============================================================================
   // Handlers
@@ -262,11 +280,26 @@ export default function ProductEditPage() {
     const section = sectionRefs.current[tabId];
     const container = scrollContainerRef.current;
     if (section && container) {
+      // Disable scroll spy during programmatic scroll
+      isScrollingRef.current = true;
+      setActiveTab(tabId);
+
+      // Calculate the section's position relative to the scroll container
+      const containerRect = container.getBoundingClientRect();
+      const sectionRect = section.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
       const headerOffset = 20;
-      const sectionTop = section.offsetTop - headerOffset;
+
+      // Calculate the target scroll position
+      const sectionTop = sectionRect.top - containerRect.top + scrollTop - headerOffset;
+
       container.scrollTo({ top: sectionTop, behavior: 'smooth' });
+
+      // Re-enable scroll spy after scroll animation completes
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 500);
     }
-    setActiveTab(tabId);
   }, []);
 
   const handleFieldChange = <K extends keyof FormData>(field: K, value: FormData[K]) => {
@@ -645,13 +678,15 @@ export default function ProductEditPage() {
             </button>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">
+                {formData.factoryPartNumber || 'Untitled Product'}
+              </h1>
+              <p className="text-sm text-gray-500">
                 {formData.description
                   ? formData.description.length > 50
                     ? `${formData.description.slice(0, 50)}...`
                     : formData.description
-                  : 'Untitled Product'}
-              </h1>
-              <p className="text-sm text-gray-500">{formData.factoryPartNumber}</p>
+                  : ''}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -927,8 +962,8 @@ export default function ProductEditPage() {
                   <input
                     type="number"
                     step="0.1"
-                    value={formData.defaultCommissionRate ? (formData.defaultCommissionRate * 100).toFixed(1) : ''}
-                    onChange={(e) => handleFieldChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) / 100 : 0)}
+                    value={formData.defaultCommissionRate ? formData.defaultCommissionRate : ''}
+                    onChange={(e) => handleFieldChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) : 0)}
                     className={`${inputClass} pr-8`}
                     placeholder="0"
                   />
@@ -998,17 +1033,20 @@ export default function ProductEditPage() {
                     value={isCategoryDropdownOpen ? categorySearchTerm : (formData.category?.title || '')}
                     onChange={(e) => setCategorySearchTerm(e.target.value)}
                     onFocus={() => {
-                      setIsCategoryDropdownOpen(true);
-                      setCategorySearchTerm('');
+                      if (formData.selectedFactoryId) {
+                        setIsCategoryDropdownOpen(true);
+                        setCategorySearchTerm('');
+                      }
                     }}
-                    className={inputClass}
-                    placeholder="Search categories..."
+                    disabled={!formData.selectedFactoryId}
+                    className={`${inputClass} ${!formData.selectedFactoryId ? 'bg-gray-50 cursor-not-allowed opacity-60' : ''}`}
+                    placeholder={formData.selectedFactoryId ? "Search categories..." : "Select factory first"}
                   />
                   <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
 
-                  {isCategoryDropdownOpen && (
+                  {isCategoryDropdownOpen && formData.selectedFactoryId && (
                     <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                       {isLoadingCategories ? (
                         <div className="px-3 py-2 text-sm text-gray-500 flex items-center gap-2">
@@ -1315,7 +1353,7 @@ export default function ProductEditPage() {
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
-                            {formatPercent(cpn.commissionRate / 100)}
+                            {`${Number(cpn.commissionRate || 0).toFixed(1)}%`}
                           </span>
                         </div>
                       </div>

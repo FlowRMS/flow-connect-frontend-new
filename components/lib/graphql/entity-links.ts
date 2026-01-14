@@ -11,12 +11,9 @@ import type {
   EntityLink,
   CreateLinkInput,
   DeleteLinkByEntitiesInput,
-  JobRelatedEntities,
-  ContactRelatedEntities,
   NoteLink,
-  Company,
-  Contact,
-  PreOpportunity,
+  RelatedEntities,
+  RelatedEntitiesSourceType,
 } from './types';
 
 // Re-export types
@@ -25,10 +22,44 @@ export type {
   EntityLink,
   CreateLinkInput,
   DeleteLinkByEntitiesInput,
-  JobRelatedEntities,
-  ContactRelatedEntities,
   NoteLink,
-};
+  RelatedEntities,
+  RelatedEntitiesSourceType,
+} from './types';
+
+// Re-export related entity types for consumers
+export type {
+  RelatedEntityCheck,
+  RelatedEntityCompany,
+  RelatedEntityContact,
+  RelatedEntityCustomer,
+  RelatedEntityFactory,
+  RelatedEntityInvoice,
+  RelatedEntityJob,
+  RelatedEntityNote,
+  RelatedEntityOrder,
+  RelatedEntityPreOpportunity,
+  RelatedEntityProduct,
+  RelatedEntityQuote,
+  RelatedEntityTask,
+} from './types';
+
+// Re-export extended job related entity types
+export type {
+  JobRelatedQuote,
+  JobRelatedOrder,
+  JobRelatedInvoice,
+  JobRelatedCheck,
+  JobRelatedCustomer,
+  JobRelatedFactory,
+  JobRelatedProduct,
+  BalanceLite,
+  CustomerLite,
+  FactoryLite,
+  UserLite,
+  OrderQuoteDetail,
+  CheckDetail,
+} from './types';
 
 // Re-export search functions and types from central search API
 export {
@@ -40,10 +71,6 @@ export {
   searchChecks,
   type TaskSearchResult,
   type NoteSearchResult,
-  type QuoteSearchResult,
-  type OrderSearchResult,
-  type InvoiceSearchResult,
-  type CheckSearchResult,
 } from '../api/search';
 
 // ============================================================================
@@ -95,145 +122,6 @@ const DELETE_LINK_BY_ENTITIES = `
   }
 `;
 
-const GET_JOB_RELATED_ENTITIES = `
-  query GetJobRelatedEntities($jobId: UUID!) {
-    jobRelatedEntities(jobId: $jobId) {
-      checks {
-        checkNumber
-        commission
-        commissionMonth
-        createdBy
-        creationType
-        entityDate
-        entryDate
-        factoryId
-        id
-        postDate
-        status
-        userOwnerIds
-      }
-      companies {
-        companySourceType
-        createdAt
-        createdBy {
-          email
-          firstName
-          fullName
-          id
-          lastName
-        }
-        id
-        name
-        parentCompanyId
-        phone
-        tags
-        website
-      }
-      contacts {
-        territory
-        tags
-        role
-        phone
-        notes
-        lastName
-        id
-        firstName
-        email
-        createdAt
-      }
-      invoices {
-        balanceId
-        createdBy
-        creationType
-        dueDate
-        entityDate
-        factoryId
-        entryDate
-        id
-        invoiceNumber
-        locked
-        orderId
-        published
-        status
-        userOwnerIds
-      }
-      orders {
-        balanceId
-        billToCustomerId
-        dueDate
-        entityDate
-        entryDate
-        factSoNumber
-        factoryId
-        id
-        jobName
-        orderNumber
-        shipDate
-        soldToCustomerId
-        status
-        userOwnerIds
-      }
-      preOpportunities {
-        acceptDate
-        billToCustomerAddressId
-        billToCustomerId
-        createdAt
-        createdById
-        customerRef
-        entityDate
-        entityNumber
-        expDate
-        freightTerms
-        id
-        jobId
-        paymentTerms
-        reviseDate
-        soldToCustomerAddressId
-        soldToCustomerId
-        status
-        tags
-      }
-      quotes {
-        billToCustomerId
-        createdBy
-        blanket
-        entityDate
-        entryDate
-        expDate
-        id
-        jobName
-        quoteNumber
-        soldToCustomerId
-        userOwnerIds
-      }
-    }
-  }
-`;
-
-const GET_CONTACT_RELATED_ENTITIES = `
-  query GetContactRelatedEntities($contactId: UUID!) {
-    contactRelatedEntities(contactId: $contactId) {
-      companies {
-        companySourceType
-        createdAt
-        createdBy {
-          email
-          firstName
-          fullName
-          id
-          lastName
-        }
-        id
-        name
-        parentCompanyId
-        phone
-        tags
-        website
-      }
-    }
-  }
-`;
-
 const GET_LINKS_BY_SOURCE = `
   query GetLinksBySource($sourceEntityType: EntityType!, $sourceEntityId: UUID!) {
     linksBySource(sourceEntityType: $sourceEntityType, sourceEntityId: $sourceEntityId) {
@@ -256,6 +144,7 @@ const GET_NOTES_BY_ENTITY = `
       content
       mentions
       tags
+      isPublic
       createdBy {
         email
         firstName
@@ -264,6 +153,255 @@ const GET_NOTES_BY_ENTITY = `
         lastName
       }
       createdAt
+    }
+  }
+`;
+
+// ============================================================================
+// Generic Related Entities Query (Centralized for all entity types)
+// ============================================================================
+
+const GET_RELATED_ENTITIES = `
+  query GetRelatedEntities($entityId: UUID!, $sourceType: LandingSourceType!) {
+    relatedEntities(entityId: $entityId, sourceType: $sourceType) {
+      sourceType
+      sourceEntityId
+      checks {
+        checkNumber
+        commissionMonth
+        createdById
+        createdAt
+        creationType
+        enteredCommissionAmount
+        factoryId
+        entityDate
+        id
+        postDate
+        status
+        url
+      }
+      companies {
+        companySourceType
+        createdAt
+        id
+        name
+        parentCompanyId
+        phone
+        tags
+        website
+      }
+      contacts {
+        createdAt
+        email
+        firstName
+        id
+        lastName
+        notes
+        phone
+        role
+        tags
+        territory
+      }
+      customers {
+        companyName
+        id
+        isParent
+        parentId
+        published
+      }
+      factories {
+        accountNumber
+        additionalInformation
+        baseCommissionRate
+        commissionDiscountRate
+        email
+        externalPaymentTerms
+        freightDiscountType
+        freightTerms
+        id
+        leadTime
+        logoId
+        overallDiscountRate
+        paymentTerms
+        phone
+        published
+        title
+      }
+      invoices {
+        balanceId
+        createdAt
+        createdById
+        creationType
+        dueDate
+        entityDate
+        invoiceNumber
+        id
+        locked
+        orderId
+        published
+        status
+        url
+      }
+      jobs {
+        additionalInformation
+        createdAt
+        endDate
+        description
+        id
+        jobName
+        jobType
+        requesterId
+        startDate
+        structuralDetails
+        tags
+        structuralInformation
+      }
+      notes {
+        content
+        createdAt
+        createdBy {
+          authProviderId
+          email
+          enabled
+          firstName
+          fullName
+          id
+          inside
+          lastName
+          outside
+          role
+          username
+        }
+        id
+        isPublic
+        mentions
+        tags
+        title
+      }
+      orders {
+        balanceId
+        billToCustomerId
+        createdAt
+        createdById
+        creationType
+        dueDate
+        endUserPerLineItem
+        factSoNumber
+        entityDate
+        url
+        status
+        soldToCustomerId
+        shippingTerms
+        quoteId
+        shipDate
+        published
+        projectedShipDate
+        outsidePerLineItem
+        orderType
+        orderNumber
+        markNumber
+        insidePerLineItem
+        id
+        headerStatus
+        freightTerms
+        factoryId
+      }
+      preOpportunities {
+        acceptDate
+        billToCustomerAddressId
+        billToCustomerId
+        createdAt
+        createdById
+        customerRef
+        entityDate
+        entityNumber
+        expDate
+        freightTerms
+        id
+        jobId
+        paymentTerms
+        reviseDate
+        soldToCustomerAddressId
+        soldToCustomerId
+        tags
+        status
+      }
+      products {
+        approvalComments
+        approvalDate
+        approvalNeeded
+        commissionDiscountRate
+        defaultCommissionRate
+        defaultDivisor
+        description
+        factoryPartNumber
+        id
+        leadTime
+        minOrderQty
+        published
+        tags
+        unitPrice
+        unitPriceDiscountRate
+        upc
+      }
+      quotes {
+        acceptDate
+        balanceId
+        billToCustomerId
+        blanket
+        createdAt
+        createdById
+        creationType
+        customerRef
+        duplicatedFrom
+        endUserPerLineItem
+        entityDate
+        expDate
+        freightTerms
+        id
+        insidePerLineItem
+        outsidePerLineItem
+        paymentTerms
+        pipelineStage
+        published
+        quoteNumber
+        reviseDate
+        soldToCustomerId
+        status
+        url
+        versionOf
+      }
+      tasks {
+        assignees {
+          id
+          firstName
+          lastName
+          fullName
+          email
+        }
+        createdAt
+        createdBy {
+          authProviderId
+          email
+          enabled
+          firstName
+          fullName
+          inside
+          id
+          lastName
+          outside
+          role
+          username
+        }
+        description
+        dueDate
+        id
+        priority
+        reminderDate
+        status
+        tags
+        title
+      }
     }
   }
 `;
@@ -325,56 +463,6 @@ export async function deleteLinkByEntities(input: DeleteLinkByEntitiesInput): Pr
   return response.data?.deleteLinkByEntities || false;
 }
 
-export async function fetchJobRelatedEntities(jobId: string): Promise<JobRelatedEntities> {
-  const response = await crmGraphQLRequest<{ jobRelatedEntities: JobRelatedEntities }>({
-    query: GET_JOB_RELATED_ENTITIES,
-    variables: { jobId },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to fetch job related entities');
-  }
-
-  const data = response.data?.jobRelatedEntities || {
-    companies: [],
-    contacts: [],
-    preOpportunities: [],
-    quotes: [],
-    orders: [],
-    invoices: [],
-    checks: [],
-  };
-
-  return {
-    companies: mapFormattedCreatedBy(data.companies) as Company[],
-    contacts: mapFormattedCreatedBy(data.contacts) as Contact[],
-    preOpportunities: mapFormattedCreatedBy(data.preOpportunities) as PreOpportunity[],
-    quotes: data.quotes || [],
-    orders: data.orders || [],
-    invoices: data.invoices || [],
-    checks: data.checks || [],
-  };
-}
-
-export async function fetchContactRelatedEntities(contactId: string): Promise<ContactRelatedEntities> {
-  const response = await crmGraphQLRequest<{ contactRelatedEntities: ContactRelatedEntities }>({
-    query: GET_CONTACT_RELATED_ENTITIES,
-    variables: { contactId },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to fetch contact related entities');
-  }
-
-  const data = response.data?.contactRelatedEntities || {
-    companies: [],
-  };
-
-  return {
-    companies: mapFormattedCreatedBy(data.companies) as Company[],
-  };
-}
-
 export async function fetchLinksBySource(sourceEntityType: CRMEntityType, sourceEntityId: string): Promise<NoteLink[]> {
   const response = await crmGraphQLRequest<{ linksBySource: NoteLink[] }>({
     query: GET_LINKS_BY_SOURCE,
@@ -397,6 +485,7 @@ interface Note {
   content: string;
   mentions: string;
   tags: string;
+  isPublic: boolean;
   createdBy: string;
   createdAt: string;
 }
@@ -412,4 +501,53 @@ export async function fetchNotesByEntity(entityId: string, entityType: CRMEntity
   }
 
   return mapFormattedCreatedBy(response.data?.notesByEntity);
+}
+
+// ============================================================================
+// Centralized Related Entities API
+// This is the main function for fetching related entities from any entity type.
+// Use this instead of entity-specific functions like fetchJobRelatedEntities.
+// ============================================================================
+
+/**
+ * Fetches all related entities for a given entity.
+ * This is a centralized endpoint that works with any entity type.
+ *
+ * @param entityId - The UUID of the source entity
+ * @param sourceType - The type of the source entity (e.g., 'JOBS', 'CONTACTS', etc.)
+ * @returns RelatedEntities containing all related data
+ */
+export async function fetchRelatedEntities(
+  entityId: string,
+  sourceType: RelatedEntitiesSourceType
+): Promise<RelatedEntities> {
+  const response = await crmGraphQLRequest<{ relatedEntities: RelatedEntities }>({
+    query: GET_RELATED_ENTITIES,
+    variables: { entityId, sourceType },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch related entities');
+  }
+
+  const data = response.data?.relatedEntities;
+
+  // Return with defaults for all arrays
+  return {
+    sourceType: data?.sourceType || sourceType,
+    sourceEntityId: data?.sourceEntityId || entityId,
+    checks: data?.checks || [],
+    companies: data?.companies || [],
+    contacts: data?.contacts || [],
+    customers: data?.customers || [],
+    factories: data?.factories || [],
+    invoices: data?.invoices || [],
+    jobs: data?.jobs || [],
+    notes: data?.notes || [],
+    orders: data?.orders || [],
+    preOpportunities: data?.preOpportunities || [],
+    products: data?.products || [],
+    quotes: data?.quotes || [],
+    tasks: data?.tasks || [],
+  };
 }

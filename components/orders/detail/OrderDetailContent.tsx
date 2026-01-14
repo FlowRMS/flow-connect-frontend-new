@@ -6,17 +6,18 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOrderDetailState } from './hooks/useOrderDetailState';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { OrderDetailHeader } from './components/header';
 import { LineItemsTable } from './components/line-items';
-import { NotesTab, TasksTab, ActivityTab, CreditsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab } from './components/tabs';
+import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab } from './components/tabs';
+import { FilesTab } from '@/components/shared/FilesTab';
 import {
   SetOverageModal,
   SetEndUserModal,
   SetOutsideRepSplitsModal,
-  LineCreditModal,
   LineAcknowledgementModal,
   SectionsModal,
   ColumnsModal,
@@ -26,7 +27,21 @@ import {
   WarehouseConversionModal,
   FulfillmentRequestModal,
   AdditionalDetailsModal,
+  CreditModal,
+  CreditDetailModal,
+  AdjustmentModal,
+  AdjustmentDetailModal,
+  AcknowledgementModal,
+  AcknowledgementDetailModal,
+  DeleteConfirmModal,
+  CreateInvoiceFromOrderModal,
 } from './components/modals';
+import { DuplicateOrderModal } from '../list/components/modals/DuplicateOrderModal';
+import { useDuplicateOrder } from '../api/useOrdersApi';
+import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
+import { useCreditsState } from './hooks/useCreditsState';
+import { useAdjustmentsState } from './hooks/useAdjustmentsState';
+import { useAcknowledgementsState } from './hooks/useAcknowledgementsState';
 import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipStatus } from './utils';
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
 import { orderToasts } from '@/components/lib/toast';
@@ -38,6 +53,124 @@ interface OrderDetailContentProps {
 export default function OrderDetailContent({ orderId }: OrderDetailContentProps) {
   const router = useRouter();
   const state = useOrderDetailState({ orderId });
+  const { setFullEntityContext } = useFlowChat();
+
+  // Credits state management
+  const creditsState = useCreditsState({ orderId: orderId !== 'new' ? orderId : null });
+
+  // Adjustments state management
+  const adjustmentsState = useAdjustmentsState();
+
+  // Acknowledgements state management
+  const acknowledgementsState = useAcknowledgementsState({
+    orderId: orderId !== 'new' ? orderId : null,
+  });
+
+  // Create Invoice from Order modal state
+  const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
+
+  // Duplicate Order modal state
+  const [showDuplicateOrderModal, setShowDuplicateOrderModal] = useState(false);
+  const duplicateOrderMutation = useDuplicateOrder();
+
+  // Current reps with names (for passing to line items when adding new ones)
+  const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
+  const [currentInsideReps, setCurrentInsideReps] = useState<RepSplitRate[]>([]);
+
+  // Auto-populate reps hook for settings toggle
+  const { fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory } = useAutoPopulateReps();
+
+  // Set full entity context for global chatbot (type, id, and order number)
+  useEffect(() => {
+    if (state?.order?.orderNumber && orderId) {
+      setFullEntityContext('order', orderId, state.order.orderNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state?.order?.orderNumber, orderId, setFullEntityContext]);
+
+  // Wrapped handlers for settings changes with rep redistribution
+  const handleSetShowOutsideRepPerLine = async (value: boolean) => {
+    state.setShowOutsideRepPerLine(value);
+
+    if (value) {
+      // Switching to per-line-item mode: ALWAYS fetch from END USER to get proper names
+      const endUserId = (order as any)?.endUserId;
+      if (endUserId) {
+        try {
+          const reps = await fetchOutsideRepsFromCustomer(endUserId);
+          if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentOutsideReps(reps);
+            const outsideSplitRates = reps.map((rep, idx) => ({
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            if (order?.lineItems && order.lineItems.length > 0) {
+              const updatedLineItems = order.lineItems.map(item => ({
+                ...item,
+                outsideSplitRates,
+              }));
+              state.updateLocalOrder({ lineItems: updatedLineItems });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch outside reps:', error);
+        }
+      }
+    } else if (order?.lineItems) {
+      // Switching to header mode: clear line item reps
+      const updatedLineItems = order.lineItems.map(item => ({
+        ...item,
+        outsideSplitRates: [],
+      }));
+      state.updateLocalOrder({ lineItems: updatedLineItems });
+    }
+  };
+
+  const handleSetShowInsideRepPerLine = async (value: boolean) => {
+    state.setShowInsideRepPerLine(value);
+
+    if (value) {
+      // Switching to per-line-item mode: ALWAYS fetch from factory to get proper names
+      if (order?.manufacturerId) {
+        try {
+          const reps = await fetchInsideRepsFromFactory(order.manufacturerId);
+          if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentInsideReps(reps);
+            const insideSplitRates = reps.map((rep, idx) => ({
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            if (order.lineItems && order.lineItems.length > 0) {
+              const updatedLineItems = order.lineItems.map(item => ({
+                ...item,
+                insideSplitRates,
+              }));
+              state.updateLocalOrder({ lineItems: updatedLineItems });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch inside reps:', error);
+        }
+      }
+    } else if (order?.lineItems) {
+      // Switching to header mode: clear line item reps
+      const updatedLineItems = order.lineItems.map(item => ({
+        ...item,
+        insideSplitRates: [],
+      }));
+      state.updateLocalOrder({ lineItems: updatedLineItems });
+    }
+  };
 
   // Loading state
   if (state?.isLoading) {
@@ -120,49 +253,107 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       // Helper to check if ID is a valid UUID (from API)
       const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+      // Validate required dates
+      if (!order.dueDate) {
+        console.error('❌ VALIDATION FAILED: Due Date is missing');
+        orderToasts.updateError('Due Date is required.');
+        return;
+      }
+
+      // Validate End User based on settings (REQUIRED field)
+      const orderEndUserId = (order as any).endUserId;
+
+      console.log('🔍 END USER VALIDATION CHECK:', {
+        showEndUserPerLine: state.showEndUserPerLine,
+        orderEndUserId: orderEndUserId,
+        lineItemsCount: order.lineItems?.length,
+        lineItems: order.lineItems?.map(item => ({
+          id: item.id,
+          lineNumber: item.lineNumber,
+          partNumber: item.partNumber,
+          endUserId: (item as any).endUserId,
+        }))
+      });
+
+      if (!state.showEndUserPerLine) {
+        // When toggle is OFF, header End User is REQUIRED
+        if (!orderEndUserId || orderEndUserId.trim() === '' || !isValidUUID(orderEndUserId)) {
+          console.error('❌ VALIDATION FAILED: Header End User is missing or invalid');
+          orderToasts.updateError('End User is required at the header level. Please select an End User.');
+          return;
+        }
+      } else {
+        // When toggle is ON, EACH line item MUST have End User
+        if (!order.lineItems || order.lineItems.length === 0) {
+          console.error('❌ VALIDATION FAILED: No line items');
+          orderToasts.updateError('Please add at least one line item.');
+          return;
+        }
+
+        const lineItemsWithoutEndUser = order.lineItems.filter(item => {
+          const lineEndUserId = (item as any).endUserId;
+          return !lineEndUserId || lineEndUserId.trim() === '' || !isValidUUID(lineEndUserId);
+        });
+
+        console.log('🔍 Line items without end user:', lineItemsWithoutEndUser.length, lineItemsWithoutEndUser.map(item => ({
+          id: item.id,
+          lineNumber: item.lineNumber,
+          partNumber: item.partNumber,
+        })));
+
+        if (lineItemsWithoutEndUser.length > 0) {
+          console.error('❌ VALIDATION FAILED: Line items missing End User');
+          orderToasts.updateError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
+          return;
+        }
+      }
+
+      console.log('✅ END USER VALIDATION PASSED');
+
       // Build inside reps array from insideRepSplits (supports multiple reps with split commission)
       // If split commission is enabled, use all reps from insideRepSplits; otherwise use primary insideRepId
-      let insideSplitRates: { userId: string; splitRate: string; position: number }[] | undefined;
+      let insideSplitRates: { userId: string; splitRate: number; position: number }[] | undefined;
       if (state.splitInsideCommission && state.insideRepSplits.length > 0) {
         // Use all inside reps from split modal
         insideSplitRates = state.insideRepSplits.map((rep, idx) => ({
           userId: rep.repId,
-          splitRate: String(rep.percentage),
+          splitRate: Number(rep.percentage),
           position: idx,
         }));
       } else if (state.orderInsideRep || order.insideRepId) {
         // Single inside rep
         insideSplitRates = [{
           userId: state.orderInsideRep || order.insideRepId || '',
-          splitRate: '100',
+          splitRate: 100,
           position: 0,
         }];
       }
 
       // Build outside reps array from outsideRepSplits (supports multiple reps with split commission)
       // If split commission is enabled, use all reps from outsideRepSplits; otherwise use primary outsideRepId
-      let outsideSplitRates: { userId: string; splitRate: string; position: number }[] | undefined;
+      let outsideSplitRates: { userId: string; splitRate: number; position: number }[] | undefined;
       if (state.splitOutsideCommission && state.outsideRepSplits.length > 0) {
         // Use all outside reps from split modal
         outsideSplitRates = state.outsideRepSplits.map((rep, idx) => ({
           userId: rep.repId,
-          splitRate: String(rep.percentage),
+          splitRate: Number(rep.percentage),
           position: idx,
         }));
       } else if (state.orderOutsideRep || (order as any).outsideRepId) {
         // Single outside rep
         outsideSplitRates = [{
           userId: state.orderOutsideRep || (order as any).outsideRepId || '',
-          splitRate: '100',
+          splitRate: 100,
           position: 0,
         }];
       }
 
-      // Get order-level endUserId (used when not in per-line mode)
-      const orderEndUserId = (order as any).endUserId;
-
       // Build details with insideSplitRates and outsideSplitRates at detail level
       const buildDetails = (includeId: boolean) => (order.lineItems || []).map((item, index) => {
+        // CRITICAL: Check if this is a new line item (no valid UUID)
+        // If the line item is new, its split rates should NOT have IDs either
+        const isNewLineItem = !item.id || !isValidUUID(item.id);
+
         // Determine which split rates to use based on per-line-item settings:
         // - If per-line-item is enabled, use the line item's own split rates
         // - If disabled, use header-level split rates for all line items
@@ -171,20 +362,22 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
         if (state.showInsideRepPerLine && (item as any).insideSplitRates?.length > 0) {
           // Use line item's own inside split rates
+          // Only include split rate ID if the parent line item is NOT new (existing in DB)
           lineInsideSplitRates = (item as any).insideSplitRates.map((sr: any, idx: number) => ({
-            ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
+            ...(!isNewLineItem && sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
             userId: sr.userId || '',
-            splitRate: sr.splitRate || '100',
+            splitRate: Number(sr.splitRate) || 100,
             position: sr.position ?? idx,
           }));
         }
 
         if (state.showOutsideRepPerLine && (item as any).outsideSplitRates?.length > 0) {
           // Use line item's own outside split rates
+          // Only include split rate ID if the parent line item is NOT new (existing in DB)
           lineOutsideSplitRates = (item as any).outsideSplitRates.map((sr: any, idx: number) => ({
-            ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
+            ...(!isNewLineItem && sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
             userId: sr.userId || '',
-            splitRate: sr.splitRate || '100',
+            splitRate: Number(sr.splitRate) || 100,
             position: sr.position ?? idx,
           }));
         }
@@ -196,8 +389,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           productId: item.productId || undefined,
           productNameAdhoc: item.partNumber || undefined,
           productDescriptionAdhoc: item.description || undefined,
-          commissionRate: String((item.commissionRate || 0) * 100), // Convert decimal to percent for API
+          commissionRate: String(item.commissionRate || 0), // Already stored as whole percentage (e.g., 8 for 8%)
           divisionFactor: item.divisor ? String(item.divisor) : undefined,
+          uomId: item.uomId || undefined, // Send uomId, null becomes undefined
           // Include inside and outside rep splitRates on each line item
           insideSplitRates: lineInsideSplitRates,
           outsideSplitRates: lineOutsideSplitRates,
@@ -207,11 +401,19 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           leadTime: (item as any).leadTime || undefined,
           note: (item as any).note || undefined,
         };
-        // Get endUserId: use line-item level if set, otherwise fall back to order-level
-        const lineEndUserId = (item as any).endUserId;
-        const endUserIdToUse = (lineEndUserId && isValidUUID(lineEndUserId))
-          ? lineEndUserId
-          : (orderEndUserId && isValidUUID(orderEndUserId) ? orderEndUserId : undefined);
+        // Get endUserId: RESPECT the showEndUserPerLine setting!
+        // - When showEndUserPerLine is TRUE: use line-item's endUserId
+        // - When showEndUserPerLine is FALSE: ALWAYS use header-level endUserId for ALL line items
+        let endUserIdToUse: string | undefined;
+
+        if (state.showEndUserPerLine) {
+          // Per-line-item is ON: use line item's end user
+          const lineEndUserId = (item as any).endUserId;
+          endUserIdToUse = (lineEndUserId && isValidUUID(lineEndUserId)) ? lineEndUserId : undefined;
+        } else {
+          // Per-line-item is OFF: ALWAYS use header-level end user, ignoring any line-item end users
+          endUserIdToUse = (orderEndUserId && isValidUUID(orderEndUserId)) ? orderEndUserId : undefined;
+        }
 
         if (endUserIdToUse) {
           detail.endUserId = endUserIdToUse;
@@ -253,7 +455,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         const result = await state.createOrderMutation.mutateAsync(createInput);
         console.log('Order created:', result);
         orderToasts.createSuccess(result.orderNumber || createInput.orderNumber);
-        router.push('/orders');
+        // Navigate to the newly created order detail page instead of landing page
+        router.push(`/orders/${result.id}`);
       } else {
         // Update existing order - split rates are now at detail level
         if (state.updateOrderMutation) {
@@ -336,11 +539,11 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   };
 
   const handleAddCredit = () => {
-    state.openCreditModal();
+    creditsState.openCreateCreditModal();
   };
 
   const handleAddAcknowledgement = () => {
-    state.openAcknowledgementModal();
+    acknowledgementsState.openCreateAcknowledgementModal();
   };
 
   const handleDeleteLines = () => {
@@ -356,8 +559,58 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     alert(state.hasFreightLine ? 'Freight line would be removed' : 'Freight line would be added');
   };
 
+  // Handler to auto-populate outside reps for all line items
+  const handleAutoPopulateOutsideRepsToLineItems = (reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentOutsideReps(reps);
+
+    if (!order.lineItems || order.lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    const outsideSplitRates = reps.map((rep, idx) => ({
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same outside reps
+    const updatedLineItems = order.lineItems.map(item => ({
+      ...item,
+      outsideSplitRates,
+    }));
+
+    state.updateLocalOrder({ lineItems: updatedLineItems });
+  };
+
+  // Handler to auto-populate inside reps for all line items
+  const handleAutoPopulateInsideRepsToLineItems = (reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentInsideReps(reps);
+
+    if (!order.lineItems || order.lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    const insideSplitRates = reps.map((rep, idx) => ({
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same inside reps
+    const updatedLineItems = order.lineItems.map(item => ({
+      ...item,
+      insideSplitRates,
+    }));
+
+    state.updateLocalOrder({ lineItems: updatedLineItems });
+  };
+
   return (
-    <main className="flex flex-col h-screen bg-[var(--background)]">
+    <main className="h-full overflow-auto bg-[var(--background)]">
       {/* Header */}
       <OrderDetailHeader
         order={order}
@@ -387,6 +640,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         openInsideRepModal={state.openInsideRepModal}
         onUpdateOrder={state.updateLocalOrder}
         isCreateMode={isCreateMode}
+        hasChanges={state.hasChanges}
+        isSaving={state.createOrderMutation?.isPending || state.updateOrderMutation?.isPending}
         showEndUserPerLine={state.showEndUserPerLine}
         showOutsideRepPerLine={state.showOutsideRepPerLine}
         showInsideRepPerLine={state.showInsideRepPerLine}
@@ -404,40 +659,60 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         setActiveView={state.setActiveView}
         updateOrderStatus={state.updateOrderStatus}
         setShowQuoteLookupModal={state.setShowQuoteLookupModal}
+        onCreateInvoice={() => setShowCreateInvoiceModal(true)}
+        onDuplicateOrder={() => setShowDuplicateOrderModal(true)}
+        onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
+        onAutoPopulateInsideRepsToLineItems={handleAutoPopulateInsideRepsToLineItems}
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex-1 flex flex-col p-6 overflow-hidden">
+      <div className="p-6">
         {/* Tab Navigation */}
-        <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white pt-4 px-4 -mx-6 -mt-6">
+        <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] bg-white pt-4 px-4 -mx-6 -mt-6">
           <div className="flex gap-1">
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
-              { id: 'credits', label: 'Credits' },
-              { id: 'acknowledgements', label: 'Acknowledgements' },
-              { id: 'notes', label: 'Notes' },
-              { id: 'tasks', label: 'Tasks' },
-              { id: 'activity', label: 'Activity' },
-              { id: 'linked-objects', label: 'Linked Objects' },
+              { id: 'files', label: 'Files', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'credits', label: 'Credits', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'adjustments', label: 'Adjustments', hidden: true }, // Hidden - adjustments now has its own page in sidebar
+              { id: 'acknowledgements', label: 'Acknowledgements', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'notes', label: 'Notes', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'tasks', label: 'Tasks', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'activity', label: 'Activity', comingSoon: true, disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'linked-objects', label: 'Linked Objects', disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'settings', label: 'Settings' },
-            ].map(tab => (
+            ].filter(tab => !tab.hidden).map(tab => (
               <button
                 key={tab.id}
-                onClick={() => state.setActiveTab(tab.id as any)}
+                onClick={() => !tab.disabled && !tab.comingSoon && state.setActiveTab(tab.id as any)}
+                disabled={tab.disabled || tab.comingSoon}
+                title={tab.disabled ? tab.disabledReason : tab.comingSoon ? 'Coming soon' : undefined}
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  state.activeTab === tab.id
+                  tab.disabled || tab.comingSoon
+                    ? 'border-transparent text-gray-300 cursor-not-allowed'
+                    : state.activeTab === tab.id
                     ? 'border-[var(--primary)] text-[var(--primary)]'
                     : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
                 }`}
               >
                 {tab.label}
+                {tab.comingSoon && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">
+                    SOON
+                  </span>
+                )}
                 {tab.count !== undefined && tab.count > 0 && (
-                  <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+                  <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${tab.disabled ? 'bg-gray-50 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                     {tab.count}
                   </span>
                 )}
               </button>
             ))}
+            {isCreateMode && (
+              <span className="ml-auto text-xs text-[var(--muted-foreground)] italic pr-2">
+                Some tabs will unlock after saving
+              </span>
+            )}
           </div>
 
           {/* View Controls - only show when Line Items tab is active */}
@@ -446,64 +721,29 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               {/* Views Dropdown */}
               <div className="relative">
                 <button
-                  onClick={() => state.setShowViewsMenu(!state.showViewsMenu)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg transition-colors opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="3" width="14" height="14" rx="2"/>
                     <path d="M3 8h14M8 8v9"/>
                   </svg>
-                  {state.savedViews.find(v => v.id === state.activeView)?.name || 'Custom'}
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                  Default
+                  <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
                 </button>
-                {state.showViewsMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => state.setShowViewsMenu(false)} />
-                    <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
-                      <div className="p-2 border-b border-[var(--border)]">
-                        <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase px-2">Saved Views</p>
-                      </div>
-                      {state.savedViews.map(view => (
-                        <button
-                          key={view.id}
-                          onClick={() => {
-                            state.setVisibleColumns(new Set(view.columns));
-                            state.setActiveView(view.id);
-                            state.setShowViewsMenu(false);
-                          }}
-                          className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center justify-between ${
-                            state.activeView === view.id ? 'text-[var(--primary)] font-medium' : ''
-                          }`}
-                        >
-                          {view.name}
-                          {state.activeView === view.id && (
-                            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
               </div>
 
               {/* Sections Button */}
               <button
-                onClick={() => state.setShowSectionsModal(true)}
-                className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
-                  state.showSections
-                    ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                    : 'border-[var(--border)] hover:bg-[var(--muted)]'
-                }`}
+                disabled
+                className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg transition-colors opacity-50 cursor-not-allowed"
               >
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="3" width="14" height="4" rx="1"/>
                   <rect x="3" y="10" width="14" height="7" rx="1"/>
                 </svg>
                 Sections
+                <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
               </button>
 
               {/* Columns Button */}
@@ -522,7 +762,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-auto">
+        <div className="pb-32">
           {state.activeTab === 'line-items' && (
             <LineItemsTable
               order={order}
@@ -553,24 +793,68 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onDeleteLines={handleDeleteLines}
               onUpdateLineItems={state.updateLineItems}
               showEndUserPerLine={state.showEndUserPerLine}
+              showOutsideRepPerLine={state.showOutsideRepPerLine}
+              showInsideRepPerLine={state.showInsideRepPerLine}
               onOpenAdditionalDetails={state.openAdditionalDetails}
+              currentOutsideReps={currentOutsideReps}
+              currentInsideReps={currentInsideReps}
             />
           )}
 
-          {state.activeTab === 'notes' && <NotesTab />}
-          {state.activeTab === 'tasks' && <TasksTab />}
+          {state.activeTab === 'files' && (
+            <div className="flex-1 overflow-auto">
+              <FilesTab
+                entityId={orderId}
+                entityType="ORDER"
+              />
+            </div>
+          )}
+
+          {state.activeTab === 'notes' && <NotesTab orderId={orderId} />}
+          {state.activeTab === 'tasks' && <TasksTab orderId={orderId} />}
           {state.activeTab === 'activity' && <ActivityTab />}
-          {state.activeTab === 'credits' && <CreditsTab onAddCredit={state.openCreditModal} />}
-          {state.activeTab === 'acknowledgements' && <AcknowledgementsTab onAddAcknowledgement={state.openAcknowledgementModal} />}
-          {state.activeTab === 'linked-objects' && <LinkedObjectsTab />}
+          {state.activeTab === 'credits' && (
+            <CreditsTab
+              credits={creditsState.credits}
+              isLoading={creditsState.isLoadingCredits}
+              error={creditsState.creditsError}
+              onAddCredit={creditsState.openCreateCreditModal}
+              onViewCredit={creditsState.viewCredit}
+              onEditCredit={creditsState.openEditCreditModal}
+              onDeleteCredit={creditsState.handleDeleteCredit}
+            />
+          )}
+          {state.activeTab === 'adjustments' && (
+            <AdjustmentsTab
+              adjustments={adjustmentsState.adjustments}
+              isLoading={adjustmentsState.isLoadingAdjustments}
+              error={adjustmentsState.adjustmentsError}
+              onAddAdjustment={adjustmentsState.openCreateAdjustmentModal}
+              onViewAdjustment={adjustmentsState.viewAdjustment}
+              onEditAdjustment={adjustmentsState.openEditAdjustmentModal}
+              onDeleteAdjustment={adjustmentsState.handleDeleteAdjustment}
+            />
+          )}
+          {state.activeTab === 'acknowledgements' && (
+            <AcknowledgementsTab
+              acknowledgements={acknowledgementsState.acknowledgements}
+              isLoading={acknowledgementsState.isLoadingAcknowledgements}
+              error={acknowledgementsState.acknowledgementsError}
+              onAddAcknowledgement={acknowledgementsState.openCreateAcknowledgementModal}
+              onViewAcknowledgement={acknowledgementsState.viewAcknowledgement}
+              onEditAcknowledgement={acknowledgementsState.openEditAcknowledgementModal}
+              onDeleteAcknowledgement={acknowledgementsState.handleDeleteAcknowledgement}
+            />
+          )}
+          {state.activeTab === 'linked-objects' && <LinkedObjectsTab orderId={orderId} />}
           {state.activeTab === 'settings' && (
             <SettingsTab
               showEndUserPerLine={state.showEndUserPerLine}
               setShowEndUserPerLine={state.setShowEndUserPerLine}
               showOutsideRepPerLine={state.showOutsideRepPerLine}
-              setShowOutsideRepPerLine={state.setShowOutsideRepPerLine}
+              setShowOutsideRepPerLine={handleSetShowOutsideRepPerLine}
               showInsideRepPerLine={state.showInsideRepPerLine}
-              setShowInsideRepPerLine={state.setShowInsideRepPerLine}
+              setShowInsideRepPerLine={handleSetShowInsideRepPerLine}
               customerPartNumberSource={state.customerPartNumberSource}
               setCustomerPartNumberSource={state.setCustomerPartNumberSource}
               hasFreightLine={state.hasFreightLine}
@@ -620,17 +904,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onApply={() => {
           alert('Outside rep splits configured for selected items');
           state.closeOutsideRepSplitsModal();
-          clearSelection();
-        }}
-      />
-
-      <LineCreditModal
-        isOpen={state.showLineCreditModal}
-        onClose={state.closeCreditModal}
-        order={order}
-        onSubmit={() => {
-          alert('Credit added successfully');
-          state.closeCreditModal();
           clearSelection();
         }}
       />
@@ -735,6 +1008,139 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         showEndUserPerLine={state.showEndUserPerLine}
         showOutsideRepPerLine={state.showOutsideRepPerLine}
         showInsideRepPerLine={state.showInsideRepPerLine}
+      />
+
+      {/* Credits Modals */}
+      <CreditModal
+        isOpen={creditsState.showCreditModal}
+        onClose={creditsState.closeCreditModal}
+        order={order}
+        credit={creditsState.creditToEdit}
+        onSubmit={creditsState.handleSaveCredit}
+        isLoading={creditsState.isSavingCredit}
+        isLoadingCreditDetails={creditsState.isLoadingCreditDetails}
+      />
+
+      <CreditDetailModal
+        isOpen={creditsState.showCreditDetailModal}
+        onClose={creditsState.closeCreditDetailModal}
+        credit={creditsState.selectedCredit}
+        onEdit={creditsState.editCreditFromDetail}
+        onDelete={creditsState.deleteCreditFromDetail}
+        isDeleting={creditsState.isDeletingCredit}
+      />
+
+      {/* Adjustments Modals */}
+      <AdjustmentModal
+        isOpen={adjustmentsState.showAdjustmentModal}
+        onClose={adjustmentsState.closeAdjustmentModal}
+        order={order}
+        adjustment={adjustmentsState.adjustmentToEdit}
+        onSubmit={adjustmentsState.handleSaveAdjustment}
+        isLoading={adjustmentsState.isSavingAdjustment}
+        isLoadingAdjustmentDetails={adjustmentsState.isLoadingAdjustmentDetails}
+      />
+
+      <AdjustmentDetailModal
+        isOpen={adjustmentsState.showAdjustmentDetailModal}
+        onClose={adjustmentsState.closeAdjustmentDetailModal}
+        adjustment={adjustmentsState.selectedAdjustment}
+        onEdit={adjustmentsState.editAdjustmentFromDetail}
+        onDelete={adjustmentsState.deleteAdjustmentFromDetail}
+        isDeleting={adjustmentsState.isDeletingAdjustment}
+      />
+
+      {/* Acknowledgements Modals */}
+      <AcknowledgementModal
+        isOpen={acknowledgementsState.showAcknowledgementModal}
+        onClose={acknowledgementsState.closeAcknowledgementModal}
+        order={order}
+        acknowledgement={acknowledgementsState.acknowledgementToEdit}
+        onSubmit={acknowledgementsState.handleSaveAcknowledgement}
+        isLoading={acknowledgementsState.isSavingAcknowledgement}
+        isLoadingDetails={acknowledgementsState.isLoadingAcknowledgementDetails}
+      />
+
+      <AcknowledgementDetailModal
+        isOpen={acknowledgementsState.showAcknowledgementDetailModal}
+        onClose={acknowledgementsState.closeAcknowledgementDetailModal}
+        acknowledgement={acknowledgementsState.selectedAcknowledgement}
+        onEdit={acknowledgementsState.editAcknowledgementFromDetail}
+        onDelete={acknowledgementsState.deleteAcknowledgementFromDetail}
+        isDeleting={acknowledgementsState.isDeletingAcknowledgement}
+      />
+
+      {/* Delete Confirmation Modal for Credits */}
+      <DeleteConfirmModal
+        isOpen={creditsState.showDeleteConfirmModal}
+        title="Delete Credit?"
+        message="Are you sure you want to delete credit"
+        itemName={creditsState.creditToDelete?.creditNumber || creditsState.creditToDelete?.id?.substring(0, 8)}
+        isPending={creditsState.isDeletingCredit}
+        onConfirm={creditsState.handleConfirmDelete}
+        onCancel={creditsState.closeDeleteConfirmModal}
+      />
+
+      {/* Delete Confirmation Modal for Adjustments */}
+      <DeleteConfirmModal
+        isOpen={adjustmentsState.showDeleteConfirmModal}
+        title="Delete Adjustment?"
+        message="Are you sure you want to delete adjustment"
+        itemName={adjustmentsState.adjustmentToDelete?.adjustmentNumber || adjustmentsState.adjustmentToDelete?.id?.substring(0, 8)}
+        isPending={adjustmentsState.isDeletingAdjustment}
+        onConfirm={adjustmentsState.handleConfirmDelete}
+        onCancel={adjustmentsState.closeDeleteConfirmModal}
+      />
+
+      {/* Delete Confirmation Modal for Acknowledgements */}
+      <DeleteConfirmModal
+        isOpen={acknowledgementsState.showDeleteConfirmModal}
+        title="Delete Acknowledgement?"
+        message="Are you sure you want to delete acknowledgement"
+        itemName={acknowledgementsState.acknowledgementToDelete?.orderAcknowledgementNumber || acknowledgementsState.acknowledgementToDelete?.id?.substring(0, 8)}
+        isPending={acknowledgementsState.isDeletingAcknowledgement}
+        onConfirm={acknowledgementsState.handleConfirmDelete}
+        onCancel={acknowledgementsState.closeDeleteConfirmModal}
+      />
+
+      {/* Create Invoice from Order Modal */}
+      <CreateInvoiceFromOrderModal
+        isOpen={showCreateInvoiceModal}
+        orderId={order.id}
+        orderNumber={order.orderNumber}
+        factoryId={order.manufacturerId}
+        factoryName={order.manufacturerName}
+        lineItems={order.lineItems || []}
+        initialSelectedItemIds={state.selectedLineItems}
+        onClose={() => setShowCreateInvoiceModal(false)}
+        onSuccess={(invoice) => {
+          orderToasts.invoiceCreatedFromOrder(invoice.invoiceNumber || invoice.id);
+        }}
+      />
+
+      {/* Duplicate Order Modal */}
+      <DuplicateOrderModal
+        isOpen={showDuplicateOrderModal}
+        orderNumber={order.orderNumber}
+        currentCustomerId={order.customerId}
+        currentCustomerName={order.customerName}
+        isPending={duplicateOrderMutation.isPending}
+        onClose={() => setShowDuplicateOrderModal(false)}
+        onDuplicate={async (newOrderNumber, newSoldToCustomerId) => {
+          try {
+            const duplicatedOrder = await duplicateOrderMutation.mutateAsync({
+              orderId: order.id,
+              newOrderNumber,
+              newSoldToCustomerId,
+            });
+            setShowDuplicateOrderModal(false);
+            orderToasts.duplicateSuccess(duplicatedOrder.orderNumber);
+            // Navigate to the new order
+            router.push(`/orders/${duplicatedOrder.id}`);
+          } catch (error) {
+            orderToasts.duplicateError(error instanceof Error ? error.message : 'Failed to duplicate order');
+          }
+        }}
       />
     </main>
   );

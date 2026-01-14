@@ -63,9 +63,15 @@ export interface ContactSearchResult {
   notes: string;
   territory: string;
   tags: string;
-  companyId?: string;
   createdAt: string;
-  createdBy?: string;
+}
+
+export interface TaskSearchResultAssignee {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  email?: string;
 }
 
 export interface TaskSearchResult {
@@ -76,7 +82,7 @@ export interface TaskSearchResult {
   priority: string;
   dueDate: string;
   reminderDate?: string;
-  assignedToId: string;
+  assignees?: TaskSearchResultAssignee[];
   tags?: string;
   createdAt: string;
   createdBy: string;
@@ -175,32 +181,108 @@ export interface InvoiceSearchResult {
   id: string;
   invoiceNumber: string;
   entityDate: string;
-  entryDate: string;
   dueDate: string;
   status: string;
-  factoryId: string;
   orderId: string;
   balanceId: string;
   locked: boolean;
   published: boolean;
   creationType: string;
-  createdBy: string;
-  userOwnerIds: string[];
+  createdAt: string;
+  createdById: string;
+}
+
+export interface OpenInvoiceSearchResult {
+  id: string;
+  invoiceNumber: string;
+  entityDate?: string;
+  dueDate?: string;
+  status?: string;
+  orderId?: string;
+  order?: {
+    id?: string;
+    orderNumber?: string;
+    entityDate?: string;
+    status?: string;
+    headerStatus?: string;
+    factoryId?: string;
+    soldToCustomerId?: string;
+    soldToCustomer?: {
+      id?: string;
+      companyName?: string;
+      isParent?: boolean;
+      parentId?: string;
+      buyingGroupId?: string;
+      published?: boolean;
+    };
+    url?: string;
+    shippingTerms?: string;
+    shipDate?: string;
+    quoteId?: string;
+    published?: boolean;
+    projectedShipDate?: string;
+    outsidePerLineItem?: boolean;
+    orderType?: string;
+    markNumber?: string;
+    insidePerLineItem?: boolean;
+    freightTerms?: string;
+    factSoNumber?: string;
+    endUserPerLineItem?: boolean;
+    creationType?: string;
+    createdById?: string;
+    createdAt?: string;
+    billToCustomerId?: string;
+    balanceId?: string;
+  };
+  salesReps?: Array<{
+    id?: string;
+    fullName?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    username?: string;
+    role?: string;
+    inside?: boolean;
+    outside?: boolean;
+    enabled?: boolean;
+    visible?: boolean;
+    authProviderId?: string;
+  }>;
+  balance?: {
+    id?: string;
+    total?: number;
+    subtotal?: number;
+    quantity?: number;
+    paidBalance?: number;
+    discountRate?: number;
+    discount?: number;
+    commissionDiscount?: number;
+    commission?: number;
+    commissionDiscountRate?: number;
+    commissionRate?: number;
+  };
+  balanceId?: string;
+  locked?: boolean;
+  published?: boolean;
+  creationType?: string;
+  createdAt?: string;
+  createdById?: string;
+  url?: string;
 }
 
 export interface CheckSearchResult {
   id: string;
   checkNumber: string;
+  commissionMonth: string;
+  createdAt: string;
+  createdById: string;
+  creationType: string;
+  enteredCommissionAmount: number;
   entityDate: string;
-  entryDate: string;
+  factoryId: string;
   postDate: string;
   status: string;
-  factoryId: string;
-  commission: number;
-  commissionMonth: string;
-  creationType: string;
-  createdBy: string;
-  userOwnerIds: string[];
+  url: string;
 }
 
 export interface FactorySearchResult {
@@ -215,6 +297,7 @@ export interface CustomerSearchResult {
   companyName: string;
   isParent?: boolean;
   parentId?: string;
+  buyingGroupId?: string;
   insideRepId?: string;
   published?: boolean;
 }
@@ -289,23 +372,15 @@ const CONTACT_SEARCH = `
   query ContactSearch($searchTerm: String!, $limit: Int) {
     contactSearch(searchTerm: $searchTerm, limit: $limit) {
       createdAt
-      createdBy {
-        email
-        firstName
-        fullName
-        id
-        lastName
-      }
       email
-      id
       firstName
+      id
       lastName
       notes
       phone
       role
-      territory
       tags
-      companyId
+      territory
     }
   }
 `;
@@ -313,7 +388,13 @@ const CONTACT_SEARCH = `
 const TASK_SEARCH = `
   query TaskSearch($searchTerm: String!, $limit: Int) {
     taskSearch(searchTerm: $searchTerm, limit: $limit) {
-      assignedToId
+      assignees {
+        id
+        firstName
+        lastName
+        fullName
+        email
+      }
       createdAt
       createdBy {
         email
@@ -452,22 +533,102 @@ const ORDER_SEARCH = `
 `;
 
 const INVOICE_SEARCH = `
-  query InvoiceSearch($searchTerm: String!, $limit: Int) {
-    invoiceSearch(searchTerm: $searchTerm, limit: $limit) {
+  query InvoiceSearch($searchTerm: String!, $limit: Int, $openOnly: Boolean, $unlockedOnly: Boolean) {
+    invoiceSearch(searchTerm: $searchTerm, limit: $limit, openOnly: $openOnly, unlockedOnly: $unlockedOnly) {
       id
       invoiceNumber
       entityDate
-      entryDate
       dueDate
       status
-      factoryId
       orderId
       balanceId
       locked
       published
       creationType
-      createdBy
-      userOwnerIds
+      createdAt
+      createdById
+    }
+  }
+`;
+
+const SEARCH_OPEN_INVOICES = `
+  query SearchOpenInvoices($factoryId: UUID!, $startFrom: Date!) {
+    searchOpenInvoices(factoryId: $factoryId, startFrom: $startFrom) {
+      id
+      invoiceNumber
+      entityDate
+      dueDate
+      status
+      orderId
+      order {
+        id
+        orderNumber
+        entityDate
+        status
+        headerStatus
+        factoryId
+        soldToCustomerId
+        soldToCustomer {
+          id
+          companyName
+          isParent
+          parentId
+          buyingGroupId
+          published
+        }
+        url
+        shippingTerms
+        shipDate
+        quoteId
+        published
+        projectedShipDate
+        outsidePerLineItem
+        orderType
+        markNumber
+        insidePerLineItem
+        freightTerms
+        factSoNumber
+        endUserPerLineItem
+        creationType
+        createdById
+        createdAt
+        billToCustomerId
+        balanceId
+      }
+      salesReps {
+        id
+        fullName
+        firstName
+        lastName
+        email
+        username
+        role
+        inside
+        outside
+        enabled
+        visible
+        authProviderId
+      }
+      balance {
+        id
+        total
+        subtotal
+        quantity
+        paidBalance
+        discountRate
+        discount
+        commissionDiscount
+        commission
+        commissionDiscountRate
+        commissionRate
+      }
+      balanceId
+      locked
+      published
+      creationType
+      createdAt
+      createdById
+      url
     }
   }
 `;
@@ -475,18 +636,18 @@ const INVOICE_SEARCH = `
 const CHECK_SEARCH = `
   query CheckSearch($searchTerm: String!, $limit: Int) {
     checkSearch(searchTerm: $searchTerm, limit: $limit) {
-      id
       checkNumber
+      commissionMonth
+      createdAt
+      createdById
+      creationType
+      enteredCommissionAmount
       entityDate
-      entryDate
+      factoryId
+      id
       postDate
       status
-      factoryId
-      commission
-      commissionMonth
-      creationType
-      createdBy
-      userOwnerIds
+      url
     }
   }
 `;
@@ -509,6 +670,7 @@ const CUSTOMER_SEARCH = `
       companyName
       isParent
       parentId
+      buyingGroupId
       published
     }
   }
@@ -517,6 +679,29 @@ const CUSTOMER_SEARCH = `
 const PRODUCT_SEARCH = `
   query ProductSearch($searchTerm: String!, $limit: Int) {
     productSearch(searchTerm: $searchTerm, limit: $limit) {
+      approvalComments
+      approvalDate
+      approvalNeeded
+      commissionDiscountRate
+      defaultCommissionRate
+      defaultDivisor
+      description
+      factoryPartNumber
+      id
+      leadTime
+      minOrderQty
+      published
+      tags
+      unitPrice
+      unitPriceDiscountRate
+      upc
+    }
+  }
+`;
+
+const PRODUCT_SEARCH_WITH_FACTORY = `
+  query ProductSearchWithFactory($searchTerm: String!, $factoryId: String!, $limit: Int) {
+    productSearch(searchTerm: $searchTerm, factoryId: $factoryId, limit: $limit) {
       approvalComments
       approvalDate
       approvalNeeded
@@ -546,6 +731,24 @@ const USER_SEARCH = `
       enabled: $enabled
       limit: $limit
     ) {
+      id
+      authProviderId
+      email
+      enabled
+      firstName
+      fullName
+      inside
+      lastName
+      outside
+      role
+      username
+    }
+  }
+`;
+
+const GET_USER = `
+  query GetUser($id: UUID!) {
+    user(id: $id) {
       id
       authProviderId
       email
@@ -605,7 +808,7 @@ export async function searchContacts(searchTerm: string, limit?: number): Promis
     throw new Error(response.errors[0]?.message || 'Failed to search contacts');
   }
 
-  return mapFormattedCreatedBy(response.data?.contactSearch);
+  return response.data?.contactSearch || [];
 }
 
 /**
@@ -707,10 +910,24 @@ export async function searchOrders(searchTerm: string, limit?: number): Promise<
 /**
  * Search for invoices
  */
-export async function searchInvoices(searchTerm: string, limit?: number): Promise<InvoiceSearchResult[]> {
+export interface InvoiceSearchOptions {
+  openOnly?: boolean;
+  unlockedOnly?: boolean;
+}
+
+export async function searchInvoices(
+  searchTerm: string,
+  limit?: number,
+  options?: InvoiceSearchOptions
+): Promise<InvoiceSearchResult[]> {
   const response = await crmGraphQLRequest<{ invoiceSearch: InvoiceSearchResult[] }>({
     query: INVOICE_SEARCH,
-    variables: { searchTerm, limit: limit ?? 50 },
+    variables: {
+      searchTerm,
+      limit: limit ?? 50,
+      openOnly: options?.openOnly,
+      unlockedOnly: options?.unlockedOnly,
+    },
   });
 
   if (response.errors) {
@@ -770,15 +987,21 @@ export async function searchCustomers(searchTerm: string, published?: boolean, l
 
 /**
  * Search for products
+ * If factoryId is provided, filters products by that manufacturer
  */
 export async function searchProducts(
   searchTerm: string,
-  _factoryId?: string,
+  factoryId?: string,
   limit?: number
 ): Promise<ProductSearchResult[]> {
+  // Use the factory-filtered query only if factoryId is provided and not empty
+  const useFactoryFilter = factoryId && factoryId.trim() !== '';
+
   const response = await crmGraphQLRequest<{ productSearch: ProductSearchResult[] }>({
-    query: PRODUCT_SEARCH,
-    variables: { searchTerm, limit: limit ?? 50 },
+    query: useFactoryFilter ? PRODUCT_SEARCH_WITH_FACTORY : PRODUCT_SEARCH,
+    variables: useFactoryFilter
+      ? { searchTerm, factoryId, limit: limit ?? 50 }
+      : { searchTerm, limit: limit ?? 50 },
   });
 
   if (response.errors) {
@@ -817,6 +1040,25 @@ export async function searchUsers(params: {
 }
 
 /**
+ * Fetch a single user by ID
+ * Used to resolve user IDs (e.g., assignedToId in tasks) to user details
+ */
+export async function fetchUserById(id: string): Promise<UserSearchResult | null> {
+  const response = await crmGraphQLRequest<{ user: UserSearchResult }>({
+    query: GET_USER,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    // Silently return null if user not found, don't throw
+    console.warn('Failed to fetch user:', response.errors[0]?.message);
+    return null;
+  }
+
+  return response.data?.user || null;
+}
+
+/**
  * Fetch all product UOMs
  */
 export async function fetchProductUoms(): Promise<ProductUomResult[]> {
@@ -829,4 +1071,24 @@ export async function fetchProductUoms(): Promise<ProductUomResult[]> {
   }
 
   return response.data?.productUoms || [];
+}
+
+/**
+ * Search for open invoices by factory and start date
+ * Used for Lines to Reconcile in check/commission creation
+ */
+export async function searchOpenInvoices(
+  factoryId: string,
+  startFrom: string
+): Promise<OpenInvoiceSearchResult[]> {
+  const response = await crmGraphQLRequest<{ searchOpenInvoices: OpenInvoiceSearchResult[] }>({
+    query: SEARCH_OPEN_INVOICES,
+    variables: { factoryId, startFrom },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search open invoices');
+  }
+
+  return response.data?.searchOpenInvoices || [];
 }

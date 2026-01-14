@@ -21,6 +21,8 @@ import {
   type FactoryLandingPageOrderBy,
 } from './factoriesApi';
 
+import { bulkDelete, type BulkDeleteResult } from '@/components/lib/graphql/bulk-operations';
+
 // ============================================================================
 // Query Keys
 // ============================================================================
@@ -187,6 +189,20 @@ export function useDeleteFactory() {
     mutationFn: deleteFactory,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: factoriesQueryKeys.list() });
+    },
+  });
+}
+
+/**
+ * Bulk delete factories
+ */
+export function useBulkDeleteFactories() {
+  const queryClient = useQueryClient();
+
+  return useMutation<BulkDeleteResult, Error, string[]>({
+    mutationFn: (entityIds) => bulkDelete(entityIds, 'FACTORIES'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: factoriesQueryKeys.all });
     },
   });
 }
