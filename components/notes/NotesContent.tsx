@@ -128,11 +128,11 @@ export default function NotesContent() {
   const isReceivingAnimation = floatingIcon?.itemId === 'notes';
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)]">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
       {/* Header */}
-      <div className="p-3 sm:p-6 pb-0">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
-          <div className="flex items-start gap-4">
+      <div className="pb-0 overflow-visible">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4 overflow-visible">
+          <div className="flex items-start gap-4 overflow-visible">
             {/* Morphing Icon Target - Paper Flutter Animation */}
             <HeaderIconAnimation
               isReceivingAnimation={isReceivingAnimation}
@@ -246,7 +246,7 @@ export default function NotesContent() {
         </div>
 
         {/* Search Bar */}
-        <div className="relative">
+        <div className="relative mb-4 sm:mb-6">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8"/>
             <path d="m21 21-4.35-4.35" strokeLinecap="round"/>

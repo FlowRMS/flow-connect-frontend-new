@@ -4,9 +4,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useSidebarConfig } from '@/contexts/SidebarConfigContext';
-import { useNavigationMorph, isMorphableItem, snappyEase } from '@/contexts/NavigationMorphContext';
+import { useNavigationMorph, isMorphableItem } from '@/contexts/NavigationMorphContext';
 
 const SCROLL_STORAGE_KEY = 'sidebar-scroll-position';
 
@@ -511,6 +511,24 @@ export default function Sidebar() {
   // Track which item was just clicked for animation
   const [clickedItemId, setClickedItemId] = useState<string | null>(null);
 
+  // Track visually selected item - updates immediately on click, before page loads
+  const [visuallySelectedId, setVisuallySelectedId] = useState<string | null>(null);
+
+  // Sync visual selection with pathname when page actually loads
+  useEffect(() => {
+    // Find the item that matches the current pathname
+    const allItems = config.groups.flatMap(g => g.items.filter(i => i.enabled));
+    const matchingItem = allItems.find(item => {
+      const isExactMatchOnly = item.href === '/' || item.href === '/flow-ai';
+      return isExactMatchOnly
+        ? pathname === item.href
+        : pathname === item.href || pathname.startsWith(item.href + '/');
+    });
+    if (matchingItem) {
+      setVisuallySelectedId(matchingItem.id);
+    }
+  }, [pathname, config.groups]);
+
   // Restore scroll position on mount
   useEffect(() => {
     const savedScroll = sessionStorage.getItem(SCROLL_STORAGE_KEY);
@@ -535,6 +553,9 @@ export default function Sidebar() {
   ) => {
     // Don't animate if already active
     if (isActive) return;
+
+    // IMMEDIATELY update visual selection - this makes the pill slide instantly
+    setVisuallySelectedId(itemId);
 
     // Trigger click animation
     setClickedItemId(itemId);
@@ -612,6 +633,7 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav ref={navRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-3">
+        <LayoutGroup>
         {config.groups.map((group, groupIndex) => {
           const enabledItems = group.items.filter(item => item.enabled);
           if (enabledItems.length === 0) return null;
@@ -643,10 +665,8 @@ export default function Sidebar() {
               {(isCollapsed || !group.collapsed) && (
                 <div className={!isCollapsed ? 'mt-1' : ''}>
                   {enabledItems.map((item) => {
-                    const isExactMatchOnly = item.href === '/' || item.href === '/flow-ai';
-                    const isActive = isExactMatchOnly
-                      ? pathname === item.href
-                      : pathname === item.href || pathname.startsWith(item.href + '/');
+                    // Use visual selection for the sliding pill - updates instantly on click
+                    const isVisuallyActive = visuallySelectedId === item.id;
 
                     const isMorphable = isMorphableItem(item.id);
                     const isThisAnimating = activeItemId === item.id;
@@ -660,92 +680,94 @@ export default function Sidebar() {
                             registerSidebarItem(item.id, el);
                           }
                         }}
-                        whileHover={!isActive ? {
-                          x: 4,
-                          transition: { duration: 0.2, ease: snappyEase }
-                        } : {}}
-                        whileTap={{
-                          scale: 0.95,
-                          transition: { duration: 0.1 }
-                        }}
-                        animate={isClicked ? {
-                          scale: [1, 0.92, 1.02, 1],
-                          x: [0, 0, 6, 4],
-                        } : {}}
-                        transition={{
-                          duration: 0.4,
-                          ease: snappyEase
-                        }}
+                        whileHover={!isVisuallyActive ? { x: 3 } : {}}
+                        whileTap={{ scale: 0.97 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                       >
                         <Link
                           href={item.href}
-                          onClick={(e) => handleMorphClick(e, item.id, item.href, isActive)}
+                          onClick={(e) => handleMorphClick(e, item.id, item.href, isVisuallyActive)}
                           title={isCollapsed ? item.name : undefined}
                           className={`
                             relative w-full flex items-center overflow-hidden
                             ${isCollapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5'}
-                            rounded-lg text-sm font-medium transition-colors duration-200 mb-1
-                            ${isActive
-                              ? 'bg-[var(--primary)] text-white'
+                            rounded-lg text-sm font-medium mb-1
+                            ${isVisuallyActive
+                              ? 'text-white'
                               : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
                             }
                           `}
                         >
-                          {/* Click ripple effect */}
-                          <ClickRipple isActive={isClicked} />
+                          {/* Sliding active pill background */}
+                          {isVisuallyActive && (
+                            <motion.div
+                              layoutId="sidebar-active-pill"
+                              className="absolute inset-0 bg-[var(--primary)] rounded-lg"
+                              transition={{
+                                type: 'spring',
+                                stiffness: 500,
+                                damping: 35,
+                              }}
+                            />
+                          )}
 
-                          {/* Icon with animation */}
+                          {/* Click highlight */}
+                          <ClickHighlight isActive={isClicked && !isVisuallyActive} />
+
+                          {/* Icon with click and morph animation */}
                           <motion.div
                             className="flex items-center justify-center flex-shrink-0 relative z-10"
-                            animate={isClicked ? {
-                              scale: [1, 0.8, 1.15, 1],
-                              rotate: [0, -8, 5, 0],
-                            } : isThisAnimating ? {
+                            animate={isThisAnimating ? {
                               opacity: 0,
                               scale: 0.5,
+                            } : isClicked ? {
+                              opacity: 1,
+                              scale: [1, 1.2, 1],
+                              rotate: [0, -8, 0],
                             } : {
                               opacity: 1,
                               scale: 1,
+                              rotate: 0,
                             }}
-                            transition={{
-                              duration: isClicked ? 0.4 : 0.15,
-                              ease: snappyEase
+                            transition={isClicked ? {
+                              duration: 0.4,
+                              ease: [0.34, 1.56, 0.64, 1],
+                            } : {
+                              type: 'spring',
+                              stiffness: 500,
+                              damping: 30,
                             }}
                           >
                             {iconMap[item.id]}
                           </motion.div>
 
-                          {/* Label with animation */}
+                          {/* Label with click animation */}
                           {!isCollapsed && (
                             <motion.span
                               className="whitespace-nowrap relative z-10"
-                              animate={isClicked ? {
-                                x: [0, -4, 2, 0],
-                                opacity: [1, 0.7, 1],
-                              } : isThisAnimating ? {
+                              animate={isThisAnimating ? {
                                 opacity: 0.5,
-                                x: -8,
+                                x: -4,
+                              } : isClicked ? {
+                                opacity: 1,
+                                x: [0, 2, 0],
+                                scale: [1, 1.02, 1],
                               } : {
                                 opacity: 1,
                                 x: 0,
+                                scale: 1,
                               }}
-                              transition={{
-                                duration: isClicked ? 0.35 : 0.2,
-                                ease: snappyEase
+                              transition={isClicked ? {
+                                duration: 0.35,
+                                ease: [0.34, 1.56, 0.64, 1],
+                              } : {
+                                type: 'spring',
+                                stiffness: 500,
+                                damping: 30,
                               }}
                             >
                               {item.name}
                             </motion.span>
-                          )}
-
-                          {/* Active indicator glow */}
-                          {isActive && (
-                            <motion.div
-                              className="absolute inset-0 rounded-lg bg-white/10"
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: [0, 0.2, 0] }}
-                              transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 3 }}
-                            />
                           )}
                         </Link>
                       </motion.div>
@@ -756,6 +778,7 @@ export default function Sidebar() {
             </div>
           );
         })}
+        </LayoutGroup>
       </nav>
     </div>
   );

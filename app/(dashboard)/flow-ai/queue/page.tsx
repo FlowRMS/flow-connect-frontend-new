@@ -1,7 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import {
   Loader2,
   ListTodo,
@@ -442,6 +447,21 @@ function QueuePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const apolloClient = useApolloClient();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'flow-ai-queue';
 
   // Document state
   const [documents, setDocuments] = useState<PendingDocument[]>([]);
@@ -950,19 +970,41 @@ function QueuePageContent() {
       <main className="flex-1 w-full max-w-[1800px] mx-auto px-6 py-8">
         <div className="space-y-6">
           {/* Page Header */}
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1">
-              <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-                <div className="p-2.5 bg-gradient-to-br from-primary/20 to-primary/5 rounded-xl border border-primary/10">
-                  <ListTodo className="w-6 h-6 text-primary" />
-                </div>
-                Document Queue
-              </h2>
-              <p className="text-muted-foreground">
-                View and manage pending documents awaiting review
-              </p>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between overflow-visible">
+            <div className="flex items-start gap-4 overflow-visible">
+              {/* Morphing Icon Target - Queue Pulse Animation */}
+              <HeaderIconAnimation
+                isReceivingAnimation={isReceivingAnimation}
+                animationStyle="queue-pulse"
+                headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+              >
+                {iconMap['flow-ai-queue']}
+              </HeaderIconAnimation>
+              <div className="overflow-hidden">
+                <motion.h2
+                  className="text-3xl font-bold tracking-tight"
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+                >
+                  Document Queue
+                </motion.h2>
+                <motion.p
+                  className="text-muted-foreground mt-1"
+                  initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+                >
+                  View and manage pending documents awaiting review
+                </motion.p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+            <motion.div
+              className="flex items-center gap-2"
+              initial={{ opacity: 0, x: 30, filter: 'blur(8px)' }}
+              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+              transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+            >
               {selectedIds.size > 0 && (
                 <Button
                   onClick={() => setShowArchiveDialog(true)}
@@ -982,7 +1024,7 @@ function QueuePageContent() {
                 <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
-            </div>
+            </motion.div>
           </div>
 
           {/* Filters */}

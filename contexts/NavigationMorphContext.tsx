@@ -14,6 +14,22 @@ export const MORPHABLE_ITEMS = [
   'notes',
   'jobs',
   'pre-quotes',
+  'quotes',
+  'orders',
+  'invoices',
+  'commissions',
+  'adjustments',
+  'acknowledgements',
+  'contacts',
+  'customers',
+  'companies',
+  'products',
+  'manufacturers',
+  // FlowAI items
+  'flow-ai-queue',
+  'flow-ai-upload',
+  'flow-ai-templates',
+  'flow-ai-workflows',
 ] as const;
 
 export type MorphableItemId = typeof MORPHABLE_ITEMS[number];

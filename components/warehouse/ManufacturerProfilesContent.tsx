@@ -6,8 +6,13 @@
 
 'use client';
 
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import { useFactoriesInfinite, useDeleteFactory, type FactoryLandingPage } from './api/useFactoriesApi';
 import { fetchAllFactoryIds } from './api/factoriesApi';
 import DeleteFactoryModal from './modals/DeleteFactoryModal';
@@ -23,6 +28,22 @@ interface ManufacturerProfilesContentProps {
 
 export default function ManufacturerProfilesContent({ basePath = '/warehouse/manufacturer-profiles' }: ManufacturerProfilesContentProps) {
   const router = useRouter();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'manufacturers';
+
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
@@ -196,15 +217,42 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
       className="flex-1 overflow-y-auto bg-[var(--background)]"
     >
       {/* Header */}
-      <div className="mb-4 sm:mb-6">
+      <div className="p-3 sm:p-6 pb-0 overflow-visible">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Manufacturer Profiles</h1>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Configure manufacturer settings, commission rates, and payment terms
-            </p>
+          <div className="flex items-start gap-4 overflow-visible">
+            {/* Morphing Icon Target - Factory Pulse Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="factory-pulse"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['manufacturers']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Manufacturer Profiles
+              </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                Configure manufacturer settings, commission rates, and payment terms
+              </motion.p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 30, filter: 'blur(8px)' }}
+            animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             {/* Status Filter */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               {(['all', 'published', 'unpublished'] as const).map((status) => (
@@ -233,7 +281,7 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
               <span className="hidden sm:inline">New Manufacturer</span>
               <span className="sm:hidden">New</span>
             </button>
-          </div>
+          </motion.div>
         </div>
 
         {/* Search Bar */}
@@ -253,18 +301,20 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
       </div>
 
       {/* Bulk Actions Toolbar */}
-      <BulkActionsToolbar
-        entityType="FACTORIES"
-        selectedCount={selectedCount}
-        totalCount={totalCount}
-        loadedCount={factories.length}
-        selectAllMode={selectAllMode}
-        onClearSelection={clearSelection}
-        onDelete={() => setShowBulkDeleteModal(true)}
-      />
+      <div className="px-3 sm:px-6">
+        <BulkActionsToolbar
+          entityType="FACTORIES"
+          selectedCount={selectedCount}
+          totalCount={totalCount}
+          loadedCount={factories.length}
+          selectAllMode={selectAllMode}
+          onClearSelection={clearSelection}
+          onDelete={() => setShowBulkDeleteModal(true)}
+        />
+      </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="px-3 sm:px-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
@@ -308,7 +358,7 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
 
       {/* Loading State */}
       {isLoading && (
-        <div className="flex items-center justify-center py-20">
+        <div className="px-3 sm:px-6 flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-4">
             <svg className="animate-spin h-10 w-10 text-[var(--primary)]" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -321,7 +371,7 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
 
       {/* Error State */}
       {error && !isLoading && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
+        <div className="mx-3 sm:mx-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
           <svg className="mx-auto mb-4 w-12 h-12 text-red-500" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
@@ -338,7 +388,7 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
 
       {/* Data Table */}
       {!isLoading && !error && (
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+        <div className="mx-3 sm:mx-6 mb-6 bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>

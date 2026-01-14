@@ -237,11 +237,11 @@ export default function TasksContent() {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)]">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
       {/* Header */}
-      <div className="p-3 sm:p-6 pb-0">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
-          <div className="flex items-start gap-4">
+      <div className="pb-0 overflow-visible">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 overflow-visible">
+          <div className="flex items-start gap-4 overflow-visible">
             {/* Morphing Icon Target - Bounce Check Animation */}
             <HeaderIconAnimation
               isReceivingAnimation={isReceivingAnimation}
@@ -494,7 +494,7 @@ export default function TasksContent() {
         </div>
 
         {/* Search Bar */}
-        <div className="relative mt-3 sm:mt-4">
+        <div className="relative mt-3 sm:mt-4 mb-4 sm:mb-6">
           <svg
             width="18"
             height="18"
@@ -518,7 +518,7 @@ export default function TasksContent() {
       </div>
 
       {/* Category Filters and Bulk Select */}
-      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 flex-1 -mx-1 px-1">
           {TASK_CATEGORIES.map((category) => (
             <button

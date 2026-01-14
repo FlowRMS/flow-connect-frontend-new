@@ -6,8 +6,13 @@
 
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import { useAdjustmentsListState } from './hooks/useAdjustmentsListState';
 import type { AdjustmentLandingPage, AdjustmentStatus } from '@/components/orders/api/adjustmentsApi';
 import { AdjustmentModal } from '@/components/orders/detail/components/modals/adjustments/AdjustmentModal';
@@ -42,6 +47,21 @@ export default function AdjustmentsListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const adjustmentIdFromUrl = searchParams.get('id');
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'adjustments';
 
   const {
     adjustments,
@@ -148,15 +168,30 @@ export default function AdjustmentsListContent() {
       {/* Page Header */}
       <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--card)]">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-600">
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-[var(--foreground)]">Adjustments</h1>
-              <p className="text-sm text-[var(--muted-foreground)]">
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Scale Balance Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="scale-balance"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['adjustments']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-2xl font-bold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Adjustments
+              </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
                 {searchQuery.length >= 2
                   ? `${filteredAdjustments.length} results for "${searchQuery}"`
                   : `Showing ${filteredAdjustments.length} of ${totalCount} adjustments`}
@@ -165,19 +200,22 @@ export default function AdjustmentsListContent() {
                     • Total: {formatCurrency(totals.adjustmentAmount)}
                   </span>
                 )}
-              </p>
+              </motion.p>
             </div>
           </div>
 
-          <button
+          <motion.button
             onClick={openCreateAdjustmentModal}
             className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm"
+            initial={{ opacity: 0, x: 30, filter: 'blur(8px)' }}
+            animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
             </svg>
             Add Adjustment
-          </button>
+          </motion.button>
         </div>
       </div>
 
