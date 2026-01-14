@@ -4,14 +4,19 @@
  * Integrates all sub-hooks and manages overall state
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import type { Order, OrderSplitRate } from '@/lib/types/rms';
 import { mockSalesReps } from '@/lib/data/rms-mock';
-import { useOrdersInfinite, useOrderSearch, type OrderLandingPage, type OrderSearchResult } from '../../api';
-import { fetchAllOrderIds } from '../../api/ordersApi';
+import { useOrdersInfinite, useOrderSearch, type OrderLandingPage, type OrderSearchResult, type OrderLandingPageFilter, type OrderLandingPageOrderBy } from '../../api';
 import { useOrderFilters } from './useOrderFilters';
+import { useOrderSelection } from './useOrderSelection';
 import { useOrderBulkActions } from './useOrderBulkActions';
-import { useBulkSelection } from '../../../shared';
+import type { ActiveFilter } from '../../../advancedFilters/AdvancedFilters';
+import type { QuickDatePreset, QuickDateField, SortField, SortDirection } from '../types';
+import { getQuickDateRange } from '../utils';
+import { formatDateToISO, formatDateToBackend } from '../../../advancedFilters/utils';
+import { useFilterSync } from '../../../advancedFilters/hooks/useFilterSync';
+import { getOrderFilterOptions } from '../config/filterConfig';
 
 /**
  * Transform OrderLandingPage from API to UI Order type
@@ -75,6 +80,22 @@ function mapApiStatusToOrderStatus(status?: string): 'OPEN' | 'PARTIAL_SHIPPED' 
 }
 
 /**
+ * Map SortField (UI) to columnName (API)
+ */
+function mapSortFieldToColumnName(sortField: SortField): string {
+  const fieldMap: Record<SortField, string> = {
+    orderNumber: 'orderNumber',
+    customerName: 'soldToCustomerName',
+    manufacturerName: 'factoryName',
+    orderDate: 'entityDate',
+    total: 'total',
+    totalCommission: 'commission',
+    status: 'status',
+  };
+  return fieldMap[sortField];
+}
+
+/**
  * Transform OrderSearchResult to UI Order type
  */
 function transformSearchResultToOrder(result: OrderSearchResult): Order {
@@ -107,24 +128,285 @@ export function useOrdersListState() {
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Quick date filter state - defined BEFORE API hook
+  const [quickDatePreset, setQuickDatePreset] = useState<QuickDatePreset>('all');
+  const [quickDateField, setQuickDateField] = useState<QuickDateField>('createdAt');
+  const [showQuickDateFieldDropdown, setShowQuickDateFieldDropdown] = useState(false);
+
+  // Server-side filters - defined BEFORE API hook so they can be passed to the query
+  const [serverFilters, setServerFilters] = useState<OrderLandingPageFilter[]>([]);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+  
+  // Initialize columnFiltersToAPI as empty (will be computed after orders are loaded)
+  const [columnFiltersToAPIState, setColumnFiltersToAPIState] = useState<OrderLandingPageFilter[]>([]);
+  
+  // Refs to prevent infinite loops during synchronization
+  const isSyncingFromAdvanced = useRef(false);
+  const isSyncingFromColumn = useRef(false);
+  
+  // Sort state - defined BEFORE API hook
+  const [sortField, setSortField] = useState<SortField>('orderDate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  
+  // Server-side sorting - defined BEFORE API hook
+  // Initialize with default sort
+  const [serverOrderBy, setServerOrderBy] = useState<OrderLandingPageOrderBy[]>(() => {
+    return [{
+      columnName: mapSortFieldToColumnName('orderDate'),
+      direction: 'DESC',
+    }];
+  });
+  
+  // Map from UI column keys to filter option IDs (for sync)
+  const columnKeyToFilterId: Record<string, string> = useMemo(() => ({
+    orderNumber: 'order-number',
+    status: 'status',
+    total: 'total',
+    commission: 'commission',
+    orderDate: 'order-date',
+    entryDate: 'created-date',
+    jobName: 'job-name',
+    published: 'published',
+    factoryName: 'factory-name',
+    customerName: 'customer-name',
+  }), []);
+
+  // We initialize with empty arrays to avoid dependency issues
+  const orderFilterOptionsForSync = useMemo(() => {
+    return getOrderFilterOptions([], []);
+  }, []);
+
+  // Hook for synchronizing filters between AdvancedFilters and ColumnFilters
+  const { syncAdvancedToColumn, syncColumnToAdvanced } = useFilterSync({
+    filterOptions: orderFilterOptionsForSync,
+    columnKeyToFilterId,
+  });
+
+  // Handler for server-side filter changes (from AdvancedFilters)
+  const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    
+    // Convert ActiveFilter to OrderLandingPageFilter
+    // Only include value OR values, not both - check which one exists
+    const apiFilters: OrderLandingPageFilter[] = filters.map(f => {
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
+    setServerFilters(apiFilters);
+
+    // Sync to ColumnFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from column filters to avoid infinite loop
+    if (!isSyncingFromColumn.current) {
+      isSyncingFromAdvanced.current = true;
+      const syncedColumnFilters = syncAdvancedToColumn(filters);
+      
+      setColumnFilters((prev) => {
+        // If filters array is empty, clear all column filters
+        // Otherwise, merge: new filters from AdvancedFilters replace old ones for same columns
+        if (filters.length === 0) {
+          return {};
+        }
+        return { ...prev, ...syncedColumnFilters };
+      });
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromAdvanced.current = false;
+      }, 0);
+    }
+  }, [syncAdvancedToColumn]);
+
+  // Handler for column filter changes (from ColumnFilters)
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ActiveFilter[]>) => {
+    setColumnFilters(filters);
+
+    // Sync to AdvancedFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from advanced filters to avoid infinite loop
+    if (!isSyncingFromAdvanced.current) {
+      isSyncingFromColumn.current = true;
+      const syncedActiveFilters = syncColumnToAdvanced(filters);
+      setActiveFilters(syncedActiveFilters);
+      
+      // Also update serverFilters to trigger API call
+      const apiFilters: OrderLandingPageFilter[] = syncedActiveFilters.map(f => {
+        if (f.values && f.values.length > 0) {
+          return {
+            operator: f.operator,
+            columnName: f.columnName,
+            values: f.values,
+          };
+        }
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          value: f.value,
+        };
+      });
+      setServerFilters(apiFilters);
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromColumn.current = false;
+      }, 0);
+    }
+  }, [syncColumnToAdvanced]);
+
+  // Handler for server-side sort changes (from SortButton - ActiveSort format)
+  const handleSortChange = useCallback((sort: { columnName: string; direction: 'ASC' | 'DESC' } | undefined) => {
+    if (sort) {
+      // Update server-side sort
+      setServerOrderBy([{
+        columnName: sort.columnName,
+        direction: sort.direction,
+      }]);
+      
+      // Also update local sort state for backwards compatibility
+      // Map API columnName back to SortField if possible
+      const fieldMap: Record<string, SortField> = {
+        'orderNumber': 'orderNumber',
+        'soldToCustomerName': 'customerName',
+        'factoryName': 'manufacturerName',
+        'entityDate': 'orderDate',
+        'total': 'total',
+        'commission': 'totalCommission',
+        'status': 'status',
+      };
+      
+      const mappedField = fieldMap[sort.columnName];
+      if (mappedField) {
+        setSortField(mappedField);
+        setSortDirection(sort.direction.toLowerCase() as SortDirection);
+      }
+    } else {
+      // Clear sort
+      setServerOrderBy([{
+        columnName: mapSortFieldToColumnName('orderDate'),
+        direction: 'DESC',
+      }]);
+      setSortField('orderDate');
+      setSortDirection('desc');
+    }
+  }, []);
+
+  // Build quick filters based on quick date filter selection
+  const quickFilters = useMemo<OrderLandingPageFilter[]>(() => {
+    const result: OrderLandingPageFilter[] = [];
+
+    if (quickDatePreset !== 'all') {
+      const { start, end } = getQuickDateRange(quickDatePreset);
+      if (start && end) {
+        // Use quickDateField to determine which column to filter (createdAt or entityDate)
+        const columnName = quickDateField === 'createdAt' ? 'createdAt' : 'entityDate';
+        
+        // Format date based on column type:
+        // - entityDate (Order Date): YYYY-MM-DD format (date only)
+        // - createdAt: Backend format '%Y-%m-%d %H:%M:%S' (datetime with time)
+        const formatDate = (date: Date): string => {
+          if (columnName === 'entityDate') {
+            return formatDateToISO(date); // Returns YYYY-MM-DD
+          }
+          return formatDateToBackend(date); // Returns 'YYYY-MM-DD HH:MM:SS'
+        };
+        
+        result.push({
+          columnName,
+          operator: 'GTE',
+          value: formatDate(start),
+        });
+
+        result.push({
+          columnName,
+          operator: 'LTE',
+          value: formatDate(end),
+        });
+      }
+    }
+
+    return result;
+  }, [quickDatePreset, quickDateField]);
+
+  // Convert column filters (Record<string, ActiveFilter[]>) to OrderLandingPageFilter[]
+  const columnFiltersToAPI = useMemo<OrderLandingPageFilter[]>(() => {
+    const filters: OrderLandingPageFilter[] = [];
+    
+    // Flatten all column filters into a single array
+    Object.values(columnFilters).forEach((columnFilterArray) => {
+      // Ensure columnFilterArray is always an array
+      if (!Array.isArray(columnFilterArray)) return;
+      
+      columnFilterArray.forEach((filter) => {
+        // Convert ActiveFilter to OrderLandingPageFilter
+        if (filter.values && filter.values.length > 0) {
+          filters.push({
+            operator: filter.operator,
+            columnName: filter.columnName,
+            values: filter.values,
+          });
+        } else if (filter.value) {
+          filters.push({
+            operator: filter.operator,
+            columnName: filter.columnName,
+            value: filter.value,
+          });
+        }
+      });
+    });
+    
+    return filters;
+  }, [columnFilters]);
+
+  // Update state when columnFiltersToAPI changes
+  useEffect(() => {
+    setColumnFiltersToAPIState(columnFiltersToAPI);
+  }, [columnFiltersToAPI]);
+
+  // Combine quick filters with advanced filters and column filters
+  const filters = useMemo<OrderLandingPageFilter[]>(() => {
+    return [...quickFilters, ...serverFilters, ...columnFiltersToAPIState];
+  }, [quickFilters, serverFilters, columnFiltersToAPIState]);
+
+  // Build orderBy from sort state
+  const orderBy = useMemo<OrderLandingPageOrderBy[]>(() => {
+    return serverOrderBy;
+  }, [serverOrderBy]);
+
   // Fetch orders from API with infinite scroll
   const {
     data: ordersData,
     isLoading,
+    isFetching,
     error,
     refetch,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useOrdersInfinite();
+  } = useOrdersInfinite(filters, orderBy);
 
   // Search orders
   const { data: searchResults, isLoading: isSearching } = useOrderSearch(searchQuery, 100);
 
-  // Flatten paginated data
+  // Flatten paginated data and deduplicate by ID
+  // This prevents React key conflicts when the same order appears in multiple pages
   const allOrdersData = useMemo(() => {
     if (!ordersData?.pages) return [];
-    return ordersData.pages.flatMap(page => page.records);
+    const allRecords = ordersData.pages.flatMap(page => page.records);
+    
+    // Deduplicate by ID, keeping the last occurrence of each order
+    const uniqueMap = new Map<string, OrderLandingPage>();
+    allRecords.forEach(record => {
+      uniqueMap.set(record.id, record);
+    });
+    
+    return Array.from(uniqueMap.values());
   }, [ordersData]);
 
   // Get total count
@@ -143,6 +425,13 @@ export function useOrdersListState() {
     if (!allOrdersData.length) return [];
     return allOrdersData.map(transformLandingPageToOrder);
   }, [allOrdersData, searchQuery, searchResults]);
+
+  // Get filter options with unique values (for column filters)
+  const orderFilterOptionsWithValues = useMemo(() => {
+    // Extract unique values from orders if needed in the future
+    // For now, use empty arrays
+    return getOrderFilterOptions([], []);
+  }, [orders]);
 
   // Scroll handler for infinite scroll
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -188,45 +477,35 @@ export function useOrdersListState() {
   const [editingSplits, setEditingSplits] = useState(false);
   const [editedSplits, setEditedSplits] = useState<OrderSplitRate[]>([]);
 
-  // Integrate filter hook
+  // Integrate filter hook (for client-side filtering and other filter state)
+  // Note: quickDatePreset, quickDateField, and sorting are now managed at this level for server-side
   const filterState = useOrderFilters(orders);
+  
+  // Extract filter state, excluding quick date filters, sorting, and columnFilters (we manage those at this level)
+  const {
+    quickDatePreset: _quickDatePreset,
+    setQuickDatePreset: _setQuickDatePreset,
+    quickDateField: _quickDateField,
+    setQuickDateField: _setQuickDateField,
+    showQuickDateFieldDropdown: _showQuickDateFieldDropdown,
+    setShowQuickDateFieldDropdown: _setShowQuickDateFieldDropdown,
+    sortField: _sortField,
+    sortDirection: _sortDirection,
+    handleSort: _handleSort,
+    columnFilters: _oldColumnFilters, // Exclude old columnFilters
+    setColumnFilters: _oldSetColumnFilters, // Exclude old setColumnFilters
+    ...otherFilterState
+  } = filterState;
 
-  // Bulk selection with shared hook (properly handles select all for unloaded items)
-  // Note: Not using isItemEligible for orders since billingStatus/commissionStatus
-  // aren't available from the landing page API - all orders can be selected
-  const bulkSelection = useBulkSelection({
-    items: orders,
-    totalCount,
-    fetchAllIds: fetchAllOrderIds,
-  });
-
-  // Bulk delete modal state
-  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
-
-  // Handle bulk delete success
-  const handleBulkDeleteSuccess = useCallback(() => {
-    bulkSelection.clearSelection();
-    setShowBulkDeleteModal(false);
-    refetch();
-  }, [bulkSelection, refetch]);
+  // Integrate selection hook
+  const selectionState = useOrderSelection();
 
   // Integrate bulk actions hook
   const bulkActionsState = useOrderBulkActions({
-    selectedOrderIds: bulkSelection.selectedIds,
-    clearSelection: bulkSelection.clearSelection,
+    selectedOrderIds: selectionState.selectedOrderIds,
+    clearSelection: selectionState.clearSelection,
     setOrders,
   });
-
-  // Compatibility layer: map shared hook to existing API
-  const selectedOrderIds = bulkSelection.selectedIds;
-  const toggleOrderSelection = useCallback((orderId: string) => {
-    bulkSelection.handleSelectOne(orderId, !bulkSelection.isItemSelected(orderId));
-  }, [bulkSelection]);
-  const selectAllOrders = useCallback(() => {
-    bulkSelection.handleSelectAll(true);
-  }, [bulkSelection]);
-  const clearSelection = bulkSelection.clearSelection;
-  const areAllEligibleSelected = bulkSelection.isAllSelected;
 
   // Commission split editing functions
   const startEditingSplits = () => {
@@ -320,6 +599,7 @@ export function useOrdersListState() {
     setOrders,
     // Loading and error state
     isLoading,
+    isFetching,
     isSearching,
     error,
     refetch,
@@ -332,6 +612,25 @@ export function useOrdersListState() {
     // Search
     searchQuery,
     setSearchQuery,
+    // Advanced filters
+    activeFilters,
+    handleServerFiltersChange,
+    serverFilters,
+    // Column filters
+    columnFilters,
+    handleColumnFiltersChange,
+    orderFilterOptionsWithValues,
+    // Quick date filters
+    quickDatePreset,
+    setQuickDatePreset,
+    quickDateField,
+    setQuickDateField,
+    showQuickDateFieldDropdown,
+    setShowQuickDateFieldDropdown,
+    // Sorting
+    sortField,
+    sortDirection,
+    handleSortChange,
     // Selected order
     selectedOrder,
     setSelectedOrder,
@@ -352,27 +651,10 @@ export function useOrdersListState() {
     updateSplitRep,
     saveSplits,
     splitPercentageTotal,
-    // Filter state and actions
-    ...filterState,
-    // Selection state and actions (compatibility layer)
-    selectedOrderIds,
-    toggleOrderSelection,
-    selectAllOrders,
-    clearSelection,
-    areAllEligibleSelected,
-    // Bulk selection (new shared hook API)
-    selectAllMode: bulkSelection.selectAllMode,
-    selectedCount: bulkSelection.selectedCount,
-    isAllSelected: bulkSelection.isAllSelected,
-    isPartiallySelected: bulkSelection.isPartiallySelected,
-    isItemSelected: bulkSelection.isItemSelected,
-    handleSelectAll: bulkSelection.handleSelectAll,
-    handleSelectOne: bulkSelection.handleSelectOne,
-    getAllSelectedIds: bulkSelection.getAllSelectedIds,
-    // Bulk delete modal
-    showBulkDeleteModal,
-    setShowBulkDeleteModal,
-    handleBulkDeleteSuccess,
+    // Filter state and actions (excluding quick date filters managed above)
+    ...otherFilterState,
+    // Selection state and actions
+    ...selectionState,
     // Bulk actions state and actions
     ...bulkActionsState,
   };

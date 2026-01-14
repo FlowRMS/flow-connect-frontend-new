@@ -8,6 +8,8 @@ type DropdownFilterProps = {
   onFilterValueChange: (value: string) => void;
   onToggleValue: (value: string) => void;
   onApply: (option: FilterOption) => void;
+  onClear?: () => void;
+  hasActiveFilter?: boolean;
 };
 
 export function DropdownFilter({ 
@@ -16,7 +18,9 @@ export function DropdownFilter({
   selectedValues, 
   onFilterValueChange, 
   onToggleValue,
-  onApply 
+  onApply,
+  onClear,
+  hasActiveFilter
 }: DropdownFilterProps) {
   const filteredOptions = (option.options || []).filter(opt => 
     opt.toLowerCase().includes(filterValue.toLowerCase())
@@ -30,7 +34,7 @@ export function DropdownFilter({
           value={filterValue}
           onChange={(e) => onFilterValueChange(e.target.value)}
           placeholder={`Search ${option.label.toLowerCase()}...`}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 font-normal"
           autoFocus
         />
       </div>
@@ -41,9 +45,9 @@ export function DropdownFilter({
               type="checkbox"
               checked={selectedValues.includes(opt)}
               onChange={() => onToggleValue(opt)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
             />
-            <span className="text-sm text-gray-700">{opt}</span>
+            <span className="text-sm text-gray-700 font-normal">{opt}</span>
           </label>
         ))}
         {(!option.options || option.options.length === 0) && (
@@ -53,11 +57,18 @@ export function DropdownFilter({
           <div className="px-2 py-2 text-sm text-gray-500 text-center">No options found</div>
         )}
       </div>
-      <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
-        <span className="text-xs text-gray-500">{selectedValues.length} selected</span>
+      <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-between items-center gap-2">
+        {hasActiveFilter && onClear && (
+          <button
+            onClick={onClear}
+            className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+          >
+            Clear
+          </button>
+        )}
         <button
           onClick={() => onApply(option)}
-          className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+          className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors ml-auto"
         >
           Apply
         </button>
