@@ -4,13 +4,12 @@ import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DeliveryIssue,
-  DeliveryIssueType,
   deliveryIssueStatusColors,
   deliveryIssueStatusLabels,
   deliveryIssueTypeColors,
   deliveryIssueTypeLabels,
 } from '@/lib/types/warehouse';
-import { useWarehouse } from './WarehouseContext';
+import { useWarehouse } from '../../WarehouseContext';
 
 type SortField = 'issueNumber' | 'vendorName' | 'poNumber' | 'reportedAt' | 'status' | 'totalAffectedQuantity';
 type SortDirection = 'asc' | 'desc';
@@ -119,15 +118,6 @@ export default function WarehouseDeliveryIssuesContent({ deliveryIssues }: Wareh
       setSortDirection('asc');
     }
   };
-
-  // Get unique issue types from all issues
-  const issueTypes = useMemo(() => {
-    const types = new Set<DeliveryIssueType>();
-    warehouseIssues.forEach(issue => {
-      issue.items.forEach(item => types.add(item.issueType));
-    });
-    return Array.from(types);
-  }, [warehouseIssues]);
 
   // Stats
   const stats = useMemo(() => {

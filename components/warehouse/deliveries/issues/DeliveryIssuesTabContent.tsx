@@ -10,7 +10,7 @@ import {
   deliveryIssueTypeColors,
   deliveryIssueTypeLabels,
 } from '@/lib/types/warehouse';
-import { useWarehouse } from './WarehouseContext';
+import { useWarehouse } from '../../WarehouseContext';
 
 type SortField = 'issueNumber' | 'vendorName' | 'poNumber' | 'reportedAt' | 'status' | 'totalAffectedQuantity';
 type SortDirection = 'asc' | 'desc';

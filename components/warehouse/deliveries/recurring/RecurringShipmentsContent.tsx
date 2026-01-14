@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { calculateNextDate, formatDateOnly, getRecurrenceDescription, parseDateInput } from './utils/recurrence';
+import { calculateNextDate, formatDateOnly, getRecurrenceDescription, parseDateInput } from '../../utils/recurrence';
 import {
   RecurringShipment,
   RecurringShipmentStatus,
@@ -10,8 +10,8 @@ import {
   recurringShipmentStatusColors,
   IncomingShipment,
 } from '@/lib/types/warehouse';
-import RecurringShipmentDetailModal from './modals/RecurringShipmentDetailModal';
-import CreateRecurringShipmentModal from './modals/CreateRecurringShipmentModal';
+import RecurringShipmentDetailModal from '../../modals/RecurringShipmentDetailModal';
+import CreateRecurringShipmentModal from '../../modals/CreateRecurringShipmentModal';
 
 type RecurringShipmentCreatePayload = Omit<RecurringShipment, 'id' | 'createdAt' | 'updatedAt'>;
 

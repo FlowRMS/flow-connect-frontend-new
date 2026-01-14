@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { fetchFactories, fetchProducts, fetchWarehouses } from '../api/warehouseDeliveriesApi';
-import { readCachedLookups } from '../receiving/cache';
+import { readCachedLookups } from '../deliveries/receiving/cache';
 import { ShipmentStatus } from '@/lib/types/warehouse';
 
 interface ShipmentLineItem {

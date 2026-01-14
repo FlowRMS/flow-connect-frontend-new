@@ -5,7 +5,7 @@ import { AttachedDocument, DocumentType } from '@/lib/types/warehouse';
 
 interface DocumentsSectionProps {
   documents: AttachedDocument[];
-  onAddDocument: (document: Omit<AttachedDocument, 'id'>) => void;
+  onAddDocument: (document: Omit<AttachedDocument, 'id'>) => Promise<void> | void;
   onRemoveDocument: (documentId: string) => void;
   isEditable?: boolean;
   title?: string;
@@ -112,6 +112,7 @@ export default function DocumentsSection({
   const [docNotes, setDocNotes] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewMimeType, setPreviewMimeType] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [viewingDocument, setViewingDocument] = useState<AttachedDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +141,7 @@ export default function DocumentsSection({
     reader.onloadend = () => {
       setPreviewUrl(reader.result as string);
       setPreviewMimeType(file.type);
+      setSelectedFile(file);
       // Auto-set name if empty
       if (!docName) {
         setDocName(file.name.replace(/\.[^/.]+$/, '')); // Remove extension
@@ -160,6 +162,7 @@ export default function DocumentsSection({
         reader.onloadend = () => {
           setPreviewUrl(reader.result as string);
           setPreviewMimeType(file.type);
+          setSelectedFile(file);
           if (!docName) {
             setDocName(`${documentTypeInfo[selectedDocType].label} - ${new Date().toLocaleDateString()}`);
           }
@@ -170,31 +173,34 @@ export default function DocumentsSection({
     input.click();
   };
 
-  const handleUpload = () => {
-    if (!previewUrl || !docName) return;
+  const handleUpload = async () => {
+    if (!previewUrl || !docName || !selectedFile) return;
 
     setIsUploading(true);
-    // Simulate upload delay
-    setTimeout(() => {
-      onAddDocument({
-        name: docName,
-        type: selectedDocType,
-        fileUrl: previewUrl,
-        mimeType: previewMimeType,
-        uploadedAt: new Date().toISOString(),
-        uploadedBy: 'Current User',
-        notes: docNotes || undefined,
-      });
-
-      // Reset form
+    try {
+      await Promise.resolve(
+        onAddDocument({
+          name: docName,
+          type: selectedDocType,
+          fileUrl: previewUrl,
+          mimeType: previewMimeType,
+          fileSize: selectedFile.size,
+          file: selectedFile,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: 'Current User',
+          notes: docNotes || undefined,
+        })
+      );
+    } finally {
       setShowUploadModal(false);
       setPreviewUrl(null);
       setPreviewMimeType('');
       setDocName('');
       setDocNotes('');
       setSelectedDocType('PACKING_SLIP');
+      setSelectedFile(null);
       setIsUploading(false);
-    }, 500);
+    }
   };
 
   const isImageType = (mimeType: string) => mimeType.startsWith('image/');
@@ -332,6 +338,7 @@ export default function DocumentsSection({
                 onClick={() => {
                   setShowUploadModal(false);
                   setPreviewUrl(null);
+                  setSelectedFile(null);
                   setDocName('');
                   setDocNotes('');
                 }}
@@ -428,7 +435,10 @@ export default function DocumentsSection({
                     </div>
                   )}
                   <button
-                    onClick={() => setPreviewUrl(null)}
+                    onClick={() => {
+                      setPreviewUrl(null);
+                      setSelectedFile(null);
+                    }}
                     className="absolute top-2 right-2 p-1 bg-white/90 rounded-full hover:bg-white transition-colors shadow"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -473,6 +483,7 @@ export default function DocumentsSection({
                 onClick={() => {
                   setShowUploadModal(false);
                   setPreviewUrl(null);
+                  setSelectedFile(null);
                   setDocName('');
                   setDocNotes('');
                 }}

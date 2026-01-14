@@ -12,11 +12,10 @@ import {
   mapDeliveryToShipment,
   mapIssueFromDelivery,
   updateDeliveryIssue,
-} from './api/warehouseDeliveriesApi';
+} from '../../api/warehouseDeliveriesApi';
 import { fetchUserById } from '@/components/lib/api/search';
 import {
   DeliveryIssue,
-  DeliveryIssueStatus,
   DeliveryIssueActivity,
   DeliveryIssueActivityType,
   deliveryIssueStatusColors,
@@ -35,7 +34,6 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
   const [issue, setIssue] = useState<DeliveryIssue | null>(null);
   const [shipment, setShipment] = useState<IncomingShipment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
   const [reportedByName, setReportedByName] = useState('');
   const [communicatedByName, setCommunicatedByName] = useState('');
   const [resolvedByName, setResolvedByName] = useState('');
@@ -43,7 +41,6 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
   const [communicationMessage, setCommunicationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [resolutionMessage, setResolutionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [notes, setNotes] = useState(issue?.notes || '');
   const [communicationNotes, setCommunicationNotes] = useState(issue?.communicationNotes || '');
   const [resolutionNotes, setResolutionNotes] = useState(issue?.resolutionNotes || '');
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -95,7 +92,6 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
 
         setIssue(mappedIssue);
         setShipment(mappedShipment);
-        setNotes(mappedIssue.notes || '');
         setCommunicationNotes(mappedIssue.communicationNotes || '');
         setResolutionNotes(mappedIssue.resolutionNotes || '');
         const isUuid = (value?: string | null) =>
@@ -146,7 +142,7 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-center text-[var(--muted-foreground)]">Loading issue details…</div>
+        <div className="text-center text-[var(--muted-foreground)]">Loading issue details...</div>
       </div>
     );
   }
@@ -156,7 +152,7 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-lg font-medium text-[var(--foreground)]">Issue Not Found</h2>
-          <p className="text-[var(--muted-foreground)] mt-1">The delivery issue you're looking for doesn't exist.</p>
+          <p className="text-[var(--muted-foreground)] mt-1">The delivery issue you are looking for does not exist.</p>
           <button
             onClick={() => router.back()}
             className="mt-4 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary)]/90"
@@ -316,17 +312,6 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
       setActionMessage({ type: 'error', text: 'Failed to reopen issue.' });
     } finally {
       setIsUpdatingStatus(false);
-    }
-  };
-
-  const handleSaveNotes = async () => {
-    if (!issue) return;
-    try {
-      await updateDeliveryIssue(issue.id, buildIssueInput(issue, { notes }));
-      setIssue({ ...issue, notes });
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Failed to update issue notes', error);
     }
   };
 

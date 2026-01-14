@@ -121,6 +121,8 @@ export interface AttachedDocument {
   thumbnailUrl?: string;     // Optional thumbnail for preview
   mimeType: string;          // e.g., 'image/jpeg', 'application/pdf'
   fileSize?: number;         // File size in bytes
+  fileId?: string;           // Server file id (if uploaded)
+  file?: File;               // Local file used for upload
   uploadedAt: string;
   uploadedBy: string;
   notes?: string;
