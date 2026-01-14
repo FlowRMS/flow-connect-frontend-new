@@ -4,6 +4,7 @@ import { Suspense, lazy } from 'react';
 import Sidebar, { MobileSidebarProvider } from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import { SidebarConfigProvider } from '@/contexts/SidebarConfigContext';
+import { NavigationMorphProvider } from '@/contexts/NavigationMorphContext';
 import { useWelcomeAnimation } from '@/components/hooks/useWelcomeAnimation';
 import { FlowChatProvider } from '@/contexts/FlowChatContext';
 import { FlowChat } from '@/components/flowchat';
@@ -31,8 +32,9 @@ export default function DashboardShell({
 
   return (
     <SidebarConfigProvider>
-      <MobileSidebarProvider>
-        <FlowChatProvider>
+      <NavigationMorphProvider>
+        <MobileSidebarProvider>
+          <FlowChatProvider>
           {/* Welcome Animation Overlay */}
           {showWelcome && (
             <Suspense fallback={
@@ -62,8 +64,9 @@ export default function DashboardShell({
 
           {/* FlowChat - Global AI Assistant */}
           <FlowChat />
-        </FlowChatProvider>
-      </MobileSidebarProvider>
+          </FlowChatProvider>
+        </MobileSidebarProvider>
+      </NavigationMorphProvider>
     </SidebarConfigProvider>
   );
 }

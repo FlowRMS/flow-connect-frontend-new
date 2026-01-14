@@ -5,8 +5,13 @@
 
 'use client';
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '../ui/HeaderIconAnimations';
+import { iconMap } from '../Sidebar';
+import type { RefObject } from 'react';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import type { DragEndEvent, DragStartEvent, DragOverEvent } from '@dnd-kit/core';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from '../advancedFilters/AdvancedFilters';
@@ -31,6 +36,22 @@ export default function JobsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setFullEntityContext } = useFlowChat();
+
+  // Navigation morph hooks - must be called before any early returns
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  // Register header target on mount
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'jobs';
 
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
@@ -632,14 +653,44 @@ export default function JobsContent() {
 
   // Main jobs list view
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)]">
       {/* Header */}
-      <div className="mb-4 sm:mb-6">
+      <div className="p-3 sm:p-6 pb-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Jobs</h1>
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Gear Spin Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="gear-spin"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['jobs']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Jobs
+              </motion.h1>
+              <motion.p
+                className="text-xs sm:text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                {jobsLoading ? 'Loading...' : `${jobs.length} jobs • Track projects and opportunities`}
+              </motion.p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 30, filter: 'blur(8px)' }}
+            animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             <button
               disabled
               className="hidden sm:flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-medium bg-gray-400 text-white rounded-full cursor-not-allowed opacity-60 shadow-sm"
@@ -706,7 +757,7 @@ export default function JobsContent() {
               <span className="hidden sm:inline">Add Job</span>
               <span className="sm:hidden">Add</span>
             </button>
-          </div>
+          </motion.div>
         </div>
       </div>
 

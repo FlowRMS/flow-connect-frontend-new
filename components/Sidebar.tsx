@@ -1,10 +1,12 @@
-﻿'use client';
+'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSidebarConfig } from '@/contexts/SidebarConfigContext';
+import { useNavigationMorph, isMorphableItem, snappyEase } from '@/contexts/NavigationMorphContext';
 
 const SCROLL_STORAGE_KEY = 'sidebar-scroll-position';
 
@@ -477,12 +479,37 @@ const iconMap: Record<string, React.ReactNode> = {
   ),
 };
 
+// Export iconMap for use in other components
+export { iconMap };
+
+// Simple, smooth click highlight for sidebar items
+function ClickHighlight({ isActive }: { isActive: boolean }) {
+  return (
+    <AnimatePresence>
+      {isActive && (
+        <motion.div
+          className="absolute inset-0 rounded-lg bg-[var(--primary)]/15 pointer-events-none"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        />
+      )}
+    </AnimatePresence>
+  );
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { isOpen, setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
   const { config, toggleGroup } = useSidebarConfig();
   const navRef = useRef<HTMLElement>(null);
+  const { registerSidebarItem, startMorph, isAnimating, activeItemId } = useNavigationMorph();
+
+  // Track which item was just clicked for animation
+  const [clickedItemId, setClickedItemId] = useState<string | null>(null);
 
   // Restore scroll position on mount
   useEffect(() => {
@@ -498,6 +525,36 @@ export default function Sidebar() {
       sessionStorage.setItem(SCROLL_STORAGE_KEY, navRef.current.scrollTop.toString());
     }
   };
+
+  // Handle morphable item click - navigation happens immediately, animation is fire-and-forget
+  const handleMorphClick = useCallback((
+    e: React.MouseEvent,
+    itemId: string,
+    href: string,
+    isActive: boolean
+  ) => {
+    // Don't animate if already active
+    if (isActive) return;
+
+    // Trigger click animation
+    setClickedItemId(itemId);
+    setTimeout(() => setClickedItemId(null), 600);
+
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+
+    // Only morph for morphable items - start animation but don't wait for it
+    if (isMorphableItem(itemId)) {
+      const icon = iconMap[itemId];
+      if (icon) {
+        // Fire and forget - don't await, let navigation happen immediately
+        startMorph(itemId, icon);
+      }
+    }
+
+    // Navigation happens immediately - no delay
+  }, [startMorph]);
 
   return (
     <div className={`${isCollapsed ? 'w-16' : 'w-60'} bg-[var(--card)] border-r border-[var(--border)] flex flex-col transition-all duration-300`}>
@@ -586,26 +643,112 @@ export default function Sidebar() {
               {(isCollapsed || !group.collapsed) && (
                 <div className={!isCollapsed ? 'mt-1' : ''}>
                   {enabledItems.map((item) => {
-                    // Check if current path matches exactly OR starts with the item href (for nested routes)
-                    // For root paths like "/" or "/flow-ai" we need exact match to avoid over-matching
                     const isExactMatchOnly = item.href === '/' || item.href === '/flow-ai';
                     const isActive = isExactMatchOnly
                       ? pathname === item.href
                       : pathname === item.href || pathname.startsWith(item.href + '/');
+
+                    const isMorphable = isMorphableItem(item.id);
+                    const isThisAnimating = activeItemId === item.id;
+                    const isClicked = clickedItemId === item.id;
+
                     return (
-                      <Link
+                      <motion.div
                         key={item.id}
-                        href={item.href}
-                        title={isCollapsed ? item.name : undefined}
-                        className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5'} rounded-lg text-sm font-medium transition-all mb-1 ${
-                          isActive
-                            ? 'bg-[var(--primary)] text-white'
-                            : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
-                        }`}
+                        ref={(el) => {
+                          if (isMorphable && el) {
+                            registerSidebarItem(item.id, el);
+                          }
+                        }}
+                        whileHover={!isActive ? {
+                          x: 4,
+                          transition: { duration: 0.2, ease: snappyEase }
+                        } : {}}
+                        whileTap={{
+                          scale: 0.95,
+                          transition: { duration: 0.1 }
+                        }}
+                        animate={isClicked ? {
+                          scale: [1, 0.92, 1.02, 1],
+                          x: [0, 0, 6, 4],
+                        } : {}}
+                        transition={{
+                          duration: 0.4,
+                          ease: snappyEase
+                        }}
                       >
-                        {iconMap[item.id]}
-                        {!isCollapsed && <span>{item.name}</span>}
-                      </Link>
+                        <Link
+                          href={item.href}
+                          onClick={(e) => handleMorphClick(e, item.id, item.href, isActive)}
+                          title={isCollapsed ? item.name : undefined}
+                          className={`
+                            relative w-full flex items-center overflow-hidden
+                            ${isCollapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5'}
+                            rounded-lg text-sm font-medium transition-colors duration-200 mb-1
+                            ${isActive
+                              ? 'bg-[var(--primary)] text-white'
+                              : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
+                            }
+                          `}
+                        >
+                          {/* Click ripple effect */}
+                          <ClickRipple isActive={isClicked} />
+
+                          {/* Icon with animation */}
+                          <motion.div
+                            className="flex items-center justify-center flex-shrink-0 relative z-10"
+                            animate={isClicked ? {
+                              scale: [1, 0.8, 1.15, 1],
+                              rotate: [0, -8, 5, 0],
+                            } : isThisAnimating ? {
+                              opacity: 0,
+                              scale: 0.5,
+                            } : {
+                              opacity: 1,
+                              scale: 1,
+                            }}
+                            transition={{
+                              duration: isClicked ? 0.4 : 0.15,
+                              ease: snappyEase
+                            }}
+                          >
+                            {iconMap[item.id]}
+                          </motion.div>
+
+                          {/* Label with animation */}
+                          {!isCollapsed && (
+                            <motion.span
+                              className="whitespace-nowrap relative z-10"
+                              animate={isClicked ? {
+                                x: [0, -4, 2, 0],
+                                opacity: [1, 0.7, 1],
+                              } : isThisAnimating ? {
+                                opacity: 0.5,
+                                x: -8,
+                              } : {
+                                opacity: 1,
+                                x: 0,
+                              }}
+                              transition={{
+                                duration: isClicked ? 0.35 : 0.2,
+                                ease: snappyEase
+                              }}
+                            >
+                              {item.name}
+                            </motion.span>
+                          )}
+
+                          {/* Active indicator glow */}
+                          {isActive && (
+                            <motion.div
+                              className="absolute inset-0 rounded-lg bg-white/10"
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: [0, 0.2, 0] }}
+                              transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 3 }}
+                            />
+                          )}
+                        </Link>
+                      </motion.div>
                     );
                   })}
                 </div>
