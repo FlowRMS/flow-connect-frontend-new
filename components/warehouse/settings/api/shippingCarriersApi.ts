@@ -14,6 +14,7 @@ export interface Address {
   sourceId: string;
   sourceType: string;
   addressType: string;
+  addressTypes?: string[];
   line1: string;
   line2?: string | null;
   city: string;
@@ -22,6 +23,14 @@ export interface Address {
   country: string;
   notes?: string | null;
   isPrimary: boolean;
+}
+
+// Helper to normalize API response - converts addressTypes array to addressType
+function normalizeCarrierAddress(address: Address & { addressTypes?: string[] }): Address {
+  return {
+    ...address,
+    addressType: address.addressTypes?.[0] || address.addressType || 'BILLING',
+  };
 }
 
 export interface Contact {
@@ -384,7 +393,7 @@ export async function deleteShippingCarrier(id: string): Promise<boolean> {
 // ============================================================================
 
 // Import shared address types from warehousesApi
-import type { AddressSourceType, AddressType, AddressInput } from './warehousesApi';
+import type { AddressInput } from './warehousesApi';
 
 const GET_ADDRESSES_BY_SOURCE = `
   query GetAddressesBySource($sourceType: AddressSourceTypeEnum!, $sourceId: UUID!) {
@@ -392,7 +401,7 @@ const GET_ADDRESSES_BY_SOURCE = `
       id
       sourceId
       sourceType
-      addressType
+      addressTypes
       line1
       line2
       city
@@ -412,7 +421,7 @@ const CREATE_ADDRESS = `
       id
       sourceId
       sourceType
-      addressType
+      addressTypes
       line1
       line2
       city
@@ -432,7 +441,7 @@ const UPDATE_ADDRESS = `
       id
       sourceId
       sourceType
-      addressType
+      addressTypes
       line1
       line2
       city
@@ -459,7 +468,7 @@ export async function fetchCarrierAddresses(carrierId: string): Promise<Address[
     throw new Error(response.errors[0]?.message || 'Failed to fetch carrier addresses');
   }
 
-  return response.data?.addressesBySource || [];
+  return (response.data?.addressesBySource || []).map(normalizeCarrierAddress);
 }
 
 /**
@@ -469,11 +478,13 @@ export async function createCarrierAddress(
   carrierId: string,
   address: Omit<AddressInput, 'sourceId' | 'sourceType'>
 ): Promise<Address> {
-  const input: AddressInput = {
-    ...address,
+  // Transform addressType to addressTypes array for the API
+  const { addressType, ...restAddress } = address;
+  const input = {
+    ...restAddress,
     sourceId: carrierId,
-    sourceType: 'SHIPPING_CARRIER',
-    addressType: address.addressType || 'BILLING',
+    sourceType: 'SHIPPING_CARRIER' as const,
+    addressTypes: [addressType || 'BILLING'],
   };
 
   const response = await crmGraphQLRequest<{ createAddress: Address }>({
@@ -489,7 +500,7 @@ export async function createCarrierAddress(
     throw new Error('No address returned from create mutation');
   }
 
-  return response.data.createAddress;
+  return normalizeCarrierAddress(response.data.createAddress);
 }
 
 /**
@@ -500,11 +511,13 @@ export async function updateCarrierAddress(
   carrierId: string,
   address: Omit<AddressInput, 'sourceId' | 'sourceType'>
 ): Promise<Address> {
-  const input: AddressInput = {
-    ...address,
+  // Transform addressType to addressTypes array for the API
+  const { addressType, ...restAddress } = address;
+  const input = {
+    ...restAddress,
     sourceId: carrierId,
-    sourceType: 'SHIPPING_CARRIER',
-    addressType: address.addressType || 'BILLING',
+    sourceType: 'SHIPPING_CARRIER' as const,
+    addressTypes: [addressType || 'BILLING'],
   };
 
   const response = await crmGraphQLRequest<{ updateAddress: Address }>({
@@ -520,5 +533,5 @@ export async function updateCarrierAddress(
     throw new Error('No address returned from update mutation');
   }
 
-  return response.data.updateAddress;
+  return normalizeCarrierAddress(response.data.updateAddress);
 }

@@ -78,8 +78,6 @@ export interface FulfillmentAssignment {
   userName: string;
   userEmail: string;
   createdAt: string;
-  assignedAt: string;
-  assignedBy?: string;
 }
 
 export interface FulfillmentDocument {
@@ -120,8 +118,6 @@ export interface PackingBox {
 
 export interface FulfillmentOrderLineItem {
   id: string;
-  fulfillmentOrderId: string;
-  orderLineItemId: string;
   productId: string;
   productName: string;
   partNumber: string;
@@ -133,20 +129,14 @@ export interface FulfillmentOrderLineItem {
   packedQty: number;
   shippedQty: number;
   backorderQty: number;
-  warehouseLocationOverride?: string | null;
-  pickLocation?: string | null;
   fulfilledByManufacturer: boolean;
   manufacturerFulfillmentStatus: string | null;
   linkedShipmentRequestId: string | null;
-  manufacturerId?: string | null;
-  manufacturerName?: string | null;
   shortReason: string | null;
   notes: string | null;
   factoryId: string | null;
   factoryName: string | null;
   packingBoxItems: PackingBoxItem[];
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface FulfillmentOrder {
@@ -154,7 +144,6 @@ export interface FulfillmentOrder {
   fulfillmentOrderNumber: string;
   orderId: string;
   orderNumber: string;
-  customerId: string;
   customerName: string;
   warehouseId: string;
   warehouseName: string;
@@ -174,7 +163,6 @@ export interface FulfillmentOrder {
   shipConfirmedAt: string | null;
   deliveredAt: string | null;
   createdAt: string;
-  updatedAt: string;
   trackingNumbers: string[];
   bolNumber: string | null;
   proNumber: string | null;
@@ -185,9 +173,6 @@ export interface FulfillmentOrder {
   shipToAddress: ShipToAddress | null;
   // Alias for backwards compatibility with UI types
   shipTo: ShipToAddress | null;
-  allowPartialShipment: boolean;
-  shipStatus: 'NOT_SHIPPED' | 'PARTIAL' | 'SHIPPED';
-  manufacturerOrderStatus?: 'NONE' | 'PARTIAL' | 'FULL' | null;
   lineItems: FulfillmentOrderLineItem[];
   packingBoxes: PackingBox[];
   assignments: FulfillmentAssignment[];
@@ -319,7 +304,6 @@ const FULFILLMENT_ORDER_FRAGMENT = `
     fulfillmentOrderNumber
     orderId
     orderNumber
-    customerId
     customerName
     warehouseId
     warehouseName
@@ -339,7 +323,6 @@ const FULFILLMENT_ORDER_FRAGMENT = `
     shipConfirmedAt
     deliveredAt
     createdAt
-    updatedAt
     trackingNumbers
     bolNumber
     proNumber
@@ -347,9 +330,6 @@ const FULFILLMENT_ORDER_FRAGMENT = `
     pickupTimestamp
     pickupCustomerName
     driverName
-    allowPartialShipment
-    shipStatus
-    manufacturerOrderStatus
     shipToAddress {
       name
       street
@@ -362,8 +342,6 @@ const FULFILLMENT_ORDER_FRAGMENT = `
     }
     lineItems {
       id
-      fulfillmentOrderId
-      orderLineItemId
       productId
       productName
       partNumber
@@ -375,19 +353,13 @@ const FULFILLMENT_ORDER_FRAGMENT = `
       packedQty
       shippedQty
       backorderQty
-      warehouseLocationOverride
-      pickLocation
       fulfilledByManufacturer
       manufacturerFulfillmentStatus
       linkedShipmentRequestId
-      manufacturerId
-      manufacturerName
       shortReason
       notes
       factoryId
       factoryName
-      createdAt
-      updatedAt
       packingBoxItems {
         id
         fulfillmentLineItemId
@@ -419,8 +391,6 @@ const FULFILLMENT_ORDER_FRAGMENT = `
       userName
       userEmail
       createdAt
-      assignedAt
-      assignedBy
     }
     documents {
       id

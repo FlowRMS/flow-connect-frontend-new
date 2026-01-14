@@ -88,7 +88,7 @@ export default function LineItemsTable({ fulfillmentOrder }: LineItemsTableProps
                     </td>
                     <td className="px-4 py-2">
                       <span className="text-sm text-[var(--muted-foreground)]">
-                        {lineItem.pickLocation || '-'}
+                        {'-'}
                       </span>
                     </td>
                   </tr>
@@ -140,7 +140,7 @@ export default function LineItemsTable({ fulfillmentOrder }: LineItemsTableProps
                   <td className="px-4 py-2 text-sm text-gray-500">{lineItem.productName}</td>
                   <td className="px-4 py-2 text-sm text-gray-400 text-center">{lineItem.uom}</td>
                   <td className="px-4 py-2 text-sm text-gray-500 text-right">{Math.floor(lineItem.orderedQty)}</td>
-                  <td className="px-4 py-2 text-sm text-indigo-600">{lineItem.manufacturerName || '-'}</td>
+                  <td className="px-4 py-2 text-sm text-indigo-600">{lineItem.factoryName || '-'}</td>
                   <td className="px-4 py-2">
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
                       {lineItem.manufacturerFulfillmentStatus

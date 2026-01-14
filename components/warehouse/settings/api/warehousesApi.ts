@@ -84,6 +84,7 @@ export interface WarehouseAddress {
   sourceId: string;
   sourceType: AddressSourceType;
   addressType: AddressType;
+  addressTypes?: AddressType[];
   line1: string;
   line2?: string | null;
   city: string;
@@ -93,6 +94,14 @@ export interface WarehouseAddress {
   notes?: string | null;
   isPrimary: boolean;
   createdAt: string;
+}
+
+// Helper to normalize API response - converts addressTypes array to addressType
+function normalizeWarehouseAddress(address: WarehouseAddress & { addressTypes?: AddressType[] }): WarehouseAddress {
+  return {
+    ...address,
+    addressType: address.addressTypes?.[0] || address.addressType || 'OTHER',
+  };
 }
 
 export interface AddressInput {
@@ -282,7 +291,7 @@ const GET_ADDRESSES_BY_SOURCE = `
       id
       sourceId
       sourceType
-      addressType
+      addressTypes
       line1
       line2
       city
@@ -302,7 +311,7 @@ const CREATE_ADDRESS = `
       id
       sourceId
       sourceType
-      addressType
+      addressTypes
       line1
       line2
       city
@@ -322,7 +331,7 @@ const UPDATE_ADDRESS = `
       id
       sourceId
       sourceType
-      addressType
+      addressTypes
       line1
       line2
       city
@@ -574,7 +583,7 @@ export async function fetchWarehouseAddresses(warehouseId: string): Promise<Ware
     throw new Error(response.errors[0]?.message || 'Failed to fetch warehouse addresses');
   }
 
-  return response.data?.addressesBySource || [];
+  return (response.data?.addressesBySource || []).map(normalizeWarehouseAddress);
 }
 
 /**
@@ -584,11 +593,13 @@ export async function createWarehouseAddress(
   warehouseId: string,
   address: Omit<AddressInput, 'sourceId' | 'sourceType'>
 ): Promise<WarehouseAddress> {
-  const input: AddressInput = {
-    ...address,
+  // Transform addressType to addressTypes array for the API
+  const { addressType, ...restAddress } = address;
+  const input = {
+    ...restAddress,
     sourceId: warehouseId,
-    sourceType: 'FACTORY',
-    addressType: address.addressType || 'OTHER',
+    sourceType: 'FACTORY' as const,
+    addressTypes: [addressType || 'OTHER'],
   };
 
   const response = await crmGraphQLRequest<{ createAddress: WarehouseAddress }>({
@@ -604,7 +615,7 @@ export async function createWarehouseAddress(
     throw new Error('No address returned from create mutation');
   }
 
-  return response.data.createAddress;
+  return normalizeWarehouseAddress(response.data.createAddress);
 }
 
 /**
@@ -615,11 +626,13 @@ export async function updateWarehouseAddress(
   warehouseId: string,
   address: Omit<AddressInput, 'sourceId' | 'sourceType'>
 ): Promise<WarehouseAddress> {
-  const input: AddressInput = {
-    ...address,
+  // Transform addressType to addressTypes array for the API
+  const { addressType, ...restAddress } = address;
+  const input = {
+    ...restAddress,
     sourceId: warehouseId,
-    sourceType: 'FACTORY',
-    addressType: address.addressType || 'OTHER',
+    sourceType: 'FACTORY' as const,
+    addressTypes: [addressType || 'OTHER'],
   };
 
   const response = await crmGraphQLRequest<{ updateAddress: WarehouseAddress }>({
@@ -635,7 +648,7 @@ export async function updateWarehouseAddress(
     throw new Error('No address returned from update mutation');
   }
 
-  return response.data.updateAddress;
+  return normalizeWarehouseAddress(response.data.updateAddress);
 }
 
 /**
