@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { FulfillmentOrder, manufacturerFulfillmentStatusLabels } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '../api/fulfillmentApi';
+import { manufacturerFulfillmentStatusLabels, ManufacturerFulfillmentStatus } from '@/lib/types/warehouse';
 import { mockInventory } from '@/lib/data/warehouse-mock';
 
 interface LineItemsTableProps {
@@ -143,7 +144,7 @@ export default function LineItemsTable({ fulfillmentOrder }: LineItemsTableProps
                   <td className="px-4 py-2">
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
                       {lineItem.manufacturerFulfillmentStatus
-                        ? manufacturerFulfillmentStatusLabels[lineItem.manufacturerFulfillmentStatus]
+                        ? manufacturerFulfillmentStatusLabels[lineItem.manufacturerFulfillmentStatus as ManufacturerFulfillmentStatus]
                         : 'Pending'}
                     </span>
                   </td>

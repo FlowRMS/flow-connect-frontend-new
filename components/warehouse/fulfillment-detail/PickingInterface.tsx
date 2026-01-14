@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { FulfillmentOrder, InventoryLocation, FulfillmentOrderLineItem } from '@/lib/types/warehouse';
+import { FulfillmentOrder, FulfillmentOrderLineItem } from '../api/fulfillmentApi';
 import { getProductLocations, calculatePickingAllocation } from '@/lib/data/warehouse-mock';
 import {
   Inventory,

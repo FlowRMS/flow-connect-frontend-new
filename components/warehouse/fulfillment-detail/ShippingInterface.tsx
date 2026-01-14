@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FulfillmentOrder } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '../api/fulfillmentApi';
 import { mockWarehouses } from '@/lib/data/warehouse-mock';
 import { PackingBoxType } from './packing/PackingBox';
 import ShippingConfigPanel from './shipping/ShippingConfigPanel';

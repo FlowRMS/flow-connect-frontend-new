@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FulfillmentOrder, FulfillmentOrderLineItem, ShipmentRequest } from '@/lib/types/warehouse';
+import { FulfillmentOrder, FulfillmentOrderLineItem } from '../../api/fulfillmentApi';
+import { ShipmentRequest } from '@/lib/types/warehouse';
 
 interface BackorderItem {
   lineItem: FulfillmentOrderLineItem;

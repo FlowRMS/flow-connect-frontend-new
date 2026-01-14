@@ -3,7 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FulfillmentOrder, FulfillmentOrderStatus, fulfillmentOrderStatusColors, fulfillmentOrderStatusLabels } from '@/lib/types/warehouse';
+import type { FulfillmentOrder, FulfillmentOrderStatus } from '../api/fulfillmentApi';
+import { fulfillmentOrderStatusColors, fulfillmentOrderStatusLabels } from '@/lib/types/warehouse';
 
 interface FulfillmentHeaderProps {
   fulfillmentOrder: FulfillmentOrder;

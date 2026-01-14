@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FulfillmentOrder, FulfillmentOrderLineItem } from '@/lib/types/warehouse';
+import type { FulfillmentOrder, FulfillmentOrderLineItem } from '../api/fulfillmentApi';
 
 // Format quantity to remove unnecessary decimal places (30.0000 -> 30, 30.5000 -> 30.5)
 const formatQty = (qty: number | string | null | undefined): string => {

@@ -11,6 +11,10 @@ export interface ContextWarehouse {
   name: string;
   status: string;
   isActive?: boolean | null;
+  city?: string | null;
+  state?: string | null;
+  addressLine1?: string | null;
+  address?: string | null;
 }
 
 interface WarehouseContextType {
@@ -52,6 +56,10 @@ export function WarehouseProvider({ children }: { children: ReactNode }) {
           name: w.name,
           status: w.status,
           isActive: w.isActive,
+          city: w.city,
+          state: w.state,
+          addressLine1: w.address,
+          address: w.address,
         }));
         setWarehouses(contextWarehouses);
 

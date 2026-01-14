@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FulfillmentOrder, FulfillmentOrderStatus, fulfillmentOrderStatusColors, fulfillmentOrderStatusLabels } from '@/lib/types/warehouse';
+import type { FulfillmentOrder, FulfillmentOrderStatus } from '../api/fulfillmentApi';
+import { fulfillmentOrderStatusColors, fulfillmentOrderStatusLabels } from '@/lib/types/warehouse';
 import type { FulfillmentSortField, SortDirection, FulfillmentColumnFilters } from '../WarehouseFulfillmentContent';
 
 interface FulfillmentOrdersTableProps {

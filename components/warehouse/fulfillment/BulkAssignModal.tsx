@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FulfillmentOrder } from '@/lib/types/warehouse';
+import type { FulfillmentOrder } from '../api/fulfillmentApi';
 import { getWarehouseWorkers, getWarehouseManagers } from '@/lib/data/warehouse-mock';
 
 interface BulkAssignModalProps {

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { FulfillmentOrder, shipStatusColors, shipStatusLabels } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '../api/fulfillmentApi';
+import { shipStatusColors, shipStatusLabels } from '@/lib/types/warehouse';
 import { mockWarehouses } from '@/lib/data/warehouse-mock';
 import { useShippingCarriersByType, type ShippingCarrier } from '../settings/api/useShippingCarriersApi';
 import type { Warehouse } from '../settings/api/warehousesApi';

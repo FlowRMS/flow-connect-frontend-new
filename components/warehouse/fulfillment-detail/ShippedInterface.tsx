@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FulfillmentOrder } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '../api/fulfillmentApi';
 import { PackingBoxType } from './packing/PackingBox';
 import { useShippingCarriersByType } from '@/components/warehouse/settings/api/useShippingCarriersApi';
 

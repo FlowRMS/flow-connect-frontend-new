@@ -41,6 +41,10 @@ export interface Warehouse {
   longitude?: string | null;
   description?: string | null;
   isActive?: boolean | null;
+  city?: string | null;
+  state?: string | null;
+  address?: string | null;
+  postalCode?: string | null;
   createdAt: string;
   members?: WarehouseMember[];
   settings?: WarehouseSettings | null;

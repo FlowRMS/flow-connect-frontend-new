@@ -165,8 +165,8 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       setTrackingNumbers(fulfillmentOrder.trackingNumbers?.join(', ') || '');
 
       // Update shipping method state
-      const method = fulfillmentOrder.fulfillmentMethod === 'JOBSITE' ? 'SHIP' : (fulfillmentOrder.fulfillmentMethod || 'SHIP');
-      setShippingMethod(method as 'SHIP' | 'WILL_CALL');
+      const method = fulfillmentOrder.fulfillmentMethod || 'SHIP';
+      setShippingMethod(method);
 
       // Update carrier type if available
       if (fulfillmentOrder.carrierType) {
@@ -239,9 +239,9 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [selectedLabelFormat, setSelectedLabelFormat] = useState('4x6');
 
   // Shipping state
-  const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL'>(fulfillmentOrder?.fulfillmentMethod === 'JOBSITE' ? 'SHIP' : (fulfillmentOrder?.fulfillmentMethod || 'SHIP'));
+  const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL'>(fulfillmentOrder?.fulfillmentMethod || 'SHIP');
   const [carrierType, setCarrierType] = useState<'parcel' | 'freight'>((fulfillmentOrder as any)?.carrierType || 'parcel');
-  const [selectedCarrier, setSelectedCarrier] = useState(fulfillmentOrder?.carrier || '');
+  const [selectedCarrier, setSelectedCarrier] = useState(fulfillmentOrder?.carrierId || '');
   const [serviceType, setServiceType] = useState((fulfillmentOrder as any)?.serviceType || '');
   const [freightClass, setFreightClass] = useState(fulfillmentOrder?.freightClass || '');
   const [bolNumber, setBolNumber] = useState((fulfillmentOrder as any)?.bolNumber || '');
@@ -1097,9 +1097,9 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   // Shipped data for ShippedInterface
   const shippedData = {
     carrierType: (fulfillmentOrder as any)?.carrierType || carrierType,
-    carrier: fulfillmentOrder?.carrier || selectedCarrier,
+    carrier: fulfillmentOrder?.carrierName || selectedCarrier,
     trackingNumbers: fulfillmentOrder?.trackingNumbers?.join(', ') || trackingNumbers,
-    shipConfirmedAt: fulfillmentOrder?.shipConfirmedAt,
+    shipConfirmedAt: fulfillmentOrder?.shipConfirmedAt ?? undefined,
     pickupSignature: (fulfillmentOrder as any)?.pickupSignature || pickupSignature,
     pickupTimestamp: (fulfillmentOrder as any)?.pickupTimestamp ? new Date((fulfillmentOrder as any).pickupTimestamp) : pickupTimestamp,
     pickupCustomerName: (fulfillmentOrder as any)?.pickupCustomerName || pickupName,
@@ -1366,8 +1366,8 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               userMap={userMap}
             />
             <AssignmentPanel
-              assignedManagers={fulfillmentOrder.assignments?.filter(a => a.role === 'MANAGER') || []}
-              assignedWorkers={fulfillmentOrder.assignments?.filter(a => a.role === 'WORKER') || []}
+              assignedManagers={fulfillmentOrder.assignments?.filter(a => a.role === 'MANAGER').map(a => ({ ...a, role: 'manager' as const })) || []}
+              assignedWorkers={fulfillmentOrder.assignments?.filter(a => a.role === 'WORKER').map(a => ({ ...a, role: 'worker' as const })) || []}
               warehouseId={fulfillmentOrder.warehouseId}
               onAddAssignment={async (userId, role) => {
                 try {

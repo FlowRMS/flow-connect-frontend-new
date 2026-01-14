@@ -17,7 +17,7 @@ export default function AuditTimestamps({
   onReleaseToWarehouse,
   userMap,
 }: AuditTimestampsProps) {
-  const formatDateTime = (dateStr?: string) => {
+  const formatDateTime = (dateStr?: string | null) => {
     if (!dateStr) return '-';
     const date = new Date(dateStr);
     return date.toLocaleString('en-US', {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { FulfillmentOrder } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '../../api/fulfillmentApi';
 import { FulfillmentDocument } from '../../api/fulfillmentApi';
 import { useShippingCarriersByType } from '@/components/warehouse/settings/api/useShippingCarriersApi';
 
@@ -638,9 +638,9 @@ The Warehouse Team`
                             className="w-4 h-4 rounded border-[var(--border)] text-green-600 focus:ring-green-500"
                           />
                           <div className={`w-7 h-7 rounded flex items-center justify-center flex-shrink-0 ${
-                            doc.type === 'BILL_OF_LADING' ? 'bg-amber-100 text-amber-600' :
-                            doc.type === 'PACKING_SLIP' ? 'bg-blue-100 text-blue-600' :
-                            doc.type === 'SHIPPING_LABEL' ? 'bg-green-100 text-green-600' :
+                            doc.documentType === 'BILL_OF_LADING' ? 'bg-amber-100 text-amber-600' :
+                            doc.documentType === 'PACKING_SLIP' ? 'bg-blue-100 text-blue-600' :
+                            doc.documentType === 'SHIPPING_LABEL' ? 'bg-green-100 text-green-600' :
                             'bg-gray-100 text-gray-600'
                           }`}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -649,8 +649,8 @@ The Warehouse Team`
                             </svg>
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-[var(--foreground)] truncate">{doc.name}</p>
-                            <p className="text-xs text-[var(--muted-foreground)]">{doc.type.replace('_', ' ')}</p>
+                            <p className="text-xs font-medium text-[var(--foreground)] truncate">{doc.fileName}</p>
+                            <p className="text-xs text-[var(--muted-foreground)]">{doc.documentType.replace('_', ' ')}</p>
                           </div>
                         </label>
                       ))}

@@ -4,10 +4,31 @@ import React, { useState, useRef } from 'react';
 import { DocumentType } from '@/lib/types/warehouse';
 import { uploadDocument, deleteDocument, type FulfillmentDocument } from './api/fulfillmentApi';
 
+// Generic document type for cross-compatibility
+interface GenericDocument {
+  id: string;
+  documentType?: string;
+  type?: string;  // Alias for documentType (for AttachedDocument compatibility)
+  fileName?: string;
+  name?: string;  // Alias for fileName (for AttachedDocument compatibility)
+  fileUrl: string;
+  mimeType?: string;
+  fileSize?: number;
+  notes?: string;
+  createdAt?: string;
+  uploadedAt?: string;  // Alias for createdAt (for AttachedDocument compatibility)
+  uploadedBy?: string;  // For AttachedDocument compatibility
+  thumbnailUrl?: string;  // For AttachedDocument compatibility
+}
+
 interface DocumentsSectionProps {
-  fulfillmentOrderId: string;
-  documents: FulfillmentDocument[];
+  fulfillmentOrderId?: string;  // Optional - if not provided, use callback mode
+  documents: (FulfillmentDocument | GenericDocument)[];
   onDocumentsChange?: () => void;
+  // Legacy callback mode for non-fulfillment use cases (like receiving)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onAddDocument?: (doc: any) => void;
+  onRemoveDocument?: (docId: string) => void;
   isEditable?: boolean;
   title?: string;
 }
@@ -104,6 +125,8 @@ export default function DocumentsSection({
   fulfillmentOrderId,
   documents,
   onDocumentsChange,
+  onAddDocument,
+  onRemoveDocument,
   isEditable = true,
   title = 'Documents',
 }: DocumentsSectionProps) {
@@ -126,6 +149,19 @@ export default function DocumentsSection({
       hour: 'numeric',
       minute: '2-digit',
     });
+  };
+
+  // Helper to normalize document properties (handles both API and legacy formats)
+  const getDocProp = (doc: FulfillmentDocument | GenericDocument, prop: 'documentType' | 'fileName' | 'createdAt') => {
+    const d = doc as GenericDocument;
+    switch (prop) {
+      case 'documentType':
+        return d.documentType || d.type || 'OTHER';
+      case 'fileName':
+        return d.fileName || d.name || 'Document';
+      case 'createdAt':
+        return d.createdAt || d.uploadedAt || new Date().toISOString();
+    }
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -182,12 +218,31 @@ export default function DocumentsSection({
     setUploadError(null);
 
     try {
-      await uploadDocument({
-        fulfillmentOrderId,
-        documentType: selectedDocType,
-        file: selectedFile,
-        notes: docNotes || undefined,
-      });
+      // If fulfillmentOrderId is provided, use the API; otherwise use callback mode
+      if (fulfillmentOrderId) {
+        await uploadDocument({
+          fulfillmentOrderId,
+          documentType: selectedDocType,
+          file: selectedFile,
+          notes: docNotes || undefined,
+        });
+      } else if (onAddDocument) {
+        // Callback mode for non-fulfillment use cases
+        const reader = new FileReader();
+        reader.onload = () => {
+          onAddDocument({
+            id: `doc-${Date.now()}`,
+            type: selectedDocType,
+            name: docName,
+            fileUrl: reader.result as string,
+            mimeType: selectedFile.type,
+            fileSize: selectedFile.size,
+            notes: docNotes || undefined,
+            uploadedAt: new Date().toISOString(),
+          });
+        };
+        reader.readAsDataURL(selectedFile);
+      }
 
       // Reset form
       setShowUploadModal(false);
@@ -262,12 +317,15 @@ export default function DocumentsSection({
       ) : (
         <div className="space-y-2">
           {documents.map((doc) => {
-            const typeInfo = documentTypeInfo[doc.documentType as DocumentType];
+            const docType = getDocProp(doc, 'documentType');
+            const docFileName = getDocProp(doc, 'fileName');
+            const docCreatedAt = getDocProp(doc, 'createdAt');
+            const typeInfo = documentTypeInfo[docType as DocumentType] || documentTypeInfo.OTHER;
             return (
               <div
                 key={doc.id}
                 className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--muted)]/50 transition-colors group cursor-pointer"
-                onClick={() => setViewingDocument(doc)}
+                onClick={() => setViewingDocument(doc as FulfillmentDocument)}
               >
                 {/* Thumbnail or Icon */}
                 <div className="w-10 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -275,7 +333,7 @@ export default function DocumentsSection({
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={doc.fileUrl}
-                      alt={doc.fileName}
+                      alt={docFileName}
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -285,13 +343,13 @@ export default function DocumentsSection({
 
                 {/* Document Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[var(--foreground)] truncate">{doc.fileName}</p>
+                  <p className="text-sm font-medium text-[var(--foreground)] truncate">{docFileName}</p>
                   <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
                     <span className={`flex items-center gap-1 ${typeInfo.color}`}>
                       {typeInfo.icon}
                       {typeInfo.label}
                     </span>
-                    <span>{formatDate(doc.uploadedAt)}</span>
+                    <span>{formatDate(docCreatedAt)}</span>
                     {doc.fileSize && <span>{formatFileSize(doc.fileSize)}</span>}
                   </div>
                 </div>
@@ -317,7 +375,11 @@ export default function DocumentsSection({
                       onClick={async (e) => {
                         e.stopPropagation();
                         try {
-                          await deleteDocument(doc.id);
+                          if (fulfillmentOrderId) {
+                            await deleteDocument(doc.id);
+                          } else if (onRemoveDocument) {
+                            onRemoveDocument(doc.id);
+                          }
                           onDocumentsChange?.();
                         } catch (error) {
                           console.error('Failed to delete document:', error);
