@@ -2,6 +2,11 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Custom easing curves - iOS/macOS native feel (matching NavigationMorphContext)
+const morphEase = [0.22, 1, 0.36, 1] as const;
+const snappyEase = [0.34, 1.56, 0.64, 1] as const;
 
 interface UserGuideModalProps {
   isOpen: boolean;
@@ -446,7 +451,7 @@ export default function UserGuideModal({ isOpen, onClose }: UserGuideModalProps)
     setActiveSection(category);
   }, []);
 
-  if (!mounted || !isOpen) return null;
+  if (!mounted) return null;
 
   const renderContent = () => {
     switch (activeSection) {
@@ -1584,32 +1589,67 @@ export default function UserGuideModal({ isOpen, onClose }: UserGuideModalProps)
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+    <motion.div
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: morphEase }}
+    >
       {/* Backdrop */}
-      <div
+      <motion.div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.25, ease: morphEase }}
       />
 
       {/* Modal */}
-      <div className="relative w-[95vw] max-w-6xl h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex">
+      <motion.div
+        className="relative w-[95vw] max-w-6xl h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{
+          duration: 0.3,
+          ease: morphEase,
+          scale: { duration: 0.35, ease: snappyEase },
+        }}
+      >
         {/* Sidebar Navigation */}
-        <div className="w-64 bg-slate-50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 flex flex-col flex-shrink-0">
+        <motion.div
+          className="w-64 bg-slate-50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 flex flex-col flex-shrink-0"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3, ease: morphEase, delay: 0.1 }}
+        >
           {/* Header */}
-          <div className="p-5 border-b border-slate-200 dark:border-slate-700">
+          <motion.div
+            className="p-5 border-b border-slate-200 dark:border-slate-700"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: morphEase, delay: 0.15 }}
+          >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+              <motion.div
+                className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center"
+                initial={{ scale: 0.8, rotate: -10 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ duration: 0.35, ease: snappyEase, delay: 0.2 }}
+              >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
                   <circle cx="12" cy="12" r="10"/>
                   <path d="M12 16v-4M12 8h.01"/>
                 </svg>
-              </div>
+              </motion.div>
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white">User Guide</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">FlowCRM Help Center</p>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Search */}
           <div className="p-3 relative">
@@ -1674,8 +1714,8 @@ export default function UserGuideModal({ isOpen, onClose }: UserGuideModalProps)
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto px-3 pb-3">
             <div className="space-y-1">
-              {sections.map((section) => (
-                <button
+              {sections.map((section, index) => (
+                <motion.button
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
@@ -1683,16 +1723,29 @@ export default function UserGuideModal({ isOpen, onClose }: UserGuideModalProps)
                       ? 'bg-white dark:bg-slate-700 shadow-sm'
                       : 'hover:bg-white/50 dark:hover:bg-slate-700/50'
                   }`}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{
+                    duration: 0.2,
+                    ease: morphEase,
+                    delay: 0.2 + index * 0.03,
+                  }}
+                  whileHover={{ x: 4 }}
+                  whileTap={{ scale: 0.98 }}
                 >
-                  <div
+                  <motion.div
                     className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
                       activeSection === section.id
                         ? `bg-gradient-to-br ${section.gradient} text-white`
                         : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                     }`}
+                    animate={{
+                      scale: activeSection === section.id ? 1.05 : 1,
+                    }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                   >
                     {section.icon}
-                  </div>
+                  </motion.div>
                   <span className={`text-sm font-medium ${
                     activeSection === section.id
                       ? 'text-slate-900 dark:text-white'
@@ -1700,7 +1753,7 @@ export default function UserGuideModal({ isOpen, onClose }: UserGuideModalProps)
                   }`}>
                     {section.title}
                   </span>
-                </button>
+                </motion.button>
               ))}
             </div>
           </nav>
@@ -1711,36 +1764,69 @@ export default function UserGuideModal({ isOpen, onClose }: UserGuideModalProps)
               FlowCRM v1.0 &middot; Need help? Contact support
             </p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <motion.div
+          className="flex-1 flex flex-col overflow-hidden min-w-0"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3, ease: morphEase, delay: 0.15 }}
+        >
           {/* Top Bar */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+          <motion.div
+            className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: morphEase, delay: 0.2 }}
+          >
             <div className="flex items-center gap-2">
               <span className="text-sm text-slate-400">/</span>
-              <span className="text-sm font-medium text-slate-900 dark:text-white">
+              <motion.span
+                key={activeSection}
+                className="text-sm font-medium text-slate-900 dark:text-white"
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, ease: morphEase }}
+              >
                 {sections.find(s => s.id === activeSection)?.title}
-              </span>
+              </motion.span>
             </div>
-            <button
+            <motion.button
               onClick={onClose}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-500">
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>
-            </button>
-          </div>
+            </motion.button>
+          </motion.div>
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto p-6">
-            {renderContent()}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeSection}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25, ease: morphEase }}
+              >
+                {renderContent()}
+              </motion.div>
+            </AnimatePresence>
           </div>
-        </div>
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 
-  return createPortal(modalContent, document.body);
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && modalContent}
+    </AnimatePresence>,
+    document.body
+  );
 }

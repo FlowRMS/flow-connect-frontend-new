@@ -34,6 +34,7 @@ export interface FileResponse {
   fileSha?: string;
   fileSize?: number;
   fileType?: string;
+  fileEntityType?: DocumentEntityType;
   folderId?: string;
   archived: boolean;
   createdAt: string;
@@ -413,6 +414,7 @@ const UPLOAD_FILE = `
       fileSha
       fileSize
       fileType
+      fileEntityType
       folderId
       archived
       createdAt
