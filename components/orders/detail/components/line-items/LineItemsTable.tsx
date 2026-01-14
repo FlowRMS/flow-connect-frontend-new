@@ -1033,7 +1033,7 @@ export function LineItemsTable({
                   {/* Sell Total */}
                   {visibleColumns.has('sellTotal') && (
                     <td className={`px-3 py-2 text-sm text-right font-medium ${item.isCredit ? 'text-red-600' : ''}`}>
-                      {formatCurrency(item.extendedPrice)}
+                      {formatCurrency(item.extendedPrice - ((item as any).lineDiscountAmount || 0))}
                     </td>
                   )}
 
@@ -1047,14 +1047,14 @@ export function LineItemsTable({
                   {/* Commission */}
                   {visibleColumns.has('commission') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100))}
+                      {formatCurrency((item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}
                     </td>
                   )}
 
                   {/* Commission Total */}
                   {visibleColumns.has('commissionTotal') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100))}
+                      {formatCurrency((item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}
                     </td>
                   )}
 

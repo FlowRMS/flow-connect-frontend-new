@@ -287,6 +287,13 @@ export function InvoicesTableHeader({
           Paid
         </span>
       </div>
+
+      {/* Locked */}
+      <div className="flex items-center justify-center">
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+          Locked
+        </span>
+      </div>
     </div>
   );
 }

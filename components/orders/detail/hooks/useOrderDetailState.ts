@@ -589,6 +589,41 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     closeAdditionalDetails();
   };
 
+  // Live update additional details for a line item (without closing modal)
+  const liveUpdateAdditionalDetails = (updates: Partial<OrderLineItem>) => {
+    // Update the additionalDetailsLineItem so the modal stays in sync
+    setAdditionalDetailsLineItem((prev) => prev ? { ...prev, ...updates } : prev);
+
+    // Use functional update pattern to avoid stale closure issues
+    // This reads from prev instead of the closure-captured order/additionalDetailsLineItem
+    setLocalOrder((prevOrder) => {
+      if (!prevOrder) return prevOrder;
+
+      // Get the line item ID from the current additionalDetailsLineItem state
+      // We need to find which line item to update
+      const lineItemIdToUpdate = additionalDetailsLineItem?.id;
+      if (!lineItemIdToUpdate) return prevOrder;
+
+      const updatedItems = (prevOrder.lineItems || []).map((li) =>
+        li.id === lineItemIdToUpdate ? { ...li, ...updates } : li
+      );
+
+      // Recalculate totals
+      const subtotal = updatedItems.reduce((sum, item) => sum + (item.extendedPrice || 0), 0);
+      const totalCommission = updatedItems.reduce((sum, item) => sum + (item.commissionAmount || 0), 0);
+
+      return {
+        ...prevOrder,
+        lineItems: updatedItems,
+        subtotal,
+        total: subtotal + (prevOrder.freight || 0),
+        totalCommission,
+      };
+    });
+
+    if (!isCreateMode) setHasLocalEdits(true);
+  };
+
   // Mock data for line item acknowledgements
   const [lineItemAcknowledgements] = useState<
     Record<string, LineItemAcknowledgement>
@@ -803,6 +838,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       openAdditionalDetails: noopWithArg,
       closeAdditionalDetails: noop,
       saveAdditionalDetails: noopWithArg,
+      liveUpdateAdditionalDetails: noopWithArg,
       lineItemAcknowledgements: {},
       lineItemCredits: {},
       hasFreightLine: false,
@@ -1004,6 +1040,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     openAdditionalDetails,
     closeAdditionalDetails,
     saveAdditionalDetails,
+    liveUpdateAdditionalDetails,
 
     // Mock data
     lineItemAcknowledgements,

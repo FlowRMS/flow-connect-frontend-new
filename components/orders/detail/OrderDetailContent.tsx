@@ -12,7 +12,7 @@ import { useOrderDetailState } from './hooks/useOrderDetailState';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import { OrderDetailHeader } from './components/header';
 import { LineItemsTable } from './components/line-items';
-import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab } from './components/tabs';
+import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab, InvoicesTab } from './components/tabs';
 import { FilesTab } from '@/components/shared/FilesTab';
 import {
   SetOverageModal,
@@ -35,6 +35,7 @@ import {
   AcknowledgementDetailModal,
   DeleteConfirmModal,
   CreateInvoiceFromOrderModal,
+  InvoiceDetailModal,
 } from './components/modals';
 import { DuplicateOrderModal } from '../list/components/modals/DuplicateOrderModal';
 import { useDuplicateOrder } from '../api/useOrdersApi';
@@ -42,6 +43,7 @@ import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/use
 import { useCreditsState } from './hooks/useCreditsState';
 import { useAdjustmentsState } from './hooks/useAdjustmentsState';
 import { useAcknowledgementsState } from './hooks/useAcknowledgementsState';
+import { useInvoicesState } from './hooks/useInvoicesState';
 import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipStatus } from './utils';
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
 import { orderToasts } from '@/components/lib/toast';
@@ -63,6 +65,11 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
   // Acknowledgements state management
   const acknowledgementsState = useAcknowledgementsState({
+    orderId: orderId !== 'new' ? orderId : null,
+  });
+
+  // Invoices state management
+  const invoicesState = useInvoicesState({
     orderId: orderId !== 'new' ? orderId : null,
   });
 
@@ -486,6 +493,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           };
 
           await state.updateOrderMutation.mutateAsync(updateInput);
+          state.resetChanges();
           orderToasts.updateSuccess(order.orderNumber);
         }
       }
@@ -673,6 +681,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
               { id: 'files', label: 'Files', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'invoices', label: 'Invoices', disabled: isCreateMode, disabledReason: 'Save order first', count: invoicesState.invoices.length },
               { id: 'credits', label: 'Credits', disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'adjustments', label: 'Adjustments', hidden: true }, // Hidden - adjustments now has its own page in sidebar
               { id: 'acknowledgements', label: 'Acknowledgements', disabled: isCreateMode, disabledReason: 'Save order first' },
@@ -813,6 +822,15 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           {state.activeTab === 'notes' && <NotesTab orderId={orderId} />}
           {state.activeTab === 'tasks' && <TasksTab orderId={orderId} />}
           {state.activeTab === 'activity' && <ActivityTab />}
+          {state.activeTab === 'invoices' && (
+            <InvoicesTab
+              invoices={invoicesState.invoices}
+              isLoading={invoicesState.isLoadingInvoices}
+              error={invoicesState.invoicesError}
+              onViewInvoice={invoicesState.viewInvoice}
+              onCreateInvoice={() => setShowCreateInvoiceModal(true)}
+            />
+          )}
           {state.activeTab === 'credits' && (
             <CreditsTab
               credits={creditsState.credits}
@@ -1005,6 +1023,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onClose={state.closeAdditionalDetails}
         lineItem={state.additionalDetailsLineItem}
         onSave={state.saveAdditionalDetails}
+        onLiveUpdate={state.liveUpdateAdditionalDetails}
         showEndUserPerLine={state.showEndUserPerLine}
         showOutsideRepPerLine={state.showOutsideRepPerLine}
         showInsideRepPerLine={state.showInsideRepPerLine}
@@ -1115,7 +1134,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onClose={() => setShowCreateInvoiceModal(false)}
         onSuccess={(invoice) => {
           orderToasts.invoiceCreatedFromOrder(invoice.invoiceNumber || invoice.id);
+          invoicesState.refetchInvoices();
         }}
+      />
+
+      {/* Invoice Detail Modal */}
+      <InvoiceDetailModal
+        isOpen={invoicesState.showInvoiceDetailModal}
+        onClose={invoicesState.closeInvoiceDetailModal}
+        invoice={invoicesState.selectedInvoice}
+        invoiceDetails={invoicesState.invoiceDetails}
+        isLoading={invoicesState.isLoadingInvoiceDetails}
       />
 
       {/* Duplicate Order Modal */}

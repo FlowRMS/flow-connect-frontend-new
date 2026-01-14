@@ -5,10 +5,12 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import { useCheckDetailState } from './hooks';
+import { usePostedStatement } from '@/components/orders/api/checksApi';
+import type { PostedStatement } from '@/components/orders/api/checksApi';
 import { HeaderTopBar, PricingSummaryBar, CheckDetailsFields } from './components/header';
 import { LineItemsTable } from './components/line-items';
 import {
@@ -49,6 +51,22 @@ export default function CheckDetailContent({
   const state = useCheckDetailState({ checkId });
   const { setFullEntityContext } = useFlowChat();
 
+  // Adjustments state management - reuse from orders
+  const adjustmentsState = useAdjustmentsState();
+
+  // Fetch posted statement data when modal is shown and check is posted
+  // Note: we call this unconditionally to respect React hooks rules
+  const showPostedModal = state?.showPostedStatementModal ?? false;
+  const isPostedStatus = state?.status === 'posted';
+  const {
+    data: postedStatement,
+    isLoading: isLoadingPostedStatement,
+    error: postedStatementError,
+  } = usePostedStatement(
+    checkId !== 'new' ? checkId : null,
+    showPostedModal && isPostedStatus
+  );
+
   // Set full entity context for global chatbot (type, id, and check number)
   useEffect(() => {
     if (state?.checkNumber && checkId) {
@@ -59,8 +77,196 @@ export default function CheckDetailContent({
     };
   }, [state?.checkNumber, checkId, setFullEntityContext]);
 
-  // Adjustments state management - reuse from orders
-  const adjustmentsState = useAdjustmentsState();
+  // Excel export using posted statement data from API
+  // This useCallback must be defined before any early returns to respect React hooks rules
+  const handleDownloadExcel = useCallback(() => {
+    if (!state) return;
+
+    if (!postedStatement) {
+      // Fallback to local data if no posted statement available
+      const paidLineItems = (state.lineItems || []).filter((item) => item.paid);
+
+      const worksheetData = [
+        ['Type', 'Entity Number', 'Order Number', 'Expected Commission', 'Commission Received', 'Sales Amount', 'Outside Sales Rep'],
+        ...paidLineItems.map((item) => [
+          item.type.toUpperCase(),
+          item.number,
+          item.orderNumber || '-',
+          item.expectedCommission,
+          item.paidCommission,
+          item.commissionRateActual > 0
+            ? (item.paidCommission / (item.commissionRateActual / 100))
+            : 0,
+          item.salesRep || '-',
+        ]),
+      ];
+
+      const summaryData = [
+        ['Posted Statement Summary'],
+        [''],
+        ['Check Summary'],
+        ['Check Number', state.checkNumber || '-'],
+        ['Factory', state.check?.manufacturerName || '-'],
+        ['Check Date', state.checkDate ? new Date(state.checkDate).toLocaleDateString() : '-'],
+        ['Check Amount', state.isTotalStatedCommission ? (state.summary?.paidTotal ?? 0) : state.commissionAmount],
+        ['Commission Month', state.commissionMonth || '-'],
+        ['Post Date', state.postedDate ? new Date(state.postedDate).toLocaleDateString() : '-'],
+        [''],
+        ['Commission Summary'],
+        ['Paid Commissions', state.summary?.paidTotal ?? 0],
+        ['Expected Commission', state.summary?.expectedTotal ?? 0],
+        ['Balance', (state.summary?.paidTotal ?? 0) - (state.summary?.expectedTotal ?? 0)],
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+      const detailsSheet = XLSX.utils.aoa_to_sheet(worksheetData);
+      XLSX.utils.book_append_sheet(workbook, detailsSheet, 'Details');
+      const filename = `Posted_Statement_${state.checkNumber || 'Check'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(workbook, filename);
+      return;
+    }
+
+    // Use posted statement data from API
+    const header = postedStatement.header;
+    const details = postedStatement.details || [];
+    const repSummaries = postedStatement.repSummaries || [];
+
+    // Calculate totals from details
+    const totals = details.reduce(
+      (acc, detail) => ({
+        paidTotal: acc.paidTotal + parseFloat(detail.commissionReceived || '0'),
+        expectedTotal: acc.expectedTotal + parseFloat(detail.expectedCommission || '0'),
+        salesTotal: acc.salesTotal + parseFloat(detail.salesAmount || '0'),
+      }),
+      { paidTotal: 0, expectedTotal: 0, salesTotal: 0 }
+    );
+
+    // Format commission month for display
+    const formatCommissionMonth = (monthStr: string | undefined): string => {
+      if (!monthStr) return '-';
+      try {
+        const dateParts = monthStr.split('-');
+        if (dateParts.length >= 2) {
+          const date = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1);
+          return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        }
+        return monthStr;
+      } catch {
+        return monthStr;
+      }
+    };
+
+    // Format date for display
+    const formatDateForExcel = (dateStr: string | undefined): string => {
+      if (!dateStr) return '-';
+      try {
+        return new Date(dateStr).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
+      } catch {
+        return dateStr;
+      }
+    };
+
+    // Create summary data
+    const summaryData: (string | number)[][] = [
+      ['Posted Statement Summary'],
+      [''],
+      ['Check Summary'],
+      ['Check Number', header?.checkNumber || '-'],
+      ['Factory', header?.factoryName || '-'],
+      ['Check Date', formatDateForExcel(header?.entityDate)],
+      ['Check Amount', parseFloat(header?.commissionAmount || '0')],
+      ['Commission Month', formatCommissionMonth(header?.commissionMonth)],
+      ['Post Date', formatDateForExcel(header?.postDate)],
+      [''],
+      ['Commission Summary'],
+      ['Commission Received', totals.paidTotal],
+      ['Expected Commission', totals.expectedTotal],
+      ['Balance', totals.paidTotal - totals.expectedTotal],
+    ];
+
+    // Add rep summaries section if there are reps
+    if (repSummaries.length > 0) {
+      summaryData.push(['']);
+      summaryData.push(['Rep Summaries']);
+      summaryData.push(['Sales Rep', 'Expected Commission', 'Commission Received']);
+      repSummaries.forEach((rep) => {
+        summaryData.push([
+          rep.outsideSalesRepName || '-',
+          parseFloat(rep.expectedCommission || '0'),
+          parseFloat(rep.commissionReceived || '0'),
+        ]);
+      });
+    }
+
+    // Create details worksheet data
+    const detailsData: (string | number)[][] = [
+      ['Type', 'Entity Number', 'Order Number', 'Expected Commission', 'Commission Received', 'Sales Amount', 'Outside Sales Rep', 'Factory Name', 'Commission Month', 'Posted Month'],
+      ...details.map((detail) => [
+        detail.entityType || '-',
+        detail.entityNumber || '-',
+        detail.orderNumber || '-',
+        parseFloat(detail.expectedCommission || '0'),
+        parseFloat(detail.commissionReceived || '0'),
+        parseFloat(detail.salesAmount || '0'),
+        detail.outsideSalesRepName || '-',
+        detail.factoryName || '-',
+        detail.commissionMonth || '-',
+        detail.postedMonth || '-',
+      ]),
+    ];
+
+    // Add totals row
+    detailsData.push([
+      'TOTAL',
+      '',
+      '',
+      totals.expectedTotal,
+      totals.paidTotal,
+      totals.salesTotal,
+      '',
+      '',
+      '',
+      '',
+    ]);
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+
+    // Add summary sheet
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+    // Set column widths for summary sheet
+    summarySheet['!cols'] = [{ wch: 25 }, { wch: 30 }];
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+
+    // Add details sheet
+    const detailsSheet = XLSX.utils.aoa_to_sheet(detailsData);
+    // Set column widths for details sheet
+    detailsSheet['!cols'] = [
+      { wch: 12 },  // Type
+      { wch: 15 },  // Entity Number
+      { wch: 15 },  // Order Number
+      { wch: 20 },  // Expected Commission
+      { wch: 20 },  // Commission Received
+      { wch: 15 },  // Sales Amount
+      { wch: 20 },  // Outside Sales Rep
+      { wch: 20 },  // Factory Name
+      { wch: 18 },  // Commission Month
+      { wch: 15 },  // Posted Month
+    ];
+    XLSX.utils.book_append_sheet(workbook, detailsSheet, 'Details');
+
+    // Generate filename
+    const filename = `Posted_Statement_${header?.checkNumber || 'Check'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    // Download
+    XLSX.writeFile(workbook, filename);
+  }, [postedStatement, state]);
 
   // Loading state
   if (state?.isLoading) {
@@ -106,64 +312,6 @@ export default function CheckDetailContent({
 
   const handleSeePostedStatement = () => {
     state.setShowPostedStatementModal(true);
-  };
-
-  const handleDownloadExcel = () => {
-    // Prepare data for Excel export
-    const paidLineItems = state.lineItems.filter((item) => item.paid);
-
-    // Create worksheet data
-    const worksheetData = [
-      // Header row
-      ['Type', 'Entity Number', 'Order Number', 'Expected Commission', 'Commission Received', 'Sales Amount', 'Outside Sales Rep'],
-      // Data rows
-      ...paidLineItems.map((item) => [
-        item.type.toUpperCase(),
-        item.number,
-        item.orderNumber || '-',
-        item.expectedCommission,
-        item.paidCommission,
-        item.commissionRateActual > 0
-          ? (item.paidCommission / (item.commissionRateActual / 100))
-          : 0,
-        item.salesRep || '-',
-      ]),
-    ];
-
-    // Create summary data
-    const summaryData = [
-      ['Posted Statement Summary'],
-      [''],
-      ['Check Summary'],
-      ['Check Number', state.checkNumber || '-'],
-      ['Factory', state.check?.manufacturerName || '-'],
-      ['Check Date', state.checkDate ? new Date(state.checkDate).toLocaleDateString() : '-'],
-      ['Check Amount', state.isTotalStatedCommission ? state.summary.paidTotal : state.commissionAmount],
-      ['Commission Month', state.commissionMonth || '-'],
-      ['Post Date', state.postedDate ? new Date(state.postedDate).toLocaleDateString() : '-'],
-      [''],
-      ['Commission Summary'],
-      ['Paid Commissions', state.summary.paidTotal],
-      ['Expected Commission', state.summary.expectedTotal],
-      ['Balance', state.summary.paidTotal - state.summary.expectedTotal],
-    ];
-
-    // Create workbook
-    const workbook = XLSX.utils.book_new();
-
-    // Add summary sheet
-    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-
-    // Add details sheet
-    const detailsSheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    XLSX.utils.book_append_sheet(workbook, detailsSheet, 'Details');
-
-    // Generate filename
-    const filename = `Posted_Statement_${state.checkNumber || 'Check'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-    // Download
-    XLSX.writeFile(workbook, filename);
   };
 
   const handleSaveAsNewVersion = () => {
@@ -483,16 +631,10 @@ export default function CheckDetailContent({
       {/* Modals */}
       {state.showPostedStatementModal && (
         <PostedStatementModal
-          check={state.check}
-          checkNumber={state.checkNumber}
-          checkDate={state.checkDate}
-          commissionMonth={state.commissionMonth}
-          postedDate={state.postedDate}
-          commissionAmount={state.commissionAmount}
-          isTotalStatedCommission={state.isTotalStatedCommission}
-          summary={state.summary}
-          lineItems={state.lineItems}
-          adjustments={state.adjustments}
+          checkId={checkId}
+          postedStatement={postedStatement}
+          isLoading={isLoadingPostedStatement}
+          error={postedStatementError}
           onClose={() => state.setShowPostedStatementModal(false)}
           onDownloadExcel={handleDownloadExcel}
         />

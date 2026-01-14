@@ -230,6 +230,10 @@ export interface OrderLineItem {
   extendedPrice: number;
   commissionRate: number;
   commissionAmount: number;
+  commissionDiscountPercent?: number;  // Commission discount percentage
+  commissionDiscountAmount?: number;   // Commission discount amount
+  lineDiscountPercent?: number;        // Line item discount percentage
+  lineDiscountAmount?: number;         // Line item discount amount
   status?: 'open' | 'shipped' | 'partial_shipped' | 'cancelled' | 'invoiced';  // Line item status
   // Fulfillment tracking
   quantityShipped: number;
