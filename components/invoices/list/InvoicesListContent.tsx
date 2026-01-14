@@ -72,7 +72,11 @@ export default function InvoicesListContent() {
                   </div>
                 )}
               </div>
-              <AdvancedFilters filterOptions={filterOptions} />
+              <AdvancedFilters
+                filterOptions={filterOptions}
+                onFiltersChange={state.handleServerFiltersChange}
+                activeFilters={state.activeFilters}
+              />
               <button
                 onClick={() => state.setShowCreateModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"

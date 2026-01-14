@@ -5,7 +5,7 @@
  * Uses real API data with infinite scroll and search
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import type { Invoice, OrderSplitRate, InvoiceStatus } from '@/lib/types/rms';
 import { mockSalesReps } from '@/lib/data/rms-mock';
 import { useInvoicesInfinite, useInvoiceSearch, type InvoiceLandingPage, type InvoiceLandingPageFilter, fetchAllInvoiceIds } from '../../api';
@@ -16,6 +16,7 @@ import { isInvoiceLinked } from '../utils';
 import type { QuickDatePreset, QuickDateField } from '../types';
 import { getQuickDateRange } from '../utils';
 import { formatDateToISO, formatDateToBackend } from '../../../advancedFilters/utils';
+import type { ActiveFilter } from '../../../advancedFilters/types';
 
 /**
  * Map API status to RMS InvoiceStatus type
@@ -86,6 +87,33 @@ export function useInvoicesListState() {
   const [quickDateField, setQuickDateField] = useState<QuickDateField>('entryDate');
   const [showQuickDateFieldDropdown, setShowQuickDateFieldDropdown] = useState(false);
 
+  // Server-side filters - defined BEFORE API hook so they can be passed to the query
+  const [serverFilters, setServerFilters] = useState<InvoiceLandingPageFilter[]>([]);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+
+  // Handler for server-side filter changes (from AdvancedFilters)
+  const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    
+    // Convert ActiveFilter to InvoiceLandingPageFilter
+    // Only include value OR values, not both - check which one exists
+    const apiFilters: InvoiceLandingPageFilter[] = filters.map(f => {
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
+    setServerFilters(apiFilters);
+  }, []);
+
   // Build quick filters based on quick date filter selection
   const quickFilters = useMemo<InvoiceLandingPageFilter[]>(() => {
     const result: InvoiceLandingPageFilter[] = [];
@@ -126,6 +154,11 @@ export function useInvoicesListState() {
     return result;
   }, [quickDatePreset, quickDateField]);
 
+  // Combine quick filters with advanced filters
+  const filters = useMemo<InvoiceLandingPageFilter[]>(() => {
+    return [...quickFilters, ...serverFilters];
+  }, [quickFilters, serverFilters]);
+
   // Fetch invoices from API with infinite scroll
   const {
     data: invoicesData,
@@ -135,7 +168,7 @@ export function useInvoicesListState() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInvoicesInfinite(quickFilters);
+  } = useInvoicesInfinite(filters);
 
   // Search invoices
   const { data: searchResults, isLoading: isSearching } = useInvoiceSearch(searchQuery, searchQuery.length >= 2);
@@ -413,6 +446,10 @@ export function useInvoicesListState() {
     setQuickDateField,
     showQuickDateFieldDropdown,
     setShowQuickDateFieldDropdown,
+    // Advanced filters
+    activeFilters,
+    handleServerFiltersChange,
+    serverFilters,
     // Filter state and actions (excluding quick date filters managed above)
     ...otherFilterState,
     // Selection state and actions (using shared bulk selection)
