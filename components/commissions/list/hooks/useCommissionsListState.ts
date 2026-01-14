@@ -4,7 +4,7 @@
  * Integrates all sub-hooks and manages overall state
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import type { CommissionCheck } from '@/lib/types/rms';
 import {
@@ -23,9 +23,76 @@ import { unpostCheck } from '@/components/lib/graphql/checks';
 import { useCommissionFilters } from './useCommissionFilters';
 import { useBulkSelection } from '../../../shared';
 import { fetchAllCheckIds } from '@/components/orders/api/checksApi';
+import type { QuickDatePreset, QuickDateField } from '../types';
+import { getQuickDateRange } from '../utils';
+import { formatDateToISO, formatDateToBackend } from '../../../advancedFilters/utils';
+import type { ActiveFilter } from '../../../advancedFilters/types';
+import { useFilterSync } from '../../../advancedFilters/hooks/useFilterSync';
+import { getCommissionFilterOptions } from '../config/filterConfig';
 
 export function useCommissionsListState() {
-  // Fetch checks from real API with infinite scroll
+  // Quick date filter state - defined BEFORE API hook
+  const [quickDatePreset, setQuickDatePreset] = useState<QuickDatePreset>('all');
+  const [quickDateField, setQuickDateField] = useState<QuickDateField>('entryDate');
+  const [showQuickDateFieldDropdown, setShowQuickDateFieldDropdown] = useState(false);
+
+  // Server-side filters - defined BEFORE API hook so they can be passed to the query
+  const [serverFilters, setServerFilters] = useState<Array<{ columnName: string; operator: string; value: string }>>([]);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  
+  // Refs to prevent infinite loops during synchronization (will be used in step 4)
+  const isSyncingFromAdvanced = useRef(false);
+  const isSyncingFromColumn = useRef(false);
+
+  // Build quick filters based on quick date filter selection
+  const quickFilters = useMemo<Array<{ columnName: string; operator: string; value: string }>>(() => {
+    const result: Array<{ columnName: string; operator: string; value: string }> = [];
+
+    if (quickDatePreset !== 'all') {
+      const { start, end } = getQuickDateRange(quickDatePreset);
+      if (start && end) {
+        // Use quickDateField to determine which column to filter
+        // Map UI field names to API field names:
+        // - entryDate (UI) -> createdAt (API)
+        // - commissionMonth (UI) -> commissionMonth (API) - format as YYYY-MM
+        const columnName = quickDateField === 'entryDate' ? 'createdAt' : 'commissionMonth';
+        
+        // Format date based on column type:
+        // - commissionMonth: YYYY-MM format (e.g., "2025-01")
+        // - createdAt: Backend format '%Y-%m-%d %H:%M:%S' (datetime with time)
+        const formatDate = (date: Date): string => {
+          if (columnName === 'commissionMonth') {
+            // Format as YYYY-MM for commissionMonth
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            return `${year}-${month}`;
+          }
+          return formatDateToBackend(date); // Returns 'YYYY-MM-DD HH:MM:SS'
+        };
+        
+        result.push({
+          columnName,
+          operator: 'GTE',
+          value: formatDate(start),
+        });
+
+        result.push({
+          columnName,
+          operator: 'LTE',
+          value: formatDate(end),
+        });
+      }
+    }
+
+    return result;
+  }, [quickDatePreset, quickDateField]);
+
+  // Combine quick filters with server filters
+  const filters = useMemo(() => {
+    return [...quickFilters, ...serverFilters];
+  }, [quickFilters, serverFilters]);
+
+  // Fetch checks from real API with infinite scroll - now with combined filters
   const {
     data: checksData,
     isLoading: isLoadingChecks,
@@ -34,7 +101,7 @@ export function useCommissionsListState() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useChecksInfinite();
+  } = useChecksInfinite(filters);
 
   // Flatten paginated data
   const allChecksData = useMemo(() => {
@@ -265,8 +332,46 @@ export function useCommissionsListState() {
     }
   }, [refetchChecks]);
 
-  // Integrate filter hook
+  // Handler for server-side filter changes (from AdvancedFilters)
+  const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    
+    // Convert ActiveFilter to API filter format
+    // Only include value OR values, not both - check which one exists
+    const apiFilters: Array<{ columnName: string; operator: string; value: string }> = filters.map(f => {
+      if (f.values && f.values.length > 0) {
+        // For multi-value filters, we need to create multiple filters
+        // But the API format only supports single value, so we'll use the first value
+        // In a real implementation, you might need to handle this differently
+        return {
+          columnName: f.columnName,
+          operator: f.operator,
+          value: f.values[0],
+        };
+      }
+      return {
+        columnName: f.columnName,
+        operator: f.operator,
+        value: f.value || '',
+      };
+    });
+    setServerFilters(apiFilters);
+  }, []);
+
+  // Integrate filter hook (but exclude quick filters since they're now server-side)
   const filterState = useCommissionFilters(checks);
+  
+  // Extract quick filter state from filterState but override with our server-side state
+  // We keep the setters from filterState for compatibility
+  const {
+    quickDatePreset: _quickDatePreset,
+    setQuickDatePreset: _setQuickDatePreset,
+    quickDateField: _quickDateField,
+    setQuickDateField: _setQuickDateField,
+    showQuickDateFieldDropdown: _showQuickDateFieldDropdown,
+    setShowQuickDateFieldDropdown: _setShowQuickDateFieldDropdown,
+    ...otherFilterState
+  } = filterState;
 
   // Integrate bulk selection hook
   const bulkSelection = useBulkSelection({
@@ -435,7 +540,17 @@ export function useCommissionsListState() {
     isDeletingCheck: deleteCheckMutation.isPending,
 
     // Filter state and actions
-    ...filterState,
+    ...otherFilterState,
+    // Quick date filter state (server-side)
+    quickDatePreset,
+    setQuickDatePreset,
+    quickDateField,
+    setQuickDateField,
+    showQuickDateFieldDropdown,
+    setShowQuickDateFieldDropdown,
+    // AdvancedFilters state
+    activeFilters,
+    handleServerFiltersChange,
 
     // Selection state and actions (compatibility layer)
     selectedCheckIds,

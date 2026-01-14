@@ -7,7 +7,9 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
 import { useCommissionsListState } from './hooks/useCommissionsListState';
+import { getCommissionFilterOptions } from './config/filterConfig';
 import { CommissionsTable } from './components/table/CommissionsTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { CheckDetailPanel } from './components/sidebar/CheckDetailPanel';
@@ -17,6 +19,8 @@ export default function CommissionsListContent() {
   const router = useRouter();
   const state = useCommissionsListState();
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  const filterOptions = getCommissionFilterOptions();
 
   // Handler to open bulk delete modal instead of using confirm dialog
   const handleBulkDelete = () => {
@@ -35,8 +39,8 @@ export default function CommissionsListContent() {
       {/* Main Content */}
       <div className={`flex-1 flex flex-col overflow-hidden ${state.selectedCheck ? 'mr-[480px]' : ''}`}>
         {/* Header */}
-        <div className="p-6 pb-0">
-          <div className="flex items-center justify-between mb-6">
+        <div className="flex-shrink-0 px-6 py-4 bg-white border-b border-gray-200">
+          <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-[var(--muted)] rounded-lg flex items-center justify-center">
@@ -63,6 +67,11 @@ export default function CommissionsListContent() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <AdvancedFilters
+                filterOptions={filterOptions}
+                onFiltersChange={state.handleServerFiltersChange}
+                activeFilters={state.activeFilters}
+              />
               <div className="relative group">
                 <button
                   disabled
@@ -106,8 +115,9 @@ export default function CommissionsListContent() {
               </button>
             </div>
           </div>
-
-          {/* Quick Date Filter */}
+        </div>
+        {/* Quick Date Filter */}
+        <div className="flex-shrink-0 px-6 py-4 bg-white border-b border-gray-200">
           <QuickDateFilter
             quickDatePreset={state.quickDatePreset}
             setQuickDatePreset={state.setQuickDatePreset}
@@ -120,57 +130,47 @@ export default function CommissionsListContent() {
 
         {/* Commissions Table */}
         <div className="flex-1 overflow-auto p-6 pt-4" onScroll={state.handleScroll}>
-          {state.isLoadingChecks ? (
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-12">
-              <div className="flex flex-col items-center justify-center">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--primary)] mb-4" />
-                <p className="text-[var(--muted-foreground)] text-sm">Loading checks...</p>
-              </div>
+          <CommissionsTable
+            filteredChecks={state.filteredChecks}
+            isLoading={state.isLoadingChecks}
+            selectedCheckIds={state.selectedCheckIds}
+            toggleCheckSelection={state.toggleCheckSelection}
+            selectAllChecks={state.selectAllChecks}
+            clearSelection={state.clearSelection}
+            areAllEligibleSelected={state.areAllEligibleSelected}
+            isItemSelected={state.isItemSelected}
+            isAllSelected={state.isAllSelected}
+            isPartiallySelected={state.isPartiallySelected}
+            handleSelectAll={state.handleSelectAll}
+            handleSelectOne={state.handleSelectOne}
+            sortField={state.sortField}
+            sortDirection={state.sortDirection}
+            handleSort={state.handleSort}
+            columnFilters={state.columnFilters}
+            setColumnFilters={state.setColumnFilters}
+            openFilter={state.openFilter}
+            setOpenFilter={state.setOpenFilter}
+            uniqueStatuses={state.uniqueStatuses}
+            uniqueManufacturers={state.uniqueManufacturers}
+            showBulkActionsMenu={state.showBulkActionsMenu}
+            setShowBulkActionsMenu={state.setShowBulkActionsMenu}
+            bulkSetStatus={state.bulkSetStatus}
+            bulkDelete={handleBulkDelete}
+            setSelectedCheck={state.setSelectedCheck}
+            isBulkUpdating={state.isBulkUpdating}
+          />
+          {/* Infinite Scroll Loading Indicator */}
+          {state.isFetchingNextPage && (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)] mr-2" />
+              <span className="text-sm text-[var(--muted-foreground)]">Loading more checks...</span>
             </div>
-          ) : (
-            <>
-              <CommissionsTable
-                filteredChecks={state.filteredChecks}
-                selectedCheckIds={state.selectedCheckIds}
-                toggleCheckSelection={state.toggleCheckSelection}
-                selectAllChecks={state.selectAllChecks}
-                clearSelection={state.clearSelection}
-                areAllEligibleSelected={state.areAllEligibleSelected}
-                isItemSelected={state.isItemSelected}
-                isAllSelected={state.isAllSelected}
-                isPartiallySelected={state.isPartiallySelected}
-                handleSelectAll={state.handleSelectAll}
-                handleSelectOne={state.handleSelectOne}
-                sortField={state.sortField}
-                sortDirection={state.sortDirection}
-                handleSort={state.handleSort}
-                columnFilters={state.columnFilters}
-                setColumnFilters={state.setColumnFilters}
-                openFilter={state.openFilter}
-                setOpenFilter={state.setOpenFilter}
-                uniqueStatuses={state.uniqueStatuses}
-                uniqueManufacturers={state.uniqueManufacturers}
-                showBulkActionsMenu={state.showBulkActionsMenu}
-                setShowBulkActionsMenu={state.setShowBulkActionsMenu}
-                bulkSetStatus={state.bulkSetStatus}
-                bulkDelete={handleBulkDelete}
-                setSelectedCheck={state.setSelectedCheck}
-                isBulkUpdating={state.isBulkUpdating}
-              />
-              {/* Infinite Scroll Loading Indicator */}
-              {state.isFetchingNextPage && (
-                <div className="flex items-center justify-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)] mr-2" />
-                  <span className="text-sm text-[var(--muted-foreground)]">Loading more checks...</span>
-                </div>
-              )}
-              {/* End of List Indicator */}
-              {!state.hasNextPage && state.checks.length > 0 && (
-                <div className="text-center py-4 text-sm text-[var(--muted-foreground)]">
-                  All {state.totalCount} checks loaded
-                </div>
-              )}
-            </>
+          )}
+          {/* End of List Indicator */}
+          {!state.hasNextPage && state.checks.length > 0 && (
+            <div className="text-center py-4 text-sm text-[var(--muted-foreground)]">
+              All {state.totalCount} checks loaded
+            </div>
           )}
         </div>
       </div>

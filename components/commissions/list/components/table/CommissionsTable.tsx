@@ -6,16 +6,18 @@
 import type { CommissionCheck } from '@/lib/types/rms';
 import type { CheckStatus } from '@/components/lib/graphql/checks';
 import type { SortField, SortDirection, ColumnFilters } from '../../types';
-import { getGridTemplateColumns } from '../../config/columnConfig';
 import { isCheckLinked, getCheckLinkedReason } from '../../utils';
 import { BulkActionsBar } from './BulkActionsBar';
 import { CommissionsTableHeader } from './CommissionsTableHeader';
 import { CommissionRow } from './CommissionRow';
 import { CommissionsEmptyState } from './CommissionsEmptyState';
+import { CommissionsTableSkeleton } from './CommissionsTableSkeleton';
 
 interface CommissionsTableProps {
   // Data
   filteredChecks: CommissionCheck[];
+  // Loading state
+  isLoading?: boolean;
   // Selection (legacy API)
   selectedCheckIds: Set<string>;
   toggleCheckSelection: (checkId: string) => void;
@@ -53,6 +55,7 @@ interface CommissionsTableProps {
 
 export function CommissionsTable({
   filteredChecks,
+  isLoading = false,
   selectedCheckIds,
   toggleCheckSelection,
   selectAllChecks,
@@ -79,8 +82,6 @@ export function CommissionsTable({
   isBulkUpdating = false,
   setSelectedCheck,
 }: CommissionsTableProps) {
-  const gridColumns = getGridTemplateColumns();
-
   // Compatibility layer: use new API if available, fall back to legacy
   const checkIsSelected = (id: string) =>
     isItemSelected ? isItemSelected(id) : selectedCheckIds.has(id);
@@ -92,7 +93,63 @@ export function CommissionsTable({
     : (selectedCheckIds.size > 0 && !allSelected);
 
   return (
-    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
+      {filteredChecks.length === 0 && !isLoading ? (
+        <CommissionsEmptyState />
+      ) : (
+        <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 240px)' }}>
+          <div className="overflow-auto scrollbar-always-visible flex-1">
+            <table className="w-full min-w-[1200px]">
+              <CommissionsTableHeader
+                filteredChecks={filteredChecks}
+                areAllEligibleSelected={allSelected}
+                isPartiallySelected={partiallySelected}
+                onSelectAll={(checked) => {
+                  if (handleSelectAll) {
+                    handleSelectAll(checked);
+                  } else if (checked) {
+                    selectAllChecks(filteredChecks);
+                  } else {
+                    clearSelection();
+                  }
+                }}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+                columnFilters={columnFilters}
+                setColumnFilters={setColumnFilters}
+                openFilter={openFilter}
+                setOpenFilter={setOpenFilter}
+                uniqueStatuses={uniqueStatuses}
+                uniqueManufacturers={uniqueManufacturers}
+              />
+              <tbody className="divide-y divide-gray-200">
+                {isLoading ? (
+                  <CommissionsTableSkeleton rowCount={8} />
+                ) : (
+                  filteredChecks.map((check) => (
+                    <CommissionRow
+                      key={check.id}
+                      check={check}
+                      isSelected={checkIsSelected(check.id)}
+                      isLinked={isCheckLinked(check)}
+                      linkedReason={getCheckLinkedReason(check)}
+                      onToggleSelection={() => {
+                        if (handleSelectOne) {
+                          handleSelectOne(check.id, !checkIsSelected(check.id));
+                        } else {
+                          toggleCheckSelection(check.id);
+                        }
+                      }}
+                      onPreview={() => setSelectedCheck(check)}
+                    />
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {/* Bulk Actions Bar - shown when items are selected */}
       {selectedCheckIds.size > 0 && (
         <BulkActionsBar
@@ -105,56 +162,6 @@ export function CommissionsTable({
           isLoading={isBulkUpdating}
         />
       )}
-
-      <div className="overflow-x-auto">
-        <div className="min-w-[1200px]">
-          {/* Table Header */}
-          <CommissionsTableHeader
-            filteredChecks={filteredChecks}
-            areAllEligibleSelected={allSelected}
-            isPartiallySelected={partiallySelected}
-            onSelectAll={(checked) => {
-              if (handleSelectAll) {
-                handleSelectAll(checked);
-              } else if (checked) {
-                selectAllChecks(filteredChecks);
-              } else {
-                clearSelection();
-              }
-            }}
-            sortField={sortField}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            columnFilters={columnFilters}
-            setColumnFilters={setColumnFilters}
-            openFilter={openFilter}
-            setOpenFilter={setOpenFilter}
-            uniqueStatuses={uniqueStatuses}
-            uniqueManufacturers={uniqueManufacturers}
-            gridColumns={gridColumns}
-          />
-
-          {/* Table Body */}
-          <div className="divide-y divide-[var(--border)]">
-            {filteredChecks.length === 0 ? (
-              <CommissionsEmptyState />
-            ) : (
-              filteredChecks.map((check) => (
-                <CommissionRow
-                  key={check.id}
-                  check={check}
-                  isSelected={selectedCheckIds.has(check.id)}
-                  isLinked={isCheckLinked(check)}
-                  linkedReason={getCheckLinkedReason(check)}
-                  onToggleSelection={() => toggleCheckSelection(check.id)}
-                  onPreview={() => setSelectedCheck(check)}
-                  gridColumns={gridColumns}
-                />
-              ))
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
