@@ -30,7 +30,6 @@ import {
   AddLineItemModal,
   OrderDetailModal,
 } from './components/modals';
-import * as XLSX from 'xlsx';
 import {
   AdjustmentModal,
   AdjustmentDetailModal,
@@ -82,190 +81,19 @@ export default function CheckDetailContent({
   const handleDownloadExcel = useCallback(() => {
     if (!state) return;
 
-    if (!postedStatement) {
-      // Fallback to local data if no posted statement available
-      const paidLineItems = (state.lineItems || []).filter((item) => item.paid);
-
-      const worksheetData = [
-        ['Type', 'Entity Number', 'Order Number', 'Expected Commission', 'Commission Received', 'Sales Amount', 'Outside Sales Rep'],
-        ...paidLineItems.map((item) => [
-          item.type.toUpperCase(),
-          item.number,
-          item.orderNumber || '-',
-          item.expectedCommission,
-          item.paidCommission,
-          item.commissionRateActual > 0
-            ? (item.paidCommission / (item.commissionRateActual / 100))
-            : 0,
-          item.salesRep || '-',
-        ]),
-      ];
-
-      const summaryData = [
-        ['Posted Statement Summary'],
-        [''],
-        ['Check Summary'],
-        ['Check Number', state.checkNumber || '-'],
-        ['Factory', state.check?.manufacturerName || '-'],
-        ['Check Date', state.checkDate ? new Date(state.checkDate).toLocaleDateString() : '-'],
-        ['Check Amount', state.isTotalStatedCommission ? (state.summary?.paidTotal ?? 0) : state.commissionAmount],
-        ['Commission Month', state.commissionMonth || '-'],
-        ['Post Date', state.postedDate ? new Date(state.postedDate).toLocaleDateString() : '-'],
-        [''],
-        ['Commission Summary'],
-        ['Paid Commissions', state.summary?.paidTotal ?? 0],
-        ['Expected Commission', state.summary?.expectedTotal ?? 0],
-        ['Balance', (state.summary?.paidTotal ?? 0) - (state.summary?.expectedTotal ?? 0)],
-      ];
-
-      const workbook = XLSX.utils.book_new();
-      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-      const detailsSheet = XLSX.utils.aoa_to_sheet(worksheetData);
-      XLSX.utils.book_append_sheet(workbook, detailsSheet, 'Details');
-      const filename = `Posted_Statement_${state.checkNumber || 'Check'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-      XLSX.writeFile(workbook, filename);
+    // If postedStatement has a presigned URL, download from there
+    if (postedStatement?.presignedUrl) {
+      const link = document.createElement('a');
+      link.href = postedStatement.presignedUrl;
+      link.download = `Posted_Statement_${postedStatement.header?.checkNumber || state.checkNumber || 'Check'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       return;
     }
 
-    // Use posted statement data from API
-    const header = postedStatement.header;
-    const details = postedStatement.details || [];
-    const repSummaries = postedStatement.repSummaries || [];
-
-    // Calculate totals from details
-    const totals = details.reduce(
-      (acc, detail) => ({
-        paidTotal: acc.paidTotal + parseFloat(detail.commissionReceived || '0'),
-        expectedTotal: acc.expectedTotal + parseFloat(detail.expectedCommission || '0'),
-        salesTotal: acc.salesTotal + parseFloat(detail.salesAmount || '0'),
-      }),
-      { paidTotal: 0, expectedTotal: 0, salesTotal: 0 }
-    );
-
-    // Format commission month for display
-    const formatCommissionMonth = (monthStr: string | undefined): string => {
-      if (!monthStr) return '-';
-      try {
-        const dateParts = monthStr.split('-');
-        if (dateParts.length >= 2) {
-          const date = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1);
-          return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-        }
-        return monthStr;
-      } catch {
-        return monthStr;
-      }
-    };
-
-    // Format date for display
-    const formatDateForExcel = (dateStr: string | undefined): string => {
-      if (!dateStr) return '-';
-      try {
-        return new Date(dateStr).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        });
-      } catch {
-        return dateStr;
-      }
-    };
-
-    // Create summary data
-    const summaryData: (string | number)[][] = [
-      ['Posted Statement Summary'],
-      [''],
-      ['Check Summary'],
-      ['Check Number', header?.checkNumber || '-'],
-      ['Factory', header?.factoryName || '-'],
-      ['Check Date', formatDateForExcel(header?.entityDate)],
-      ['Check Amount', parseFloat(header?.commissionAmount || '0')],
-      ['Commission Month', formatCommissionMonth(header?.commissionMonth)],
-      ['Post Date', formatDateForExcel(header?.postDate)],
-      [''],
-      ['Commission Summary'],
-      ['Commission Received', totals.paidTotal],
-      ['Expected Commission', totals.expectedTotal],
-      ['Balance', totals.paidTotal - totals.expectedTotal],
-    ];
-
-    // Add rep summaries section if there are reps
-    if (repSummaries.length > 0) {
-      summaryData.push(['']);
-      summaryData.push(['Rep Summaries']);
-      summaryData.push(['Sales Rep', 'Expected Commission', 'Commission Received']);
-      repSummaries.forEach((rep) => {
-        summaryData.push([
-          rep.outsideSalesRepName || '-',
-          parseFloat(rep.expectedCommission || '0'),
-          parseFloat(rep.commissionReceived || '0'),
-        ]);
-      });
-    }
-
-    // Create details worksheet data
-    const detailsData: (string | number)[][] = [
-      ['Type', 'Entity Number', 'Order Number', 'Expected Commission', 'Commission Received', 'Sales Amount', 'Outside Sales Rep', 'Factory Name', 'Commission Month', 'Posted Month'],
-      ...details.map((detail) => [
-        detail.entityType || '-',
-        detail.entityNumber || '-',
-        detail.orderNumber || '-',
-        parseFloat(detail.expectedCommission || '0'),
-        parseFloat(detail.commissionReceived || '0'),
-        parseFloat(detail.salesAmount || '0'),
-        detail.outsideSalesRepName || '-',
-        detail.factoryName || '-',
-        detail.commissionMonth || '-',
-        detail.postedMonth || '-',
-      ]),
-    ];
-
-    // Add totals row
-    detailsData.push([
-      'TOTAL',
-      '',
-      '',
-      totals.expectedTotal,
-      totals.paidTotal,
-      totals.salesTotal,
-      '',
-      '',
-      '',
-      '',
-    ]);
-
-    // Create workbook
-    const workbook = XLSX.utils.book_new();
-
-    // Add summary sheet
-    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-    // Set column widths for summary sheet
-    summarySheet['!cols'] = [{ wch: 25 }, { wch: 30 }];
-    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-
-    // Add details sheet
-    const detailsSheet = XLSX.utils.aoa_to_sheet(detailsData);
-    // Set column widths for details sheet
-    detailsSheet['!cols'] = [
-      { wch: 12 },  // Type
-      { wch: 15 },  // Entity Number
-      { wch: 15 },  // Order Number
-      { wch: 20 },  // Expected Commission
-      { wch: 20 },  // Commission Received
-      { wch: 15 },  // Sales Amount
-      { wch: 20 },  // Outside Sales Rep
-      { wch: 20 },  // Factory Name
-      { wch: 18 },  // Commission Month
-      { wch: 15 },  // Posted Month
-    ];
-    XLSX.utils.book_append_sheet(workbook, detailsSheet, 'Details');
-
-    // Generate filename
-    const filename = `Posted_Statement_${header?.checkNumber || 'Check'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-    // Download
-    XLSX.writeFile(workbook, filename);
+    // Fallback: If no presigned URL, show a message (backend should always provide URL)
+    console.warn('No presigned URL available from backend for posted statement');
   }, [postedStatement, state]);
 
   // Loading state

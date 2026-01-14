@@ -26,7 +26,9 @@ import {
   OutsideRepSplitsModal,
   InsideRepSplitsModal,
 } from './components/modals/header';
-import { WarehouseConversionModal } from './components/modals/utility';
+import { WarehouseConversionModal, DeleteConfirmModal } from './components/modals/utility';
+import { useDeleteInvoice } from '../api/useInvoicesApi';
+import { invoiceToasts } from '@/components/lib/toast';
 import { AdditionalDetailsModal } from './components/modals/line-items';
 import { DEFAULT_VISIBLE_COLUMNS, COLUMN_LABELS } from './constants';
 import { getTabsConfig } from './config/tabsConfig';
@@ -65,6 +67,11 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
     onSelectAll: state?.selectAllLineItems,
     onClearSelection: state?.clearLineItemSelection,
   });
+
+  // Delete Invoice state - must be before any early returns
+  const [showDeleteInvoiceModal, setShowDeleteInvoiceModal] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const deleteInvoiceMutation = useDeleteInvoice();
 
   // Loading state
   if (state?.isLoading) {
@@ -246,6 +253,27 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
     state.setInsideRepSplits([]);
   };
 
+  const handleDelete = () => {
+    setShowDeleteInvoiceModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!state.invoice?.id) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteInvoiceMutation.mutateAsync(state.invoice.id);
+      invoiceToasts.deleteSuccess(state.invoice.invoiceNumber);
+      router.push('/invoices');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete invoice';
+      invoiceToasts.deleteError(errorMessage);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteInvoiceModal(false);
+    }
+  };
+
   return (
     <main className="h-full overflow-auto bg-[var(--background)]">
       {/* Header Top Bar */}
@@ -272,6 +300,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         handleGeneratePDF={handleGeneratePDF}
         handleSave={handleSave}
         handleSaveAsNew={handleSaveAsNew}
+        onDelete={handleDelete}
         isCreateMode={state.isCreateMode}
         hasChanges={state.hasChanges}
         isSaving={state.isSaving}
@@ -677,6 +706,17 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         endUserPerLineItem={(state.invoice as any)?.endUserPerLineItem}
         outsidePerLineItem={(state.invoice as any)?.outsidePerLineItem}
         insidePerLineItem={(state.invoice as any)?.insidePerLineItem}
+      />
+
+      {/* Delete Invoice Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={showDeleteInvoiceModal}
+        title="Delete Invoice?"
+        message="Are you sure you want to delete invoice"
+        itemName={state.invoice.invoiceNumber}
+        isPending={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteInvoiceModal(false)}
       />
     </main>
   );

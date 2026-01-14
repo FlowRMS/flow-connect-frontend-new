@@ -38,7 +38,7 @@ import {
   InvoiceDetailModal,
 } from './components/modals';
 import { DuplicateOrderModal } from '../list/components/modals/DuplicateOrderModal';
-import { useDuplicateOrder } from '../api/useOrdersApi';
+import { useDuplicateOrder, useDeleteOrder } from '../api/useOrdersApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { useCreditsState } from './hooks/useCreditsState';
 import { useAdjustmentsState } from './hooks/useAdjustmentsState';
@@ -79,6 +79,11 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   // Duplicate Order modal state
   const [showDuplicateOrderModal, setShowDuplicateOrderModal] = useState(false);
   const duplicateOrderMutation = useDuplicateOrder();
+
+  // Delete Order state
+  const [showDeleteOrderModal, setShowDeleteOrderModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const deleteOrderMutation = useDeleteOrder();
 
   // Current reps with names (for passing to line items when adding new ones)
   const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
@@ -509,9 +514,23 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   };
 
   const handleDelete = () => {
-    if (confirm('Are you sure you want to delete this order?')) {
-      alert('Order deleted');
+    setShowDeleteOrderModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!order?.id) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteOrderMutation.mutateAsync(order.id);
+      orderToasts.deleteSuccess(order.orderNumber);
       router.push('/orders');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete order';
+      orderToasts.deleteError(errorMessage);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteOrderModal(false);
     }
   };
 
@@ -1179,6 +1198,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             orderToasts.duplicateError(error instanceof Error ? error.message : 'Failed to duplicate order');
           }
         }}
+      />
+
+      {/* Delete Order Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={showDeleteOrderModal}
+        title="Delete Order?"
+        message="Are you sure you want to delete order"
+        itemName={order.orderNumber}
+        isPending={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteOrderModal(false)}
       />
     </main>
   );

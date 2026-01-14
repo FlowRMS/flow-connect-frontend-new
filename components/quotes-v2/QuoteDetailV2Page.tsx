@@ -20,6 +20,7 @@ import { FilesTab } from '@/components/shared/FilesTab';
 import { ColumnsConfigModalV2 } from './modals/ColumnsConfigModalV2';
 import { AdditionalDetailsModalV2 } from './modals/AdditionalDetailsModalV2';
 import { DuplicateQuoteModal } from './modals/DuplicateQuoteModal';
+import { DeleteConfirmModal } from './modals/DeleteConfirmModal';
 import { ConnectedEntitiesSection } from '@/components/shared/ConnectedEntitiesSection';
 import {
   defaultQuoteSettingsV2,
@@ -84,6 +85,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showAdditionalDetailsModal, setShowAdditionalDetailsModal] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedLineItem, setSelectedLineItem] = useState<LineItemV2 | null>(null);
 
   // Saving state
@@ -545,11 +548,15 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [quote, isNew, buildQuoteInput, createQuoteMutation, updateQuoteMutation, manageJobLink]);
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
+    if (!quote.id) return;
+    setShowDeleteModal(true);
+  }, [quote.id]);
+
+  const handleConfirmDelete = useCallback(async () => {
     if (!quote.id) return;
 
-    if (!confirm('Are you sure you want to delete this quote?')) return;
-
+    setIsDeleting(true);
     try {
       await deleteQuoteMutation.mutateAsync(quote.id);
       quoteToasts.deleteSuccess(quote.quoteNumber);
@@ -558,6 +565,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete quote';
       setSaveError(errorMessage);
       quoteToasts.deleteError(errorMessage);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
     }
   }, [quote.id, quote.quoteNumber, deleteQuoteMutation, onBack]);
 
@@ -1046,6 +1056,16 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         isPending={duplicateQuoteMutation.isPending}
         onClose={() => setShowDuplicateModal(false)}
         onDuplicate={handleDuplicateConfirm}
+      />
+
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        title="Delete Quote?"
+        message="Are you sure you want to delete quote"
+        itemName={quote.quoteNumber}
+        isPending={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteModal(false)}
       />
     </div>
   );
