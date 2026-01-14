@@ -5,7 +5,6 @@
 
 import type { Invoice } from '@/lib/types/rms';
 import type { SortField, SortDirection, ColumnFilters } from '../../types';
-import { getGridTemplateColumns } from '../../config/columnConfig';
 import { isInvoiceLinked, getInvoiceLinkedReason } from '../../utils';
 import { InvoicesTableHeader } from './InvoicesTableHeader';
 import { InvoiceRow } from './InvoiceRow';
@@ -79,8 +78,6 @@ export function InvoicesTable({
   bulkDelete,
   setSelectedInvoice,
 }: InvoicesTableProps) {
-  const gridColumns = getGridTemplateColumns();
-
   // Compatibility layer: use new API if available, fall back to legacy
   const checkIsSelected = (id: string) =>
     isItemSelected ? isItemSelected(id) : selectedInvoiceIds.has(id);
@@ -92,65 +89,63 @@ export function InvoicesTable({
     : (selectedInvoiceIds.size > 0 && !allSelected);
 
   return (
-    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-      <div className="overflow-x-auto">
-        <div className="min-w-[1640px]">
-          {/* Table Header */}
-          <InvoicesTableHeader
-            filteredInvoices={filteredInvoices}
-            areAllEligibleSelected={allSelected}
-            isPartiallySelected={partiallySelected}
-            onSelectAll={(checked) => {
-              if (handleSelectAll) {
-                handleSelectAll(checked);
-              } else if (checked) {
-                selectAllInvoices(filteredInvoices);
-              } else {
-                clearSelection();
-              }
-            }}
-            sortField={sortField}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            columnFilters={columnFilters}
-            setColumnFilters={setColumnFilters}
-            openFilter={openFilter}
-            setOpenFilter={setOpenFilter}
-            uniqueCustomers={uniqueCustomers}
-            uniqueManufacturers={uniqueManufacturers}
-            uniqueStatuses={uniqueStatuses}
-            uniqueTotals={uniqueTotals}
-            uniqueBalances={uniqueBalances}
-            gridColumns={gridColumns}
-          />
-
-          {/* Table Body */}
-          <div className="divide-y divide-[var(--border)]">
-            {filteredInvoices.length === 0 ? (
-              <InvoicesEmptyState />
-            ) : (
-              filteredInvoices.map((invoice) => (
-                <InvoiceRow
-                  key={invoice.id}
-                  invoice={invoice}
-                  isSelected={checkIsSelected(invoice.id)}
-                  isLinked={isInvoiceLinked(invoice)}
-                  linkedReason={getInvoiceLinkedReason(invoice)}
-                  onToggleSelection={() => {
-                    if (handleSelectOne) {
-                      handleSelectOne(invoice.id, !checkIsSelected(invoice.id));
-                    } else {
-                      toggleInvoiceSelection(invoice.id);
-                    }
-                  }}
-                  onPreview={() => setSelectedInvoice(invoice)}
-                  gridColumns={gridColumns}
-                />
-              ))
-            )}
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
+      {filteredInvoices.length === 0 ? (
+        // Empty state - don't show table structure
+        <InvoicesEmptyState />
+      ) : (
+        <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 240px)' }}>
+          <div className="overflow-auto scrollbar-always-visible flex-1">
+            <table className="w-full min-w-[1640px]">
+              <InvoicesTableHeader
+                filteredInvoices={filteredInvoices}
+                areAllEligibleSelected={allSelected}
+                isPartiallySelected={partiallySelected}
+                onSelectAll={(checked) => {
+                  if (handleSelectAll) {
+                    handleSelectAll(checked);
+                  } else if (checked) {
+                    selectAllInvoices(filteredInvoices);
+                  } else {
+                    clearSelection();
+                  }
+                }}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+                columnFilters={columnFilters}
+                setColumnFilters={setColumnFilters}
+                openFilter={openFilter}
+                setOpenFilter={setOpenFilter}
+                uniqueCustomers={uniqueCustomers}
+                uniqueManufacturers={uniqueManufacturers}
+                uniqueStatuses={uniqueStatuses}
+                uniqueTotals={uniqueTotals}
+                uniqueBalances={uniqueBalances}
+              />
+              <tbody className="divide-y divide-gray-200">
+                {filteredInvoices.map((invoice) => (
+                  <InvoiceRow
+                    key={invoice.id}
+                    invoice={invoice}
+                    isSelected={checkIsSelected(invoice.id)}
+                    isLinked={isInvoiceLinked(invoice)}
+                    linkedReason={getInvoiceLinkedReason(invoice)}
+                    onToggleSelection={() => {
+                      if (handleSelectOne) {
+                        handleSelectOne(invoice.id, !checkIsSelected(invoice.id));
+                      } else {
+                        toggleInvoiceSelection(invoice.id);
+                      }
+                    }}
+                    onPreview={() => setSelectedInvoice(invoice)}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

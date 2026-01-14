@@ -5,7 +5,6 @@
 
 import type { Invoice } from '@/lib/types/rms';
 import type { SortField, SortDirection, ColumnFilters } from '../../types';
-import { SortIcon } from './SortIcon';
 import { ColumnFilterDropdown } from './ColumnFilterDropdown';
 import { invoiceStatusLabels } from '../../constants';
 import { formatCurrency } from '../../utils';
@@ -31,8 +30,6 @@ interface InvoicesTableHeaderProps {
   uniqueStatuses: string[];
   uniqueTotals: number[];
   uniqueBalances: number[];
-  // Grid columns
-  gridColumns: string;
 }
 
 export function InvoicesTableHeader({
@@ -52,242 +49,194 @@ export function InvoicesTableHeader({
   uniqueStatuses,
   uniqueTotals,
   uniqueBalances,
-  gridColumns,
 }: InvoicesTableHeaderProps) {
   return (
-    <div
-      className="grid gap-2 px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30 sticky top-0"
-      style={{ gridTemplateColumns: gridColumns }}
-    >
-      {/* Checkbox column */}
-      <div className="flex items-center justify-center">
-        <input
-          type="checkbox"
-          checked={areAllEligibleSelected}
-          ref={(el) => {
-            if (el) el.indeterminate = isPartiallySelected ?? false;
-          }}
-          onChange={(e) => onSelectAll(e.target.checked)}
-          className="w-4 h-4 accent-[var(--primary)]"
-        />
-      </div>
-
-      {/* Preview column header - empty */}
-      <div className="flex items-center justify-center" />
-
-      {/* Invoice # */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('invoiceNumber')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Invoice #
-          <SortIcon
-            field="invoiceNumber"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
+    <thead className="bg-gray-50 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
+      <tr>
+        {/* Checkbox */}
+        <th className="w-10 px-3 py-3 text-left">
+          <input
+            type="checkbox"
+            checked={areAllEligibleSelected}
+            ref={(el) => {
+              if (el) el.indeterminate = isPartiallySelected ?? false;
+            }}
+            onChange={(e) => onSelectAll(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 accent-indigo-600"
           />
-        </button>
-        <ColumnFilterDropdown
-          type="text"
-          filterId="invoiceNumber"
-          value={columnFilters.invoiceNumber}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, invoiceNumber: value }))
-          }
-          placeholder="Search invoices..."
-          isOpen={openFilter === 'invoiceNumber'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'invoiceNumber' ? null : 'invoiceNumber')
-          }
-        />
-      </div>
+        </th>
 
-      {/* Status */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('status')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Status
-          <SortIcon
-            field="status"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="status"
-          options={uniqueStatuses.map((s) => ({
-            value: s,
-            label: invoiceStatusLabels[s as keyof typeof invoiceStatusLabels],
-          }))}
-          value={columnFilters.status}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, status: value }))
-          }
-          placeholder="All Statuses"
-          isOpen={openFilter === 'status'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'status' ? null : 'status')
-          }
-        />
-      </div>
+        {/* Preview */}
+        <th className="w-10 px-3 py-3 text-center"></th>
 
-      {/* Order # */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Order #
-        </span>
-      </div>
+        {/* Invoice # */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Invoice #</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              <ColumnFilterDropdown
+                type="text"
+                filterId="invoiceNumber"
+                value={columnFilters.invoiceNumber}
+                onChange={(value) =>
+                  setColumnFilters((prev) => ({ ...prev, invoiceNumber: value }))
+                }
+                placeholder="Search invoices..."
+                isOpen={openFilter === 'invoiceNumber'}
+                onToggle={() =>
+                  setOpenFilter(openFilter === 'invoiceNumber' ? null : 'invoiceNumber')
+                }
+              />
+            </div>
+          </div>
+        </th>
 
-      {/* Invoice Date */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('invoiceDate')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Invoice Date
-          <SortIcon
-            field="invoiceDate"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="daterange"
-          filterId="invoiceDate"
-          value={columnFilters.invoiceDate}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, invoiceDate: value }))
-          }
-          isOpen={openFilter === 'invoiceDate'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'invoiceDate' ? null : 'invoiceDate')
-          }
-        />
-      </div>
+        {/* Status */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Status</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              <ColumnFilterDropdown
+                type="multiselect"
+                filterId="status"
+                options={uniqueStatuses.map((s) => ({
+                  value: s,
+                  label: invoiceStatusLabels[s as keyof typeof invoiceStatusLabels],
+                }))}
+                value={columnFilters.status}
+                onChange={(value) =>
+                  setColumnFilters((prev) => ({ ...prev, status: value }))
+                }
+                placeholder="All Statuses"
+                isOpen={openFilter === 'status'}
+                onToggle={() =>
+                  setOpenFilter(openFilter === 'status' ? null : 'status')
+                }
+              />
+            </div>
+          </div>
+        </th>
 
-      {/* Inv Amount */}
-      <div className="flex items-center justify-end">
-        <button
-          onClick={() => onSort('total')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Inv Amount
-          <SortIcon
-            field="total"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="total"
-          options={uniqueTotals.map((t) => ({
-            value: t.toString(),
-            label: formatCurrency(t),
-          }))}
-          value={columnFilters.total}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, total: value }))
-          }
-          placeholder="All Totals"
-          isOpen={openFilter === 'total'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'total' ? null : 'total')
-          }
-        />
-      </div>
+        {/* Order # */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
+          <span className="whitespace-nowrap">Order #</span>
+        </th>
 
-      {/* Comm Amount */}
-      <div className="flex items-center justify-end">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Comm Amount
-        </span>
-      </div>
+        {/* Invoice Date */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Invoice Date</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              <ColumnFilterDropdown
+                type="daterange"
+                filterId="invoiceDate"
+                value={columnFilters.invoiceDate}
+                onChange={(value) =>
+                  setColumnFilters((prev) => ({ ...prev, invoiceDate: value }))
+                }
+                isOpen={openFilter === 'invoiceDate'}
+                onToggle={() =>
+                  setOpenFilter(openFilter === 'invoiceDate' ? null : 'invoiceDate')
+                }
+              />
+            </div>
+          </div>
+        </th>
 
-      {/* Factory */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('manufacturerName')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Factory
-          <SortIcon
-            field="manufacturerName"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="manufacturerName"
-          options={uniqueManufacturers.map((m) => ({
-            value: m,
-            label: m,
-          }))}
-          value={columnFilters.manufacturerName}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, manufacturerName: value }))
-          }
-          placeholder="All Factories"
-          isOpen={openFilter === 'manufacturerName'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'manufacturerName' ? null : 'manufacturerName')
-          }
-        />
-      </div>
+        {/* Inv Amount */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+          <div className="flex items-center justify-end gap-1.5">
+            <span className="whitespace-nowrap">Inv Amount</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              <ColumnFilterDropdown
+                type="multiselect"
+                filterId="total"
+                options={uniqueTotals.map((t) => ({
+                  value: t.toString(),
+                  label: formatCurrency(t),
+                }))}
+                value={columnFilters.total}
+                onChange={(value) =>
+                  setColumnFilters((prev) => ({ ...prev, total: value }))
+                }
+                placeholder="All Totals"
+                isOpen={openFilter === 'total'}
+                onToggle={() =>
+                  setOpenFilter(openFilter === 'total' ? null : 'total')
+                }
+              />
+            </div>
+          </div>
+        </th>
 
-      {/* Entry Date */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Entry Date
-        </span>
-      </div>
+        {/* Comm Amount */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+          <span className="whitespace-nowrap">Comm Amount</span>
+        </th>
 
-      {/* Created By */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Created By
-        </span>
-      </div>
+        {/* Factory */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Factory</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              <ColumnFilterDropdown
+                type="multiselect"
+                filterId="manufacturerName"
+                options={uniqueManufacturers.map((m) => ({
+                  value: m,
+                  label: m,
+                }))}
+                value={columnFilters.manufacturerName}
+                onChange={(value) =>
+                  setColumnFilters((prev) => ({ ...prev, manufacturerName: value }))
+                }
+                placeholder="All Factories"
+                isOpen={openFilter === 'manufacturerName'}
+                onToggle={() =>
+                  setOpenFilter(openFilter === 'manufacturerName' ? null : 'manufacturerName')
+                }
+              />
+            </div>
+          </div>
+        </th>
 
-      {/* Due Date */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('dueDate')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Due Date
-          <SortIcon
-            field="dueDate"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="daterange"
-          filterId="dueDate"
-          value={columnFilters.dueDate}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, dueDate: value }))
-          }
-          isOpen={openFilter === 'dueDate'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'dueDate' ? null : 'dueDate')
-          }
-        />
-      </div>
+        {/* Entry Date */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <span className="whitespace-nowrap">Entry Date</span>
+        </th>
 
-      {/* Paid */}
-      <div className="flex items-center justify-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Paid
-        </span>
-      </div>
-    </div>
+        {/* Created By */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
+          <span className="whitespace-nowrap">Created By</span>
+        </th>
+
+        {/* Due Date */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Due Date</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              <ColumnFilterDropdown
+                type="daterange"
+                filterId="dueDate"
+                value={columnFilters.dueDate}
+                onChange={(value) =>
+                  setColumnFilters((prev) => ({ ...prev, dueDate: value }))
+                }
+                isOpen={openFilter === 'dueDate'}
+                onToggle={() =>
+                  setOpenFilter(openFilter === 'dueDate' ? null : 'dueDate')
+                }
+              />
+            </div>
+          </div>
+        </th>
+
+        {/* Paid */}
+        <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '80px' }}>
+          <span className="whitespace-nowrap">Paid</span>
+        </th>
+      </tr>
+    </thead>
   );
 }
 

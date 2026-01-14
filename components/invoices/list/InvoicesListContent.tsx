@@ -29,8 +29,8 @@ export default function InvoicesListContent() {
       {/* Main Content */}
       <div className={`flex-1 flex flex-col overflow-hidden ${state.selectedInvoice ? 'mr-[480px]' : ''}`}>
         {/* Header */}
-        <div className="p-6 pb-0">
-          <div className="flex items-center justify-between mb-6">
+        <div className="flex-shrink-0 px-6 py-4 bg-white border-b border-gray-200">
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold text-[var(--foreground)]">
                 Invoices
@@ -94,26 +94,32 @@ export default function InvoicesListContent() {
           </div>
 
           {/* Quick Date Filter */}
-          <QuickDateFilter
-            quickDatePreset={state.quickDatePreset}
-            setQuickDatePreset={state.setQuickDatePreset}
-            quickDateField={state.quickDateField}
-            setQuickDateField={state.setQuickDateField}
-            showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
-            setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
-          />
-
-          {/* Bulk Actions Toolbar */}
-          <BulkActionsToolbar
-            entityType="INVOICES"
-            selectedCount={state.selectedCount}
-            totalCount={state.totalCount}
-            loadedCount={state.filteredInvoices.length}
-            selectAllMode={state.selectAllMode}
-            onClearSelection={state.clearSelection}
-            onDelete={() => state.setShowBulkDeleteModal(true)}
-          />
+          <div className="mt-4">
+            <QuickDateFilter
+              quickDatePreset={state.quickDatePreset}
+              setQuickDatePreset={state.setQuickDatePreset}
+              quickDateField={state.quickDateField}
+              setQuickDateField={state.setQuickDateField}
+              showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
+              setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
+            />
+          </div>
         </div>
+
+        {/* Bulk Actions Toolbar */}
+        {state.selectedCount > 0 && (
+          <div className="px-6 py-2 bg-white border-b border-gray-200">
+            <BulkActionsToolbar
+              entityType="INVOICES"
+              selectedCount={state.selectedCount}
+              totalCount={state.totalCount}
+              loadedCount={state.filteredInvoices.length}
+              selectAllMode={state.selectAllMode}
+              onClearSelection={state.clearSelection}
+              onDelete={() => state.setShowBulkDeleteModal(true)}
+            />
+          </div>
+        )}
 
         {/* Loading State */}
         {state.isLoading && (

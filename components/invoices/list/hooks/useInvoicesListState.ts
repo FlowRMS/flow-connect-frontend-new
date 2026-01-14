@@ -8,11 +8,14 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { Invoice, OrderSplitRate, InvoiceStatus } from '@/lib/types/rms';
 import { mockSalesReps } from '@/lib/data/rms-mock';
-import { useInvoicesInfinite, useInvoiceSearch, type InvoiceLandingPage, fetchAllInvoiceIds } from '../../api';
+import { useInvoicesInfinite, useInvoiceSearch, type InvoiceLandingPage, type InvoiceLandingPageFilter, fetchAllInvoiceIds } from '../../api';
 import { useInvoiceFilters } from './useInvoiceFilters';
 import { useInvoiceBulkActions } from './useInvoiceBulkActions';
 import { useBulkSelection } from '../../../shared';
 import { isInvoiceLinked } from '../utils';
+import type { QuickDatePreset, QuickDateField } from '../types';
+import { getQuickDateRange } from '../utils';
+import { formatDateToISO, formatDateToBackend } from '../../../advancedFilters/utils';
 
 /**
  * Map API status to RMS InvoiceStatus type
@@ -78,6 +81,51 @@ export function useInvoicesListState() {
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Quick date filter state - defined BEFORE API hook
+  const [quickDatePreset, setQuickDatePreset] = useState<QuickDatePreset>('all');
+  const [quickDateField, setQuickDateField] = useState<QuickDateField>('entryDate');
+  const [showQuickDateFieldDropdown, setShowQuickDateFieldDropdown] = useState(false);
+
+  // Build quick filters based on quick date filter selection
+  const quickFilters = useMemo<InvoiceLandingPageFilter[]>(() => {
+    const result: InvoiceLandingPageFilter[] = [];
+
+    if (quickDatePreset !== 'all') {
+      const { start, end } = getQuickDateRange(quickDatePreset);
+      if (start && end) {
+        // Use quickDateField to determine which column to filter
+        // Map UI field names to API field names:
+        // - entryDate (UI) -> createdAt (API)
+        // - invoiceDate (UI) -> entityDate (API)
+        const columnName = quickDateField === 'entryDate' ? 'createdAt' : 'entityDate';
+        
+        // Format date based on column type:
+        // - entityDate (Invoice Date): YYYY-MM-DD format (date only)
+        // - createdAt: Backend format '%Y-%m-%d %H:%M:%S' (datetime with time)
+        const formatDate = (date: Date): string => {
+          if (columnName === 'entityDate') {
+            return formatDateToISO(date); // Returns YYYY-MM-DD
+          }
+          return formatDateToBackend(date); // Returns 'YYYY-MM-DD HH:MM:SS'
+        };
+        
+        result.push({
+          columnName,
+          operator: 'GTE',
+          value: formatDate(start),
+        });
+
+        result.push({
+          columnName,
+          operator: 'LTE',
+          value: formatDate(end),
+        });
+      }
+    }
+
+    return result;
+  }, [quickDatePreset, quickDateField]);
+
   // Fetch invoices from API with infinite scroll
   const {
     data: invoicesData,
@@ -87,7 +135,7 @@ export function useInvoicesListState() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInvoicesInfinite();
+  } = useInvoicesInfinite(quickFilters);
 
   // Search invoices
   const { data: searchResults, isLoading: isSearching } = useInvoiceSearch(searchQuery, searchQuery.length >= 2);
@@ -178,8 +226,20 @@ export function useInvoicesListState() {
   const [editingSplits, setEditingSplits] = useState(false);
   const [editedSplits, setEditedSplits] = useState<OrderSplitRate[]>([]);
 
-  // Integrate filter hook
+  // Integrate filter hook (for client-side filtering and other filter state)
+  // Note: quickDatePreset, quickDateField are now managed at this level for server-side
   const filterState = useInvoiceFilters(invoices);
+  
+  // Extract filter state, excluding quick date filters (we manage those at this level)
+  const {
+    quickDatePreset: _quickDatePreset,
+    setQuickDatePreset: _setQuickDatePreset,
+    quickDateField: _quickDateField,
+    setQuickDateField: _setQuickDateField,
+    showQuickDateFieldDropdown: _showQuickDateFieldDropdown,
+    setShowQuickDateFieldDropdown: _setShowQuickDateFieldDropdown,
+    ...otherFilterState
+  } = filterState;
 
   // Integrate shared bulk selection hook
   // Note: Not using isItemEligible - individual row checkboxes handle disabled state
@@ -346,8 +406,15 @@ export function useInvoicesListState() {
     updateSplitRep,
     saveSplits,
     splitPercentageTotal,
-    // Filter state and actions
-    ...filterState,
+    // Quick date filters (managed at this level for server-side)
+    quickDatePreset,
+    setQuickDatePreset,
+    quickDateField,
+    setQuickDateField,
+    showQuickDateFieldDropdown,
+    setShowQuickDateFieldDropdown,
+    // Filter state and actions (excluding quick date filters managed above)
+    ...otherFilterState,
     // Selection state and actions (using shared bulk selection)
     selectedInvoiceIds,
     toggleInvoiceSelection,

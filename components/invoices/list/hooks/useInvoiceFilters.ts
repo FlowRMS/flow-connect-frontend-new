@@ -113,22 +113,9 @@ export function useInvoiceFilters(invoices: Invoice[]) {
   };
 
   // Apply filters and sorting to invoices
+  // Note: Quick date filters are now done server-side, no need to filter here
   const filteredInvoices = useMemo(() => {
     let result = invoices;
-
-    // Apply quick date filter
-    if (quickDatePreset !== 'all') {
-      const { start, end } = getQuickDateRange(quickDatePreset);
-      if (start && end) {
-        result = result.filter((i) => {
-          const dateStr =
-            quickDateField === 'entryDate' ? i.entryDate : i.invoiceDate;
-          if (!dateStr) return false;
-          const date = new Date(dateStr);
-          return date >= start && date <= end;
-        });
-      }
-    }
 
     // Apply column filters
     if (columnFilters.invoiceNumber) {
@@ -234,8 +221,7 @@ export function useInvoiceFilters(invoices: Invoice[]) {
     sortField,
     sortDirection,
     columnFilters,
-    quickDatePreset,
-    quickDateField,
+    // Note: quickDatePreset and quickDateField removed - now handled server-side
   ]);
 
   return {
