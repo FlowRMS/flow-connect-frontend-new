@@ -20,8 +20,8 @@ export function ActiveFilters({ localFilters, filterOptions, onClearFilter }: Ac
     const option = filterOptions.find(o => o.columnName === filter.columnName);
     const label = option?.label || filter.columnName;
     
-    // Group date filters (GTE and LTE) together
-    if (option?.type === 'date' && (filter.operator === 'GTE' || filter.operator === 'LTE')) {
+    // Group date and month filters (GTE and LTE) together
+    if ((option?.type === 'date' || option?.type === 'month') && (filter.operator === 'GTE' || filter.operator === 'LTE')) {
       if (!groupedFilters.has(filter.columnName)) {
         groupedFilters.set(filter.columnName, { label });
       }
@@ -45,24 +45,31 @@ export function ActiveFilters({ localFilters, filterOptions, onClearFilter }: Ac
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs sm:text-sm font-medium text-blue-700">Active:</span>
         {Array.from(groupedFilters.entries()).map(([key, group]) => {
-          // Date range filter
+          // Date range or month filter
           if (group.start || group.end) {
             const startDate = group.start ? parseDateString(group.start) : null;
             const endDate = group.end ? parseDateString(group.end) : null;
-            // For date filters, key is the columnName
+            // For date and month filters, key is the columnName
             const dateColumn = key;
+            const option = filterOptions.find(o => o.columnName === dateColumn);
             
             return (
               <span key={key} className="px-2 sm:px-3 py-1 sm:py-1.5 bg-white text-gray-700 rounded-lg text-xs sm:text-sm flex items-center gap-1 sm:gap-2 border border-gray-200 shadow-sm">
                 <span className="font-medium text-gray-900">{group.label}:</span>
                 <span className="text-gray-600">
-                  {startDate && endDate 
-                    ? `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                    : startDate 
-                      ? `From ${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                      : endDate
-                        ? `Until ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                        : ''}
+                  {option?.type === 'month' && startDate ? (
+                    // For month filters, show as "Month YYYY"
+                    `${startDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
+                  ) : startDate && endDate ? (
+                    // For date range filters, show full range
+                    `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                  ) : startDate ? (
+                    `From ${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                  ) : endDate ? (
+                    `Until ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                  ) : (
+                    ''
+                  )}
                 </span>
                 <button
                   onClick={() => onClearFilter(dateColumn)}

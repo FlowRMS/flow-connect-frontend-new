@@ -10,7 +10,7 @@ import { DateRangeFilter } from './filter-types/DateRangeFilter';
 import { BooleanFilter } from './filter-types/BooleanFilter';
 import { parseDateString, formatDateToBackend } from '../utils';
 
-export type ColumnFilterType = 'text' | 'dropdown' | 'number' | 'date' | 'boolean';
+export type ColumnFilterType = 'text' | 'dropdown' | 'number' | 'date' | 'boolean' | 'month';
 
 // Keep ColumnFilterValue for backward compatibility during migration
 export interface ColumnFilterValue {

@@ -11,6 +11,7 @@ import { NumberFilter } from './components/filter-types/NumberFilter';
 import { DropdownFilter } from './components/filter-types/DropdownFilter';
 import { DateRangeFilter } from './components/filter-types/DateRangeFilter';
 import { BooleanFilter } from './components/filter-types/BooleanFilter';
+import { MonthYearFilter } from './components/filter-types/MonthYearFilter';
 
 // Re-export types for backward compatibility
 export type { FilterOperator, ActiveFilter, ActiveSort, FilterOption };
@@ -38,6 +39,7 @@ export default function AdvancedFilters({
   const [localFilters, setLocalFilters] = useState<ActiveFilter[]>([]);
   const [dateRangeStart, setDateRangeStart] = useState<Date | null>(null);
   const [dateRangeEnd, setDateRangeEnd] = useState<Date | null>(null);
+  const [selectedMonthYear, setSelectedMonthYear] = useState<Date | null>(null);
 
   // Create a stable key for the filters to compare
   const filtersKey = useMemo(() => {
@@ -113,6 +115,25 @@ export default function AdvancedFilters({
           
           setFilterValue('');
           setSelectedValues([]);
+        } else if (option.type === 'month') {
+          // For month filters, look for GTE filter (start of month)
+          // We use the GTE filter value to determine the selected month/year
+          const startFilter = existingFilters.find(f => f.operator === 'GTE');
+          
+          if (startFilter?.value) {
+            const date = parseDateString(startFilter.value);
+            if (date) {
+              // Set to first day of the month to match the picker
+              setSelectedMonthYear(new Date(date.getFullYear(), date.getMonth(), 1));
+            } else {
+              setSelectedMonthYear(null);
+            }
+          } else {
+            setSelectedMonthYear(null);
+          }
+          
+          setFilterValue('');
+          setSelectedValues([]);
         } else if (existingFilters.length > 0) {
           const existingFilter = existingFilters[0];
           if (existingFilter.operator === 'IN' && existingFilter.values) {
@@ -176,6 +197,14 @@ export default function AdvancedFilters({
       if (option.type === 'date') {
         setDateRangeStart(null);
         setDateRangeEnd(null);
+      }
+      // Reset month/year when opening a month filter
+      if (option.type === 'month') {
+        // Don't reset if there's already a filter for this column
+        const existingFilters = localFilters.filter(f => f.columnName === option.columnName);
+        if (existingFilters.length === 0) {
+          setSelectedMonthYear(null);
+        }
       }
     }
   };
@@ -313,6 +342,55 @@ export default function AdvancedFilters({
     setIsExpanded(false);
   };
 
+  const handleApplyMonthYearFilter = (option: FilterOption) => {
+    if (!option.columnName || !selectedMonthYear) return;
+    
+    // Remove existing month filters for this column (GTE and LTE)
+    const newFilters = localFilters.filter(f => 
+      f.columnName !== option.columnName || (f.operator !== 'GTE' && f.operator !== 'LTE')
+    );
+    
+    // Calculate first and last day of the selected month
+    const year = selectedMonthYear.getFullYear();
+    const month = selectedMonthYear.getMonth();
+    
+    // Always use YYYY-MM-DD format (without time) for month filters
+    // First day of month: YYYY-MM-01
+    const monthStr = String(month + 1).padStart(2, '0');
+    const firstDay = `${year}-${monthStr}-01`;
+    
+    // Last day of month: get the last day of the month
+    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+    const lastDay = `${year}-${monthStr}-${String(lastDayOfMonth).padStart(2, '0')}`;
+    
+    // Add GTE filter for start of month
+    newFilters.push({
+      columnName: option.columnName,
+      operator: 'GTE',
+      value: firstDay,
+    });
+    
+    // Add LTE filter for end of month
+    newFilters.push({
+      columnName: option.columnName,
+      operator: 'LTE',
+      value: lastDay,
+    });
+    
+    setLocalFilters(newFilters);
+    
+    // Notify parent
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    } else if (onFilterChange) {
+      // Backward compatibility - use the first filter
+      onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
+    }
+    setExpandedFilterId(null);
+    setSelectedMonthYear(null);
+    setIsExpanded(false);
+  };
+
   const handleApplyBooleanFilter = (option: FilterOption, value: 'all' | 'true' | 'false') => {
     if (!option.columnName) return;
     
@@ -342,8 +420,15 @@ export default function AdvancedFilters({
 
   const handleClearFilter = (columnName?: string) => {
     if (columnName) {
-      // Clear specific filter (for date filters, this removes both GTE and LTE)
-      const newFilters = localFilters.filter(f => f.columnName !== columnName);
+      // Clear specific filter (for date and month filters, this removes both GTE and LTE)
+      const option = filterOptions.find(o => o.columnName === columnName);
+      const isDateOrMonthFilter = option?.type === 'date' || option?.type === 'month';
+      
+      const newFilters = localFilters.filter(f => {
+        if (f.columnName !== columnName) return true;
+        if (isDateOrMonthFilter && (f.operator === 'GTE' || f.operator === 'LTE')) return false;
+        return true;
+      });
       setLocalFilters(newFilters);
       if (onFiltersChange) {
         onFiltersChange(newFilters);
@@ -502,7 +587,7 @@ export default function AdvancedFilters({
                           sideOffset={4}
                           className="z-[100] bg-white rounded-lg shadow-xl overflow-hidden"
                           style={{ 
-                            width: option.type === 'date' ? '320px' : 'var(--radix-popover-trigger-width)' 
+                            width: option.type === 'date' ? '320px' : option.type === 'month' ? '240px' : 'var(--radix-popover-trigger-width)' 
                           }}
                           onOpenAutoFocus={(e) => e.preventDefault()}
                         >
@@ -525,6 +610,13 @@ export default function AdvancedFilters({
                               setDateRangeEnd(end);
                             }}
                             onApply={handleApplyDateRangeFilter}
+                          />
+                        ) : option.type === 'month' ? (
+                          <MonthYearFilter
+                            option={option}
+                            selectedMonthYear={selectedMonthYear}
+                            onMonthYearChange={setSelectedMonthYear}
+                            onApply={handleApplyMonthYearFilter}
                           />
                         ) : option.type === 'dropdown' ? (
                           <DropdownFilter

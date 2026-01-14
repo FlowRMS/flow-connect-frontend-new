@@ -37,7 +37,7 @@ export function getCommissionFilterOptions(): FilterOption[] {
     { 
       id: 'commission-month', 
       label: 'Commission Month', 
-      type: 'date' as const, 
+      type: 'month' as const, 
       columnName: 'commissionMonth', 
       available: true 
     },
