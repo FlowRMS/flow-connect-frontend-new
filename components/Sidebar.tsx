@@ -3,12 +3,20 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { usePathname } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSidebarConfig } from '@/contexts/SidebarConfigContext';
 import { useNavigationMorph, isMorphableItem } from '@/contexts/NavigationMorphContext';
 
 const SCROLL_STORAGE_KEY = 'sidebar-scroll-position';
+
+// Smooth spring config for the sliding pill
+const pillSpring = {
+  type: 'spring' as const,
+  stiffness: 350,
+  damping: 30,
+  mass: 0.8,
+};
 
 // Custom hook to detect mobile screen size
 function useIsMobile() {
@@ -501,7 +509,6 @@ function ClickHighlight({ isActive }: { isActive: boolean }) {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { isOpen, setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
   const { config, toggleGroup } = useSidebarConfig();
@@ -513,6 +520,52 @@ export default function Sidebar() {
 
   // Track visually selected item - updates immediately on click, before page loads
   const [visuallySelectedId, setVisuallySelectedId] = useState<string | null>(null);
+
+  // Store refs to all nav items for pill position calculation
+  const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  // Track pill position for smooth sliding animation
+  const [pillPosition, setPillPosition] = useState<{ top: number; height: number } | null>(null);
+
+  // Update pill position when visual selection changes
+  useEffect(() => {
+    if (visuallySelectedId && itemRefs.current.has(visuallySelectedId)) {
+      const element = itemRefs.current.get(visuallySelectedId);
+      const nav = navRef.current;
+      if (element && nav) {
+        const elementRect = element.getBoundingClientRect();
+        const navRect = nav.getBoundingClientRect();
+        setPillPosition({
+          top: elementRect.top - navRect.top + nav.scrollTop,
+          height: elementRect.height,
+        });
+      }
+    }
+  }, [visuallySelectedId, isCollapsed]);
+
+  // Also update pill position on scroll
+  useEffect(() => {
+    const updatePillOnScroll = () => {
+      if (visuallySelectedId && itemRefs.current.has(visuallySelectedId)) {
+        const element = itemRefs.current.get(visuallySelectedId);
+        const nav = navRef.current;
+        if (element && nav) {
+          const elementRect = element.getBoundingClientRect();
+          const navRect = nav.getBoundingClientRect();
+          setPillPosition({
+            top: elementRect.top - navRect.top + nav.scrollTop,
+            height: elementRect.height,
+          });
+        }
+      }
+    };
+
+    const nav = navRef.current;
+    if (nav) {
+      nav.addEventListener('scroll', updatePillOnScroll, { passive: true });
+      return () => nav.removeEventListener('scroll', updatePillOnScroll);
+    }
+  }, [visuallySelectedId]);
 
   // Sync visual selection with pathname when page actually loads
   useEffect(() => {
@@ -632,8 +685,20 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav ref={navRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-3">
-        <LayoutGroup>
+      <nav ref={navRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-3 relative">
+        {/* Single sliding pill that animates between items */}
+        {pillPosition && (
+          <motion.div
+            className="absolute left-3 right-3 bg-[var(--primary)] rounded-lg pointer-events-none z-0"
+            initial={false}
+            animate={{
+              top: pillPosition.top,
+              height: pillPosition.height,
+            }}
+            transition={pillSpring}
+          />
+        )}
+        <div className="relative z-10">
         {config.groups.map((group, groupIndex) => {
           const enabledItems = group.items.filter(item => item.enabled);
           if (enabledItems.length === 0) return null;
@@ -676,8 +741,11 @@ export default function Sidebar() {
                       <motion.div
                         key={item.id}
                         ref={(el) => {
-                          if (isMorphable && el) {
-                            registerSidebarItem(item.id, el);
+                          if (el) {
+                            itemRefs.current.set(item.id, el);
+                            if (isMorphable) {
+                              registerSidebarItem(item.id, el);
+                            }
                           }
                         }}
                         whileHover={!isVisuallyActive ? { x: 3 } : {}}
@@ -698,19 +766,6 @@ export default function Sidebar() {
                             }
                           `}
                         >
-                          {/* Sliding active pill background */}
-                          {isVisuallyActive && (
-                            <motion.div
-                              layoutId="sidebar-active-pill"
-                              className="absolute inset-0 bg-[var(--primary)] rounded-lg"
-                              transition={{
-                                type: 'spring',
-                                stiffness: 500,
-                                damping: 35,
-                              }}
-                            />
-                          )}
-
                           {/* Click highlight */}
                           <ClickHighlight isActive={isClicked && !isVisuallyActive} />
 
@@ -778,7 +833,7 @@ export default function Sidebar() {
             </div>
           );
         })}
-        </LayoutGroup>
+        </div>
       </nav>
     </div>
   );
