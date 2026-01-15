@@ -37,6 +37,7 @@ export interface QuoteCustomer {
   isParent: boolean;
   parentId?: string;
   published: boolean;
+  buyingGroupId?: string;
 }
 
 export interface QuoteCreatedBy {
@@ -106,6 +107,7 @@ export interface QuoteDetail {
   discountRate?: string;
   divisionFactor?: string;
   endUserId?: string;
+  endUser?: QuoteCustomer;
   factoryId?: string;
   factory?: QuoteDetailFactory;
   itemNumber?: number;
@@ -400,6 +402,14 @@ const FIND_QUOTE_BY_ID = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
         factory {
           id
@@ -557,6 +567,14 @@ const CREATE_QUOTE = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
         factory {
           id
@@ -692,6 +710,14 @@ const UPDATE_QUOTE = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
         factory {
           id
@@ -855,6 +881,14 @@ const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
         factory {
           id

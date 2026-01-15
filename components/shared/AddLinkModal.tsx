@@ -49,7 +49,7 @@ import { linkToasts } from '../lib/toast';
 type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT' | 'JOB' | 'FILE';
 
 // Source entity types
-type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE' | 'FACTORY';
+type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE' | 'FACTORY' | 'CUSTOMER';
 
 // Map source entity type to API endpoint type
 const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceType> = {
@@ -64,6 +64,7 @@ const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceTyp
   TASK: 'TASKS',
   NOTE: 'NOTES',
   FACTORY: 'FACTORIES',
+  CUSTOMER: 'CUSTOMERS',
 };
 
 // Entity type configuration for display

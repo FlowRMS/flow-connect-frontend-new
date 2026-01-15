@@ -7,6 +7,7 @@ interface ColumnConfig {
   label: string;
   visible: boolean;
   group?: string;
+  comingSoon?: boolean;
 }
 
 interface ColumnConfigEditorProps {
@@ -14,6 +15,7 @@ interface ColumnConfigEditorProps {
   onChange: (columns: ColumnConfig[]) => void;
   title?: string;
   groupBy?: boolean;
+  comingSoonKeys?: string[];
 }
 
 export function ColumnConfigEditor({
@@ -21,8 +23,12 @@ export function ColumnConfigEditor({
   onChange,
   title = 'Column Configuration',
   groupBy = true,
+  comingSoonKeys = [],
 }: ColumnConfigEditorProps) {
   const handleToggle = (key: string) => {
+    // Don't allow toggling coming soon columns
+    if (comingSoonKeys.includes(key)) return;
+
     const newColumns = columns.map((col) =>
       col.key === key ? { ...col, visible: !col.visible } : col
     );
@@ -87,20 +93,39 @@ export function ColumnConfigEditor({
               </h5>
             )}
             <div className="grid grid-cols-2 gap-2">
-              {cols.map((col) => (
-                <label
-                  key={col.key}
-                  className="flex items-center gap-2 p-2 rounded-md hover:bg-[var(--muted)] cursor-pointer transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    checked={col.visible}
-                    onChange={() => handleToggle(col.key)}
-                    className="w-4 h-4 rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)] focus:ring-offset-0"
-                  />
-                  <span className="text-sm text-[var(--foreground)]">{col.label}</span>
-                </label>
-              ))}
+              {cols.map((col) => {
+                const isComingSoon = comingSoonKeys.includes(col.key);
+                return (
+                  <label
+                    key={col.key}
+                    className={`flex items-center gap-2 p-2 rounded-md transition-colors ${
+                      isComingSoon
+                        ? 'cursor-not-allowed opacity-50'
+                        : 'hover:bg-[var(--muted)] cursor-pointer'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={col.visible}
+                      onChange={() => handleToggle(col.key)}
+                      disabled={isComingSoon}
+                      className={`w-4 h-4 rounded border-[var(--border)] focus:ring-[var(--primary)] focus:ring-offset-0 ${
+                        isComingSoon
+                          ? 'text-gray-300 cursor-not-allowed'
+                          : 'text-[var(--primary)]'
+                      }`}
+                    />
+                    <span className={`text-sm ${isComingSoon ? 'text-gray-400' : 'text-[var(--foreground)]'}`}>
+                      {col.label}
+                    </span>
+                    {isComingSoon && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-medium bg-yellow-100 text-yellow-700 rounded">
+                        SOON
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
             </div>
           </div>
         ))}

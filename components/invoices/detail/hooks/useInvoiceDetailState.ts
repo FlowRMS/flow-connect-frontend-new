@@ -5,13 +5,14 @@
  * Uses real API data and supports order population
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import type { Invoice, OrderSplitRate, InvoiceStatus, InvoiceLineItem as RmsInvoiceLineItem } from '@/lib/types/rms';
 import type { TabType, ViewMode, LineItemCredit, OrderTooltipState, VersionInfo, RepSplit, ProductToConvert, ColumnKey, InvoiceLineItem, EditableInvoice } from '../types';
 import { mockSalesReps } from '@/lib/data/rms-mock';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import { calculateInvoiceTotals } from '../utils';
+import { useInvoiceSettings } from '@/contexts/UserSettingsContext';
 import {
   useInvoice,
   useCreateInvoice,
@@ -92,6 +93,7 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     leadTime: detail.leadTime || '',
     note: detail.note || '',
     endUserId: detail.endUserId || '',
+    endUserName: detail.endUser?.companyName || '', // Use embedded endUser from API response
     orderDetailId: detail.orderDetailId || '',
     invoicedBalance: detail.invoicedBalance || 0,
     outsideSplitRates: (detail.outsideSplitRates || []).map(s => ({
@@ -116,6 +118,7 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
   // If NOT per-line-item, grab from first line item for header display
   const firstDetail = apiInvoice.details?.[0];
   const headerEndUserId = !endUserPerLineItem ? (firstDetail?.endUserId || '') : '';
+  const headerEndUserName = !endUserPerLineItem ? (firstDetail?.endUser?.companyName || '') : '';
 
   // Get header-level outside split rates (when NOT per-line-item)
   const headerOutsideSplitRates = !outsidePerLineItem && firstDetail?.outsideSplitRates
@@ -187,9 +190,9 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     endUserPerLineItem,
     outsidePerLineItem,
     insidePerLineItem,
-    // Header-level end user (when not per-line-item)
+    // Header-level end user (when not per-line-item) - use embedded endUser from API
     endUserId: headerEndUserId,
-    endUserName: '', // Will be populated from customer lookup if needed (for end user specifically)
+    endUserName: headerEndUserName, // Use embedded endUser from API response
     // Header-level reps (when not per-line-item, grabbed from first line item)
     outsideRepId: headerOutsideRepId,
     outsideRepName: headerOutsideRepName,
@@ -248,6 +251,7 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
     leadTime: detail.leadTime || '',
     note: detail.note || '',
     endUserId: detail.endUserId || '',
+    endUserName: detail.endUser?.companyName || '', // Use embedded endUser from API response
     orderDetailId: detail.orderDetailId || '',
     invoicedBalance: detail.invoicedBalance || 0,
     outsideSplitRates: (detail.outsideSplitRates || []).map(s => ({
@@ -296,6 +300,12 @@ function createEmptyInvoice(): EditableInvoice {
 export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceDetailStateProps) {
   const isCreateMode = invoiceId === 'new';
 
+  // Get saved invoice settings from context (already cached, no extra API calls)
+  const { settings: savedInvoiceSettings, isInitialized: settingsInitialized } = useInvoiceSettings();
+
+  // Track if we've applied column settings to avoid re-applying on every render
+  const hasAppliedColumnSettings = useRef(false);
+
   // Fetch invoice from API
   const {
     data: apiInvoice,
@@ -339,9 +349,9 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   const factoryIdToFetch = needsSeparateOrderFetch ? linkedOrder?.factoryId : null;
   const { data: linkedFactory } = useFactory(factoryIdToFetch || '');
 
-  // Fetch end user customer details when we have an endUserId
-  // This is still needed because end user is not in the invoice.order nested data
-  const endUserIdToFetch = localInvoice?.endUserId || null;
+  // Fetch end user customer details when we have an endUserId but no endUserName
+  // With embedded endUser in the API response, this should rarely be needed
+  const endUserIdToFetch = (localInvoice?.endUserId && !localInvoice?.endUserName) ? localInvoice.endUserId : null;
   const { data: endUserCustomer } = useCustomer(endUserIdToFetch || undefined);
 
   // Fetch bill to customer details when we have a billToCustomerId that differs from soldToCustomerId
@@ -744,6 +754,21 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     new Set(DEFAULT_VISIBLE_COLUMNS)
   );
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
+
+  // Apply saved column configuration when settings are loaded
+  // This runs once when settings are initialized and applies to ALL invoices (new and existing)
+  useEffect(() => {
+    if (settingsInitialized && !hasAppliedColumnSettings.current) {
+      if (savedInvoiceSettings?.columnConfig && savedInvoiceSettings.columnConfig.length > 0) {
+        // Use saved settings - only include columns marked as visible
+        const visibleKeys = savedInvoiceSettings.columnConfig
+          .filter(col => col.visible)
+          .map(col => col.key as ColumnKey);
+        setVisibleColumns(new Set(visibleKeys));
+      }
+      hasAppliedColumnSettings.current = true;
+    }
+  }, [settingsInitialized, savedInvoiceSettings?.columnConfig]);
 
   // Header dropdowns
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);

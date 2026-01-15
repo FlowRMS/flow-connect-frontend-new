@@ -889,6 +889,19 @@ export function LineItemsTable({
 
       {/* Line Items Table */}
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
+        {/* Add Line Button - at top */}
+        <div className="border-b border-[var(--border)]">
+          <button
+            onClick={addLineItem}
+            className="w-full px-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+            </svg>
+            Add Line
+          </button>
+        </div>
+
         <table className="w-full min-w-[1200px]">
           <LineItemsTableHeader
             lineItems={order.lineItems || []}
@@ -1224,19 +1237,6 @@ export function LineItemsTable({
             )}
           </tbody>
         </table>
-
-        {/* Add Line Button */}
-        <div className="border-t border-[var(--border)]">
-          <button
-            onClick={addLineItem}
-            className="w-full px-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
-            </svg>
-            Add Line
-          </button>
-        </div>
       </div>
 
       {/* Dropdown Portal for Search */}

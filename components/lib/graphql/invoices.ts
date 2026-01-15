@@ -147,6 +147,7 @@ export interface InvoiceDetail {
   discountRate?: string;
   divisionFactor?: string;
   endUserId?: string;
+  endUser?: InvoiceOrderCustomer;
   invoiceId?: string;
   invoicedBalance?: number;
   itemNumber?: number;
@@ -358,6 +359,14 @@ const FIND_INVOICE_BY_ID = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
@@ -554,6 +563,14 @@ const CREATE_INVOICE = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
@@ -725,6 +742,14 @@ const UPDATE_INVOICE = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
@@ -922,6 +947,14 @@ const CREATE_INVOICE_FROM_ORDER = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
