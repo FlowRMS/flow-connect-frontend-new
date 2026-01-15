@@ -127,7 +127,7 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     status: detail.status?.toLowerCase() as ('open' | 'shipped' | 'partial_shipped' | 'cancelled' | 'invoiced') || 'open',
     // Store additional fields for line item
     endUserId: detail.endUserId,
-    endUserName: '', // Will be fetched separately
+    endUserName: detail.endUser?.companyName || '', // Use embedded endUser from API response
     insideSplitRates: detail.insideSplitRates, // Store inside rep split rates from line item
     outsideSplitRates: detail.outsideSplitRates, // Store outside rep split rates from line item
     // Additional details fields (from AdditionalDetailsModal)
@@ -236,9 +236,10 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     .filter((id): id is string => !!id);
   const uniqueEndUserIds = [...new Set(lineItemEndUserIds)];
   if (uniqueEndUserIds.length === 1) {
-    // All line items have the same endUserId
+    // All line items have the same endUserId - get name from first line item with endUser
+    const firstLineWithEndUser = lineItems.find(li => (li as any).endUserId && (li as any).endUserName);
     (order as any).endUserId = uniqueEndUserIds[0];
-    (order as any).endUserName = ''; // Will be fetched separately
+    (order as any).endUserName = (firstLineWithEndUser as any)?.endUserName || '';
   } else if (uniqueEndUserIds.length === 0) {
     // No end users set on line items
     (order as any).endUserId = '';
@@ -366,16 +367,22 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
         fetchPromises.push(outsideRepPromise);
       }
 
-      // Fetch end user names for line items AND order-level end user
-      const endUserIds = new Set<string>();
-      transformedOrder.lineItems.forEach(li => {
-        if ((li as any).endUserId) endUserIds.add((li as any).endUserId);
-      });
-      // Also include order-level endUserId
+      // End user names are now populated directly from the API's embedded endUser object
+      // Only fetch separately if there are line items with endUserId but missing endUserName
+      const lineItemsMissingEndUserName = transformedOrder.lineItems.filter(li =>
+        (li as any).endUserId && !(li as any).endUserName
+      );
       const orderEndUserId = (transformedOrder as any).endUserId;
-      if (orderEndUserId) endUserIds.add(orderEndUserId);
+      const orderMissingEndUserName = orderEndUserId && !(transformedOrder as any).endUserName;
 
-      if (endUserIds.size > 0) {
+      const endUserIdsToFetch = new Set<string>();
+      lineItemsMissingEndUserName.forEach(li => {
+        if ((li as any).endUserId) endUserIdsToFetch.add((li as any).endUserId);
+      });
+      if (orderMissingEndUserName) endUserIdsToFetch.add(orderEndUserId);
+
+      if (endUserIdsToFetch.size > 0) {
+        // Only fetch end user names that weren't in the API response
         const endUserPromise = searchCustomers('', true)
           .then((customers) => {
             const customerMap = new Map(customers.map(c => [c.id, c.companyName]));
@@ -384,12 +391,14 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
                 ...prev,
                 lineItems: (prev.lineItems || []).map(li => ({
                   ...li,
-                  endUserName: (li as any).endUserId ? customerMap.get((li as any).endUserId) || '' : '',
+                  // Only update if endUserName is empty and we have a match
+                  endUserName: (li as any).endUserName ||
+                    ((li as any).endUserId ? customerMap.get((li as any).endUserId) || '' : ''),
                 })),
               };
-              // Also set order-level end user name
+              // Also set order-level end user name if missing
               const prevOrderEndUserId = (prev as any).endUserId;
-              if (prevOrderEndUserId && customerMap.has(prevOrderEndUserId)) {
+              if (prevOrderEndUserId && !(prev as any).endUserName && customerMap.has(prevOrderEndUserId)) {
                 (updated as any).endUserName = customerMap.get(prevOrderEndUserId);
               }
               return updated;

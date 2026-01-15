@@ -50,7 +50,6 @@ interface OrderDetailsFieldsProps {
   openInsideRepModal: () => void;
   // New props for field updates
   onUpdateOrder?: (updates: Partial<Order>) => void;
-  isCreateMode?: boolean;
   // Settings for per-line-item fields
   showEndUserPerLine?: boolean;
   showOutsideRepPerLine?: boolean;
@@ -79,7 +78,6 @@ export function OrderDetailsFields({
   setInsideRepSplits,
   openInsideRepModal,
   onUpdateOrder,
-  isCreateMode = false,
   showEndUserPerLine = false,
   showOutsideRepPerLine = false,
   showInsideRepPerLine = false,
@@ -317,7 +315,6 @@ export function OrderDetailsFields({
                 value={order.orderNumber}
                 onChange={(e) => handleFieldUpdate('orderNumber', e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                readOnly={!isCreateMode}
               />
             </div>
 

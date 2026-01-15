@@ -93,6 +93,7 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     leadTime: detail.leadTime || '',
     note: detail.note || '',
     endUserId: detail.endUserId || '',
+    endUserName: detail.endUser?.companyName || '', // Use embedded endUser from API response
     orderDetailId: detail.orderDetailId || '',
     invoicedBalance: detail.invoicedBalance || 0,
     outsideSplitRates: (detail.outsideSplitRates || []).map(s => ({
@@ -117,6 +118,7 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
   // If NOT per-line-item, grab from first line item for header display
   const firstDetail = apiInvoice.details?.[0];
   const headerEndUserId = !endUserPerLineItem ? (firstDetail?.endUserId || '') : '';
+  const headerEndUserName = !endUserPerLineItem ? (firstDetail?.endUser?.companyName || '') : '';
 
   // Get header-level outside split rates (when NOT per-line-item)
   const headerOutsideSplitRates = !outsidePerLineItem && firstDetail?.outsideSplitRates
@@ -188,9 +190,9 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     endUserPerLineItem,
     outsidePerLineItem,
     insidePerLineItem,
-    // Header-level end user (when not per-line-item)
+    // Header-level end user (when not per-line-item) - use embedded endUser from API
     endUserId: headerEndUserId,
-    endUserName: '', // Will be populated from customer lookup if needed (for end user specifically)
+    endUserName: headerEndUserName, // Use embedded endUser from API response
     // Header-level reps (when not per-line-item, grabbed from first line item)
     outsideRepId: headerOutsideRepId,
     outsideRepName: headerOutsideRepName,
@@ -249,6 +251,7 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
     leadTime: detail.leadTime || '',
     note: detail.note || '',
     endUserId: detail.endUserId || '',
+    endUserName: detail.endUser?.companyName || '', // Use embedded endUser from API response
     orderDetailId: detail.orderDetailId || '',
     invoicedBalance: detail.invoicedBalance || 0,
     outsideSplitRates: (detail.outsideSplitRates || []).map(s => ({
@@ -346,9 +349,9 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   const factoryIdToFetch = needsSeparateOrderFetch ? linkedOrder?.factoryId : null;
   const { data: linkedFactory } = useFactory(factoryIdToFetch || '');
 
-  // Fetch end user customer details when we have an endUserId
-  // This is still needed because end user is not in the invoice.order nested data
-  const endUserIdToFetch = localInvoice?.endUserId || null;
+  // Fetch end user customer details when we have an endUserId but no endUserName
+  // With embedded endUser in the API response, this should rarely be needed
+  const endUserIdToFetch = (localInvoice?.endUserId && !localInvoice?.endUserName) ? localInvoice.endUserId : null;
   const { data: endUserCustomer } = useCustomer(endUserIdToFetch || undefined);
 
   // Fetch bill to customer details when we have a billToCustomerId that differs from soldToCustomerId
