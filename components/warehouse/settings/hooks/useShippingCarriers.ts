@@ -9,7 +9,12 @@ import {
   useDeleteShippingCarrier,
   type ShippingCarrier as ApiShippingCarrier,
 } from '../api';
-import { createCarrierAddress, updateCarrierAddress } from '../api/shippingCarriersApi';
+import {
+  createCarrierAddress,
+  updateCarrierAddress,
+  linkCarrierContact,
+  unlinkCarrierContact,
+} from '../api/shippingCarriersApi';
 
 // Local shipping carrier type for backward compatibility with UI
 export interface ShippingCarrier {
@@ -33,7 +38,8 @@ export interface ShippingCarrier {
   apiKey?: string;
   apiEndpoint?: string;
   trackingUrlTemplate?: string;
-  // Contact info - simple form fields for now
+  // Contact info - stored as linked Contact entity
+  primaryContactId?: string; // ID of the linked contact
   contactName?: string;
   contactPhone?: string;
   contactEmail?: string;
@@ -114,7 +120,8 @@ const toLocalFormat = (carrier: ApiShippingCarrier): ShippingCarrier => ({
   apiKey: carrier.apiKey ?? undefined,
   apiEndpoint: carrier.apiEndpoint ?? undefined,
   trackingUrlTemplate: carrier.trackingUrlTemplate ?? undefined,
-  // Contact from linked entity (read-only for display)
+  // Contact from linked entity
+  primaryContactId: carrier.primaryContact?.id,
   contactName: carrier.primaryContact
     ? `${carrier.primaryContact.firstName} ${carrier.primaryContact.lastName}`.trim()
     : undefined,
@@ -173,24 +180,36 @@ export function useShippingCarriers() {
   // Track which carriers have been deleted locally (not yet saved)
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
+  // Track newly created carriers (before query refetch)
+  // This ensures we can save changes to newly created carriers immediately
+  const [newlyCreatedCarriers, setNewlyCreatedCarriers] = useState<Map<string, ApiShippingCarrier>>(new Map());
+
   // UI state
   const [expandedCarrierId, setExpandedCarrierId] = useState<string | null>(null);
   const [newCarrierName, setNewCarrierName] = useState('');
   const [newCarrierAccount, setNewCarrierAccount] = useState('');
   const [newCarrierRemarks, setNewCarrierRemarks] = useState('');
 
-  // Derive local carriers from API data + local modifications
+  // Derive local carriers from API data + newly created + local modifications
   const localCarriers = useMemo(() => {
-    if (!apiCarriers) return [];
+    // Start with API carriers or empty array
+    const apiList = apiCarriers || [];
 
-    return apiCarriers
+    // Merge API carriers with newly created ones (avoid duplicates)
+    const apiIds = new Set(apiList.map(c => c.id));
+    const newCarriersNotInApi = Array.from(newlyCreatedCarriers.values())
+      .filter(c => !apiIds.has(c.id));
+
+    const allCarriers = [...apiList, ...newCarriersNotInApi];
+
+    return allCarriers
       .map(toLocalFormat)
       .filter(c => !deletedIds.has(c.id))
       .map(carrier => {
         const mods = localModifications.get(carrier.id);
         return mods ? { ...carrier, ...mods } : carrier;
       });
-  }, [apiCarriers, deletedIds, localModifications]);
+  }, [apiCarriers, newlyCreatedCarriers, deletedIds, localModifications]);
 
   // Track if there are unsaved changes
   const hasChanges = localModifications.size > 0 || deletedIds.size > 0;
@@ -209,6 +228,14 @@ export function useShippingCarriers() {
         isActive: true,
         accountNumber: newCarrierAccount.trim() || null,
         remarks: newCarrierRemarks.trim() || null,
+      });
+
+      // Track the newly created carrier locally so we can save changes immediately
+      // (before the query refetches)
+      setNewlyCreatedCarriers(prev => {
+        const next = new Map(prev);
+        next.set(created.id, created);
+        return next;
       });
 
       // Clear form fields
@@ -256,9 +283,9 @@ export function useShippingCarriers() {
       }
     }
 
-    // Process updates - need to merge with current API data
+    // Process updates - need to merge with current API data or newly created carriers
     for (const [id, mods] of localModifications) {
-      const apiCarrier = apiCarriers?.find(c => c.id === id);
+      const apiCarrier = apiCarriers?.find(c => c.id === id) || newlyCreatedCarriers.get(id);
       if (apiCarrier) {
         const merged = { ...toLocalFormat(apiCarrier), ...mods };
         try {
@@ -311,14 +338,15 @@ export function useShippingCarriers() {
     // Clear modification tracking
     setLocalModifications(new Map());
     setDeletedIds(new Set());
-  }, [apiCarriers, localModifications, deletedIds, updateMutation, deleteMutation]);
+  }, [apiCarriers, newlyCreatedCarriers, localModifications, deletedIds, updateMutation, deleteMutation]);
 
   // Save changes for a single carrier
   const saveCarrier = useCallback(async (carrierId: string) => {
     const mods = localModifications.get(carrierId);
     if (!mods) return;
 
-    const apiCarrier = apiCarriers?.find(c => c.id === carrierId);
+    // Look in both API carriers and newly created carriers
+    const apiCarrier = apiCarriers?.find(c => c.id === carrierId) || newlyCreatedCarriers.get(carrierId);
     if (!apiCarrier) return;
 
     const merged = { ...toLocalFormat(apiCarrier), ...mods };
@@ -354,6 +382,22 @@ export function useShippingCarriers() {
         }
       }
 
+      // Update contact link if primaryContactId changed
+      const contactChanged = mods.primaryContactId !== undefined;
+
+      if (contactChanged) {
+        const previousContactId = apiCarrier.primaryContact?.id;
+        const newContactId = merged.primaryContactId;
+
+        if (newContactId && newContactId !== previousContactId) {
+          // Link new contact (will unlink previous if exists)
+          await linkCarrierContact(carrierId, newContactId, previousContactId);
+        } else if (!newContactId && previousContactId) {
+          // Contact was cleared - unlink it
+          await unlinkCarrierContact(carrierId, previousContactId);
+        }
+      }
+
       // Clear modifications for this carrier only
       setLocalModifications(prev => {
         const next = new Map(prev);
@@ -364,7 +408,7 @@ export function useShippingCarriers() {
       console.error(`Failed to save carrier ${merged.name}:`, err);
       throw err;
     }
-  }, [apiCarriers, localModifications, updateMutation]);
+  }, [apiCarriers, newlyCreatedCarriers, localModifications, updateMutation]);
 
   // Delete carrier immediately with API call
   const deleteCarrierImmediately = useCallback(async (carrierId: string) => {
