@@ -66,6 +66,7 @@ interface QuoteDetailHeaderV2Props {
   hasChanges?: boolean;
   isNew?: boolean;
   lineItems?: LineItemV2[];
+  selectedLineItemIds?: Set<string>;
   settings?: QuoteSettingsV2;
   onClearLineItemProducts?: () => void;
   viewMode?: ViewMode;
@@ -146,6 +147,7 @@ export function QuoteDetailHeaderV2({
   hasChanges = false,
   isNew = false,
   lineItems = [],
+  selectedLineItemIds,
   settings,
   onClearLineItemProducts,
   viewMode: controlledViewMode,
@@ -956,21 +958,26 @@ export function QuoteDetailHeaderV2({
 
           {/* Save Button with Dropdown */}
           <div className="relative">
+            {/* Unsaved changes indicator */}
+            {hasChanges && !isNew && (
+              <span className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" title="You have unsaved changes" />
+            )}
             <div className="flex">
               <button
                 onClick={onSave}
-                disabled={isSaving}
+                disabled={isSaving || (!isNew && !hasChanges)}
                 className={`px-4 py-1.5 text-sm text-white rounded-l-lg transition-colors ${
-                  isSaving ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
+                  isSaving || (!isNew && !hasChanges) ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
                 }`}
+                title={!isNew && !hasChanges ? 'No changes to save' : undefined}
               >
                 {isSaving ? 'Saving...' : isNew ? 'Create' : 'Save'}
               </button>
               <button
                 onClick={() => setShowSaveMenu(!showSaveMenu)}
-                disabled={isSaving}
+                disabled={isSaving || (!isNew && !hasChanges)}
                 className={`px-2 py-1.5 text-sm text-white rounded-r-lg border-l border-green-400 transition-colors ${
-                  isSaving ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
+                  isSaving || (!isNew && !hasChanges) ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
                 }`}
               >
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
@@ -1861,6 +1868,7 @@ export function QuoteDetailHeaderV2({
         factoryId={lineItems[0]?.manufacturerId}
         factoryName={lineItems[0]?.manufacturerName}
         lineItems={lineItems}
+        initialSelectedItemIds={selectedLineItemIds}
         onClose={() => setShowCreateOrderModal(false)}
       />
 

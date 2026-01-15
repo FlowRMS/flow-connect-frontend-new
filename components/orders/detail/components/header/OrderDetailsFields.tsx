@@ -374,7 +374,7 @@ export function OrderDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Bill To Customer<span className="text-red-500">*</span>
+                Bill To Customer
               </label>
               <SearchableDropdownV2
                 value={(order as any).billToCustomerId || ''}
@@ -492,6 +492,7 @@ export function OrderDetailsFields({
                   { value: 'NORMAL', label: 'Normal' },
                   { value: 'BLANKET', label: 'Blanket' },
                   { value: 'RELEASE', label: 'Release' },
+                  { value: 'TAG', label: 'Tag' },
                 ]}
                 className="!py-2"
               />
@@ -535,7 +536,7 @@ export function OrderDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Projected Ship Date<span className="text-red-500">*</span>
+                Projected Ship Date
               </label>
               <StyledDatePicker
                 selected={parseDateString(order.requestedShipDate || order.shipDate)}

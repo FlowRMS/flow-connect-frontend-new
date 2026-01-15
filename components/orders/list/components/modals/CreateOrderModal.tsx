@@ -68,7 +68,7 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
       description: '',
       quantity: 1,
       unitPrice: 0,
-      commissionRate: selectedManufacturer?.baseCommissionRate || 0.08,
+      commissionRate: (selectedManufacturer?.baseCommissionRate || 0.08) * 100, // Convert decimal to whole percentage
     };
 
     setLineItems([...lineItems, newItem]);

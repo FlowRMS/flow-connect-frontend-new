@@ -5,11 +5,9 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateInvoiceFromOrder } from '@/components/invoices/api/useInvoicesApi';
-import { useFactorySearch } from '@/components/orders/api/useOrdersApi';
-import { SearchableDropdownV2 } from '@/components/quotes-v2/components/SearchableDropdownV2';
 import type { Invoice } from '@/components/invoices/api/invoicesApi';
 import type { OrderLineItem } from '@/lib/types/rms';
 
@@ -20,6 +18,7 @@ interface CreateInvoiceFromOrderModalProps {
   factoryId?: string;
   factoryName?: string;
   lineItems?: OrderLineItem[];
+  initialSelectedItemIds?: Set<string>;
   onClose: () => void;
   onSuccess?: (invoice: Invoice) => void;
 }
@@ -33,6 +32,7 @@ export function CreateInvoiceFromOrderModal({
   factoryId: initialFactoryId = '',
   factoryName: initialFactoryName = '',
   lineItems = [],
+  initialSelectedItemIds,
   onClose,
   onSuccess,
 }: CreateInvoiceFromOrderModalProps) {
@@ -47,24 +47,45 @@ export function CreateInvoiceFromOrderModal({
   const [step, setStep] = useState<ModalStep>(invoiceableItems.length > 0 ? 'select-items' : 'input');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
-  const [factoryId, setFactoryId] = useState(initialFactoryId);
-  const [factoryName, setFactoryName] = useState(initialFactoryName);
   const [createdInvoice, setCreatedInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set(invoiceableItems.map(item => item.id)));
+  // Use initialSelectedItemIds if provided (from detail page selection), filtered to only invoiceable items
+  // Otherwise default to all invoiceable items
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(() => {
+    if (initialSelectedItemIds && initialSelectedItemIds.size > 0) {
+      // Filter initial selection to only include invoiceable items (non-credit)
+      const invoiceableIds = new Set(invoiceableItems.map(item => item.id));
+      const filteredSelection = new Set<string>();
+      initialSelectedItemIds.forEach(id => {
+        if (invoiceableIds.has(id)) {
+          filteredSelection.add(id);
+        }
+      });
+      // If no items remain after filtering, default to all invoiceable items
+      return filteredSelection.size > 0 ? filteredSelection : new Set(invoiceableItems.map(item => item.id));
+    }
+    return new Set(invoiceableItems.map(item => item.id));
+  });
 
-  // Factory search
-  const [factorySearchTerm, setFactorySearchTerm] = useState('');
-  const { data: factoryResults, isLoading: isFactoryLoading } = useFactorySearch(factorySearchTerm, true);
-
-  // Transform factory results to dropdown options
-  const factoryOptions = useMemo(() => {
-    return (factoryResults || []).map(f => ({
-      id: f.id,
-      label: f.title,
-      sublabel: f.accountNumber,
-    }));
-  }, [factoryResults]);
+  // Sync selection state when modal opens or initialSelectedItemIds changes
+  useEffect(() => {
+    if (isOpen) {
+      if (initialSelectedItemIds && initialSelectedItemIds.size > 0) {
+        // Filter initial selection to only include invoiceable items (non-credit)
+        const invoiceableIds = new Set(invoiceableItems.map(item => item.id));
+        const filteredSelection = new Set<string>();
+        initialSelectedItemIds.forEach(id => {
+          if (invoiceableIds.has(id)) {
+            filteredSelection.add(id);
+          }
+        });
+        // If no items remain after filtering, default to all invoiceable items
+        setSelectedItemIds(filteredSelection.size > 0 ? filteredSelection : new Set(invoiceableItems.map(item => item.id)));
+      } else {
+        setSelectedItemIds(new Set(invoiceableItems.map(item => item.id)));
+      }
+    }
+  }, [isOpen, initialSelectedItemIds, invoiceableItems]);
 
   // Calculate totals for selected items
   const selectedTotal = useMemo(() => {
@@ -112,10 +133,6 @@ export function CreateInvoiceFromOrderModal({
       setError('Invoice number is required');
       return;
     }
-    if (!factoryId) {
-      setError('Factory is required');
-      return;
-    }
     if (!dueDate) {
       setError('Due date is required');
       return;
@@ -132,7 +149,7 @@ export function CreateInvoiceFromOrderModal({
       const invoice = await createInvoiceMutation.mutateAsync({
         orderId,
         invoiceNumber: invoiceNumber.trim(),
-        factoryId,
+        factoryId: initialFactoryId,
         dueDate,
         orderDetailIds,
       });
@@ -160,11 +177,21 @@ export function CreateInvoiceFromOrderModal({
     setStep(invoiceableItems.length > 0 ? 'select-items' : 'input');
     setInvoiceNumber('');
     setDueDate(new Date().toISOString().split('T')[0]);
-    setFactoryId(initialFactoryId);
-    setFactoryName(initialFactoryName);
     setCreatedInvoice(null);
     setError(null);
-    setSelectedItemIds(new Set(invoiceableItems.map(item => item.id)));
+    // Reset to initial selection if provided (filtered to invoiceable items), otherwise all invoiceable items
+    if (initialSelectedItemIds && initialSelectedItemIds.size > 0) {
+      const invoiceableIds = new Set(invoiceableItems.map(item => item.id));
+      const filteredSelection = new Set<string>();
+      initialSelectedItemIds.forEach(id => {
+        if (invoiceableIds.has(id)) {
+          filteredSelection.add(id);
+        }
+      });
+      setSelectedItemIds(filteredSelection.size > 0 ? filteredSelection : new Set(invoiceableItems.map(item => item.id)));
+    } else {
+      setSelectedItemIds(new Set(invoiceableItems.map(item => item.id)));
+    }
     onClose();
   };
 
@@ -405,25 +432,17 @@ export function CreateInvoiceFromOrderModal({
                 />
               </div>
 
-              {/* Factory */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Factory <span className="text-red-500">*</span>
-                </label>
-                <SearchableDropdownV2
-                  value={factoryId}
-                  displayValue={factoryName}
-                  onChange={(id, label) => {
-                    setFactoryId(id);
-                    setFactoryName(label);
-                    setError(null);
-                  }}
-                  options={factoryOptions}
-                  onSearch={(term) => setFactorySearchTerm(term)}
-                  isLoading={isFactoryLoading}
-                  placeholder="Search factories..."
-                />
-              </div>
+              {/* Factory - Read-only display from order */}
+              {initialFactoryName && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Factory
+                  </label>
+                  <div className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-700">
+                    {initialFactoryName}
+                  </div>
+                </div>
+              )}
 
               {/* Due Date */}
               <div className="mb-4">
@@ -484,7 +503,7 @@ export function CreateInvoiceFromOrderModal({
                 </button>
                 <button
                   onClick={handleCreate}
-                  disabled={createInvoiceMutation.isPending || !invoiceNumber.trim() || !factoryId || !dueDate}
+                  disabled={createInvoiceMutation.isPending || !invoiceNumber.trim() || !dueDate}
                   className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {createInvoiceMutation.isPending ? (

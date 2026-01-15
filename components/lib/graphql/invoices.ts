@@ -97,11 +97,23 @@ export interface InvoiceFactory {
   accountNumber?: string;
 }
 
+export interface InvoiceOrderCustomer {
+  id: string;
+  companyName?: string;
+  published?: boolean;
+  parentId?: string;
+  isParent?: boolean;
+  buyingGroupId?: string;
+}
+
 export interface InvoiceOrder {
   id: string;
   url?: string;
   status?: string;
   soldToCustomerId?: string;
+  soldToCustomer?: InvoiceOrderCustomer;
+  billToCustomerId?: string;
+  // Note: billToCustomer nested object is not available in the API, only billToCustomerId
   shippingTerms?: string;
   shipDate?: string;
   quoteId?: string;
@@ -122,7 +134,6 @@ export interface InvoiceOrder {
   creationType?: string;
   createdById?: string;
   createdAt?: string;
-  billToCustomerId?: string;
   balanceId?: string;
 }
 
@@ -334,6 +345,7 @@ const FIND_INVOICE_BY_ID = `
         outside
         role
         username
+        visible
       }
       createdById
       creationType
@@ -370,6 +382,7 @@ const FIND_INVOICE_BY_ID = `
             outside
             role
             username
+            visible
           }
           userId
         }
@@ -416,8 +429,17 @@ const FIND_INVOICE_BY_ID = `
         url
         status
         soldToCustomerId
-        shipDate
+        soldToCustomer {
+          published
+          parentId
+          isParent
+          id
+          companyName
+          buyingGroupId
+        }
+        billToCustomerId
         shippingTerms
+        shipDate
         quoteId
         published
         projectedShipDate
@@ -437,7 +459,6 @@ const FIND_INVOICE_BY_ID = `
         creationType
         createdById
         createdAt
-        billToCustomerId
         balanceId
       }
       locked
@@ -603,6 +624,15 @@ const CREATE_INVOICE = `
         url
         status
         soldToCustomerId
+        soldToCustomer {
+          published
+          parentId
+          isParent
+          id
+          companyName
+          buyingGroupId
+        }
+        billToCustomerId
         shipDate
         shippingTerms
         quoteId
@@ -624,7 +654,6 @@ const CREATE_INVOICE = `
         creationType
         createdById
         createdAt
-        billToCustomerId
         balanceId
       }
       locked
@@ -766,6 +795,15 @@ const UPDATE_INVOICE = `
         url
         status
         soldToCustomerId
+        soldToCustomer {
+          published
+          parentId
+          isParent
+          id
+          companyName
+          buyingGroupId
+        }
+        billToCustomerId
         shipDate
         shippingTerms
         quoteId
@@ -787,7 +825,6 @@ const UPDATE_INVOICE = `
         creationType
         createdById
         createdAt
-        billToCustomerId
         balanceId
       }
       locked

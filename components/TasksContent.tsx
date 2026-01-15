@@ -7,6 +7,11 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from './ui/HeaderIconAnimations';
+import { iconMap } from './Sidebar';
+import type { RefObject } from 'react';
 import { useTasksState } from './tasks/hooks/useTasksState';
 import { useCRMTask } from './hooks/useCRMApi';
 import { convertCRMTaskToUI } from './tasks/utils';
@@ -28,6 +33,9 @@ export default function TasksContent() {
   const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Animation key to re-trigger header animations on each navigation
+  const [animationKey] = useState(() => Date.now());
 
   // Track intentional clear to prevent re-selection after back navigation
   const isIntentionalClearRef = useRef(false);
@@ -182,6 +190,22 @@ export default function TasksContent() {
     e.preventDefault();
   };
 
+  // Navigation morph hooks - must be called before any early returns
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  // Register header target on mount
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'tasks';
+
   // Show consistent loading state during SSR and initial client render
   // This prevents hydration mismatch caused by localStorage-dependent query enabling
   if (!isMounted || isLoading) {
@@ -215,12 +239,45 @@ export default function TasksContent() {
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
       {/* Header */}
-      <div className="mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Tasks</h1>
+      <div className="pb-0 overflow-visible">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 overflow-visible">
+          <div className="flex items-start gap-4 overflow-visible">
+            {/* Morphing Icon Target - Bounce Check Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="bounce-check"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['tasks']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                key={`tasks-title-${animationKey}`}
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Tasks
+              </motion.h1>
+              <motion.p
+                key={`tasks-subtitle-${animationKey}`}
+                className="text-xs sm:text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                {isLoading ? 'Loading...' : `${filteredTasks.length} tasks • Organize and track your work`}
+              </motion.p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <motion.div
+            key={`tasks-actions-${animationKey}`}
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               <button
@@ -433,11 +490,11 @@ export default function TasksContent() {
               <span className="hidden sm:inline">Add Task</span>
               <span className="sm:hidden">Add</span>
             </button>
-          </div>
+          </motion.div>
         </div>
 
         {/* Search Bar */}
-        <div className="relative mt-3 sm:mt-4">
+        <div className="relative mt-3 sm:mt-4 mb-4 sm:mb-6">
           <svg
             width="18"
             height="18"
@@ -461,7 +518,7 @@ export default function TasksContent() {
       </div>
 
       {/* Category Filters and Bulk Select */}
-      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 flex-1 -mx-1 px-1">
           {TASK_CATEGORIES.map((category) => (
             <button

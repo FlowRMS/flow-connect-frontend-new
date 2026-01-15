@@ -67,6 +67,18 @@ export function QuoteDetailV2({ quote: initialQuote, onBack }: QuoteDetailV2Prop
     }
   };
 
+  // Live update handler - updates both lineItems AND selectedLineItem without closing modal
+  const handleLiveUpdateAdditionalDetails = (updates: Partial<LineItemV2>) => {
+    if (selectedLineItem) {
+      // Update the selected line item so the modal stays in sync
+      setSelectedLineItem((prev) => prev ? { ...prev, ...updates } : prev);
+      // Update the line items array
+      setLineItems((prev) =>
+        prev.map((li) => (li.id === selectedLineItem.id ? { ...li, ...updates } : li))
+      );
+    }
+  };
+
   const handleRevertToVersion = (versionNumber: number) => {
     // In a real app, this would fetch the version data from the API
     console.log('Reverting to version:', versionNumber);
@@ -167,6 +179,7 @@ export function QuoteDetailV2({ quote: initialQuote, onBack }: QuoteDetailV2Prop
         onClose={() => setShowAdditionalDetailsModal(false)}
         lineItem={selectedLineItem}
         onSave={handleSaveAdditionalDetails}
+        onLiveUpdate={handleLiveUpdateAdditionalDetails}
         settings={settings}
       />
     </div>

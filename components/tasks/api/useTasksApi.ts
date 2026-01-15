@@ -101,7 +101,7 @@ export const tasksQueryKeys = {
 // Task Hooks
 // ============================================================================
 
-const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 30;
 
 /**
  * Fetch all tasks using landing pages endpoint

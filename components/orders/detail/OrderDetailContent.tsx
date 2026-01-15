@@ -12,7 +12,7 @@ import { useOrderDetailState } from './hooks/useOrderDetailState';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import { OrderDetailHeader } from './components/header';
 import { LineItemsTable } from './components/line-items';
-import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab } from './components/tabs';
+import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab, InvoicesTab } from './components/tabs';
 import { FilesTab } from '@/components/shared/FilesTab';
 import {
   SetOverageModal,
@@ -35,13 +35,15 @@ import {
   AcknowledgementDetailModal,
   DeleteConfirmModal,
   CreateInvoiceFromOrderModal,
+  InvoiceDetailModal,
 } from './components/modals';
 import { DuplicateOrderModal } from '../list/components/modals/DuplicateOrderModal';
-import { useDuplicateOrder } from '../api/useOrdersApi';
+import { useDuplicateOrder, useDeleteOrder } from '../api/useOrdersApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { useCreditsState } from './hooks/useCreditsState';
 import { useAdjustmentsState } from './hooks/useAdjustmentsState';
 import { useAcknowledgementsState } from './hooks/useAcknowledgementsState';
+import { useInvoicesState } from './hooks/useInvoicesState';
 import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipStatus } from './utils';
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
 import { orderToasts } from '@/components/lib/toast';
@@ -66,12 +68,22 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     orderId: orderId !== 'new' ? orderId : null,
   });
 
+  // Invoices state management
+  const invoicesState = useInvoicesState({
+    orderId: orderId !== 'new' ? orderId : null,
+  });
+
   // Create Invoice from Order modal state
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
 
   // Duplicate Order modal state
   const [showDuplicateOrderModal, setShowDuplicateOrderModal] = useState(false);
   const duplicateOrderMutation = useDuplicateOrder();
+
+  // Delete Order state
+  const [showDeleteOrderModal, setShowDeleteOrderModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const deleteOrderMutation = useDeleteOrder();
 
   // Current reps with names (for passing to line items when adding new ones)
   const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
@@ -260,12 +272,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         return;
       }
 
-      if (!order.requestedShipDate && !order.shipDate) {
-        console.error('❌ VALIDATION FAILED: Projected Ship Date is missing');
-        orderToasts.updateError('Projected Ship Date is required.');
-        return;
-      }
-
       // Validate End User based on settings (REQUIRED field)
       const orderEndUserId = (order as any).endUserId;
 
@@ -395,7 +401,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           productId: item.productId || undefined,
           productNameAdhoc: item.partNumber || undefined,
           productDescriptionAdhoc: item.description || undefined,
-          commissionRate: String((item.commissionRate || 0) * 100), // Convert decimal to percent for API
+          commissionRate: String(item.commissionRate || 0), // Already stored as whole percentage (e.g., 8 for 8%)
           divisionFactor: item.divisor ? String(item.divisor) : undefined,
           uomId: item.uomId || undefined, // Send uomId, null becomes undefined
           // Include inside and outside rep splitRates on each line item
@@ -461,7 +467,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         const result = await state.createOrderMutation.mutateAsync(createInput);
         console.log('Order created:', result);
         orderToasts.createSuccess(result.orderNumber || createInput.orderNumber);
-        router.push('/orders');
+        // Navigate to the newly created order detail page instead of landing page
+        router.push(`/orders/${result.id}`);
       } else {
         // Update existing order - split rates are now at detail level
         if (state.updateOrderMutation) {
@@ -491,6 +498,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           };
 
           await state.updateOrderMutation.mutateAsync(updateInput);
+          state.resetChanges();
           orderToasts.updateSuccess(order.orderNumber);
         }
       }
@@ -506,9 +514,23 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   };
 
   const handleDelete = () => {
-    if (confirm('Are you sure you want to delete this order?')) {
-      alert('Order deleted');
+    setShowDeleteOrderModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!order?.id) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteOrderMutation.mutateAsync(order.id);
+      orderToasts.deleteSuccess(order.orderNumber);
       router.push('/orders');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete order';
+      orderToasts.deleteError(errorMessage);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteOrderModal(false);
     }
   };
 
@@ -615,7 +637,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   };
 
   return (
-    <main className="flex flex-col min-h-full bg-[var(--background)]">
+    <main className="h-full overflow-auto bg-[var(--background)]">
       {/* Header */}
       <OrderDetailHeader
         order={order}
@@ -645,6 +667,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         openInsideRepModal={state.openInsideRepModal}
         onUpdateOrder={state.updateLocalOrder}
         isCreateMode={isCreateMode}
+        hasChanges={state.hasChanges}
+        isSaving={state.createOrderMutation?.isPending || state.updateOrderMutation?.isPending}
         showEndUserPerLine={state.showEndUserPerLine}
         showOutsideRepPerLine={state.showOutsideRepPerLine}
         showInsideRepPerLine={state.showInsideRepPerLine}
@@ -669,13 +693,14 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex-1 flex flex-col p-6">
+      <div className="p-6">
         {/* Tab Navigation */}
-        <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white pt-4 px-4 -mx-6 -mt-6">
+        <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] bg-white pt-4 px-4 -mx-6 -mt-6">
           <div className="flex gap-1">
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
               { id: 'files', label: 'Files', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'invoices', label: 'Invoices', disabled: isCreateMode, disabledReason: 'Save order first', count: invoicesState.invoices.length },
               { id: 'credits', label: 'Credits', disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'adjustments', label: 'Adjustments', hidden: true }, // Hidden - adjustments now has its own page in sidebar
               { id: 'acknowledgements', label: 'Acknowledgements', disabled: isCreateMode, disabledReason: 'Save order first' },
@@ -765,7 +790,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 pb-32">
+        <div className="pb-32">
           {state.activeTab === 'line-items' && (
             <LineItemsTable
               order={order}
@@ -801,6 +826,15 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onOpenAdditionalDetails={state.openAdditionalDetails}
               currentOutsideReps={currentOutsideReps}
               currentInsideReps={currentInsideReps}
+              onViewInvoice={(invoice) => invoicesState.viewInvoice({
+                id: invoice.id,
+                invoiceNumber: invoice.invoiceNumber,
+                status: invoice.status,
+                entityDate: invoice.entityDate,
+                dueDate: invoice.dueDate,
+                creationType: invoice.creationType,
+                locked: invoice.locked,
+              })}
             />
           )}
 
@@ -816,6 +850,15 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           {state.activeTab === 'notes' && <NotesTab orderId={orderId} />}
           {state.activeTab === 'tasks' && <TasksTab orderId={orderId} />}
           {state.activeTab === 'activity' && <ActivityTab />}
+          {state.activeTab === 'invoices' && (
+            <InvoicesTab
+              invoices={invoicesState.invoices}
+              isLoading={invoicesState.isLoadingInvoices}
+              error={invoicesState.invoicesError}
+              onViewInvoice={invoicesState.viewInvoice}
+              onCreateInvoice={() => setShowCreateInvoiceModal(true)}
+            />
+          )}
           {state.activeTab === 'credits' && (
             <CreditsTab
               credits={creditsState.credits}
@@ -1008,6 +1051,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onClose={state.closeAdditionalDetails}
         lineItem={state.additionalDetailsLineItem}
         onSave={state.saveAdditionalDetails}
+        onLiveUpdate={state.liveUpdateAdditionalDetails}
         showEndUserPerLine={state.showEndUserPerLine}
         showOutsideRepPerLine={state.showOutsideRepPerLine}
         showInsideRepPerLine={state.showInsideRepPerLine}
@@ -1114,10 +1158,21 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         factoryId={order.manufacturerId}
         factoryName={order.manufacturerName}
         lineItems={order.lineItems || []}
+        initialSelectedItemIds={state.selectedLineItems}
         onClose={() => setShowCreateInvoiceModal(false)}
         onSuccess={(invoice) => {
           orderToasts.invoiceCreatedFromOrder(invoice.invoiceNumber || invoice.id);
+          invoicesState.refetchInvoices();
         }}
+      />
+
+      {/* Invoice Detail Modal */}
+      <InvoiceDetailModal
+        isOpen={invoicesState.showInvoiceDetailModal}
+        onClose={invoicesState.closeInvoiceDetailModal}
+        invoice={invoicesState.selectedInvoice}
+        invoiceDetails={invoicesState.invoiceDetails}
+        isLoading={invoicesState.isLoadingInvoiceDetails}
       />
 
       {/* Duplicate Order Modal */}
@@ -1143,6 +1198,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             orderToasts.duplicateError(error instanceof Error ? error.message : 'Failed to duplicate order');
           }
         }}
+      />
+
+      {/* Delete Order Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={showDeleteOrderModal}
+        title="Delete Order?"
+        message="Are you sure you want to delete order"
+        itemName={order.orderNumber}
+        isPending={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteOrderModal(false)}
       />
     </main>
   );

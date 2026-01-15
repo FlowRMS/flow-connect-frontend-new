@@ -5,6 +5,10 @@ import { useSearchParams } from 'next/navigation';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 import TagSearchSelect from './TagSearchSelect';
 import SidebarSettings from './SidebarSettings';
+import { QuoteSettingsTab } from './settings/QuoteSettingsTab';
+import { OrderSettingsTab } from './settings/OrderSettingsTab';
+import { InvoiceSettingsTab } from './settings/InvoiceSettingsTab';
+import { ChatSettingsTab } from './settings/ChatSettingsTab';
 import {
   mockTeamMembers,
   mockFlowBotSettings,
@@ -106,9 +110,9 @@ type ActivityRule = {
   tagModifiers: { tag: string; multiplier: number }[];
 };
 
-type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories';
+type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'chat-settings';
 
-const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories'];
+const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'chat-settings'];
 
 export default function SettingsContent() {
   const searchParams = useSearchParams();
@@ -244,9 +248,18 @@ export default function SettingsContent() {
       ],
     },
     {
+      label: 'Document Defaults',
+      tabs: [
+        { id: 'quote-settings' as TabType, label: 'Quote Settings' },
+        { id: 'order-settings' as TabType, label: 'Order Settings' },
+        { id: 'invoice-settings' as TabType, label: 'Invoice Settings' },
+      ],
+    },
+    {
       label: 'Preferences',
       tabs: [
         { id: 'default-views' as TabType, label: 'Default Views' },
+        { id: 'chat-settings' as TabType, label: 'Chat Settings' },
         { id: 'sidebar' as TabType, label: 'Sidebar' },
       ],
     },
@@ -559,6 +572,26 @@ export default function SettingsContent() {
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 max-w-4xl">
           <SidebarSettings />
         </div>
+      )}
+
+      {/* Quote Settings Tab */}
+      {activeTab === 'quote-settings' && (
+        <QuoteSettingsTab />
+      )}
+
+      {/* Order Settings Tab */}
+      {activeTab === 'order-settings' && (
+        <OrderSettingsTab />
+      )}
+
+      {/* Invoice Settings Tab */}
+      {activeTab === 'invoice-settings' && (
+        <InvoiceSettingsTab />
+      )}
+
+      {/* Chat Settings Tab */}
+      {activeTab === 'chat-settings' && (
+        <ChatSettingsTab />
       )}
 
       {/* Default Views Tab */}

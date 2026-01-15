@@ -202,6 +202,11 @@ export interface LineItemV2 {
   // Status
   status?: QuoteDetailStatus;
 
+  // Pricing source tracking - marks if price was manually set vs auto-calculated
+  isManualPrice?: boolean;
+  // Pricing source for UI display: 'product' | 'cpn' | 'manual' | 'tier:X-Y'
+  pricingSource?: string;
+
   // Split rates - inside and outside reps at line item level
   insideSplitRates?: { id: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
   outsideSplitRates?: { id: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
@@ -558,8 +563,8 @@ export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: s
     partNumber: detail.productNameAdhoc || detail.product?.factoryPartNumber || '',
     customerPartNumber: '', // CPN is fetched separately via product CPNs API
     description: detail.productDescriptionAdhoc || detail.product?.description || '',
-    manufacturerId: detail.factoryId,
-    manufacturerName: '', // Factory name not available in response - selected via dropdown
+    manufacturerId: detail.factoryId || detail.factory?.id,
+    manufacturerName: detail.factory?.title || '', // Factory name now comes from factory object in response
 
     // Quantity
     quantity,

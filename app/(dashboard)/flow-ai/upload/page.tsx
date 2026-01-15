@@ -1,7 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import {
   Upload,
   Loader2,
@@ -37,6 +42,21 @@ export default function UploadPage() {
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [currentFactIndex, setCurrentFactIndex] = useState(() => Math.floor(Math.random() * FLOWAI_FACTS.length));
   const [isFactVisible, setIsFactVisible] = useState(true);
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'flow-ai-upload';
 
   // Get initial document type from URL query parameter
   const typeParam = searchParams.get('type');
@@ -132,25 +152,50 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="min-h-full bg-background flex flex-col">
+    <div className="h-full overflow-auto bg-background">
       {/* Page Header */}
-      <div className="border-b bg-card/50 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Upload className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Upload Documents</h1>
-              <p className="text-sm text-muted-foreground">Upload documents for AI processing</p>
+      <div className="border-b bg-card/50 px-6 py-4 overflow-visible">
+        <div className="flex items-center justify-between overflow-visible">
+          <div className="flex items-center gap-3 overflow-visible">
+            {/* Morphing Icon Target - Upload Arrow Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="upload-arrow"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['flow-ai-upload']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl font-bold"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Upload Documents
+              </motion.h1>
+              <motion.p
+                className="text-sm text-muted-foreground"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                Upload documents for AI processing
+              </motion.p>
             </div>
           </div>
-          <AdminSettingsDialog />
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
+            <AdminSettingsDialog />
+          </motion.div>
         </div>
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 relative">
+      <main className="relative">
         {isBatchProcessing && (
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
             <div className="flex flex-col items-center gap-6 max-w-lg text-center px-4">
