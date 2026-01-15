@@ -994,8 +994,12 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     docsToCreate.forEach((doc) => {
       tasks.push(
         (async () => {
-          let fileId = doc.fileId;
-          if (!fileId) {
+          let fileUrl = doc.fileUrl;
+          let mimeType = doc.mimeType;
+          let fileSize = doc.fileSize;
+          let name = doc.name;
+
+          if (!fileUrl) {
             if (!doc.file) {
               console.error('Missing file for delivery document upload:', doc);
               return;
@@ -1005,12 +1009,18 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
               fileName: doc.file.name,
               fileEntityType: 'UNDEFINED',
             });
-            fileId = uploaded.id;
+            fileUrl = uploaded.filePath;
+            mimeType = uploaded.fileType || doc.file.type || 'application/octet-stream';
+            fileSize = uploaded.fileSize || doc.file.size;
+            name = uploaded.fileName;
           }
           return createDeliveryDocument({
             deliveryId: shipment.id,
-            fileId,
+            name,
             docType: doc.type,
+            fileUrl,
+            mimeType,
+            fileSize,
             uploadedById: isUuid(doc.uploadedBy) ? doc.uploadedBy : null,
             notes: doc.notes || null,
           });
@@ -1651,8 +1661,12 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       return;
     }
     try {
-      let fileId = document.fileId;
-      if (!fileId) {
+      let fileUrl = document.fileUrl;
+      let mimeType = document.mimeType;
+      let fileSize = document.fileSize;
+      let name = document.name;
+
+      if (!fileUrl) {
         if (!document.file) {
           console.error('Missing file for delivery document upload:', document);
           return;
@@ -1662,12 +1676,18 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           fileName: document.file.name,
           fileEntityType: 'UNDEFINED',
         });
-        fileId = uploaded.id;
+        fileUrl = uploaded.filePath;
+        mimeType = uploaded.fileType || document.file.type || 'application/octet-stream';
+        fileSize = uploaded.fileSize || document.file.size;
+        name = uploaded.fileName;
       }
       await createDeliveryDocument({
         deliveryId: shipment.id,
-        fileId,
+        name,
         docType: document.type,
+        fileUrl,
+        mimeType,
+        fileSize,
         uploadedById: isUuid(document.uploadedBy) ? document.uploadedBy : null,
         notes: document.notes || null,
       });
