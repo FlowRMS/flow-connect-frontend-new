@@ -25,6 +25,7 @@ export default function DashboardShell({
   const isFirstRender = useRef(true);
 
   // Smooth morph page transition
+  // This effect intentionally sets state to trigger page transition animations on route changes
   useEffect(() => {
     // Skip animation on first render
     if (isFirstRender.current) {
@@ -34,8 +35,9 @@ export default function DashboardShell({
 
     if (prevPathnameRef.current !== pathname) {
       // Start with entering state (content starts scaled down and faded)
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: triggering page transition on route change
       setTransitionState('entering');
-      
+
       // After a brief moment, trigger the smooth entrance animation
       const timer = setTimeout(() => {
         setTransitionState('idle');
@@ -58,18 +60,19 @@ export default function DashboardShell({
   }
 
   // Animation styles based on state
+  // NOTE: We only use opacity animation, NOT transform, because CSS transforms
+  // create a new stacking context that breaks fixed-position modals inside children.
+  // Modals with "fixed inset-0" would only cover the transformed container, not the viewport.
   const getTransformStyle = () => {
     if (transitionState === 'entering') {
       return {
         opacity: 0,
-        transform: 'scale(0.98) translateY(8px)',
         transition: 'none',
       };
     }
     return {
       opacity: 1,
-      transform: 'scale(1) translateY(0px)',
-      transition: 'opacity 350ms cubic-bezier(0.22, 1, 0.36, 1), transform 400ms cubic-bezier(0.22, 1, 0.36, 1)',
+      transition: 'opacity 300ms cubic-bezier(0.22, 1, 0.36, 1)',
     };
   };
 

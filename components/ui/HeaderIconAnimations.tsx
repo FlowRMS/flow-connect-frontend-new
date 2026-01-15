@@ -670,9 +670,7 @@ function ContactRippleAnimation({ isReceiving }: { isReceiving: boolean }) {
             transition={{ duration: 0.5, delay: 0.08 }}
           />
           {/* Connection lines shooting out */}
-          {[...Array(6)].map((_, i) => {
-            const angle = (i * 60 - 30) * (Math.PI / 180);
-            return (
+          {[...Array(6)].map((_, i) => (
               <motion.div
                 key={i}
                 className="absolute w-1 h-4 bg-indigo-400 rounded-full"
@@ -689,8 +687,7 @@ function ContactRippleAnimation({ isReceiving }: { isReceiving: boolean }) {
                 }}
                 transition={{ duration: 0.4, delay: 0.15 + i * 0.04 }}
               />
-            );
-          })}
+          ))}
           {/* Small people dots appearing around */}
           {[...Array(4)].map((_, i) => {
             const angle = (i * 90 + 45) * (Math.PI / 180);
@@ -1472,26 +1469,31 @@ export function HeaderIconAnimation({
   // Play animation on mount after a short delay
   useEffect(() => {
     if (playOnMount && !hasPlayedInitial) {
+      let resetTimer: ReturnType<typeof setTimeout> | null = null;
+
       // Small delay to let page render first
       const timer = setTimeout(() => {
         setShouldAnimate(true);
         setHasPlayedInitial(true);
 
         // Reset animation state after it completes
-        const resetTimer = setTimeout(() => {
+        resetTimer = setTimeout(() => {
           setShouldAnimate(false);
         }, 800); // Animation duration + buffer
-
-        return () => clearTimeout(resetTimer);
       }, 300);
 
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        if (resetTimer) clearTimeout(resetTimer);
+      };
     }
   }, [playOnMount, hasPlayedInitial]);
 
   // Also animate when receiving morph animation from sidebar
+  // This effect intentionally sets state in response to a prop change to sync animation timing
   useEffect(() => {
     if (isReceivingAnimation) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: syncing animation state from prop change
       setShouldAnimate(true);
       const timer = setTimeout(() => {
         setShouldAnimate(false);

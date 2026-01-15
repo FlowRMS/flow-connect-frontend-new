@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
 // Custom easing curves - iOS/macOS native feel
@@ -172,11 +172,11 @@ export function NavigationMorphProvider({ children }: { children: React.ReactNod
     >
       {children}
 
-      {/* Global Floating Icon Overlay */}
+      {/* Global Floating Icon Overlay - Uses z-40 to stay below modals (z-50) and dropdowns */}
       <AnimatePresence>
         {floatingIcon && (
           <motion.div
-            className="fixed z-[9999] pointer-events-none"
+            className="fixed z-40 pointer-events-none"
             initial={{
               x: floatingIcon.startX,
               y: floatingIcon.startY,

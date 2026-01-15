@@ -84,12 +84,12 @@ export function MorphingPageHeader({
           </div>
         </div>
 
-        {/* Actions */}
+        {/* Actions - No filter blur to avoid stacking context issues with portaled elements */}
         {actions && (
           <motion.div
             className="flex items-center gap-2"
-            initial={{ opacity: 0, x: 30, filter: 'blur(8px)' }}
-            animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
             transition={{
               duration: 0.35,
               delay: 0.25,

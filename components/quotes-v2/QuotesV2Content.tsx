@@ -297,8 +297,8 @@ export function QuotesV2Content() {
 
           <motion.div
             className="flex items-center gap-4"
-            initial={{ opacity: 0, x: 30, filter: 'blur(8px)' }}
-            animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
           >
             {/* Search Bar */}
