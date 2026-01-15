@@ -104,7 +104,7 @@ export function InvoicesTable({
         // Empty state - don't show table structure
         null
       ) : (
-        <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 240px)' }}>
+        <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           <div 
             ref={scrollContainerRef}
             className="overflow-auto scrollbar-always-visible flex-1"

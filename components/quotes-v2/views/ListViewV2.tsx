@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import type { QuoteV2, QuotePipelineStage } from '../types';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
@@ -10,6 +10,7 @@ import { QuotesTableSkeleton } from '../components/QuotesTableSkeleton';
 import { SortIndicator } from '@/components/shared/sorting/components/SortIndicator';
 import type { ActiveSort } from '@/components/shared/sorting/types';
 import { ListPreviewHoverCard } from '@/components/shared/ListPreviewHoverCard';
+import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
 
 interface ListViewV2Props {
   quotes: QuoteV2[];
@@ -34,6 +35,11 @@ interface ListViewV2Props {
   // Unified sort props (for backend sorting)
   activeSort?: ActiveSort | null;
   onSortChange?: (columnId: string) => void;
+  // Pagination props for infinite scroll
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
+  searchQuery?: string;
 }
 
 function getStatusBadgeClass(status: string): string {
@@ -97,7 +103,23 @@ export function ListViewV2({
   hasActiveFilters = false,
   activeSort = null,
   onSortChange,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+  searchQuery = '',
 }: ListViewV2Props) {
+  // Ref for the scrollable container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Use scroll pagination hook to detect when scrolling near bottom of table
+  // Only enable pagination when not searching (search results are handled differently)
+  const shouldPaginate = (hasNextPage ?? false) && !searchQuery;
+  useScrollPagination(scrollContainerRef, {
+    hasNextPage: shouldPaginate,
+    isFetchingNextPage: isFetchingNextPage ?? false,
+    fetchNextPage: fetchNextPage ?? (() => {}),
+    threshold: 200, // Trigger when within 200px of bottom
+  });
   // Local selection state (fallback if parent props not provided)
   const [localSelectedQuotes, setLocalSelectedQuotes] = useState<Set<string>>(new Set());
   
@@ -233,10 +255,14 @@ export function ListViewV2({
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1800px]">
-          <thead className="bg-gray-50 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
+      <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+        <div 
+          ref={scrollContainerRef}
+          className="overflow-auto scrollbar-always-visible flex-1"
+        >
+          <table className="w-full min-w-[1800px]">
+            <thead className="bg-gray-50 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
             <tr>
               {/* Checkbox */}
               <th className="w-10 px-3 py-3 text-left">
@@ -671,8 +697,8 @@ export function ListViewV2({
             )}
           </tbody>
         </table>
+        </div>
       </div>
-
     </div>
   );
 }

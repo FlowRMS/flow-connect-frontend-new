@@ -25,7 +25,6 @@ import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
 import { useSortState } from '@/components/shared/sorting/hooks/useSortState';
 import { SortMenu } from '@/components/shared/sorting/components/SortMenu';
 import { QUOTE_SORT_CONFIGS, DEFAULT_QUOTE_SORT } from './config/sortConfig';
-import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
@@ -65,7 +64,6 @@ export function QuotesV2Content() {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Server-side filters - defined BEFORE API hook so they can be passed to the query
   const [serverFilters, setServerFilters] = useState<QuoteLandingPageFilter[]>([]);
@@ -418,15 +416,6 @@ export function QuotesV2Content() {
     return allQuotesData.map(transformLandingPageToQuoteV2);
   }, [allQuotesData, searchQuery, searchResults]);
 
-  // Scroll-based pagination - load more when scrolling near bottom
-  // Only enable pagination when not searching (search results are handled differently)
-  const shouldPaginate = (hasNextPage ?? false) && !searchQuery;
-  useScrollPagination(scrollContainerRef, {
-    hasNextPage: shouldPaginate,
-    isFetchingNextPage: isFetchingNextPage ?? false,
-    fetchNextPage: fetchNextPage ?? (() => {}),
-    threshold: 200, // Trigger when within 200px of bottom
-  });
 
   // Get total count from first page
   const totalCount = useMemo(() => {
@@ -739,7 +728,7 @@ export function QuotesV2Content() {
       </div>
 
       {/* Content */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-hidden p-4">
         {error ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -785,6 +774,10 @@ export function QuotesV2Content() {
                   hasActiveFilters={hasActiveFilters}
                   activeSort={sortState.activeSort}
                   onSortChange={sortState.toggleSort}
+                  hasNextPage={hasNextPage}
+                  isFetchingNextPage={isFetchingNextPage}
+                  fetchNextPage={fetchNextPage}
+                  searchQuery={searchQuery}
                 />
 
                 {/* Loading indicator for infinite scroll - list view */}

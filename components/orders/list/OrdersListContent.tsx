@@ -231,7 +231,7 @@ export default function OrdersListContent() {
         </div>
 
         {/* Orders Table */}
-        <div className="flex-1 overflow-hidden p-6 pt-4 min-h-0 flex flex-col">
+        <div className="flex-1 overflow-auto p-6 pt-4">
           <OrdersTable
             filteredOrders={state.filteredOrders}
             isLoading={isLoading}
