@@ -38,6 +38,8 @@ export interface FactorySplitRateInput {
   position: number;
 }
 
+export type OverageType = 'BY_LINE' | 'BY_TOTAL';
+
 export interface Factory {
   id: string;
   title: string;
@@ -58,6 +60,9 @@ export interface Factory {
   splitRates?: FactorySplitRate[];
   createdBy?: User;
   createdAt?: string;
+  overageAllowed?: boolean;
+  overageType?: OverageType;
+  repOverageShare?: string;
 }
 
 export interface FactoryLandingPage {
@@ -112,6 +117,12 @@ export interface UpdateFactoryInput {
   phone?: string;
   published?: boolean;
   splitRates?: FactorySplitRateInput[];
+}
+
+export interface FactoryOverageSettingsInput {
+  overageAllowed: boolean;
+  overageType: OverageType;
+  repOverageShare: string;
 }
 
 export interface FactoryLandingPageFilter {
@@ -229,6 +240,9 @@ const FIND_FACTORY_BY_ID = `
         }
       }
       title
+      overageAllowed
+      overageType
+      repOverageShare
     }
   }
 `;
@@ -346,6 +360,18 @@ const UPDATE_FACTORY = `
 const DELETE_FACTORY = `
   mutation DeleteFactory($id: UUID!) {
     deleteFactory(id: $id)
+  }
+`;
+
+const UPDATE_FACTORY_OVERAGE_SETTINGS = `
+  mutation UpdateFactoryOverageSettings($id: UUID!, $input: FactoryOverageSettingsInput!) {
+    updateFactoryOverageSettings(id: $id, input: $input) {
+      id
+      title
+      overageAllowed
+      overageType
+      repOverageShare
+    }
   }
 `;
 
@@ -490,4 +516,27 @@ export async function fetchAllFactoryIds(
   }
 
   return allIds;
+}
+
+/**
+ * Update factory overage settings
+ */
+export async function updateFactoryOverageSettings(
+  id: string,
+  input: FactoryOverageSettingsInput
+): Promise<Factory> {
+  const response = await crmGraphQLRequest<{ updateFactoryOverageSettings: Factory }>({
+    query: UPDATE_FACTORY_OVERAGE_SETTINGS,
+    variables: { id, input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update factory overage settings');
+  }
+
+  if (!response.data?.updateFactoryOverageSettings) {
+    throw new Error('No factory returned from update overage settings mutation');
+  }
+
+  return response.data.updateFactoryOverageSettings;
 }
