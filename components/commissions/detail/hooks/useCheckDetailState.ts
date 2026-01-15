@@ -821,15 +821,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
         const newCheck = await createCheckMutation.mutateAsync(input);
         savedCheckId = newCheck.id;
         setHasLocalEdits(false);
-
-        // If user selected "posted" status, post the check after creating it
-        if (status === 'posted') {
-          await postCheckMutation.mutateAsync(savedCheckId);
-          toast.success('Check created and posted successfully');
-        } else {
-          toast.success('Check created successfully');
-        }
-
+        toast.success('Check created successfully');
         router.push(`/commissions/${savedCheckId}`);
       } else {
         await updateCheckMutation.mutateAsync({
@@ -837,15 +829,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
           id: checkId,
         });
         setHasLocalEdits(false);
-
-        // If user selected "posted" status and check wasn't originally posted, post it
-        if (status === 'posted' && apiCheck?.status !== 'POSTED') {
-          await postCheckMutation.mutateAsync(checkId);
-          toast.success('Check saved and posted successfully');
-        } else {
-          toast.success('Check updated successfully');
-        }
-
+        toast.success('Check updated successfully');
         refetchCheck();
       }
     } catch (error) {
@@ -861,13 +845,10 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     commissionMonth,
     commissionAmount,
     factoryId,
-    status,
-    apiCheck?.status,
     lineItems,
     adjustments,
     createCheckMutation,
     updateCheckMutation,
-    postCheckMutation,
     router,
     refetchCheck,
   ]);
@@ -894,6 +875,9 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
   // Unpost check state
   const [isUnposting, setIsUnposting] = useState(false);
+
+  // Post check state
+  const [isPosting, setIsPosting] = useState(false);
 
   // Delete confirmation modal state
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
@@ -928,6 +912,30 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     }
   }, [isCreateMode, checkId, status, refetchCheck]);
 
+  // Post check - changes status from OPEN to POSTED directly without needing to save
+  const handlePost = useCallback(async () => {
+    if (isCreateMode) {
+      toast.error('Please save the check first before posting');
+      return;
+    }
+    if (status === 'posted') return;
+
+    setIsPosting(true);
+    try {
+      await postCheckMutation.mutateAsync(checkId);
+      toast.success('Check posted successfully');
+      // Update local status to posted
+      setStatus('posted');
+      // Refetch the check data to ensure sync with server
+      refetchCheck();
+    } catch (error) {
+      console.error('Error posting check:', error);
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsPosting(false);
+    }
+  }, [isCreateMode, checkId, status, postCheckMutation, refetchCheck]);
+
   // Loading state - show loading for existing checks that haven't loaded yet
   if (!isCreateMode && isLoadingCheck) {
     return {
@@ -952,13 +960,15 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     hasChanges: isCreateMode || hasLocalEdits,
     resetChanges: () => setHasLocalEdits(false),
 
-    // Save/Delete/Unpost actions
+    // Save/Delete/Post/Unpost actions
     handleSave,
     handleSaveAndClose,
     handleDelete,
+    handlePost,
     handleUnpost,
-    isSaving: createCheckMutation.isPending || updateCheckMutation.isPending || postCheckMutation.isPending,
+    isSaving: createCheckMutation.isPending || updateCheckMutation.isPending,
     isDeleting: deleteCheckMutation.isPending,
+    isPosting,
     isUnposting,
 
     // Delete confirmation modal

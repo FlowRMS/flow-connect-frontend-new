@@ -152,11 +152,8 @@ export default function CheckDetailContent({
       <HeaderTopBar
         check={state.check}
         status={state.status}
-        setStatus={state.setStatus}
         showActionsDropdown={state.showActionsDropdown}
         setShowActionsDropdown={state.setShowActionsDropdown}
-        showStatusDropdown={state.showStatusDropdown}
-        setShowStatusDropdown={state.setShowStatusDropdown}
         showVersionDropdown={state.showVersionDropdown}
         setShowVersionDropdown={state.setShowVersionDropdown}
         showSaveDropdown={state.showSaveDropdown}
@@ -164,7 +161,6 @@ export default function CheckDetailContent({
         showPostedStatementDropdown={state.showPostedStatementDropdown}
         setShowPostedStatementDropdown={state.setShowPostedStatementDropdown}
         currentVersion={state.currentVersion}
-        setCurrentVersion={state.setCurrentVersion}
         availableVersions={state.availableVersions}
         onExportCheckDetails={handleExportCheckDetails}
         onReconcileCheck={handleReconcileCheck}
@@ -173,10 +169,12 @@ export default function CheckDetailContent({
         onSave={state.handleSave}
         onSaveAndClose={state.handleSaveAndClose}
         onSaveAsNewVersion={handleSaveAsNewVersion}
+        onPost={state.handlePost}
         onUnpost={state.handleUnpost}
         onDelete={state.openDeleteConfirmModal}
         isCreateMode={state.isCreateMode}
         isSaving={state.isSaving}
+        isPosting={state.isPosting}
         isUnposting={state.isUnposting}
         isDeleting={state.isDeleting}
         isOriginallyPosted={state.isOriginallyPosted}
