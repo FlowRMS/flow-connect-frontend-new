@@ -39,7 +39,7 @@ export default function WarehouseAccordionItem({
       {/* Warehouse Header */}
       <button
         onClick={onToggleExpansion}
-        className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)]/50 transition-colors"
+        className="w-full flex items-center justify-between p-4 hover:bg-[var(--muted)]/50 transition-colors"
       >
         <div className="flex items-center gap-4">
           <div

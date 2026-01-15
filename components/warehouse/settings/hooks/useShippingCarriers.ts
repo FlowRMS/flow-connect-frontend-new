@@ -313,6 +313,80 @@ export function useShippingCarriers() {
     setDeletedIds(new Set());
   }, [apiCarriers, localModifications, deletedIds, updateMutation, deleteMutation]);
 
+  // Save changes for a single carrier
+  const saveCarrier = useCallback(async (carrierId: string) => {
+    const mods = localModifications.get(carrierId);
+    if (!mods) return;
+
+    const apiCarrier = apiCarriers?.find(c => c.id === carrierId);
+    if (!apiCarrier) return;
+
+    const merged = { ...toLocalFormat(apiCarrier), ...mods };
+
+    try {
+      await updateMutation.mutateAsync({
+        id: carrierId,
+        input: toApiInput(merged),
+      });
+
+      // Update billing address if any address fields changed
+      const addressFieldsChanged = mods.billingAddressData !== undefined;
+
+      if (addressFieldsChanged && mods.billingAddressData) {
+        const addressData = {
+          line1: mods.billingAddressData.line1 || '',
+          line2: mods.billingAddressData.line2 || null,
+          city: mods.billingAddressData.city || '',
+          state: mods.billingAddressData.state || null,
+          zipCode: mods.billingAddressData.zipCode || null,
+          country: mods.billingAddressData.country || 'USA',
+          isPrimary: true,
+        };
+
+        const hasAddressData = addressData.line1 || addressData.city;
+
+        if (hasAddressData) {
+          if (apiCarrier.billingAddress?.id) {
+            await updateCarrierAddress(apiCarrier.billingAddress.id, carrierId, addressData);
+          } else {
+            await createCarrierAddress(carrierId, addressData);
+          }
+        }
+      }
+
+      // Clear modifications for this carrier only
+      setLocalModifications(prev => {
+        const next = new Map(prev);
+        next.delete(carrierId);
+        return next;
+      });
+    } catch (err) {
+      console.error(`Failed to save carrier ${merged.name}:`, err);
+      throw err;
+    }
+  }, [apiCarriers, localModifications, updateMutation]);
+
+  // Delete carrier immediately with API call
+  const deleteCarrierImmediately = useCallback(async (carrierId: string) => {
+    try {
+      await deleteMutation.mutateAsync(carrierId);
+      // Clear from local modifications if any
+      setLocalModifications(prev => {
+        const next = new Map(prev);
+        next.delete(carrierId);
+        return next;
+      });
+    } catch (err) {
+      console.error('Failed to delete carrier:', err);
+      throw err;
+    }
+  }, [deleteMutation]);
+
+  // Check if a specific carrier has unsaved changes
+  const hasCarrierChanges = useCallback((carrierId: string) => {
+    return localModifications.has(carrierId);
+  }, [localModifications]);
+
   const markChanged = useCallback(() => {
     // No-op - changes are tracked automatically
   }, []);
@@ -345,6 +419,9 @@ export function useShippingCarriers() {
     handleAddCarrier,
     handleUpdateCarrier,
     handleDeleteCarrier,
+    saveCarrier,
+    deleteCarrierImmediately,
+    hasCarrierChanges,
     saveChanges,
     markChanged,
     resetChanges,

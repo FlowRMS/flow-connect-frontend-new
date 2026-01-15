@@ -79,7 +79,7 @@ export interface WarehouseAddress {
   id: string;
   sourceId: string;
   sourceType: AddressSourceType;
-  addressType: AddressType;
+  addressTypes: AddressType[];
   line1: string;
   line2?: string | null;
   city: string;
@@ -94,7 +94,7 @@ export interface WarehouseAddress {
 export interface AddressInput {
   sourceId: string;
   sourceType: AddressSourceType;
-  addressType?: AddressType;
+  addressTypes?: AddressType[];
   line1: string;
   line2?: string | null;
   city: string;
@@ -278,7 +278,7 @@ const GET_ADDRESSES_BY_SOURCE = `
       id
       sourceId
       sourceType
-      addressType
+      addressTypes
       line1
       line2
       city
@@ -298,7 +298,7 @@ const CREATE_ADDRESS = `
       id
       sourceId
       sourceType
-      addressType
+      addressTypes
       line1
       line2
       city
@@ -318,7 +318,7 @@ const UPDATE_ADDRESS = `
       id
       sourceId
       sourceType
-      addressType
+      addressTypes
       line1
       line2
       city
@@ -584,7 +584,7 @@ export async function createWarehouseAddress(
     ...address,
     sourceId: warehouseId,
     sourceType: 'FACTORY',
-    addressType: address.addressType || 'OTHER',
+    addressTypes: address.addressTypes || ['OTHER'],
   };
 
   const response = await crmGraphQLRequest<{ createAddress: WarehouseAddress }>({
@@ -615,7 +615,7 @@ export async function updateWarehouseAddress(
     ...address,
     sourceId: warehouseId,
     sourceType: 'FACTORY',
-    addressType: address.addressType || 'OTHER',
+    addressTypes: address.addressTypes || ['OTHER'],
   };
 
   const response = await crmGraphQLRequest<{ updateAddress: WarehouseAddress }>({

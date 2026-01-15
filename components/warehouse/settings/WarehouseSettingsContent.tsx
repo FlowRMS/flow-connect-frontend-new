@@ -56,7 +56,10 @@ export default function WarehouseSettingsContent() {
       if (carrierSettings.hasChanges) {
         await carrierSettings.saveChanges();
       }
-      // Container types save changes immediately, no batch save needed
+      // Save container type changes to backend
+      if (containerSettings.hasChanges) {
+        await containerSettings.saveChanges();
+      }
     } catch (err) {
       console.error('Failed to save changes:', err);
     } finally {
@@ -120,6 +123,9 @@ export default function WarehouseSettingsContent() {
           setNewCarrierName={carrierSettings.setNewCarrierName}
           setNewCarrierAccount={carrierSettings.setNewCarrierAccount}
           setNewCarrierRemarks={carrierSettings.setNewCarrierRemarks}
+          saveCarrier={carrierSettings.saveCarrier}
+          deleteCarrierImmediately={carrierSettings.deleteCarrierImmediately}
+          hasCarrierChanges={carrierSettings.hasCarrierChanges}
         />
       )}
 
@@ -129,9 +135,11 @@ export default function WarehouseSettingsContent() {
           containers={containerSettings.containerTypes}
           editingContainerId={containerSettings.editingContainerId}
           draggedContainerId={containerSettings.draggedContainerId}
+          hasChanges={containerSettings.hasChanges}
           onAdd={containerSettings.addContainer}
           onUpdate={containerSettings.updateContainer}
           onDelete={containerSettings.deleteContainer}
+          onSave={containerSettings.saveChanges}
           onStartEdit={containerSettings.setEditingContainerId}
           onDragStart={containerSettings.startDrag}
           onDragOver={containerSettings.handleDragOver}
@@ -162,7 +170,6 @@ export default function WarehouseSettingsContent() {
               .find((w) => w.id === warehouseSettings.showAddWorkerModal)
               ?.settings.workers.map((w) => w.workerId) || []
           }
-          availableWorkers={warehouseSettings.availableWorkers}
           onAdd={warehouseSettings.addWorker}
           onClose={() => warehouseSettings.setShowAddWorkerModal(null)}
         />

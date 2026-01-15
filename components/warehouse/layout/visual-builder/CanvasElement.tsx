@@ -57,7 +57,7 @@ export default function CanvasElement({
 
   return (
     <div
-      className={`absolute transition-shadow ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+      className={`absolute transition-shadow select-none ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
       style={{
         left: element.x ?? 0,
         top: element.y ?? 0,
@@ -109,10 +109,10 @@ export default function CanvasElement({
                 e.stopPropagation();
                 onAddChild(element.id, element.type);
               }}
-              className={`p-0.5 rounded hover:bg-white/50 ${colors.text}`}
+              className={`p-1 rounded-md bg-white/30 hover:bg-white/70 shadow-sm ${colors.text} transition-colors`}
               title={`Add ${levelLabels[nextType]}`}
             >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </button>

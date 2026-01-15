@@ -1,15 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { ContainerType } from '../types';
 
 interface ContainerTypesListProps {
   containers: ContainerType[];
   editingContainerId: string | null;
   draggedContainerId: string | null;
+  hasChanges?: boolean;
   onAdd: () => void;
   onUpdate: (id: string, updates: Partial<ContainerType>) => void;
   onDelete: (id: string) => void;
+  onSave?: () => Promise<void>;
   onStartEdit: (id: string | null) => void;
   onDragStart: (id: string) => void;
   onDragOver: (id: string) => void;
@@ -20,14 +22,29 @@ export default function ContainerTypesList({
   containers,
   editingContainerId,
   draggedContainerId,
+  hasChanges = false,
   onAdd,
   onUpdate,
   onDelete,
+  onSave,
   onStartEdit,
   onDragStart,
   onDragOver,
   onDragEnd,
 }: ContainerTypesListProps) {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!onSave) return;
+    setIsSaving(true);
+    try {
+      await onSave();
+    } catch (error) {
+      console.error('Failed to save containers:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
   return (
     <div className="space-y-4">
       {/* Info Banner */}
@@ -86,7 +103,7 @@ export default function ContainerTypesList({
                 className={`grid grid-cols-12 gap-4 px-4 py-3 items-center transition-colors ${
                   draggedContainerId === container.id
                     ? 'bg-blue-50 dark:bg-blue-900/20 opacity-50'
-                    : 'hover:bg-[var(--accent)]/50'
+                    : 'hover:bg-[var(--muted)]/50'
                 } ${!isEditing ? 'cursor-grab active:cursor-grabbing' : ''}`}
               >
                 {/* Drag Handle */}
@@ -176,8 +193,8 @@ export default function ContainerTypesList({
           })}
         </div>
 
-        {/* Add Button */}
-        <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--muted)]/10">
+        {/* Footer with Add and Save buttons */}
+        <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--muted)]/10 flex items-center justify-between">
           <button
             onClick={onAdd}
             className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
@@ -187,6 +204,35 @@ export default function ContainerTypesList({
             </svg>
             Add Container Type
           </button>
+
+          {onSave && (
+            <button
+              onClick={handleSave}
+              disabled={!hasChanges || isSaving}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                hasChanges && !isSaving
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
+              }`}
+            >
+              {isSaving ? (
+                <>
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Save Changes
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
