@@ -49,7 +49,7 @@ export default function ShippingCarrierAccordionItem({
       >
         <div className="flex items-center gap-4">
           <div
-            className={`p-2 rounded-lg ${carrier.isActive ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500'}`}
+            className={`p-2 rounded-lg ${carrier.isActive ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'bg-[var(--muted)] text-[var(--muted-foreground)]'}`}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -98,7 +98,7 @@ export default function ShippingCarrierAccordionItem({
                 handleSave();
               }}
               disabled={isSaving}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
               {isSaving ? (
                 <>
@@ -192,8 +192,8 @@ export default function ShippingCarrierAccordionItem({
                 disabled={!hasChanges || isSaving}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
                   hasChanges && !isSaving
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
+                    ? 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]'
+                    : 'bg-[var(--muted)] text-[var(--muted-foreground)] cursor-not-allowed'
                 }`}
               >
                 {isSaving ? (

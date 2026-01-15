@@ -171,8 +171,8 @@ export default function AddWorkerModal({
             disabled={!selectedUserId}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
               selectedUserId
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
+                ? 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]'
+                : 'bg-[var(--muted)] text-[var(--muted-foreground)] cursor-not-allowed'
             }`}
           >
             Add Member

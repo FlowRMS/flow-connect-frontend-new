@@ -48,10 +48,10 @@ export default function ContainerTypesList({
   return (
     <div className="space-y-4">
       {/* Info Banner */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+      <div className="bg-[var(--primary)]/5 border border-[var(--primary)]/20 rounded-lg p-4">
         <div className="flex items-start gap-3">
           <svg
-            className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5"
+            className="w-5 h-5 text-[var(--primary)] mt-0.5"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -64,8 +64,8 @@ export default function ContainerTypesList({
             />
           </svg>
           <div>
-            <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300">Container Types</h4>
-            <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+            <h4 className="text-sm font-medium text-[var(--foreground)]">Container Types</h4>
+            <p className="text-sm text-[var(--muted-foreground)] mt-1">
               Configure the container types available for packing. Drag rows to reorder how they appear in dropdowns.
             </p>
           </div>
@@ -102,7 +102,7 @@ export default function ContainerTypesList({
                 onDragEnd={onDragEnd}
                 className={`grid grid-cols-12 gap-4 px-4 py-3 items-center transition-colors ${
                   draggedContainerId === container.id
-                    ? 'bg-blue-50 dark:bg-blue-900/20 opacity-50'
+                    ? 'bg-[var(--primary)]/5 opacity-50'
                     : 'hover:bg-[var(--muted)]/50'
                 } ${!isEditing ? 'cursor-grab active:cursor-grabbing' : ''}`}
               >
@@ -123,12 +123,12 @@ export default function ContainerTypesList({
                       onChange={(e) => onUpdate(container.id, { name: e.target.value })}
                       onBlur={() => onStartEdit(null)}
                       autoFocus
-                      className="w-full px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                     />
                   ) : (
                     <button
                       onClick={() => onStartEdit(container.id)}
-                      className="text-sm text-[var(--foreground)] hover:text-blue-600 dark:hover:text-blue-400 text-left"
+                      className="text-sm text-[var(--foreground)] hover:text-[var(--primary)] text-left"
                     >
                       {container.name}
                     </button>
@@ -141,21 +141,21 @@ export default function ContainerTypesList({
                     type="number"
                     value={container.length}
                     onChange={(e) => onUpdate(container.id, { length: parseFloat(e.target.value) || 0 })}
-                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                     placeholder="L"
                   />
                   <input
                     type="number"
                     value={container.width}
                     onChange={(e) => onUpdate(container.id, { width: parseFloat(e.target.value) || 0 })}
-                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                     placeholder="W"
                   />
                   <input
                     type="number"
                     value={container.height}
                     onChange={(e) => onUpdate(container.id, { height: parseFloat(e.target.value) || 0 })}
-                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                     placeholder="H"
                   />
                 </div>
@@ -167,7 +167,7 @@ export default function ContainerTypesList({
                     value={container.weight}
                     onChange={(e) => onUpdate(container.id, { weight: parseFloat(e.target.value) || 0 })}
                     step="0.1"
-                    className="w-full px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                   />
                 </div>
 
@@ -197,7 +197,7 @@ export default function ContainerTypesList({
         <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--muted)]/10 flex items-center justify-between">
           <button
             onClick={onAdd}
-            className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+            className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] font-medium"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -211,8 +211,8 @@ export default function ContainerTypesList({
               disabled={!hasChanges || isSaving}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
                 hasChanges && !isSaving
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
+                  ? 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]'
+                  : 'bg-[var(--muted)] text-[var(--muted-foreground)] cursor-not-allowed'
               }`}
             >
               {isSaving ? (

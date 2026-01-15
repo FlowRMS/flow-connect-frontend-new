@@ -120,7 +120,7 @@ export default function ShippingCarriersList({
             value={newCarrierName}
             onChange={(e) => setNewCarrierName(e.target.value)}
             placeholder="Enter carrier name to add..."
-            className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && newCarrierName.trim()) {
                 handleAddCarrier();
@@ -132,8 +132,8 @@ export default function ShippingCarriersList({
             disabled={!newCarrierName.trim()}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
               newCarrierName.trim()
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
+                ? 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]'
+                : 'bg-[var(--muted)] text-[var(--muted-foreground)] cursor-not-allowed'
             }`}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
