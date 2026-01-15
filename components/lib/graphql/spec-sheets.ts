@@ -108,6 +108,37 @@ export interface HighlightRegionInput {
   tags?: string[];
 }
 
+// Folder Types
+export interface FolderResponse {
+  id: string;
+  factoryId: string;
+  folderPath: string;
+  createdAt: string | null;
+  specSheetCount: number;
+}
+
+export interface RenameFolderResult {
+  folder: FolderResponse;
+  specSheetsUpdated: number;
+}
+
+export interface CreateFolderInput {
+  factoryId: string;
+  parentPath: string;
+  folderName: string;
+}
+
+export interface RenameFolderInput {
+  factoryId: string;
+  folderPath: string;
+  newName: string;
+}
+
+export interface DeleteFolderInput {
+  factoryId: string;
+  folderPath: string;
+}
+
 // ============================================================================
 // GraphQL Queries
 // ============================================================================
@@ -279,9 +310,54 @@ const GET_HIGHLIGHT_VERSION = `
   }
 `;
 
+const GET_FOLDERS_BY_FACTORY = `
+  query GetFoldersByFactory($factoryId: UUID!) {
+    foldersByFactory(factoryId: $factoryId) {
+      id
+      factoryId
+      folderPath
+      createdAt
+      specSheetCount
+    }
+  }
+`;
+
 // ============================================================================
 // GraphQL Mutations
 // ============================================================================
+
+const CREATE_FOLDER = `
+  mutation CreateFolder($input: CreateFolderInput!) {
+    createFolder(input: $input) {
+      id
+      factoryId
+      folderPath
+      createdAt
+      specSheetCount
+    }
+  }
+`;
+
+const RENAME_FOLDER = `
+  mutation RenameFolder($input: RenameFolderInput!) {
+    renameFolder(input: $input) {
+      folder {
+        id
+        factoryId
+        folderPath
+        createdAt
+        specSheetCount
+      }
+      specSheetsUpdated
+    }
+  }
+`;
+
+const DELETE_FOLDER = `
+  mutation DeleteFolder($input: DeleteFolderInput!) {
+    deleteFolder(input: $input)
+  }
+`;
 
 const CREATE_SPEC_SHEET = `
   mutation CreateSpecSheet($input: CreateSpecSheetInput!) {
@@ -639,4 +715,68 @@ export async function moveFolder(
   }
 
   return response.data?.moveSpecSheetFolder || 0;
+}
+
+// ============================================================================
+// API Functions - Folders
+// ============================================================================
+
+export async function fetchFoldersByFactory(factoryId: string): Promise<FolderResponse[]> {
+  const response = await crmGraphQLRequest<{ foldersByFactory: FolderResponse[] }>({
+    query: GET_FOLDERS_BY_FACTORY,
+    variables: { factoryId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch folders');
+  }
+
+  return response.data?.foldersByFactory || [];
+}
+
+export async function createFolder(input: CreateFolderInput): Promise<FolderResponse> {
+  const response = await crmGraphQLRequest<{ createFolder: FolderResponse }>({
+    query: CREATE_FOLDER,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create folder');
+  }
+
+  if (!response.data?.createFolder) {
+    throw new Error('No folder returned from create mutation');
+  }
+
+  return response.data.createFolder;
+}
+
+export async function renameFolder(input: RenameFolderInput): Promise<RenameFolderResult> {
+  const response = await crmGraphQLRequest<{ renameFolder: RenameFolderResult }>({
+    query: RENAME_FOLDER,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to rename folder');
+  }
+
+  if (!response.data?.renameFolder) {
+    throw new Error('No result returned from rename mutation');
+  }
+
+  return response.data.renameFolder;
+}
+
+export async function deleteFolder(input: DeleteFolderInput): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteFolder: boolean }>({
+    query: DELETE_FOLDER,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete folder');
+  }
+
+  return response.data?.deleteFolder || false;
 }

@@ -17,12 +17,23 @@ import {
   updateHighlightRegions,
   deleteHighlightVersion,
   moveFolder,
+  // Folder API functions
+  fetchFoldersByFactory,
+  createFolder,
+  renameFolder,
+  deleteFolder,
   type SpecSheetResponse,
   type HighlightVersionResponse,
   type CreateSpecSheetInput,
   type UpdateSpecSheetInput,
   type CreateHighlightVersionInput,
   type HighlightRegionInput,
+  // Folder types
+  type FolderResponse,
+  type RenameFolderResult,
+  type CreateFolderInput,
+  type RenameFolderInput,
+  type DeleteFolderInput,
 } from '@/components/lib/graphql/spec-sheets';
 import { useFactories } from '@/components/warehouse/api/useFactoriesApi';
 import type { SpecSheet } from '@/lib/types/submittals';
@@ -44,6 +55,9 @@ export const specSheetQueryKeys = {
     [...specSheetQueryKeys.all, 'highlightVersions', { specSheetId }] as const,
   highlightVersion: (id: string) =>
     [...specSheetQueryKeys.all, 'highlightVersion', id] as const,
+  // Folders
+  folders: (factoryId: string) =>
+    [...specSheetQueryKeys.all, 'folders', { factoryId }] as const,
 };
 
 // ============================================================================
@@ -131,6 +145,8 @@ export function useCreateSpecSheet() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.byFactory(data.factoryId) });
+      // Invalidate folders as well since the new spec sheet may create new folders
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.folders(data.factoryId) });
     },
   });
 }
@@ -147,6 +163,8 @@ export function useUpdateSpecSheet() {
       queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.detail(data.id) });
       queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.byFactory(data.factoryId) });
+      // Invalidate folders as folder path may have changed
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.folders(data.factoryId) });
     },
   });
 }
@@ -160,6 +178,7 @@ export function useDeleteSpecSheet() {
   return useMutation<boolean, Error, string>({
     mutationFn: deleteSpecSheet,
     onSuccess: () => {
+      // Invalidate all spec sheet queries (includes folders via prefix matching)
       queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.all });
     },
   });
@@ -227,6 +246,68 @@ export function useMoveFolder() {
       moveFolder(factoryId, oldFolderPath, newFolderPath),
     onSuccess: (_, { factoryId }) => {
       queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.byFactory(factoryId) });
+    },
+  });
+}
+
+// ============================================================================
+// Folder Hooks
+// ============================================================================
+
+/**
+ * Fetch folders for a factory
+ */
+export function useFoldersByFactory(factoryId: string | null) {
+  return useQuery<FolderResponse[], Error>({
+    queryKey: specSheetQueryKeys.folders(factoryId || ''),
+    queryFn: () => fetchFoldersByFactory(factoryId!),
+    enabled: !!factoryId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Create a new folder
+ */
+export function useCreateFolder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<FolderResponse, Error, CreateFolderInput>({
+    mutationFn: createFolder,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.folders(data.factoryId) });
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.byFactory(data.factoryId) });
+    },
+  });
+}
+
+/**
+ * Rename a folder
+ */
+export function useRenameFolder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<RenameFolderResult, Error, RenameFolderInput>({
+    mutationFn: renameFolder,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.folders(data.folder.factoryId) });
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.byFactory(data.folder.factoryId) });
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.all });
+    },
+  });
+}
+
+/**
+ * Delete a folder
+ */
+export function useDeleteFolder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, DeleteFolderInput>({
+    mutationFn: deleteFolder,
+    onSuccess: (_, { factoryId }) => {
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.folders(factoryId) });
       queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.byFactory(factoryId) });
     },
   });
@@ -348,4 +429,10 @@ export type {
   UpdateSpecSheetInput,
   CreateHighlightVersionInput,
   HighlightRegionInput,
+  // Folder types
+  FolderResponse,
+  RenameFolderResult,
+  CreateFolderInput,
+  RenameFolderInput,
+  DeleteFolderInput,
 } from '@/components/lib/graphql/spec-sheets';
