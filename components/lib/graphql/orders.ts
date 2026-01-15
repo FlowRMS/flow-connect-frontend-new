@@ -281,6 +281,7 @@ export interface CreateOrderInput {
   endUserPerLineItem?: boolean;
   insidePerLineItem?: boolean;
   outsidePerLineItem?: boolean;
+  jobId?: string;
 }
 
 export interface UpdateOrderInput extends CreateOrderInput {}
