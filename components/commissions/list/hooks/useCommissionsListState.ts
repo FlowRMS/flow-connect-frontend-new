@@ -13,8 +13,6 @@ import {
   type CreateCheckInput,
   type UpdateCheckInput,
   type CheckStatus,
-  type CheckLandingPageOrderBy,
-  type CheckLandingPageFilter,
   useChecksInfinite,
   useCreateCheck,
   useUpdateCheck,
@@ -22,7 +20,7 @@ import {
   usePostCheck,
   fetchCheckById,
 } from '@/components/orders/api/checksApi';
-import { unpostCheck } from '@/components/lib/graphql/checks';
+import { CheckLandingPageOrderBy, CheckLandingPageFilter, unpostCheck } from '@/components/lib/graphql/checks';
 import { useCommissionFilters } from './useCommissionFilters';
 import { useBulkSelection } from '../../../shared';
 import { fetchAllCheckIds } from '@/components/orders/api/checksApi';
@@ -617,6 +615,35 @@ export function useCommissionsListState() {
     }, 0);
   }, [_setSortField, _setSortDirection]);
 
+  // Handler for table column sort (from CommissionsTable - SortField format)
+  // This is a wrapper that converts SortField to server-side format
+  const handleSort = useCallback((field: SortField) => {
+    // Map SortField to API columnName
+    const columnName = mapSortFieldToColumnName(field);
+    
+    // Determine new direction
+    let newDirection: 'ASC' | 'DESC';
+    if (sortField === field) {
+      // Toggle direction if same field
+      newDirection = sortDirection === 'asc' ? 'DESC' : 'ASC';
+    } else {
+      // Default to ascending for new field
+      newDirection = 'ASC';
+    }
+    
+    // Update server-side sort
+    setServerOrderBy([{
+      columnName,
+      direction: newDirection,
+    }]);
+    
+    // Update local sort state for backwards compatibility
+    if (_setSortField && _setSortDirection) {
+      _setSortField(field);
+      _setSortDirection(newDirection.toLowerCase() as SortDirection);
+    }
+  }, [sortField, sortDirection, _setSortField, _setSortDirection]);
+
   // Integrate bulk selection hook
   const bulkSelection = useBulkSelection({
     items: checks,
@@ -778,6 +805,7 @@ export function useCommissionsListState() {
     // Sort state
     sortField,
     sortDirection,
+    handleSort,
     handleSortChange,
     handleMultiSortChange,
     serverOrderBy,
