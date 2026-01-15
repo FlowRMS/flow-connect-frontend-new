@@ -6,7 +6,12 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import { useAcknowledgementsListState } from './hooks/useAcknowledgementsListState';
 import type { AcknowledgementLandingPage, AcknowledgementCreationType } from '@/components/orders/api/acknowledgementsApi';
 import { AcknowledgementDetailModal } from '@/components/orders/detail/components/modals/acknowledgements/AcknowledgementDetailModal';
@@ -33,6 +38,21 @@ const formatDate = (dateString?: string) => {
 };
 
 export default function AcknowledgementsListContent() {
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'acknowledgements';
+
   const {
     acknowledgements,
     isLoadingAcknowledgements,
@@ -130,16 +150,30 @@ export default function AcknowledgementsListContent() {
       {/* Page Header */}
       <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--card)]">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-teal-100 flex items-center justify-center">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600">
-                <path d="M9 12l2 2 4-4"/>
-                <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-[var(--foreground)]">Acknowledgements</h1>
-              <p className="text-sm text-[var(--muted-foreground)]">
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Stamp Press Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="stamp-press"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['acknowledgements']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-2xl font-bold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Acknowledgements
+              </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
                 {searchQuery.length >= 2
                   ? `${filteredAcknowledgements.length} results for "${searchQuery}"`
                   : `Showing ${filteredAcknowledgements.length} of ${totalCount} acknowledgements`}
@@ -148,20 +182,23 @@ export default function AcknowledgementsListContent() {
                     • Total Qty: {totals.totalQty.toLocaleString()}
                   </span>
                 )}
-              </p>
+              </motion.p>
             </div>
           </div>
 
           {/* Create Button */}
-          <button
+          <motion.button
             onClick={openCreateAcknowledgementModal}
             className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium text-sm"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
             </svg>
             Create Acknowledgement
-          </button>
+          </motion.button>
         </div>
       </div>
 

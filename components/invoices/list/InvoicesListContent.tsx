@@ -6,7 +6,12 @@
 
 'use client';
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
 import SortButton from '@/components/SortButton';
 import { useInvoicesListState } from './hooks/useInvoicesListState';
@@ -19,9 +24,25 @@ import {
   CreateInvoiceModal,
 } from './components/modals';
 import { BulkDeleteModal, BulkActionsToolbar } from '../../shared';
+import { InvoicesEmptyState } from './components/table';
 
 export default function InvoicesListContent() {
   const state = useInvoicesListState();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'invoices';
 
   const filterOptions = getInvoiceFilterOptions();
   const sortOptions = getInvoiceSortOptions();
@@ -52,22 +73,47 @@ export default function InvoicesListContent() {
       {/* Main Content */}
       <div className={`flex-1 flex flex-col overflow-hidden ${state.selectedInvoice ? 'mr-[480px]' : ''}`}>
         {/* Header */}
-        <div className="flex-shrink-0 px-6 py-4 bg-white border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold text-[var(--foreground)]">
-                Invoices
-              </h1>
-              <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                Manage invoices and track payments
-                {state.totalCount > 0 && (
-                  <span className="ml-2 text-[var(--muted-foreground)]">
-                    ({state.totalCount} total)
-                  </span>
-                )}
-              </p>
+        <div className="p-6 pb-0">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-start gap-4">
+              {/* Morphing Icon Target - Receipt Slide Animation */}
+              <HeaderIconAnimation
+                isReceivingAnimation={isReceivingAnimation}
+                animationStyle="receipt-slide"
+                headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+              >
+                {iconMap['invoices']}
+              </HeaderIconAnimation>
+              <div className="overflow-hidden">
+                <motion.h1
+                  className="text-2xl font-semibold text-[var(--foreground)]"
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+                >
+                  Invoices
+                </motion.h1>
+                <motion.p
+                  className="text-sm text-[var(--muted-foreground)] mt-1"
+                  initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+                >
+                  Manage invoices and track payments
+                  {state.totalCount > 0 && (
+                    <span className="ml-2 text-[var(--muted-foreground)]">
+                      ({state.totalCount} total)
+                    </span>
+                  )}
+                </motion.p>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
+            <motion.div
+              className="flex items-center gap-3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+            >
               {/* Search Input */}
               <div className="relative">
                 <svg
@@ -124,7 +170,7 @@ export default function InvoicesListContent() {
                 </svg>
                 New Invoice
               </button>
-            </div>
+            </motion.div>
           </div>
 
           {/* Quick Date Filter */}

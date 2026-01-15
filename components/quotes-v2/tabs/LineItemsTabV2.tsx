@@ -507,17 +507,20 @@ export function LineItemsTabV2({
         editValue = String(item.unitPrice || 0);
         break;
       case 'sellTotal':
-        displayValue = `$${Number(item.sellTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        // Subtract line discount from sell total
+        displayValue = `$${Number((item.sellTotal || 0) - (item.lineDiscountAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         break;
       case 'commissionPercent':
         displayValue = Number(item.commissionPercent || 0).toFixed(2);
         editValue = Number(item.commissionPercent || 0).toFixed(2);
         break;
       case 'commission':
-        displayValue = `$${Number(item.commission || 0).toFixed(2)}`;
+        // Subtract commission discount from commission per unit
+        displayValue = `$${Number((item.commission || 0) - ((item.commissionDiscountAmount || 0) / (item.quantity || 1))).toFixed(2)}`;
         break;
       case 'commissionTotal':
-        displayValue = `$${Number(item.commissionTotal || 0).toFixed(2)}`;
+        // Subtract commission discount from commission total
+        displayValue = `$${Number((item.commissionTotal || 0) - (item.commissionDiscountAmount || 0)).toFixed(2)}`;
         break;
       case 'linkedOrder':
         displayValue = item.linkedOrderNumber || '—';

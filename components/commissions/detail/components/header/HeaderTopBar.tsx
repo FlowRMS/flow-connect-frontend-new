@@ -15,12 +15,9 @@ interface HeaderTopBarProps {
   check: CommissionCheck;
   // Status
   status: CheckStatus;
-  setStatus: (status: CheckStatus) => void;
   // Dropdowns state
   showActionsDropdown: boolean;
   setShowActionsDropdown: (show: boolean) => void;
-  showStatusDropdown: boolean;
-  setShowStatusDropdown: (show: boolean) => void;
   showVersionDropdown: boolean;
   setShowVersionDropdown: (show: boolean) => void;
   showSaveDropdown: boolean;
@@ -29,7 +26,6 @@ interface HeaderTopBarProps {
   setShowPostedStatementDropdown: (show: boolean) => void;
   // Version
   currentVersion: number;
-  setCurrentVersion: (version: number) => void;
   availableVersions: VersionInfo[];
   // Actions
   onExportCheckDetails?: () => void;
@@ -39,11 +35,13 @@ interface HeaderTopBarProps {
   onSave?: () => void;
   onSaveAndClose?: () => void;
   onSaveAsNewVersion?: () => void;
+  onPost?: () => void;
   onUnpost?: () => void;
   onDelete?: () => void;
   // Create mode
   isCreateMode?: boolean;
   isSaving?: boolean;
+  isPosting?: boolean;
   isUnposting?: boolean;
   isDeleting?: boolean;
   // Whether the check was originally posted (from API) - controls if Save is disabled
@@ -59,11 +57,8 @@ const getStatusColor = (status: CheckStatus) => {
 export function HeaderTopBar({
   check,
   status,
-  setStatus,
   showActionsDropdown,
   setShowActionsDropdown,
-  showStatusDropdown,
-  setShowStatusDropdown,
   showVersionDropdown,
   setShowVersionDropdown,
   showSaveDropdown,
@@ -71,7 +66,6 @@ export function HeaderTopBar({
   showPostedStatementDropdown,
   setShowPostedStatementDropdown,
   currentVersion,
-  setCurrentVersion,
   availableVersions,
   onExportCheckDetails,
   onReconcileCheck,
@@ -80,10 +74,12 @@ export function HeaderTopBar({
   onSave,
   onSaveAndClose,
   onSaveAsNewVersion,
+  onPost,
   onUnpost,
   onDelete,
   isCreateMode = false,
   isSaving = false,
+  isPosting = false,
   isUnposting = false,
   isDeleting = false,
   isOriginallyPosted = false,
@@ -398,13 +394,13 @@ export function HeaderTopBar({
             </button>
           </div>
 
-          {/* Status Display - Read-only for posted checks */}
-          {status === 'posted' ? (
-            <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${getStatusColor(status)}`}
-              title="Posted checks cannot be edited. Use Unpost to enable editing."
-            >
-              {CHECK_STATUS_LABELS[status]}
+          {/* Status Badge - Read-only display */}
+          <div
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${getStatusColor(status)}`}
+            title={status === 'posted' ? 'Posted checks cannot be edited. Use Unpost to enable editing.' : 'Open check - can be edited'}
+          >
+            {CHECK_STATUS_LABELS[status]}
+            {status === 'posted' && (
               <svg
                 width="14"
                 height="14"
@@ -418,61 +414,40 @@ export function HeaderTopBar({
                   clipRule="evenodd"
                 />
               </svg>
-            </div>
-          ) : (
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setShowStatusDropdown(!showStatusDropdown);
-                  setShowActionsDropdown(false);
-                  setShowVersionDropdown(false);
-                  setShowSaveDropdown(false);
-                }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${getStatusColor(status)}`}
-              >
-                {CHECK_STATUS_LABELS[status]}
+            )}
+          </div>
+
+          {/* Post Button - Only shown for unposted checks */}
+          {status === 'unposted' && !isCreateMode && (
+            <button
+              onClick={onPost}
+              disabled={isPosting}
+              className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Post this check to finalize it"
+            >
+              {isPosting ? (
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                </svg>
+              ) : (
                 <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 20 20"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2"
                 >
                   <path
-                    d="M6 8l4 4 4-4"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
                 </svg>
-              </button>
-              {showStatusDropdown && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowStatusDropdown(false)}
-                  />
-                  <div className="absolute top-full right-0 mt-1 w-36 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 overflow-hidden">
-                    {(['unposted', 'posted'] as CheckStatus[]).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => {
-                          setStatus(s);
-                          setShowStatusDropdown(false);
-                        }}
-                        className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-                          status === s
-                            ? 'bg-[var(--primary)]/10 text-[var(--primary)] font-medium'
-                            : 'hover:bg-[var(--muted)]'
-                        }`}
-                      >
-                        {CHECK_STATUS_LABELS[s]}
-                      </button>
-                    ))}
-                  </div>
-                </>
               )}
-            </div>
+              {isPosting ? 'Posting...' : 'Post'}
+            </button>
           )}
 
           {/* Save Button - Disabled only for checks that were originally posted (from API) */}
@@ -518,7 +493,6 @@ export function HeaderTopBar({
                   onClick={() => {
                     setShowSaveDropdown(!showSaveDropdown);
                     setShowActionsDropdown(false);
-                    setShowStatusDropdown(false);
                     setShowVersionDropdown(false);
                   }}
                   disabled={isSaving || (!isCreateMode && !hasChanges)}

@@ -198,6 +198,7 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
         handleGenerateFulfillmentRequest={handleGenerateFulfillmentRequest}
         onCreateInvoice={onCreateInvoice}
         onDuplicateOrder={onDuplicateOrder}
+        onDelete={onDelete}
       />
 
       <PricingSummaryBar

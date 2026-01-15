@@ -45,6 +45,7 @@ interface HeaderTopBarProps {
   handleGenerateFulfillmentRequest: () => void;
   onCreateInvoice?: () => void;
   onDuplicateOrder?: () => void;
+  onDelete?: () => void;
 }
 
 const getStatusColor = (status: Order['status']) => {
@@ -90,6 +91,7 @@ export function HeaderTopBar({
   handleGenerateFulfillmentRequest,
   onCreateInvoice,
   onDuplicateOrder,
+  onDelete,
 }: HeaderTopBarProps) {
   const router = useRouter();
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
@@ -182,6 +184,20 @@ export function HeaderTopBar({
                   </svg>
                   Convert Products to Warehouse
                   <span className="ml-auto px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
+                </button>
+                <div className="border-t border-[var(--border)]" />
+                <button
+                  onClick={() => {
+                    setShowActionsDropdown(false);
+                    onDelete?.();
+                  }}
+                  disabled={isCreateMode || !order.id}
+                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors rounded-b-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 5h10M8 5V3h4v2M6 8v8a1 1 0 001 1h6a1 1 0 001-1V8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Delete Order
                 </button>
               </div>
             )}

@@ -12,6 +12,8 @@ import {
   createCheck as _createCheck,
   updateCheck as _updateCheck,
   deleteCheck as _deleteCheck,
+  fetchPostedStatement as _fetchPostedStatement,
+  postCheck as _postCheck,
   type CreateCheckInput,
   type UpdateCheckInput,
 } from '../../lib/graphql/checks';
@@ -25,6 +27,8 @@ export {
   createCheck,
   updateCheck,
   deleteCheck,
+  fetchPostedStatement,
+  postCheck,
   type Check,
   type CheckLandingPage,
   type CheckFactory,
@@ -46,8 +50,10 @@ export {
   type UpdateCheckInput,
   type CheckDetailInput,
   type FindChecksLandingPagesResponse,
-  type CheckLandingPageOrderBy,
-  type CheckLandingPageFilter,
+  type PostedStatement,
+  type PostedStatementHeader,
+  type PostedStatementDetail,
+  type PostedStatementRepSummary,
 } from '../../lib/graphql/checks';
 
 // ============================================================================
@@ -55,7 +61,7 @@ export {
 // ============================================================================
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import type { CheckLandingPage, FindChecksLandingPagesResponse } from '../../lib/graphql/checks';
+import type { CheckLandingPage, CheckLandingPageFilter, CheckLandingPageOrderBy, FindChecksLandingPagesResponse } from '../../lib/graphql/checks';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -204,6 +210,39 @@ export function useDeleteCheck() {
       queryClient.invalidateQueries({ queryKey: ['checksInfinite'] });
       queryClient.invalidateQueries({ queryKey: ['checkSearch'] });
       queryClient.invalidateQueries({ queryKey: ['checksByFactory'] });
+    },
+  });
+}
+
+/**
+ * Hook to fetch posted statement data for a check
+ * Returns summary, header, and detail information for a posted check
+ */
+export function usePostedStatement(checkId: string | null, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['postedStatement', checkId],
+    queryFn: () => (checkId ? _fetchPostedStatement(checkId) : null),
+    enabled: !!checkId && enabled,
+  });
+}
+
+/**
+ * Hook to post a check
+ * Changes status from OPEN to POSTED, finalizing the check
+ */
+export function usePostCheck() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (checkId: string) => _postCheck(checkId),
+    onSuccess: (data) => {
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ['check', data.id] });
+      queryClient.invalidateQueries({ queryKey: ['checksLandingPage'] });
+      queryClient.invalidateQueries({ queryKey: ['checksInfinite'] });
+      queryClient.invalidateQueries({ queryKey: ['checkSearch'] });
+      queryClient.invalidateQueries({ queryKey: ['checksByFactory'] });
+      queryClient.invalidateQueries({ queryKey: ['postedStatement', data.id] });
     },
   });
 }

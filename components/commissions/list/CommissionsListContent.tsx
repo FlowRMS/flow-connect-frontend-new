@@ -5,8 +5,13 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
 import SortButton from '@/components/SortButton';
 import { useCommissionsListState } from './hooks/useCommissionsListState';
@@ -21,6 +26,22 @@ export default function CommissionsListContent() {
   const state = useCommissionsListState();
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'commissions';
+
+  // Filter and sort options
   const filterOptions = getCommissionFilterOptions();
   const sortOptions = getCommissionSortOptions();
 
@@ -69,34 +90,42 @@ export default function CommissionsListContent() {
       {/* Main Content */}
       <div className={`flex-1 flex flex-col overflow-hidden ${state.selectedCheck ? 'mr-[480px]' : ''}`}>
         {/* Header */}
-        <div className="flex-shrink-0 px-6 py-4 bg-white border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[var(--muted)] rounded-lg flex items-center justify-center">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="2" y="5" width="20" height="14" rx="2" />
-                    <path d="M6 9h4M6 13h12" />
-                  </svg>
-                </div>
-                <div>
-                  <h1 className="text-xl font-semibold text-[var(--foreground)]">
-                    Commission Check
-                  </h1>
-                  <p className="text-sm text-[var(--muted-foreground)]">
-                    {state.totalCount > 0 ? `${state.checks.length} of ${state.totalCount} checks` : `${state.checks.length} checks`}
-                  </p>
-                </div>
+        <div className="p-6 pb-0">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-start gap-4">
+              {/* Morphing Icon Target - Coin Cascade Animation */}
+              <HeaderIconAnimation
+                isReceivingAnimation={isReceivingAnimation}
+                animationStyle="coin-cascade"
+                headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+              >
+                {iconMap['commissions']}
+              </HeaderIconAnimation>
+              <div className="overflow-hidden">
+                <motion.h1
+                  className="text-2xl font-semibold text-[var(--foreground)]"
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+                >
+                  Commission Check
+                </motion.h1>
+                <motion.p
+                  className="text-sm text-[var(--muted-foreground)] mt-1"
+                  initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+                >
+                  {state.totalCount > 0 ? `${state.checks.length} of ${state.totalCount} checks` : `${state.checks.length} checks`}
+                </motion.p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <motion.div
+              className="flex items-center gap-3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+            >
               <AdvancedFilters
                 filterOptions={filterOptions}
                 onFiltersChange={state.handleServerFiltersChange}
@@ -150,25 +179,26 @@ export default function CommissionsListContent() {
                 </svg>
                 Add new Check
               </button>
-            </div>
+            </motion.div>
           </div>
-        </div>
-        {/* Quick Date Filter */}
-        <div className="flex-shrink-0 px-6 py-4 bg-white border-b border-gray-200">
-          <QuickDateFilter
-            quickDatePreset={state.quickDatePreset}
-            setQuickDatePreset={state.setQuickDatePreset}
-            quickDateField={state.quickDateField}
-            setQuickDateField={state.setQuickDateField}
-            showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
-            setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
-          />
+
+          {/* Quick Date Filter */}
+          <div className="mt-4">
+            <QuickDateFilter
+              quickDatePreset={state.quickDatePreset}
+              setQuickDatePreset={state.setQuickDatePreset}
+              quickDateField={state.quickDateField}
+              setQuickDateField={state.setQuickDateField}
+              showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
+              setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
+            />
+          </div>
         </div>
 
         {/* Commissions Table */}
         <div className="flex-1 overflow-auto p-6 pt-4" onScroll={state.handleScroll}>
           <CommissionsTable
-            filteredChecks={state.filteredChecks}
+            filteredChecks={state.checks}
             isLoading={state.isLoadingChecks}
             selectedCheckIds={state.selectedCheckIds}
             toggleCheckSelection={state.toggleCheckSelection}
@@ -233,4 +263,3 @@ export default function CommissionsListContent() {
     </main>
   );
 }
-
