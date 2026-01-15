@@ -50,6 +50,7 @@ interface OrderDetailsFieldsProps {
   openInsideRepModal: () => void;
   // New props for field updates
   onUpdateOrder?: (updates: Partial<Order>) => void;
+  isCreateMode?: boolean;
   // Settings for per-line-item fields
   showEndUserPerLine?: boolean;
   showOutsideRepPerLine?: boolean;
@@ -78,6 +79,7 @@ export function OrderDetailsFields({
   setInsideRepSplits,
   openInsideRepModal,
   onUpdateOrder,
+  isCreateMode = false,
   showEndUserPerLine = false,
   showOutsideRepPerLine = false,
   showInsideRepPerLine = false,
