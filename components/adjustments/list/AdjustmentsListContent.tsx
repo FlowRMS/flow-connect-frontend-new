@@ -51,6 +51,7 @@ export default function AdjustmentsListContent() {
   // Navigation morph hooks
   const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
   const headerIconRef = useRef<HTMLDivElement>(null);
+  const initialUrlProcessedRef = useRef(false);
 
   useEffect(() => {
     if (headerIconRef.current) {

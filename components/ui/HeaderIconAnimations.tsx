@@ -1499,6 +1499,13 @@ export function HeaderIconAnimation({
         setShouldAnimate(false);
       }, 800);
       return () => clearTimeout(timer);
+    } else {
+      // When isReceivingAnimation becomes false, ensure animation resets after completing
+      // This handles the case where floatingIcon is cleared before the 800ms timer fires
+      const timer = setTimeout(() => {
+        setShouldAnimate(false);
+      }, 800);
+      return () => clearTimeout(timer);
     }
   }, [isReceivingAnimation]);
 

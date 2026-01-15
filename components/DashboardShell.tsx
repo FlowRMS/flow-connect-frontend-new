@@ -79,43 +79,49 @@ export default function DashboardShell({
   };
 
   return (
-    <SidebarConfigProvider>
-      <NavigationMorphProvider>
-        <MobileSidebarProvider>
-          <FlowChatProvider>
-          {/* Welcome Animation Overlay */}
-          {showWelcome && (
-            <Suspense fallback={
-              <div
-                className="fixed inset-0 z-[9999]"
-                style={{ backgroundColor: 'var(--background, #ffffff)' }}
-              />
-            }>
-              <WelcomeAnimation onComplete={completeWelcome} />
-            </Suspense>
-          )}
+    <UserSettingsProvider>
+      <OrganizationProvider>
+        <SidebarConfigProvider>
+          <NavigationMorphProvider>
+            <MobileSidebarProvider>
+              <FlowChatProvider>
+                {/* Welcome Animation Overlay */}
+                {showWelcome && (
+                  <Suspense fallback={
+                    <div
+                      className="fixed inset-0 z-[9999]"
+                      style={{ backgroundColor: 'var(--background, #ffffff)' }}
+                    />
+                  }>
+                    <WelcomeAnimation onComplete={completeWelcome} />
+                  </Suspense>
+                )}
 
-              <div className="flex h-screen bg-[var(--background)]">
-                {/* Shared Sidebar - only rendered once, persists across navigation */}
-                <Sidebar />
+                <div className="flex h-screen bg-[var(--background)]">
+                  {/* Shared Sidebar - only rendered once, persists across navigation */}
+                  <Sidebar />
 
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-              {/* Shared TopBar - only rendered once, persists across navigation */}
-              <TopBar />
-              {/* Smooth morph transition with scale + fade + slide */}
-              <div
-                className="flex-1 flex flex-col overflow-hidden"
-                style={getTransformStyle()}
-              >
-                {children}
-              </div>
+                  {/* Main Content Area */}
+                  <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                    {/* Shared TopBar - only rendered once, persists across navigation */}
+                    <TopBar />
+                    {/* Smooth morph transition with scale + fade + slide */}
+                    <div
+                      className="flex-1 flex flex-col overflow-hidden"
+                      style={getTransformStyle()}
+                    >
+                      {children}
+                    </div>
+                  </div>
+                </div>
 
-          {/* FlowChat - Global AI Assistant */}
-          <FlowChat />
-          </FlowChatProvider>
-        </MobileSidebarProvider>
-      </NavigationMorphProvider>
-    </SidebarConfigProvider>
+                {/* FlowChat - Global AI Assistant */}
+                <FlowChat />
+              </FlowChatProvider>
+            </MobileSidebarProvider>
+          </NavigationMorphProvider>
+        </SidebarConfigProvider>
+      </OrganizationProvider>
+    </UserSettingsProvider>
   );
 }
