@@ -314,6 +314,8 @@ export function useCommissionFilters(checks: CommissionCheck[]) {
     // Sort state
     sortField,
     sortDirection,
+    setSortField,
+    setSortDirection,
     handleSort,
     // Unique values for dropdowns
     uniqueStatuses,

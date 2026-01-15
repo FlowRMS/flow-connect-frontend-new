@@ -8,8 +8,9 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
+import SortButton from '@/components/SortButton';
 import { useCommissionsListState } from './hooks/useCommissionsListState';
-import { getCommissionFilterOptions } from './config/filterConfig';
+import { getCommissionFilterOptions, getCommissionSortOptions } from './config/filterConfig';
 import { CommissionsTable } from './components/table/CommissionsTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { CheckDetailPanel } from './components/sidebar/CheckDetailPanel';
@@ -21,6 +22,35 @@ export default function CommissionsListContent() {
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
   const filterOptions = getCommissionFilterOptions();
+  const sortOptions = getCommissionSortOptions();
+
+  // Map sortField and sortDirection to ActiveSort format for SortButton (for backwards compatibility)
+  // The columnName should match API field names directly
+  const activeSort = state.sortField && state.sortDirection
+    ? {
+        columnName: (() => {
+          const fieldMap: Record<string, string> = {
+            checkNumber: 'checkNumber',
+            status: 'status',
+            netAmount: 'enteredCommissionAmount',
+            commissionMonth: 'commissionMonth',
+            manufacturerName: 'factoryName',
+            postDate: 'postDate',
+            checkDate: 'checkDate',
+            entryDate: 'createdAt',
+            checkBalance: 'enteredCommissionAmount',
+          };
+          return fieldMap[state.sortField] || 'createdAt';
+        })(),
+        direction: state.sortDirection.toUpperCase() as 'ASC' | 'DESC',
+      }
+    : undefined;
+
+  // Map serverOrderBy to ActiveSort[] format for multi-sort support
+  const activeSorts = state.serverOrderBy.map(orderBy => ({
+    columnName: orderBy.columnName,
+    direction: orderBy.direction,
+  }));
 
   // Handler to open bulk delete modal instead of using confirm dialog
   const handleBulkDelete = () => {
@@ -71,6 +101,13 @@ export default function CommissionsListContent() {
                 filterOptions={filterOptions}
                 onFiltersChange={state.handleServerFiltersChange}
                 activeFilters={state.activeFilters}
+              />
+              <SortButton
+                sortOptions={sortOptions}
+                activeSort={activeSort}
+                activeSorts={activeSorts}
+                onSortChange={state.handleSortChange}
+                onMultiSortChange={state.handleMultiSortChange}
               />
               <div className="relative group">
                 <button
@@ -147,11 +184,8 @@ export default function CommissionsListContent() {
             sortDirection={state.sortDirection}
             handleSort={state.handleSort}
             columnFilters={state.columnFilters}
-            setColumnFilters={state.setColumnFilters}
-            openFilter={state.openFilter}
-            setOpenFilter={state.setOpenFilter}
-            uniqueStatuses={state.uniqueStatuses}
-            uniqueManufacturers={state.uniqueManufacturers}
+            onColumnFiltersChange={state.handleColumnFiltersChange}
+            filterOptions={filterOptions}
             showBulkActionsMenu={state.showBulkActionsMenu}
             setShowBulkActionsMenu={state.setShowBulkActionsMenu}
             bulkSetStatus={state.bulkSetStatus}

@@ -3,10 +3,13 @@
  * Table header with column labels, sorting, and filters
  */
 
+'use client';
+
+import React, { useState, useCallback } from 'react';
 import type { CommissionCheck } from '@/lib/types/rms';
-import type { SortField, SortDirection, ColumnFilters } from '../../types';
-import { ColumnFilterDropdown } from './ColumnFilterDropdown';
-import { checkStatusLabels } from '../../constants';
+import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { getCommissionFilterOptions } from '../../config/filterConfig';
 
 interface CommissionsTableHeaderProps {
   // Selection
@@ -14,20 +17,10 @@ interface CommissionsTableHeaderProps {
   areAllEligibleSelected: boolean;
   isPartiallySelected?: boolean;
   onSelectAll: (checked: boolean) => void;
-  // Sorting
-  sortField: SortField;
-  sortDirection: SortDirection;
-  onSort: (field: SortField) => void;
-  // Filters
-  columnFilters: ColumnFilters;
-  setColumnFilters: (
-    filters: ColumnFilters | ((prev: ColumnFilters) => ColumnFilters)
-  ) => void;
-  openFilter: string | null;
-  setOpenFilter: (filterId: string | null) => void;
-  // Unique values for dropdowns
-  uniqueStatuses: string[];
-  uniqueManufacturers: string[];
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  filterOptions?: ReturnType<typeof getCommissionFilterOptions>;
+  columnFilters?: Record<string, ActiveFilter[]>;
 }
 
 export function CommissionsTableHeader({
@@ -35,16 +28,90 @@ export function CommissionsTableHeader({
   areAllEligibleSelected,
   isPartiallySelected = false,
   onSelectAll,
-  sortField,
-  sortDirection,
-  onSort,
-  columnFilters,
-  setColumnFilters,
-  openFilter,
-  setOpenFilter,
-  uniqueStatuses,
-  uniqueManufacturers,
+  onColumnFiltersChange,
+  filterOptions = getCommissionFilterOptions(),
+  columnFilters: parentColumnFilters,
 }: CommissionsTableHeaderProps) {
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  
+  // Column filter state - use parent if provided, otherwise local state
+  const [localColumnFilters, setLocalColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+  const columnFilters = parentColumnFilters !== undefined ? parentColumnFilters : localColumnFilters;
+  const setColumnFilters = parentColumnFilters !== undefined 
+    ? (filters: Record<string, ActiveFilter[]>) => {
+        if (onColumnFiltersChange) {
+          onColumnFiltersChange(filters);
+        }
+      }
+    : setLocalColumnFilters;
+  
+  // Map from UI column keys to filter option IDs
+  const columnKeyToFilterId: Record<string, string> = {
+    checkNumber: 'check-number',
+    status: 'status',
+    commissionMonth: 'commission-month',
+    postDate: 'post-date',
+    checkDate: 'check-date',
+    entryDate: 'entry-date',
+    netAmount: 'net-amount',
+    manufacturerName: 'factory-name',
+  };
+  
+  // Handle column filter change - now receives ActiveFilter[]
+  const handleColumnFilterChange = useCallback((columnKey: string, filters: ActiveFilter[]) => {
+    setColumnFilters((currentFilters) => {
+      const newFilters = { ...currentFilters };
+      
+      // Remove filter if empty array
+      if (filters.length === 0) {
+        delete newFilters[columnKey];
+      } else {
+        newFilters[columnKey] = filters;
+      }
+      
+      // Call the parent callback if provided
+      if (onColumnFiltersChange) {
+        onColumnFiltersChange(newFilters);
+      }
+      
+      return newFilters;
+    });
+  }, [onColumnFiltersChange, setColumnFilters]);
+
+  // Render column filter component
+  const renderColumnFilter = (columnKey: string) => {
+    const filterId = columnKeyToFilterId[columnKey];
+    if (!filterId) {
+      return null;
+    }
+    
+    const filterOption = filterOptions.find(f => f.id === filterId);
+    if (!filterOption || !filterOption.columnName) {
+      return null;
+    }
+    
+    // Ensure type is preserved correctly
+    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean' | 'month';
+    
+    // Get filters for this column (ActiveFilter[])
+    const columnFiltersForThisColumn = columnFilters[columnKey] || [];
+    
+    return (
+      <ColumnFilter
+        type={filterType}
+        columnName={filterOption.columnName}
+        value={columnFiltersForThisColumn}
+        onChange={(filters) => handleColumnFilterChange(columnKey, filters)}
+        options={filterOption.options}
+        placeholder={filterOption.type === 'text' || filterOption.type === 'number' 
+          ? `Filter ${filterOption.label.toLowerCase()}...` 
+          : undefined}
+        isOpen={openFilter === columnKey}
+        onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
+        filterOption={filterOption}
+      />
+    );
+  };
   return (
     <thead className="bg-gray-50 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
       <tr>
@@ -69,19 +136,7 @@ export function CommissionsTableHeader({
           <div className="flex items-center gap-1.5">
             <span className="whitespace-nowrap">Check Number</span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-              <ColumnFilterDropdown
-                type="text"
-                filterId="checkNumber"
-                value={columnFilters.checkNumber}
-                onChange={(value) =>
-                  setColumnFilters((prev) => ({ ...prev, checkNumber: value }))
-                }
-                placeholder="Search checks..."
-                isOpen={openFilter === 'checkNumber'}
-                onToggle={() =>
-                  setOpenFilter(openFilter === 'checkNumber' ? null : 'checkNumber')
-                }
-              />
+              {renderColumnFilter('checkNumber')}
             </div>
           </div>
         </th>
@@ -91,23 +146,7 @@ export function CommissionsTableHeader({
           <div className="flex items-center gap-1.5">
             <span className="whitespace-nowrap">Posted Status</span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-              <ColumnFilterDropdown
-                type="multiselect"
-                filterId="status"
-                options={uniqueStatuses.map((s) => ({
-                  value: s,
-                  label: checkStatusLabels[s as keyof typeof checkStatusLabels],
-                }))}
-                value={columnFilters.status}
-                onChange={(value) =>
-                  setColumnFilters((prev) => ({ ...prev, status: value }))
-                }
-                placeholder="All Statuses"
-                isOpen={openFilter === 'status'}
-                onToggle={() =>
-                  setOpenFilter(openFilter === 'status' ? null : 'status')
-                }
-              />
+              {renderColumnFilter('status')}
             </div>
           </div>
         </th>
@@ -122,20 +161,7 @@ export function CommissionsTableHeader({
           <div className="flex items-center gap-1.5">
             <span className="whitespace-nowrap">Commission Month</span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-              <ColumnFilterDropdown
-                type="daterange"
-                filterId="commissionMonth"
-                value={columnFilters.commissionMonth}
-                onChange={(value) =>
-                  setColumnFilters((prev) => ({ ...prev, commissionMonth: value }))
-                }
-                isOpen={openFilter === 'commissionMonth'}
-                onToggle={() =>
-                  setOpenFilter(
-                    openFilter === 'commissionMonth' ? null : 'commissionMonth'
-                  )
-                }
-              />
+              {renderColumnFilter('commissionMonth')}
             </div>
           </div>
         </th>
@@ -145,25 +171,7 @@ export function CommissionsTableHeader({
           <div className="flex items-center gap-1.5">
             <span className="whitespace-nowrap">Factory</span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-              <ColumnFilterDropdown
-                type="multiselect"
-                filterId="manufacturerName"
-                options={uniqueManufacturers.map((m) => ({
-                  value: m,
-                  label: m,
-                }))}
-                value={columnFilters.manufacturerName}
-                onChange={(value) =>
-                  setColumnFilters((prev) => ({ ...prev, manufacturerName: value }))
-                }
-                placeholder="All Factories"
-                isOpen={openFilter === 'manufacturerName'}
-                onToggle={() =>
-                  setOpenFilter(
-                    openFilter === 'manufacturerName' ? null : 'manufacturerName'
-                  )
-                }
-              />
+              {renderColumnFilter('manufacturerName')}
             </div>
           </div>
         </th>
@@ -173,18 +181,7 @@ export function CommissionsTableHeader({
           <div className="flex items-center gap-1.5">
             <span className="whitespace-nowrap">Post Date</span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-              <ColumnFilterDropdown
-                type="daterange"
-                filterId="postDate"
-                value={columnFilters.postDate}
-                onChange={(value) =>
-                  setColumnFilters((prev) => ({ ...prev, postDate: value }))
-                }
-                isOpen={openFilter === 'postDate'}
-                onToggle={() =>
-                  setOpenFilter(openFilter === 'postDate' ? null : 'postDate')
-                }
-              />
+              {renderColumnFilter('postDate')}
             </div>
           </div>
         </th>
@@ -194,18 +191,7 @@ export function CommissionsTableHeader({
           <div className="flex items-center gap-1.5">
             <span className="whitespace-nowrap">Check Date</span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-              <ColumnFilterDropdown
-                type="daterange"
-                filterId="checkDate"
-                value={columnFilters.checkDate}
-                onChange={(value) =>
-                  setColumnFilters((prev) => ({ ...prev, checkDate: value }))
-                }
-                isOpen={openFilter === 'checkDate'}
-                onToggle={() =>
-                  setOpenFilter(openFilter === 'checkDate' ? null : 'checkDate')
-                }
-              />
+              {renderColumnFilter('checkDate')}
             </div>
           </div>
         </th>
@@ -215,18 +201,7 @@ export function CommissionsTableHeader({
           <div className="flex items-center gap-1.5">
             <span className="whitespace-nowrap">Entry Date</span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-              <ColumnFilterDropdown
-                type="daterange"
-                filterId="entryDate"
-                value={columnFilters.entryDate}
-                onChange={(value) =>
-                  setColumnFilters((prev) => ({ ...prev, entryDate: value }))
-                }
-                isOpen={openFilter === 'entryDate'}
-                onToggle={() =>
-                  setOpenFilter(openFilter === 'entryDate' ? null : 'entryDate')
-                }
-              />
+              {renderColumnFilter('entryDate')}
             </div>
           </div>
         </th>

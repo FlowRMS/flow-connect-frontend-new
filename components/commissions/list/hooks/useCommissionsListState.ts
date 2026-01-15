@@ -4,7 +4,7 @@
  * Integrates all sub-hooks and manages overall state
  */
 
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import type { CommissionCheck } from '@/lib/types/rms';
 import {
@@ -13,6 +13,8 @@ import {
   type CreateCheckInput,
   type UpdateCheckInput,
   type CheckStatus,
+  type CheckLandingPageOrderBy,
+  type CheckLandingPageFilter,
   useChecksInfinite,
   useCreateCheck,
   useUpdateCheck,
@@ -23,7 +25,7 @@ import { unpostCheck } from '@/components/lib/graphql/checks';
 import { useCommissionFilters } from './useCommissionFilters';
 import { useBulkSelection } from '../../../shared';
 import { fetchAllCheckIds } from '@/components/orders/api/checksApi';
-import type { QuickDatePreset, QuickDateField } from '../types';
+import type { QuickDatePreset, QuickDateField, SortField, SortDirection } from '../types';
 import { getQuickDateRange } from '../utils';
 import { formatDateToISO, formatDateToBackend } from '../../../advancedFilters/utils';
 import type { ActiveFilter } from '../../../advancedFilters/types';
@@ -37,16 +39,72 @@ export function useCommissionsListState() {
   const [showQuickDateFieldDropdown, setShowQuickDateFieldDropdown] = useState(false);
 
   // Server-side filters - defined BEFORE API hook so they can be passed to the query
-  const [serverFilters, setServerFilters] = useState<Array<{ columnName: string; operator: string; value: string }>>([]);
+  const [serverFilters, setServerFilters] = useState<CheckLandingPageFilter[]>([]);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
   
-  // Refs to prevent infinite loops during synchronization (will be used in step 4)
+  // Initialize columnFiltersToAPI as empty (will be computed)
+  const [columnFiltersToAPIState, setColumnFiltersToAPIState] = useState<CheckLandingPageFilter[]>([]);
+  
+  // Refs to prevent infinite loops during synchronization
   const isSyncingFromAdvanced = useRef(false);
   const isSyncingFromColumn = useRef(false);
+  // Ref to prevent handleSortChange from overwriting handleMultiSortChange
+  const isHandlingMultiSort = useRef(false);
+
+  // Sort state - defined BEFORE API hook
+  // Server-side sorting - initialize with default sort
+  const [serverOrderBy, setServerOrderBy] = useState<CheckLandingPageOrderBy[]>(() => {
+    return [{
+      columnName: 'createdAt', // entryDate maps to createdAt
+      direction: 'DESC',
+    }];
+  });
+
+  /**
+   * Map UI SortField to API columnName
+   */
+  function mapSortFieldToColumnName(sortField: SortField): string {
+    const fieldMap: Record<SortField, string> = {
+      checkNumber: 'checkNumber',
+      status: 'status',
+      netAmount: 'enteredCommissionAmount',
+      commissionMonth: 'commissionMonth',
+      manufacturerName: 'factoryName', // Note: may not be available yet
+      postDate: 'postDate',
+      checkDate: 'checkDate',
+      entryDate: 'createdAt',
+      checkBalance: 'enteredCommissionAmount', // Note: balance may not be available, use commission as fallback
+    };
+    return fieldMap[sortField] || 'createdAt';
+  }
+
+  // Map from UI column keys to filter option IDs (for sync)
+  const columnKeyToFilterId: Record<string, string> = useMemo(() => ({
+    checkNumber: 'check-number',
+    status: 'status',
+    commissionMonth: 'commission-month',
+    postDate: 'post-date',
+    checkDate: 'check-date',
+    entryDate: 'entry-date',
+    netAmount: 'net-amount',
+    manufacturerName: 'factory-name',
+  }), []);
+
+  // We initialize with empty arrays to avoid dependency issues
+  const commissionFilterOptionsForSync = useMemo(() => {
+    return getCommissionFilterOptions();
+  }, []);
+
+  // Hook for synchronizing filters between AdvancedFilters and ColumnFilters
+  const { syncAdvancedToColumn, syncColumnToAdvanced } = useFilterSync({
+    filterOptions: commissionFilterOptionsForSync,
+    columnKeyToFilterId,
+  });
 
   // Build quick filters based on quick date filter selection
-  const quickFilters = useMemo<Array<{ columnName: string; operator: string; value: string }>>(() => {
-    const result: Array<{ columnName: string; operator: string; value: string }> = [];
+  const quickFilters = useMemo<CheckLandingPageFilter[]>(() => {
+    const result: CheckLandingPageFilter[] = [];
 
     if (quickDatePreset !== 'all') {
       const { start, end } = getQuickDateRange(quickDatePreset);
@@ -87,12 +145,54 @@ export function useCommissionsListState() {
     return result;
   }, [quickDatePreset, quickDateField]);
 
-  // Combine quick filters with server filters
-  const filters = useMemo(() => {
-    return [...quickFilters, ...serverFilters];
-  }, [quickFilters, serverFilters]);
+  // Convert column filters (Record<string, ActiveFilter[]>) to API filter format
+  const columnFiltersToAPI = useMemo<CheckLandingPageFilter[]>(() => {
+    const filters: CheckLandingPageFilter[] = [];
+    
+    // Flatten all column filters into a single array
+    Object.values(columnFilters).forEach((columnFilterArray) => {
+      // Ensure columnFilterArray is always an array
+      if (!Array.isArray(columnFilterArray)) return;
+      
+      columnFilterArray.forEach((filter) => {
+        // Convert ActiveFilter to API filter format
+        if (filter.values && filter.values.length > 0) {
+          // For multi-value filters (IN operator), use values array
+          filters.push({
+            columnName: filter.columnName,
+            operator: filter.operator,
+            values: filter.values,
+          });
+        } else if (filter.value) {
+          filters.push({
+            columnName: filter.columnName,
+            operator: filter.operator,
+            value: filter.value,
+          });
+        }
+      });
+    });
+    
+    return filters;
+  }, [columnFilters]);
 
-  // Fetch checks from real API with infinite scroll - now with combined filters
+  // Update state when columnFiltersToAPI changes
+  useEffect(() => {
+    setColumnFiltersToAPIState(columnFiltersToAPI);
+  }, [columnFiltersToAPI]);
+
+  // Combine quick filters with server filters and column filters
+  const filters = useMemo(() => {
+    return [...quickFilters, ...serverFilters, ...columnFiltersToAPIState];
+  }, [quickFilters, serverFilters, columnFiltersToAPIState]);
+
+  // Build orderBy from sort state
+  const orderBy = useMemo<CheckLandingPageOrderBy[]>(() => {
+    return serverOrderBy;
+  }, [serverOrderBy]);
+
+  // Fetch checks from real API with infinite scroll - now with combined filters and orderBy
+  const DEFAULT_PAGE_SIZE = 50;
   const {
     data: checksData,
     isLoading: isLoadingChecks,
@@ -101,7 +201,7 @@ export function useCommissionsListState() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useChecksInfinite(filters);
+  } = useChecksInfinite(filters, DEFAULT_PAGE_SIZE, orderBy);
 
   // Flatten paginated data
   const allChecksData = useMemo(() => {
@@ -338,15 +438,13 @@ export function useCommissionsListState() {
     
     // Convert ActiveFilter to API filter format
     // Only include value OR values, not both - check which one exists
-    const apiFilters: Array<{ columnName: string; operator: string; value: string }> = filters.map(f => {
+    const apiFilters: CheckLandingPageFilter[] = filters.map(f => {
       if (f.values && f.values.length > 0) {
-        // For multi-value filters, we need to create multiple filters
-        // But the API format only supports single value, so we'll use the first value
-        // In a real implementation, you might need to handle this differently
+        // For multi-value filters (IN operator), use values array
         return {
           columnName: f.columnName,
           operator: f.operator,
-          value: f.values[0],
+          values: f.values,
         };
       }
       return {
@@ -356,7 +454,62 @@ export function useCommissionsListState() {
       };
     });
     setServerFilters(apiFilters);
-  }, []);
+
+    // Sync to ColumnFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from column filters to avoid infinite loop
+    if (!isSyncingFromColumn.current) {
+      isSyncingFromAdvanced.current = true;
+      const syncedColumnFilters = syncAdvancedToColumn(filters);
+      
+      setColumnFilters((prev) => {
+        // If filters array is empty, clear all column filters
+        // Otherwise, merge: new filters from AdvancedFilters replace old ones for same columns
+        if (filters.length === 0) {
+          return {};
+        }
+        return { ...prev, ...syncedColumnFilters };
+      });
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromAdvanced.current = false;
+      }, 0);
+    }
+  }, [syncAdvancedToColumn]);
+
+  // Handler for column filter changes (from ColumnFilters)
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ActiveFilter[]>) => {
+    setColumnFilters(filters);
+
+    // Sync to AdvancedFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from advanced filters to avoid infinite loop
+    if (!isSyncingFromAdvanced.current) {
+      isSyncingFromColumn.current = true;
+      const syncedActiveFilters = syncColumnToAdvanced(filters);
+      setActiveFilters(syncedActiveFilters);
+      
+      // Also update serverFilters to trigger API call
+      const apiFilters: CheckLandingPageFilter[] = syncedActiveFilters.map(f => {
+        if (f.values && f.values.length > 0) {
+          // For multi-value filters (IN operator), use values array
+          return {
+            columnName: f.columnName,
+            operator: f.operator,
+            values: f.values,
+          };
+        }
+        return {
+          columnName: f.columnName,
+          operator: f.operator,
+          value: f.value || '',
+        };
+      });
+      setServerFilters(apiFilters);
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromColumn.current = false;
+      }, 0);
+    }
+  }, [syncColumnToAdvanced]);
 
   // Integrate filter hook (but exclude quick filters since they're now server-side)
   const filterState = useCommissionFilters(checks);
@@ -370,8 +523,120 @@ export function useCommissionsListState() {
     setQuickDateField: _setQuickDateField,
     showQuickDateFieldDropdown: _showQuickDateFieldDropdown,
     setShowQuickDateFieldDropdown: _setShowQuickDateFieldDropdown,
+    sortField: _sortField,
+    sortDirection: _sortDirection,
+    handleSort: _handleSort,
+    setSortField: _setSortField,
+    setSortDirection: _setSortDirection,
     ...otherFilterState
   } = filterState;
+
+  // Use sortField and sortDirection from filterState, but we'll manage serverOrderBy separately
+  const sortField = _sortField;
+  const sortDirection = _sortDirection;
+
+  // Handler for server-side sort changes (from SortButton - ActiveSort format)
+  // Note: This is called for backwards compatibility when only one sort is active.
+  // When multiple sorts are active, handleMultiSortChange is used instead.
+  const handleSortChange = useCallback((sort: { columnName: string; direction: 'ASC' | 'DESC' } | undefined) => {
+    // If handleMultiSortChange was just called, ignore this call to avoid overwriting
+    if (isHandlingMultiSort.current) {
+      // Reset flag after a brief delay to allow handleMultiSortChange to complete
+      setTimeout(() => {
+        isHandlingMultiSort.current = false;
+      }, 0);
+      return;
+    }
+    
+    // Only update serverOrderBy if we have exactly one sort or clearing
+    // Otherwise, handleMultiSortChange will handle it
+    if (sort) {
+      // Update server-side sort with single element
+      setServerOrderBy([{
+        columnName: sort.columnName,
+        direction: sort.direction,
+      }]);
+      
+      // Also update local sort state for backwards compatibility
+      // Map API columnName back to SortField if possible
+      const fieldMap: Record<string, SortField> = {
+        'checkNumber': 'checkNumber',
+        'status': 'status',
+        'enteredCommissionAmount': 'netAmount',
+        'commissionMonth': 'commissionMonth',
+        'factoryName': 'manufacturerName',
+        'postDate': 'postDate',
+        'checkDate': 'checkDate',
+        'createdAt': 'entryDate',
+      };
+      
+      const mappedField = fieldMap[sort.columnName];
+      if (mappedField && _setSortField && _setSortDirection) {
+        // Update sort field and direction directly
+        _setSortField(mappedField);
+        _setSortDirection(sort.direction.toLowerCase() as SortDirection);
+      }
+    } else {
+      // Clear sort - reset to default
+      setServerOrderBy([{
+        columnName: mapSortFieldToColumnName('entryDate'),
+        direction: 'DESC',
+      }]);
+      if (_setSortField && _setSortDirection) {
+        _setSortField('entryDate');
+        _setSortDirection('desc');
+      }
+    }
+  }, [_setSortField, _setSortDirection]);
+
+  // Handler for multiple server-side sorts (from SortButton - ActiveSort[] format)
+  const handleMultiSortChange = useCallback((sorts: { columnName: string; direction: 'ASC' | 'DESC' }[]) => {
+    // Set flag to prevent handleSortChange from overwriting
+    isHandlingMultiSort.current = true;
+    
+    // Update server-side sorts with all provided sorts
+    const orderBy: CheckLandingPageOrderBy[] = sorts.map(sort => ({
+      columnName: sort.columnName,
+      direction: sort.direction,
+    }));
+    setServerOrderBy(orderBy);
+    
+    // Also update local sort state for backwards compatibility (use first sort)
+    if (sorts.length > 0) {
+      const firstSort = sorts[0];
+      const fieldMap: Record<string, SortField> = {
+        'checkNumber': 'checkNumber',
+        'status': 'status',
+        'enteredCommissionAmount': 'netAmount',
+        'commissionMonth': 'commissionMonth',
+        'factoryName': 'manufacturerName',
+        'postDate': 'postDate',
+        'checkDate': 'checkDate',
+        'createdAt': 'entryDate',
+      };
+      
+      const mappedField = fieldMap[firstSort.columnName];
+      if (mappedField && _setSortField && _setSortDirection) {
+        _setSortField(mappedField);
+        _setSortDirection(firstSort.direction.toLowerCase() as SortDirection);
+      }
+    } else {
+      // Clear sort - reset to default
+      setServerOrderBy([{
+        columnName: mapSortFieldToColumnName('entryDate'),
+        direction: 'DESC',
+      }]);
+      if (_setSortField && _setSortDirection) {
+        _setSortField('entryDate');
+        _setSortDirection('desc');
+      }
+    }
+    
+    // Reset flag after state update
+    setTimeout(() => {
+      isHandlingMultiSort.current = false;
+    }, 0);
+  }, [_setSortField, _setSortDirection]);
 
   // Integrate bulk selection hook
   const bulkSelection = useBulkSelection({
@@ -551,6 +816,15 @@ export function useCommissionsListState() {
     // AdvancedFilters state
     activeFilters,
     handleServerFiltersChange,
+    // Column filters state
+    columnFilters,
+    handleColumnFiltersChange,
+    // Sort state
+    sortField,
+    sortDirection,
+    handleSortChange,
+    handleMultiSortChange,
+    serverOrderBy,
 
     // Selection state and actions (compatibility layer)
     selectedCheckIds,

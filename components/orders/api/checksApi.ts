@@ -46,6 +46,8 @@ export {
   type UpdateCheckInput,
   type CheckDetailInput,
   type FindChecksLandingPagesResponse,
+  type CheckLandingPageOrderBy,
+  type CheckLandingPageFilter,
 } from '../../lib/graphql/checks';
 
 // ============================================================================
@@ -72,12 +74,13 @@ export function useCheck(checkId: string | null) {
  * Hook to fetch checks (landing page) - non-paginated for backward compatibility
  */
 export function useChecksLandingPage(
-  filters?: Array<{ columnName: string; operator: string; value: string }>,
-  limit?: number
+  filters?: CheckLandingPageFilter[],
+  limit?: number,
+  orderBy?: CheckLandingPageOrderBy[]
 ) {
   return useQuery({
-    queryKey: ['checksLandingPage', filters, limit],
-    queryFn: () => _fetchChecksLandingPage(filters, limit),
+    queryKey: ['checksLandingPage', filters, limit, orderBy],
+    queryFn: () => _fetchChecksLandingPage(filters, limit, 0, orderBy),
   });
 }
 
@@ -85,13 +88,14 @@ export function useChecksLandingPage(
  * Hook to fetch checks with infinite scroll pagination
  */
 export function useChecksInfinite(
-  filters?: Array<{ columnName: string; operator: string; value: string }>,
-  pageSize: number = DEFAULT_PAGE_SIZE
+  filters?: CheckLandingPageFilter[],
+  pageSize: number = DEFAULT_PAGE_SIZE,
+  orderBy?: CheckLandingPageOrderBy[]
 ) {
   return useInfiniteQuery<FindChecksLandingPagesResponse, Error>({
-    queryKey: ['checksInfinite', filters, pageSize],
+    queryKey: ['checksInfinite', filters, pageSize, orderBy],
     queryFn: async ({ pageParam = 0 }) => {
-      return _fetchChecksLandingPage(filters, pageSize, pageParam as number);
+      return _fetchChecksLandingPage(filters, pageSize, pageParam as number, orderBy);
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
@@ -129,7 +133,7 @@ export function useChecksByFactory(factoryId: string | null) {
  * Used when user selects all including unloaded items
  */
 export async function fetchAllCheckIds(
-  filters?: Array<{ columnName: string; operator: string; value: string }>
+  filters?: CheckLandingPageFilter[]
 ): Promise<string[]> {
   // First get the total count
   const initialResult = await _fetchChecksLandingPage(filters, 1, 0);

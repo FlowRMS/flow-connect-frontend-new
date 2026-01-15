@@ -8,6 +8,7 @@ import { DropdownFilter } from './filter-types/DropdownFilter';
 import { NumberFilter } from './filter-types/NumberFilter';
 import { DateRangeFilter } from './filter-types/DateRangeFilter';
 import { BooleanFilter } from './filter-types/BooleanFilter';
+import { MonthYearFilter } from './filter-types/MonthYearFilter';
 import { parseDateString, formatDateToBackend } from '../utils';
 
 export type ColumnFilterType = 'text' | 'dropdown' | 'number' | 'date' | 'boolean' | 'month';
@@ -85,6 +86,18 @@ export function ColumnFilter({
   const [localSelectedValues, setLocalSelectedValues] = useState<string[]>(getSelectedValues());
   const [localDateStart, setLocalDateStart] = useState<Date | null>(getDateStart());
   const [localDateEnd, setLocalDateEnd] = useState<Date | null>(getDateEnd());
+  const [localMonthYear, setLocalMonthYear] = useState<Date | null>(() => {
+    // For month filters, extract from GTE filter (start of month)
+    if (type === 'month') {
+      const gteFilter = safeValue.find(f => f.columnName === columnName && f.operator === 'GTE' && f.value);
+      if (gteFilter?.value) {
+        // Parse YYYY-MM-DD format to Date
+        const date = parseDateString(gteFilter.value);
+        return date;
+      }
+    }
+    return null;
+  });
   const [localNumberOperator, setLocalNumberOperator] = useState<FilterOperator>(
     getOperator() || 'EQ'
   );
@@ -285,6 +298,44 @@ export function ColumnFilter({
     onToggle();
   };
 
+  const handleMonthYearApply = (option: FilterOption) => {
+    if (!localMonthYear) {
+      // Remove filter if empty
+      const otherFilters = safeValue.filter(f => f.columnName !== columnName);
+      onChange(otherFilters);
+      onToggle();
+      return;
+    }
+
+    // Calculate first and last day of the selected month
+    const year = localMonthYear.getFullYear();
+    const month = localMonthYear.getMonth();
+    
+    // Always use YYYY-MM-DD format (without time) for month filters
+    const monthStr = String(month + 1).padStart(2, '0');
+    const firstDay = `${year}-${monthStr}-01`;
+    
+    // Last day of month: get the last day of the month
+    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+    const lastDay = `${year}-${monthStr}-${String(lastDayOfMonth).padStart(2, '0')}`;
+    
+    const newFilters: ActiveFilter[] = [
+      {
+        columnName,
+        operator: 'GTE',
+        value: firstDay,
+      },
+      {
+        columnName,
+        operator: 'LTE',
+        value: lastDay,
+      },
+    ];
+    
+    updateFilters(newFilters);
+    onToggle();
+  };
+
   const handleBooleanChange = (val: 'all' | 'true' | 'false') => {
     if (val === 'all') {
       // Remove filter
@@ -353,9 +404,9 @@ export function ColumnFilter({
           sideOffset={4}
           className="z-[100] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden"
           style={{ 
-            width: type === 'date' ? '320px' : 'var(--radix-popover-trigger-width)',
+            width: (type === 'date' || type === 'month') ? '240px' : 'var(--radix-popover-trigger-width)',
             minWidth: '200px',
-            maxWidth: '320px'
+            maxWidth: type === 'month' ? '240px' : '320px'
           }}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
@@ -421,6 +472,15 @@ export function ColumnFilter({
               onValueChange={handleBooleanChange}
               onClear={handleClear}
               hasActiveFilter={getTextValue() === 'true' || getTextValue() === 'false'}
+            />
+          )}
+
+          {type === 'month' && (
+            <MonthYearFilter
+              option={filterOption}
+              selectedMonthYear={localMonthYear}
+              onMonthYearChange={setLocalMonthYear}
+              onApply={handleMonthYearApply}
             />
           )}
         </PopoverPrimitive.Content>

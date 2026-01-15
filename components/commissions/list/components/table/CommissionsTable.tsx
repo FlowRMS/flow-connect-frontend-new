@@ -5,7 +5,9 @@
 
 import type { CommissionCheck } from '@/lib/types/rms';
 import type { CheckStatus } from '@/components/lib/graphql/checks';
-import type { SortField, SortDirection, ColumnFilters } from '../../types';
+import type { SortField, SortDirection } from '../../types';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { getCommissionFilterOptions } from '../../config/filterConfig';
 import { isCheckLinked, getCheckLinkedReason } from '../../utils';
 import { BulkActionsBar } from './BulkActionsBar';
 import { CommissionsTableHeader } from './CommissionsTableHeader';
@@ -34,15 +36,10 @@ interface CommissionsTableProps {
   sortField: SortField;
   sortDirection: SortDirection;
   handleSort: (field: SortField) => void;
-  // Filters
-  columnFilters: ColumnFilters;
-  setColumnFilters: (
-    filters: ColumnFilters | ((prev: ColumnFilters) => ColumnFilters)
-  ) => void;
-  openFilter: string | null;
-  setOpenFilter: (filterId: string | null) => void;
-  uniqueStatuses: string[];
-  uniqueManufacturers: string[];
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  filterOptions?: ReturnType<typeof getCommissionFilterOptions>;
+  columnFilters?: Record<string, ActiveFilter[]>;
   // Bulk actions
   showBulkActionsMenu: boolean;
   setShowBulkActionsMenu: (show: boolean) => void;
@@ -69,12 +66,9 @@ export function CommissionsTable({
   sortField,
   sortDirection,
   handleSort,
+  onColumnFiltersChange,
+  filterOptions = getCommissionFilterOptions(),
   columnFilters,
-  setColumnFilters,
-  openFilter,
-  setOpenFilter,
-  uniqueStatuses,
-  uniqueManufacturers,
   showBulkActionsMenu,
   setShowBulkActionsMenu,
   bulkSetStatus,
@@ -113,15 +107,9 @@ export function CommissionsTable({
                     clearSelection();
                   }
                 }}
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
+                onColumnFiltersChange={onColumnFiltersChange}
+                filterOptions={filterOptions}
                 columnFilters={columnFilters}
-                setColumnFilters={setColumnFilters}
-                openFilter={openFilter}
-                setOpenFilter={setOpenFilter}
-                uniqueStatuses={uniqueStatuses}
-                uniqueManufacturers={uniqueManufacturers}
               />
               <tbody className="divide-y divide-gray-200">
                 {isLoading ? (

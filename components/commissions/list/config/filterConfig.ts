@@ -81,3 +81,17 @@ export function getCommissionFilterOptions(): FilterOption[] {
   ];
 }
 
+/**
+ * Get sort options for the SortButton component
+ */
+export function getCommissionSortOptions() {
+  return [
+    { columnName: 'checkNumber', label: 'Check Number' },
+    { columnName: 'status', label: 'Status' },
+    { columnName: 'commissionMonth', label: 'Commission Month' },
+    { columnName: 'postDate', label: 'Post Date' },
+    { columnName: 'checkDate', label: 'Check Date' },
+    { columnName: 'createdAt', label: 'Entry Date' },
+    { columnName: 'enteredCommissionAmount', label: 'Commission' },
+  ];
+}
