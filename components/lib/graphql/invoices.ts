@@ -633,15 +633,6 @@ const CREATE_INVOICE = `
           buyingGroupId
         }
         billToCustomerId
-        billToCustomer {
-          published
-          parentId
-          isParent
-          id
-          companyName
-          buyingGroupId
-        }
-        customerPo
         shipDate
         shippingTerms
         quoteId
@@ -813,15 +804,6 @@ const UPDATE_INVOICE = `
           buyingGroupId
         }
         billToCustomerId
-        billToCustomer {
-          published
-          parentId
-          isParent
-          id
-          companyName
-          buyingGroupId
-        }
-        customerPo
         shipDate
         shippingTerms
         quoteId

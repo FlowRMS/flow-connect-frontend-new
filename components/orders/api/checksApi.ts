@@ -12,6 +12,7 @@ import {
   createCheck as _createCheck,
   updateCheck as _updateCheck,
   deleteCheck as _deleteCheck,
+  fetchPostedStatement as _fetchPostedStatement,
   type CreateCheckInput,
   type UpdateCheckInput,
 } from '../../lib/graphql/checks';
@@ -25,6 +26,7 @@ export {
   createCheck,
   updateCheck,
   deleteCheck,
+  fetchPostedStatement,
   type Check,
   type CheckLandingPage,
   type CheckFactory,
@@ -46,6 +48,10 @@ export {
   type UpdateCheckInput,
   type CheckDetailInput,
   type FindChecksLandingPagesResponse,
+  type PostedStatement,
+  type PostedStatementHeader,
+  type PostedStatementDetail,
+  type PostedStatementRepSummary,
 } from '../../lib/graphql/checks';
 
 // ============================================================================
@@ -201,5 +207,17 @@ export function useDeleteCheck() {
       queryClient.invalidateQueries({ queryKey: ['checkSearch'] });
       queryClient.invalidateQueries({ queryKey: ['checksByFactory'] });
     },
+  });
+}
+
+/**
+ * Hook to fetch posted statement data for a check
+ * Returns summary, header, and detail information for a posted check
+ */
+export function usePostedStatement(checkId: string | null, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['postedStatement', checkId],
+    queryFn: () => (checkId ? _fetchPostedStatement(checkId) : null),
+    enabled: !!checkId && enabled,
   });
 }

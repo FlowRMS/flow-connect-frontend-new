@@ -6,6 +6,8 @@ import Sidebar, { MobileSidebarProvider } from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import { SidebarConfigProvider } from '@/contexts/SidebarConfigContext';
 import { NavigationMorphProvider } from '@/contexts/NavigationMorphContext';
+import { UserSettingsProvider } from '@/contexts/UserSettingsContext';
+import { OrganizationProvider } from '@/contexts/OrganizationContext';
 import { useWelcomeAnimation } from '@/components/hooks/useWelcomeAnimation';
 import { FlowChatProvider } from '@/contexts/FlowChatContext';
 import { FlowChat } from '@/components/flowchat';
@@ -93,9 +95,9 @@ export default function DashboardShell({
             </Suspense>
           )}
 
-          <div className="flex h-screen bg-[var(--background)]">
-            {/* Shared Sidebar - only rendered once, persists across navigation */}
-            <Sidebar />
+              <div className="flex h-screen bg-[var(--background)]">
+                {/* Shared Sidebar - only rendered once, persists across navigation */}
+                <Sidebar />
 
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -108,8 +110,6 @@ export default function DashboardShell({
               >
                 {children}
               </div>
-            </div>
-          </div>
 
           {/* FlowChat - Global AI Assistant */}
           <FlowChat />

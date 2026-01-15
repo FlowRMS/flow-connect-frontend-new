@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
@@ -88,7 +88,7 @@ export default function AdjustmentsListContent() {
     openCreateAdjustmentModal,
     openEditAdjustmentModal,
     closeAdjustmentModal,
-    closeAdjustmentDetailModal,
+    closeAdjustmentDetailModal: hookCloseAdjustmentDetailModal,
     closeDeleteConfirmModal,
     handleSaveAdjustment,
     handleDeleteAdjustment,
@@ -100,24 +100,36 @@ export default function AdjustmentsListContent() {
     isDeletingAdjustment,
   } = useAdjustmentsListState();
 
-  // Handle URL param to open adjustment detail modal
+  // Wrapped close function that also clears URL
+  const closeAdjustmentDetailModal = useCallback(() => {
+    hookCloseAdjustmentDetailModal();
+    // Clear the URL param when closing
+    if (searchParams.get('id')) {
+      router.replace('/adjustments', { scroll: false });
+    }
+  }, [hookCloseAdjustmentDetailModal, router, searchParams]);
+
+  // Wrapped view function that also updates URL
+  const handleViewAdjustment = useCallback((adjustment: AdjustmentLandingPage) => {
+    viewAdjustment(adjustment);
+    // Update URL to include the adjustment ID
+    router.replace(`/adjustments?id=${adjustment.id}`, { scroll: false });
+  }, [viewAdjustment, router]);
+
+  // Handle URL param to open adjustment detail modal - only on initial load
   useEffect(() => {
-    if (adjustmentIdFromUrl && adjustments.length > 0 && !showAdjustmentDetailModal) {
+    // Only process URL param once on initial load
+    if (initialUrlProcessedRef.current) return;
+
+    if (adjustmentIdFromUrl && adjustments.length > 0) {
+      initialUrlProcessedRef.current = true;
       const adjustment = adjustments.find(a => a.id === adjustmentIdFromUrl);
       if (adjustment) {
+        // Use viewAdjustment directly - URL already has the ID
         viewAdjustment(adjustment);
       }
     }
-  }, [adjustmentIdFromUrl, adjustments, showAdjustmentDetailModal, viewAdjustment]);
-
-  // Update URL when modal is opened/closed
-  useEffect(() => {
-    if (selectedAdjustment && !searchParams.get('id')) {
-      router.replace(`/adjustments?id=${selectedAdjustment.id}`, { scroll: false });
-    } else if (!selectedAdjustment && searchParams.get('id')) {
-      router.replace('/adjustments', { scroll: false });
-    }
-  }, [selectedAdjustment, router, searchParams]);
+  }, [adjustmentIdFromUrl, adjustments, viewAdjustment]);
 
   // Local filter/sort state (status filter and sorting are client-side)
   const [statusFilter, setStatusFilter] = useState<AdjustmentStatus | 'ALL'>('ALL');
@@ -400,6 +412,7 @@ export default function AdjustmentsListContent() {
                     </div>
                   </th>
                   <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Status</th>
+                  <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Locked</th>
                   <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Created By</th>
                   <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Actions</th>
                 </tr>
@@ -412,7 +425,7 @@ export default function AdjustmentsListContent() {
                     <tr
                       key={adjustment.id}
                       className="hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
-                      onClick={() => viewAdjustment(adjustment)}
+                      onClick={() => handleViewAdjustment(adjustment)}
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -452,13 +465,28 @@ export default function AdjustmentsListContent() {
                           </span>
                         )}
                       </td>
+                      <td className="px-4 py-3 text-center">
+                        {adjustment.locked ? (
+                          <span title="Locked">
+                            <svg className="w-5 h-5 text-amber-500 mx-auto" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/>
+                            </svg>
+                          </span>
+                        ) : (
+                          <span title="Unlocked">
+                            <svg className="w-5 h-5 text-gray-300 mx-auto" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
+                            </svg>
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <AvatarInline name={(adjustment as any).createdBy} size="sm" />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <button
-                            onClick={() => viewAdjustment(adjustment)}
+                            onClick={() => handleViewAdjustment(adjustment)}
                             className="p-1.5 hover:bg-[var(--muted)] rounded-lg transition-colors"
                             title="View"
                           >
@@ -500,7 +528,7 @@ export default function AdjustmentsListContent() {
                   <tr>
                     <td colSpan={3} className="px-4 py-3 text-right font-semibold text-sm">Total:</td>
                     <td className="px-4 py-3 text-right font-bold text-indigo-600">{formatCurrency(totals.adjustmentAmount)}</td>
-                    <td colSpan={3}></td>
+                    <td colSpan={4}></td>
                   </tr>
                 </tfoot>
               )}

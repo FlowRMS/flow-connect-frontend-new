@@ -9,7 +9,7 @@ import { MobileSidebarContext } from './Sidebar';
 import UniversalSearch from './UniversalSearch';
 import { useUser } from './providers/user-provider';
 import { useOrgName } from './hooks/useOrgName';
-import { useOrganization } from './hooks/useOrganization';
+import { useOrganizationContext } from '@/contexts/OrganizationContext';
 import { handleSignOut } from '@/lib/actions';
 import UserGuideModal from './UserGuideModal';
 import { getAvatarColors, getInitials } from '@/lib/utils/avatar';
@@ -33,7 +33,7 @@ export default function TopBar() {
   const user = useUser();
   const pathname = usePathname();
   const { orgName, isLoading: orgLoading } = useOrgName();
-  const { logoUrl } = useOrganization();
+  const { logoUrl } = useOrganizationContext();
   const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showUserGuide, setShowUserGuide] = useState(false);

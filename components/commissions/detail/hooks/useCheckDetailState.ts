@@ -221,6 +221,42 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     }
   }, [check]);
 
+  // Wrapper functions for header field setters that track changes
+  const handleSetFactory = useCallback((value: string) => {
+    setFactory(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCommissionMonth = useCallback((value: string) => {
+    setCommissionMonth(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCheckNumber = useCallback((value: string) => {
+    setCheckNumber(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCommissionAmount = useCallback((value: number) => {
+    setCommissionAmount(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCheckDate = useCallback((value: string) => {
+    setCheckDate(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetPostedDate = useCallback((value: string) => {
+    setPostedDate(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetFactoryId = useCallback((value: string) => {
+    setFactoryId(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
   // Adjustments state (legacy format for backward compatibility)
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   // Adjustments in AdjustmentLandingPage format for the new DeductionsTab (AdjustmentsTab from orders)
@@ -903,7 +939,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
     // Factory ID (for API)
     factoryId,
-    setFactoryId,
+    setFactoryId: handleSetFactoryId,
 
     // Tab state
     activeTab,
@@ -981,19 +1017,19 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
     // Form fields
     factory,
-    setFactory,
+    setFactory: handleSetFactory,
     commissionMonth,
-    setCommissionMonth,
+    setCommissionMonth: handleSetCommissionMonth,
     checkNumber,
-    setCheckNumber,
+    setCheckNumber: handleSetCheckNumber,
     commissionAmount,
-    setCommissionAmount,
+    setCommissionAmount: handleSetCommissionAmount,
     checkDate,
-    setCheckDate,
+    setCheckDate: handleSetCheckDate,
     status,
     setStatus,
     postedDate,
-    setPostedDate,
+    setPostedDate: handleSetPostedDate,
     // Whether the check was originally posted (from API) - used to disable Save button
     isOriginallyPosted: !isCreateMode && apiCheck?.status === 'POSTED',
     isTotalStatedCommission,

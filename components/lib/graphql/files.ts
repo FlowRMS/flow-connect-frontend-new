@@ -42,7 +42,7 @@ export interface FileResponse {
 }
 
 // Document entity types for file uploads
-export type DocumentEntityType = 'QUOTES' | 'ORDERS' | 'INVOICES' | 'CHECKS' | 'CUSTOMERS' | 'FACTORIES' | 'PRODUCTS' | 'UNDEFINED';
+export type DocumentEntityType = 'QUOTES' | 'ORDERS' | 'ORDER_ACKNOWLEDGEMENTS' | 'INVOICES' | 'CHECKS' | 'CUSTOMERS' | 'FACTORIES' | 'PRODUCTS' | 'UNDEFINED';
 
 export interface FileUploadInput {
   file: File;
@@ -444,6 +444,7 @@ const UPLOAD_FILES = `
       fileSha
       fileSize
       fileType
+      fileEntityType
       folderId
       archived
       createdAt

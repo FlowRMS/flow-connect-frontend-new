@@ -197,6 +197,45 @@ export interface FindChecksLandingPagesResponse {
   records: CheckLandingPage[];
 }
 
+// Posted Statement Types
+export interface PostedStatementRepSummary {
+  commissionReceived?: string;
+  expectedCommission?: string;
+  outsideSalesRepId?: string;
+  outsideSalesRepName?: string;
+}
+
+export interface PostedStatementHeader {
+  checkNumber?: string;
+  commissionAmount?: string;
+  commissionMonth?: string;
+  entityDate?: string;
+  factoryId?: string;
+  factoryName?: string;
+  postDate?: string;
+}
+
+export interface PostedStatementDetail {
+  commissionMonth?: string;
+  commissionReceived?: string;
+  entityNumber?: string;
+  entityType?: string;
+  expectedCommission?: string;
+  factoryName?: string;
+  orderNumber?: string;
+  outsideSalesRepId?: string;
+  outsideSalesRepName?: string;
+  postedMonth?: string;
+  salesAmount?: string;
+}
+
+export interface PostedStatement {
+  presignedUrl?: string;
+  repSummaries?: PostedStatementRepSummary[];
+  header?: PostedStatementHeader;
+  details?: PostedStatementDetail[];
+}
+
 // Input Types
 export interface CheckDetailInput {
   id?: string;
@@ -464,6 +503,42 @@ const UNPOST_CHECK = `
   }
 `;
 
+const GET_POSTED_STATEMENT = `
+  query GetPostedStatement($checkId: UUID!) {
+    postedStatement(checkId: $checkId) {
+      presignedUrl
+      repSummaries {
+        commissionReceived
+        expectedCommission
+        outsideSalesRepId
+        outsideSalesRepName
+      }
+      header {
+        checkNumber
+        commissionAmount
+        commissionMonth
+        entityDate
+        factoryId
+        factoryName
+        postDate
+      }
+      details {
+        commissionMonth
+        commissionReceived
+        entityNumber
+        entityType
+        expectedCommission
+        factoryName
+        orderNumber
+        outsideSalesRepId
+        outsideSalesRepName
+        postedMonth
+        salesAmount
+      }
+    }
+  }
+`;
+
 // ============================================================================
 // API Functions
 // ============================================================================
@@ -649,4 +724,21 @@ export async function unpostCheck(checkId: string): Promise<Check> {
   }
 
   return response.data.unpostCheck;
+}
+
+/**
+ * Fetch posted statement data for a check
+ * Returns summary, header, and detail information for a posted check
+ */
+export async function fetchPostedStatement(checkId: string): Promise<PostedStatement | null> {
+  const response = await crmGraphQLRequest<{ postedStatement: PostedStatement }>({
+    query: GET_POSTED_STATEMENT,
+    variables: { checkId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch posted statement');
+  }
+
+  return response.data?.postedStatement || null;
 }
