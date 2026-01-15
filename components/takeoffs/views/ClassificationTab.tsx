@@ -411,7 +411,7 @@ export function ClassificationTab({
                     <button
                       onClick={() => onDownload?.(doc)}
                       className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                      title="Download original"
+                      title="Download"
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
