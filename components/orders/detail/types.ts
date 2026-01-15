@@ -16,7 +16,8 @@ export type TabType =
   | 'tasks'
   | 'activity'
   | 'linked-objects'
-  | 'settings';
+  | 'settings'
+  | 'invoices';
 
 // Column configuration for line items table
 export type ColumnKey =

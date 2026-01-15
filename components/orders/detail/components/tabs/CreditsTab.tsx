@@ -293,6 +293,7 @@ export function CreditsTab({
                   </div>
                 </th>
                 <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Status</th>
+                <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Locked</th>
                 <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Actions</th>
               </tr>
             </thead>
@@ -344,6 +345,21 @@ export function CreditsTab({
                         </span>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      {credit.locked ? (
+                        <span title="Locked">
+                          <svg className="w-5 h-5 text-amber-500 mx-auto" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/>
+                          </svg>
+                        </span>
+                      ) : (
+                        <span title="Unlocked">
+                          <svg className="w-5 h-5 text-gray-300 mx-auto" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
+                          </svg>
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <button
@@ -389,7 +405,7 @@ export function CreditsTab({
                 <tr>
                   <td colSpan={4} className="px-4 py-3 text-right font-semibold">Total:</td>
                   <td className="px-4 py-3 text-right font-bold text-red-600">{formatCurrency(totals.creditAmount)}</td>
-                  <td colSpan={2}></td>
+                  <td colSpan={3}></td>
                 </tr>
               </tfoot>
             )}

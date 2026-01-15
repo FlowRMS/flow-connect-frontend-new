@@ -17,6 +17,7 @@ import {
   useCreateCheck,
   useUpdateCheck,
   useDeleteCheck,
+  usePostCheck,
   fetchCheckById,
 } from '@/components/orders/api/checksApi';
 import { unpostCheck } from '@/components/lib/graphql/checks';
@@ -91,6 +92,7 @@ export function useCommissionsListState() {
   const createCheckMutation = useCreateCheck();
   const updateCheckMutation = useUpdateCheck();
   const deleteCheckMutation = useDeleteCheck();
+  const postCheckMutation = usePostCheck();
 
   // Selected check for detail panel
   const [selectedCheck, setSelectedCheck] = useState<CommissionCheck | null>(null);
@@ -213,31 +215,8 @@ export function useCommissionsListState() {
   const handlePostCheck = useCallback(async (checkId: string) => {
     setIsUpdatingCheck(true);
     try {
-      // Fetch full check details first
-      const fullCheck = await fetchCheckById(checkId);
-      if (!fullCheck) {
-        throw new Error('Check not found');
-      }
-
-      // Update status to POSTED
-      await updateCheckMutation.mutateAsync({
-        id: fullCheck.id,
-        checkNumber: fullCheck.checkNumber,
-        entityDate: fullCheck.entityDate || new Date().toISOString().split('T')[0],
-        enteredCommissionAmount: fullCheck.enteredCommissionAmount || '0',
-        factoryId: fullCheck.factoryId || '',
-        commissionMonth: fullCheck.commissionMonth,
-        postDate: fullCheck.postDate,
-        status: 'POSTED',
-        creationType: fullCheck.creationType || 'MANUAL',
-        details: fullCheck.details?.map(d => ({
-          id: d.id,
-          invoiceId: d.invoiceId,
-          creditId: d.creditId,
-          adjustmentId: d.adjustmentId,
-          appliedAmount: d.appliedAmount || '0',
-        })) || [],
-      });
+      // Use the postCheck mutation endpoint
+      await postCheckMutation.mutateAsync(checkId);
       toast.success('Check posted successfully');
       setSelectedCheck(null);
       refetchChecks();
@@ -247,7 +226,7 @@ export function useCommissionsListState() {
     } finally {
       setIsUpdatingCheck(false);
     }
-  }, [updateCheckMutation, refetchChecks]);
+  }, [postCheckMutation, refetchChecks]);
 
   // Handle unpost check from sidebar panel
   const handleUnpostCheck = useCallback(async (checkId: string) => {
@@ -301,31 +280,8 @@ export function useCommissionsListState() {
     for (const checkId of selectedIds) {
       try {
         if (status === 'POSTED') {
-          // Fetch full check details first
-          const fullCheck = await fetchCheckById(checkId);
-          if (!fullCheck) {
-            errorCount++;
-            continue;
-          }
-
-          await updateCheckMutation.mutateAsync({
-            id: fullCheck.id,
-            checkNumber: fullCheck.checkNumber,
-            entityDate: fullCheck.entityDate || new Date().toISOString().split('T')[0],
-            enteredCommissionAmount: fullCheck.enteredCommissionAmount || '0',
-            factoryId: fullCheck.factoryId || '',
-            commissionMonth: fullCheck.commissionMonth,
-            postDate: fullCheck.postDate,
-            status: 'POSTED',
-            creationType: fullCheck.creationType || 'MANUAL',
-            details: fullCheck.details?.map(d => ({
-              id: d.id,
-              invoiceId: d.invoiceId,
-              creditId: d.creditId,
-              adjustmentId: d.adjustmentId,
-              appliedAmount: d.appliedAmount || '0',
-            })) || [],
-          });
+          // Use the postCheck mutation endpoint
+          await postCheckMutation.mutateAsync(checkId);
           successCount++;
         } else if (status === 'OPEN') {
           // Use unpost mutation
@@ -349,7 +305,7 @@ export function useCommissionsListState() {
     }
 
     refetchChecks();
-  }, [bulkSelection, updateCheckMutation, refetchChecks]);
+  }, [bulkSelection, postCheckMutation, refetchChecks]);
 
   // Bulk delete - delete each check one by one via API
   const bulkDelete = useCallback(async () => {

@@ -27,9 +27,11 @@ import {
   useCreateCheck,
   useUpdateCheck,
   useDeleteCheck,
+  usePostCheck,
 } from '@/components/orders/api/checksApi';
 import { unpostCheck as unpostCheckApi } from '@/components/lib/graphql/checks';
 import type { AdjustmentLandingPage } from '@/components/orders/api/adjustmentsApi';
+import type { OpenInvoiceSearchResult } from '@/components/lib/api/search';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import {
@@ -58,6 +60,10 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   const createCheckMutation = useCreateCheck();
   const updateCheckMutation = useUpdateCheck();
   const deleteCheckMutation = useDeleteCheck();
+  const postCheckMutation = usePostCheck();
+
+  // Track if we've made local edits (for unsaved changes indicator)
+  const [hasLocalEdits, setHasLocalEdits] = useState(false);
 
   // Convert API check to CommissionCheck format for compatibility
   const check: CommissionCheck | undefined = useMemo(() => {
@@ -106,7 +112,8 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       creditDeductions: 0,
       netAmount: parseFloat(apiCheck.enteredCommissionAmount || '0'),
       checkBalance: 0,
-      createdBy: apiCheck.createdById || '',
+      createdBy: apiCheck.createdBy?.fullName || apiCheck.createdBy?.username || '',
+      createdAt: apiCheck.createdAt || now,
     };
   }, [apiCheck, isCreateMode]);
 
@@ -216,6 +223,47 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     }
   }, [check]);
 
+  // Wrapper functions for header field setters that track changes
+  const handleSetFactory = useCallback((value: string) => {
+    setFactory(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCommissionMonth = useCallback((value: string) => {
+    setCommissionMonth(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCheckNumber = useCallback((value: string) => {
+    setCheckNumber(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCommissionAmount = useCallback((value: number) => {
+    setCommissionAmount(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCheckDate = useCallback((value: string) => {
+    setCheckDate(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetPostedDate = useCallback((value: string) => {
+    setPostedDate(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetStatus = useCallback((value: CheckStatus) => {
+    setStatus(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetFactoryId = useCallback((value: string) => {
+    setFactoryId(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
   // Adjustments state (legacy format for backward compatibility)
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   // Adjustments in AdjustmentLandingPage format for the new DeductionsTab (AdjustmentsTab from orders)
@@ -280,19 +328,27 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
         // Handle invoices
         if (isInvoice && detail.invoice) {
+          // Get customer name from order.soldToCustomer
+          const invoiceCustomer = detail.invoice.order?.soldToCustomer?.companyName || '-';
+          // Get sales rep names (join multiple if present)
+          const invoiceSalesReps = detail.invoice.salesReps?.map(rep => rep.fullName).filter(Boolean).join(', ') || '-';
+          // Get commission rate and expected commission from balance
+          const invoiceCommRate = detail.invoice.balance?.commissionRate ? parseFloat(detail.invoice.balance.commissionRate) : 0;
+          const invoiceExpectedComm = detail.invoice.balance?.commission ? parseFloat(detail.invoice.balance.commission) : appliedAmount;
+
           convertedLineItems.push({
             id: detail.id,
             type: 'invoice' as const,
             number: detail.invoice.invoiceNumber || '',
             orderId: detail.invoice.orderId || '',
             orderNumber: detail.invoice.order?.orderNumber || '',
-            customer: '-',
-            salesRep: '-',
-            commissionRateExpected: 0,
-            commissionRateActual: 0,
-            expectedCommission: appliedAmount,
+            customer: invoiceCustomer,
+            salesRep: invoiceSalesReps,
+            commissionRateExpected: invoiceCommRate,
+            commissionRateActual: invoiceCommRate,
+            expectedCommission: invoiceExpectedComm,
             paidCommission: appliedAmount,
-            balance: 0,
+            balance: invoiceExpectedComm - appliedAmount,
             paid: detail.invoice.status === 'PAID',
             invoiceId: detail.invoiceId,
             entityDate: detail.invoice.entityDate,
@@ -305,14 +361,16 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
         // Handle credits
         if (isCredit && detail.credit) {
+          // Credits don't have soldToCustomer, salesReps, or balance in the current GraphQL schema
+          // Use appliedAmount as the commission value
           convertedLineItems.push({
             id: detail.id,
             type: 'credit' as const,
             number: detail.credit.creditNumber || '',
             orderId: detail.credit.orderId || '',
             orderNumber: detail.credit.order?.orderNumber || '',
-            customer: '-',
-            salesRep: '-',
+            customer: '-', // Credit schema doesn't include customer info
+            salesRep: '-', // Credit schema doesn't include sales rep info
             commissionRateExpected: 0,
             commissionRateActual: 0,
             expectedCommission: -appliedAmount,
@@ -400,6 +458,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
   // Adjustment functions
   const addAdjustment = () => {
+    if (!isCreateMode) setHasLocalEdits(true);
     const newId = `adj-${Date.now()}`;
     setAdjustments((prev) => [
       ...prev,
@@ -418,6 +477,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   };
 
   const deleteAdjustment = (id: string) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setAdjustments((prev) => prev.filter((adj) => adj.id !== id));
   };
 
@@ -426,6 +486,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     field: keyof Adjustment,
     value: string | number | RepSplit[] | AllocationMethod | Date
   ) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setAdjustments((prev) =>
       prev.map((adj) => (adj.id === id ? { ...adj, [field]: value } : adj))
     );
@@ -511,6 +572,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
   // Add a new line item from modal
   const handleAddLineItem = (item: Omit<LineItem, 'id'>) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     const newId = `li-${Date.now()}`;
     setLineItems((prev) => [
       ...prev,
@@ -548,6 +610,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
   // Update line item amount
   const updateLineItemAmount = (id: string, amount: number) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setLineItems((prev) =>
       prev.map((item) =>
         item.id === id
@@ -562,64 +625,56 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   };
 
   const deleteLineItem = (id: string) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setLineItems((prev) => prev.filter((item) => item.id !== id));
     closeLineItemDetail();
   };
 
   const togglePaid = (id: string) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setLineItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, paid: !item.paid } : item))
     );
   };
 
   // Handler for open invoices loaded from Lines to Reconcile search
-  const handleOpenInvoicesLoaded = useCallback((invoices: Array<{
-    id: string;
-    invoiceNumber: string;
-    entityDate?: string;
-    dueDate?: string;
-    status?: string;
-    orderId?: string;
-    order?: {
-      id: string;
-      orderNumber: string;
-      entityDate?: string;
-      status?: string;
-      headerStatus?: string;
-      factoryId?: string;
-      soldToCustomerId?: string;
-    };
-    balanceId?: string;
-    locked?: boolean;
-    published?: boolean;
-    creationType?: string;
-    createdAt?: string;
-    createdById?: string;
-    url?: string;
-  }>) => {
+  const handleOpenInvoicesLoaded = useCallback((invoices: OpenInvoiceSearchResult[]) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     // Convert open invoices to line items format with isNew flag
-    const newLineItems: LineItem[] = invoices.map((invoice) => ({
-      id: `temp-${invoice.id}`,
-      type: 'invoice' as const,
-      number: invoice.invoiceNumber || '',
-      orderId: invoice.orderId || '',
-      orderNumber: invoice.order?.orderNumber || '',
-      customer: '-',
-      salesRep: '-',
-      commissionRateExpected: 0,
-      commissionRateActual: 0,
-      expectedCommission: 0,
-      paidCommission: 0,
-      balance: 0,
-      paid: false,
-      invoiceId: invoice.id,
-      entityDate: invoice.entityDate,
-      dueDate: invoice.dueDate,
-      status: invoice.status,
-      createdAt: invoice.createdAt,
-      url: invoice.url,
-      isNew: true, // Mark as new/unsaved
-    }));
+    const newLineItems: LineItem[] = invoices.map((invoice) => {
+      // Get customer name from order.soldToCustomer
+      const customerName = invoice.order?.soldToCustomer?.companyName || '-';
+
+      // Get sales rep names (join multiple if present)
+      const salesRepNames = invoice.salesReps?.map(rep => rep.fullName).filter(Boolean).join(', ') || '-';
+
+      // Get commission rate and amount from balance
+      const commissionRate = invoice.balance?.commissionRate ?? 0;
+      const commission = invoice.balance?.commission ?? 0;
+
+      return {
+        id: `temp-${invoice.id}`,
+        type: 'invoice' as const,
+        number: invoice.invoiceNumber || '',
+        orderId: invoice.orderId || '',
+        orderNumber: invoice.order?.orderNumber || '',
+        customer: customerName,
+        salesRep: salesRepNames,
+        commissionRateExpected: commissionRate,
+        commissionRateActual: commissionRate,
+        expectedCommission: commission,
+        paidCommission: commission, // Default to expected commission
+        balance: 0,
+        paid: false,
+        invoiceId: invoice.id,
+        entityDate: invoice.entityDate,
+        dueDate: invoice.dueDate,
+        status: invoice.status,
+        createdAt: invoice.createdAt,
+        url: invoice.url,
+        isNew: true, // Mark as new/unsaved
+      };
+    });
 
     // ADD to existing line items instead of replacing
     // Filter out duplicates based on invoiceId to avoid adding the same invoice twice
@@ -638,7 +693,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       // Return new unique items at the TOP + existing items
       return [...uniqueNewItems, ...prevLineItems];
     });
-  }, []);
+  }, [isCreateMode]);
 
   // Summary calculations
   const summary = useMemo(() => {
@@ -755,21 +810,25 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       commissionMonth: formattedCommissionMonth,
       enteredCommissionAmount: String(commissionAmount),
       factoryId,
-      status: status === 'posted' ? 'POSTED' : 'OPEN',
       creationType: 'MANUAL',
-      details: details.length > 0 ? details : undefined,
+      details: details,
     };
 
     try {
+      let savedCheckId = checkId;
+
       if (isCreateMode) {
         const newCheck = await createCheckMutation.mutateAsync(input);
+        savedCheckId = newCheck.id;
+        setHasLocalEdits(false);
         toast.success('Check created successfully');
-        router.push(`/commissions/${newCheck.id}`);
+        router.push(`/commissions/${savedCheckId}`);
       } else {
         await updateCheckMutation.mutateAsync({
           ...input,
           id: checkId,
         });
+        setHasLocalEdits(false);
         toast.success('Check updated successfully');
         refetchCheck();
       }
@@ -786,7 +845,6 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     commissionMonth,
     commissionAmount,
     factoryId,
-    status,
     lineItems,
     adjustments,
     createCheckMutation,
@@ -817,6 +875,9 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
   // Unpost check state
   const [isUnposting, setIsUnposting] = useState(false);
+
+  // Post check state
+  const [isPosting, setIsPosting] = useState(false);
 
   // Delete confirmation modal state
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
@@ -851,6 +912,30 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     }
   }, [isCreateMode, checkId, status, refetchCheck]);
 
+  // Post check - changes status from OPEN to POSTED directly without needing to save
+  const handlePost = useCallback(async () => {
+    if (isCreateMode) {
+      toast.error('Please save the check first before posting');
+      return;
+    }
+    if (status === 'posted') return;
+
+    setIsPosting(true);
+    try {
+      await postCheckMutation.mutateAsync(checkId);
+      toast.success('Check posted successfully');
+      // Update local status to posted
+      setStatus('posted');
+      // Refetch the check data to ensure sync with server
+      refetchCheck();
+    } catch (error) {
+      console.error('Error posting check:', error);
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsPosting(false);
+    }
+  }, [isCreateMode, checkId, status, postCheckMutation, refetchCheck]);
+
   // Loading state - show loading for existing checks that haven't loaded yet
   if (!isCreateMode && isLoadingCheck) {
     return {
@@ -871,13 +956,19 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     isLoadingCheck,
     checkError,
 
-    // Save/Delete/Unpost actions
+    // Unsaved changes tracking
+    hasChanges: isCreateMode || hasLocalEdits,
+    resetChanges: () => setHasLocalEdits(false),
+
+    // Save/Delete/Post/Unpost actions
     handleSave,
     handleSaveAndClose,
     handleDelete,
+    handlePost,
     handleUnpost,
     isSaving: createCheckMutation.isPending || updateCheckMutation.isPending,
     isDeleting: deleteCheckMutation.isPending,
+    isPosting,
     isUnposting,
 
     // Delete confirmation modal
@@ -887,7 +978,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
     // Factory ID (for API)
     factoryId,
-    setFactoryId,
+    setFactoryId: handleSetFactoryId,
 
     // Tab state
     activeTab,
@@ -965,19 +1056,19 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
     // Form fields
     factory,
-    setFactory,
+    setFactory: handleSetFactory,
     commissionMonth,
-    setCommissionMonth,
+    setCommissionMonth: handleSetCommissionMonth,
     checkNumber,
-    setCheckNumber,
+    setCheckNumber: handleSetCheckNumber,
     commissionAmount,
-    setCommissionAmount,
+    setCommissionAmount: handleSetCommissionAmount,
     checkDate,
-    setCheckDate,
+    setCheckDate: handleSetCheckDate,
     status,
-    setStatus,
+    setStatus: handleSetStatus,
     postedDate,
-    setPostedDate,
+    setPostedDate: handleSetPostedDate,
     // Whether the check was originally posted (from API) - used to disable Save button
     isOriginallyPosted: !isCreateMode && apiCheck?.status === 'POSTED',
     isTotalStatedCommission,

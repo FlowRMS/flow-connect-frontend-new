@@ -178,6 +178,9 @@ export default function ProductEditPage() {
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Flag to disable scroll spy during programmatic scrolling
+  const isScrollingRef = useRef(false);
+
   // ============================================================================
   // Effects
   // ============================================================================
@@ -246,14 +249,18 @@ export default function ProductEditPage() {
     const tabIds: TabId[] = ['overview', 'customer-part-numbers', 'quantity-pricing', 'factory-details', 'uom-details', 'category-details'];
 
     const handleScroll = () => {
-      const scrollTop = container.scrollTop;
+      // Skip scroll spy updates during programmatic scrolling
+      if (isScrollingRef.current) return;
+
+      const containerRect = container.getBoundingClientRect();
       let currentSection: TabId = 'overview';
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
         if (section) {
-          const sectionTop = section.offsetTop;
-          if (scrollTop >= sectionTop - 100) {
+          const sectionRect = section.getBoundingClientRect();
+          // Check if section top is at or above the container top + offset
+          if (sectionRect.top <= containerRect.top + 100) {
             currentSection = tabId;
           }
         }
@@ -262,9 +269,8 @@ export default function ProductEditPage() {
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [isLoadingProduct]);
+  }, []);
 
   // ============================================================================
   // Handlers
@@ -274,11 +280,26 @@ export default function ProductEditPage() {
     const section = sectionRefs.current[tabId];
     const container = scrollContainerRef.current;
     if (section && container) {
+      // Disable scroll spy during programmatic scroll
+      isScrollingRef.current = true;
+      setActiveTab(tabId);
+
+      // Calculate the section's position relative to the scroll container
+      const containerRect = container.getBoundingClientRect();
+      const sectionRect = section.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
       const headerOffset = 20;
-      const sectionTop = section.offsetTop - headerOffset;
+
+      // Calculate the target scroll position
+      const sectionTop = sectionRect.top - containerRect.top + scrollTop - headerOffset;
+
       container.scrollTo({ top: sectionTop, behavior: 'smooth' });
+
+      // Re-enable scroll spy after scroll animation completes
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 500);
     }
-    setActiveTab(tabId);
   }, []);
 
   const handleFieldChange = <K extends keyof FormData>(field: K, value: FormData[K]) => {

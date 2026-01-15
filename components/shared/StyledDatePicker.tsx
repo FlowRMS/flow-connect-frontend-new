@@ -18,6 +18,7 @@ interface StyledDatePickerProps {
   placeholder?: string; // alias for placeholderText
   disabled?: boolean;
   className?: string;
+  tabIndex?: number;
 }
 
 /**
@@ -38,14 +39,15 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
   placeholderText,
   placeholder,
   disabled,
-  className
+  className,
+  tabIndex = 0,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const displayPlaceholder = placeholderText || placeholder || 'Select date...';
 
@@ -61,19 +63,27 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
       const rect = triggerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       const calendarHeight = 320;
+      const calendarWidth = 320; // Actual calendar width is around 300px
 
-      // Position above if not enough space below
+      // Calculate vertical position - above if not enough space below
+      let top: number;
       if (spaceBelow < calendarHeight && rect.top > calendarHeight) {
-        setPosition({
-          top: rect.top - calendarHeight - 4,
-          left: rect.left,
-        });
+        top = rect.top - calendarHeight - 4;
       } else {
-        setPosition({
-          top: rect.bottom + 4,
-          left: rect.left,
-        });
+        top = rect.bottom + 4;
       }
+
+      // Calculate horizontal position - adjust if would go off right edge
+      let left = rect.left;
+      const spaceRight = window.innerWidth - rect.left;
+      if (spaceRight < calendarWidth) {
+        // Position so calendar doesn't go off screen - align right edge to viewport with padding
+        left = window.innerWidth - calendarWidth - 16;
+      }
+      // Ensure we don't go off left edge either
+      left = Math.max(8, left);
+
+      setPosition({ top, left });
     }
   };
 
@@ -213,6 +223,16 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
         onChange={(date) => {
           onChange(date);
           setIsOpen(false);
+          // Move focus to next focusable element after selection
+          setTimeout(() => {
+            const focusableElements = document.querySelectorAll<HTMLElement>(
+              'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])'
+            );
+            const currentIndex = Array.from(focusableElements).findIndex(el => el === triggerRef.current);
+            if (currentIndex !== -1 && currentIndex < focusableElements.length - 1) {
+              focusableElements[currentIndex + 1]?.focus();
+            }
+          }, 0);
         }}
         inline
         calendarClassName="shadow-xl"
@@ -221,14 +241,42 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
     portalTarget
   );
 
+  // Handle keyboard events on the trigger button
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+
+    switch (e.key) {
+      case 'Enter':
+      case ' ':
+      case 'ArrowDown':
+        e.preventDefault();
+        setIsOpen(true);
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setIsOpen(false);
+        break;
+      case 'Tab':
+        // Close if open and let natural tab behavior continue
+        if (isOpen) {
+          setIsOpen(false);
+        }
+        break;
+    }
+  };
+
   return (
     <div ref={wrapperRef} className="relative">
-      <div
+      <button
         ref={triggerRef}
+        type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
+        onKeyDown={handleKeyDown}
+        disabled={disabled}
+        tabIndex={disabled ? -1 : tabIndex}
         className={`
           w-full px-4 py-3 border rounded-xl text-sm flex items-center justify-between
-          transition-all duration-200
+          transition-all duration-200 text-left
           ${disabled
             ? 'border-gray-200 bg-gray-50 cursor-default text-gray-500'
             : 'border-gray-300 bg-white cursor-pointer hover:border-blue-300 hover:shadow-sm'
@@ -243,7 +291,7 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
         <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-      </div>
+      </button>
       {datePickerContent}
     </div>
   );

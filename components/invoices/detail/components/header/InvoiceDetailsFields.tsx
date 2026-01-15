@@ -5,9 +5,9 @@
  *
  * Layout:
  * - Row 0: Pre-populate options (Order/Invoice search)
- * - Row 1: Editable fields (Invoice #, Due Date, Entry Date, Paid Date, Check #, Published)
- * - Row 2: Order-populated fields (read-only when connected) - Factory, Sold To, Bill To, End User, Invoice Date
- * - Row 3: Order-populated fields cont. - PO#, Job, Payment Terms, Freight Terms, Shipping Terms, Reps
+ * - Row 1: Editable fields (Invoice #, Invoice Date, Due Date, Published)
+ * - Row 2: Order-populated fields (read-only when connected) - Factory, Sold To, Bill To, End User, PO#
+ * - Row 3: Order-populated fields cont. - Job, Payment Terms, Freight Terms, Shipping Terms, Reps
  */
 
 'use client';
@@ -290,24 +290,11 @@ export function InvoiceDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Due Date<span className="text-red-500">*</span>
+                Invoice Date<span className="text-red-500">*</span>
               </label>
               <StyledDatePicker
-                selected={parseDateString(invoice.dueDate)}
-                onChange={(date) => !isReadOnly && handleFieldUpdate('dueDate', formatDateToString(date))}
-                placeholder="Select date..."
-                className={`!py-2 !px-3 !rounded-md !text-sm ${overdue ? '!text-red-600' : ''} ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
-                disabled={isReadOnly}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Entry Date
-              </label>
-              <StyledDatePicker
-                selected={parseDateString(invoice.entryDate)}
-                onChange={(date) => !isReadOnly && handleFieldUpdate('entryDate', formatDateToString(date))}
+                selected={parseDateString(invoice.invoiceDate)}
+                onChange={(date) => !isReadOnly && handleFieldUpdate('invoiceDate', formatDateToString(date))}
                 placeholder="Select date..."
                 className={`!py-2 !px-3 !rounded-md !text-sm ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
                 disabled={isReadOnly}
@@ -316,27 +303,13 @@ export function InvoiceDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Paid Date
+                Due Date<span className="text-red-500">*</span>
               </label>
               <StyledDatePicker
-                selected={parseDateString(invoice.paidDate)}
-                onChange={(date) => !isReadOnly && handleFieldUpdate('paidDate', formatDateToString(date))}
+                selected={parseDateString(invoice.dueDate)}
+                onChange={(date) => !isReadOnly && handleFieldUpdate('dueDate', formatDateToString(date))}
                 placeholder="Select date..."
-                className={`!py-2 !px-3 !rounded-md !text-sm ${invoice.paidDate ? '!text-green-600' : ''} ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
-                disabled={isReadOnly}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Check #
-              </label>
-              <input
-                type="text"
-                value={(invoice as any).checkNumber || ''}
-                onChange={(e) => !isReadOnly && handleFieldUpdate('checkNumber' as any, e.target.value)}
-                placeholder="Check number"
-                className={isReadOnly ? readOnlyInputClass : editableInputClass}
+                className={`!py-2 !px-3 !rounded-md !text-sm ${overdue ? '!text-red-600' : ''} ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
                 disabled={isReadOnly}
               />
             </div>
@@ -367,7 +340,7 @@ export function InvoiceDetailsFields({
             </div>
           )}
 
-          {/* Row 2: Order-Populated Fields - Factory, Customers, Invoice Date */}
+          {/* Row 2: Order-Populated Fields - Factory, Customers */}
           <div className="grid grid-cols-6 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
@@ -423,7 +396,7 @@ export function InvoiceDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Bill To Customer<span className="text-red-500">*</span>
+                Bill To Customer
               </label>
               <SearchableDropdownV2
                 value={(invoice as any).billToCustomerId || ''}
@@ -483,23 +456,6 @@ export function InvoiceDetailsFields({
                   className={(isConnectedToOrder || isReadOnly) ? 'opacity-60' : ''}
                 />
               )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Invoice Date<span className="text-red-500">*</span>
-              </label>
-              <StyledDatePicker
-                selected={parseDateString(invoice.invoiceDate)}
-                onChange={(date) => {
-                  if (!isConnectedToOrder && !isReadOnly) {
-                    handleFieldUpdate('invoiceDate', formatDateToString(date));
-                  }
-                }}
-                placeholder="Select date..."
-                className={`!py-2 !px-3 !rounded-md !text-sm ${(isConnectedToOrder || isReadOnly) ? '!bg-gray-100 !text-gray-500' : ''}`}
-                disabled={isConnectedToOrder || isReadOnly}
-              />
             </div>
 
             <div>

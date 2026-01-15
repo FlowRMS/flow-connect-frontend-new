@@ -61,8 +61,9 @@ const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType =
     case 'quotes':
       return 'QUOTES';
     case 'orders':
-    case 'order_acknowledgements':
       return 'ORDERS';
+    case 'order_acknowledgements':
+      return 'ORDER_ACKNOWLEDGEMENTS';
     case 'invoices':
       return 'INVOICES';
     case 'checks':

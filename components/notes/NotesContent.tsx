@@ -7,6 +7,11 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '../ui/HeaderIconAnimations';
+import { iconMap } from '../Sidebar';
+import type { RefObject } from 'react';
 import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import { useNotesState } from './hooks/useNotesState';
@@ -107,15 +112,60 @@ export default function NotesContent() {
   const noteFilterOptions = getNoteFilterOptions(uniqueTitles, uniqueTags, uniqueCreators);
   const noteSortOptions = getNoteSortOptions();
 
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  // Register header target on mount
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'notes';
+
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
       {/* Header */}
-      <div className="mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Notes</h1>
+      <div className="pb-0 overflow-visible">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4 overflow-visible">
+          <div className="flex items-start gap-4 overflow-visible">
+            {/* Morphing Icon Target - Paper Flutter Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="paper-flutter"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['notes']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Notes
+              </motion.h1>
+              <motion.p
+                className="text-xs sm:text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                {isLoading ? 'Loading...' : `${filteredNotes.length} notes • Capture insights and ideas`}
+              </motion.p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               <button
@@ -192,11 +242,11 @@ export default function NotesContent() {
               <span className="hidden sm:inline">New Note</span>
               <span className="sm:hidden">New</span>
             </button>
-          </div>
+          </motion.div>
         </div>
 
         {/* Search Bar */}
-        <div className="relative">
+        <div className="relative mb-4 sm:mb-6">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8"/>
             <path d="m21 21-4.35-4.35" strokeLinecap="round"/>

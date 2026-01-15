@@ -681,3 +681,41 @@ export const quoteToasts = {
       description: error || 'Please try again or contact support',
     }),
 };
+
+// Invoice Toasts
+export const invoiceToasts = {
+  createSuccess: (invoiceNumber: string) =>
+    showSuccessToast('Invoice Created', {
+      description: `${invoiceNumber} has been created successfully`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Invoice', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  updateSuccess: (invoiceNumber: string) =>
+    showSuccessToast('Invoice Saved', {
+      description: `${invoiceNumber} has been updated successfully`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Save Invoice', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  deleteSuccess: (invoiceNumber: string) =>
+    showSuccessToast('Invoice Deleted', {
+      description: `${invoiceNumber} has been removed`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Invoice', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  statusChanged: (invoiceNumber: string, newStatus: string) =>
+    showSuccessToast('Status Updated', {
+      description: `${invoiceNumber} status changed to ${newStatus}`,
+    }),
+};

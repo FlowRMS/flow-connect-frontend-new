@@ -344,7 +344,17 @@ export function PdfPreviewPane({ file, fileUrl, fileName, pages, onMarkdownTextS
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-primary" />
-                    {displayName} - Fullscreen View
+                    <span className="flex-1">{displayName} - Fullscreen View</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDownload}
+                      title="Download PDF"
+                      className="shrink-0 h-7 w-7 p-0 mr-6"
+                      type="button"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
                   </DialogTitle>
                 </DialogHeader>
                 <div className="flex-1 mt-4 overflow-hidden h-[calc(95vh-100px)]">

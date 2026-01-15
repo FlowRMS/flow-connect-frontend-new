@@ -9,7 +9,12 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 import { universalSearch, type UniversalSearchResult } from './lib/crm-graphql';
+
+// Custom easing curves - iOS/macOS native feel (matching NavigationMorphContext)
+const morphEase = [0.22, 1, 0.36, 1] as const;
+const snappyEase = [0.34, 1.56, 0.64, 1] as const;
 
 // Result type configuration with colors and icons
 const RESULT_TYPE_CONFIG: Record<string, {
@@ -194,13 +199,69 @@ function formatResultType(resultType: string): string {
     .replace(/\b\w/g, l => l.toUpperCase());
 }
 
+// Recent searches localStorage helpers
+const RECENT_SEARCHES_KEY = 'universal-search-recent';
+const MAX_RECENT_SEARCHES = 5;
+
+interface RecentSearch {
+  id: string;
+  resultType: string;
+  title: string;
+  alias?: string;
+  extraInfo?: string;
+  timestamp: number;
+}
+
+function getRecentSearches(): RecentSearch[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+    if (!stored) return [];
+    const searches = JSON.parse(stored) as RecentSearch[];
+    // Sort by most recent first
+    return searches.sort((a, b) => b.timestamp - a.timestamp);
+  } catch {
+    return [];
+  }
+}
+
+function addRecentSearch(result: UniversalSearchResult): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const searches = getRecentSearches();
+    // Remove if already exists (to move it to top)
+    const filtered = searches.filter(
+      s => !(s.id === result.id && s.resultType === result.resultType)
+    );
+    // Add new search at the beginning
+    const newSearch: RecentSearch = {
+      id: result.id,
+      resultType: result.resultType,
+      title: result.title,
+      alias: result.alias ?? undefined,
+      extraInfo: result.extraInfo ?? undefined,
+      timestamp: Date.now(),
+    };
+    const updated = [newSearch, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
 export default function UniversalSearch() {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isMounted, setIsMounted] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load recent searches on mount
+  useEffect(() => {
+    setRecentSearches(getRecentSearches());
+  }, []);
 
   // Fetch results - trigger on every keystroke, also fetch on empty string (initial load)
   const { data: results = [], isLoading, isFetching } = useQuery({
@@ -281,13 +342,17 @@ export default function UniversalSearch() {
     updatePosition();
   };
 
-  const handleResultClick = () => {
+  const handleResultClick = (result: UniversalSearchResult | RecentSearch) => {
+    // Save to recent searches
+    addRecentSearch(result as UniversalSearchResult);
+    // Update local state immediately
+    setRecentSearches(getRecentSearches());
     setIsOpen(false);
     setSearchTerm('');
   };
 
   const dropdownContent = (
-    <div
+    <motion.div
       id="universal-search-dropdown"
       className="fixed bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-[9999]"
       style={{
@@ -296,14 +361,32 @@ export default function UniversalSearch() {
         width: dropdownPosition.width,
         maxHeight: 'min(480px, calc(100vh - 200px))',
       }}
+      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+      transition={{
+        duration: 0.2,
+        ease: morphEase,
+      }}
     >
       {/* Header */}
-      <div className="px-4 py-3 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600">
+      <motion.div
+        className="px-4 py-3 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.15, delay: 0.05, ease: morphEase }}
+      >
         <div className="flex items-center gap-2 text-white">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
-          </svg>
+          <motion.div
+            initial={{ scale: 0.8, rotate: -10 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ duration: 0.3, ease: snappyEase, delay: 0.1 }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35"/>
+            </svg>
+          </motion.div>
           <span className="font-semibold text-sm">Universal Search</span>
           {(isLoading || isFetching) && (
             <svg className="animate-spin h-4 w-4 ml-auto" fill="none" viewBox="0 0 24 24">
@@ -313,99 +396,250 @@ export default function UniversalSearch() {
           )}
         </div>
         <p className="text-white/70 text-xs mt-1">Search across jobs, contacts, companies, and more</p>
-      </div>
+      </motion.div>
 
       {/* Results */}
       <div className="overflow-y-auto" style={{ maxHeight: 'calc(480px - 80px)' }}>
-        {results.length === 0 && !isLoading && (
-          <div className="px-4 py-8 text-center">
-            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-400">
-                <circle cx="11" cy="11" r="8"/>
-                <path d="m21 21-4.35-4.35"/>
-              </svg>
-            </div>
-            <p className="text-gray-500 text-sm font-medium">
-              {searchTerm ? 'No results found' : 'Start typing to search'}
-            </p>
-            <p className="text-gray-400 text-xs mt-1">
-              {searchTerm ? 'Try a different search term' : 'Search across all your CRM data'}
-            </p>
-          </div>
-        )}
-
-        {results.length > 0 && (
-          <div className="py-2">
-            {results.map((result, index) => {
-              const config = getResultConfig(result.resultType);
-              return (
-                <Link
-                  key={`${result.resultType}-${result.id}-${index}`}
-                  href={config.href(result.id)}
-                  onClick={handleResultClick}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group"
-                >
-                  {/* Icon */}
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-lg ${config.bgColor} ${config.color} flex items-center justify-center border ${config.borderColor}`}>
-                    {config.icon}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-                        {result.title}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
-                        {formatResultType(result.resultType)}
-                      </span>
-                      {result.alias && (
-                        <span className="text-xs text-gray-400 truncate">
-                          {result.alias}
-                        </span>
-                      )}
-                      {result.extraInfo && (
-                        <span className="text-xs text-gray-500 truncate">
-                          • {result.extraInfo}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Arrow */}
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className="flex-shrink-0 text-gray-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all"
+        {/* Recent searches section - show at top when no search term */}
+        <AnimatePresence>
+          {!searchTerm && recentSearches.length > 0 && (
+            <motion.div
+              key="recent-searches"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.15, ease: morphEase }}
+            >
+              {/* Recent searches header */}
+              <div className="px-4 py-2 flex items-center gap-2 border-b border-gray-100">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Recent</span>
+              </div>
+              {recentSearches.map((recent, index) => {
+                const config = getResultConfig(recent.resultType);
+                return (
+                  <motion.div
+                    key={`recent-${recent.resultType}-${recent.id}-${index}`}
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{
+                      duration: 0.25,
+                      ease: morphEase,
+                      delay: index * 0.03,
+                    }}
                   >
-                    <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+                    <Link
+                      href={config.href(recent.id)}
+                      onClick={() => handleResultClick(recent)}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group"
+                    >
+                      {/* Icon */}
+                      <motion.div
+                        className={`flex-shrink-0 w-10 h-10 rounded-lg ${config.bgColor} ${config.color} flex items-center justify-center border ${config.borderColor}`}
+                        whileHover={{ scale: 1.05 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                      >
+                        {config.icon}
+                      </motion.div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                            {recent.title}
+                          </span>
+                          {/* Recent badge */}
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                            Recent
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
+                            {formatResultType(recent.resultType)}
+                          </span>
+                          {recent.alias && (
+                            <span className="text-xs text-gray-400 truncate">
+                              {recent.alias}
+                            </span>
+                          )}
+                          {recent.extraInfo && (
+                            <span className="text-xs text-gray-500 truncate">
+                              • {recent.extraInfo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Arrow */}
+                      <motion.svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="flex-shrink-0 text-gray-300 group-hover:text-blue-500"
+                        initial={{ x: 0 }}
+                        whileHover={{ x: 4 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                      >
+                        <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                      </motion.svg>
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main results section */}
+        <AnimatePresence mode="wait">
+          {results.length === 0 && !isLoading && (
+            <motion.div
+              key="empty-state"
+              className="px-4 py-8 text-center"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2, ease: morphEase }}
+            >
+              <motion.div
+                className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center"
+                initial={{ scale: 0.8 }}
+                animate={{ scale: 1 }}
+                transition={{ duration: 0.3, ease: snappyEase }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-400">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.35-4.35"/>
+                </svg>
+              </motion.div>
+              <p className="text-gray-500 text-sm font-medium">
+                {searchTerm ? 'No results found' : 'Start typing to search'}
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                {searchTerm ? 'Try a different search term' : 'Search across all your CRM data'}
+              </p>
+            </motion.div>
+          )}
+
+          {results.length > 0 && (
+            <motion.div
+              key="results"
+              className="py-2"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15, ease: morphEase }}
+            >
+              {results.map((result, index) => {
+                const config = getResultConfig(result.resultType);
+                return (
+                  <motion.div
+                    key={`${result.resultType}-${result.id}-${index}`}
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{
+                      duration: 0.25,
+                      ease: morphEase,
+                      delay: index * 0.03,
+                    }}
+                  >
+                    <Link
+                      href={config.href(result.id)}
+                      onClick={() => handleResultClick(result)}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group"
+                    >
+                      {/* Icon */}
+                      <motion.div
+                        className={`flex-shrink-0 w-10 h-10 rounded-lg ${config.bgColor} ${config.color} flex items-center justify-center border ${config.borderColor}`}
+                        whileHover={{ scale: 1.05 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                      >
+                        {config.icon}
+                      </motion.div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                            {result.title}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
+                            {formatResultType(result.resultType)}
+                          </span>
+                          {result.alias && (
+                            <span className="text-xs text-gray-400 truncate">
+                              {result.alias}
+                            </span>
+                          )}
+                          {result.extraInfo && (
+                            <span className="text-xs text-gray-500 truncate">
+                              • {result.extraInfo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Arrow */}
+                      <motion.svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="flex-shrink-0 text-gray-300 group-hover:text-blue-500"
+                        initial={{ x: 0 }}
+                        whileHover={{ x: 4 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                      >
+                        <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                      </motion.svg>
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+      <motion.div
+        className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex items-center justify-between"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2, delay: 0.1, ease: morphEase }}
+      >
         <div className="flex items-center gap-3 text-xs text-gray-400">
           <span className="flex items-center gap-1">
             <kbd className="px-1.5 py-0.5 bg-white rounded border border-gray-200 font-mono text-[10px]">ESC</kbd>
             <span>to close</span>
           </span>
         </div>
-        <span className="text-xs text-gray-400">
-          {results.length} result{results.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-    </div>
+        <motion.span
+          className="text-xs text-gray-400"
+          key={`${results.length}-${recentSearches.length}-${searchTerm}`}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.15, ease: morphEase }}
+        >
+          {results.length > 0
+            ? `${results.length} result${results.length !== 1 ? 's' : ''}`
+            : !searchTerm && recentSearches.length > 0
+              ? `${recentSearches.length} recent`
+              : '0 results'
+          }
+        </motion.span>
+      </motion.div>
+    </motion.div>
   );
 
   return (
@@ -447,7 +681,12 @@ export default function UniversalSearch() {
       </div>
 
       {/* Dropdown Portal */}
-      {isMounted && isOpen && createPortal(dropdownContent, document.body)}
+      {isMounted && createPortal(
+        <AnimatePresence>
+          {isOpen && dropdownContent}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

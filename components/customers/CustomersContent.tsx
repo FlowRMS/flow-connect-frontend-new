@@ -5,8 +5,13 @@
 
 'use client';
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import { useCustomersState } from './hooks/useCustomersState';
@@ -19,6 +24,22 @@ import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
 
 export default function CustomersContent() {
   const router = useRouter();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'customers';
+
   const {
     viewMode,
     setViewMode,
@@ -90,11 +111,40 @@ export default function CustomersContent() {
       {/* Header */}
       <div className="mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Customers</h1>
-            <p className="text-sm text-[var(--muted-foreground)]">Manage your customer accounts</p>
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Crown Shine Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="crown-shine"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['customers']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Customers
+              </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                Manage your customer accounts
+              </motion.p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               <button
@@ -165,7 +215,7 @@ export default function CustomersContent() {
               <span className="hidden sm:inline">New Customer</span>
               <span className="sm:hidden">New</span>
             </button>
-          </div>
+          </motion.div>
         </div>
 
         {/* Search Bar */}
