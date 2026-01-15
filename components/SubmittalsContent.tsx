@@ -1,64 +1,355 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
-  mockSubmittals,
-  mockSpecSheets,
+  useSubmittalSearch,
+  useCreateSubmittal,
+  useUpdateSubmittal,
+  useUpdateSubmittalItem,
+  useGenerateSubmittalPdf,
+  type SubmittalResponse,
+  type SubmittalStatusGQL,
+  type GenerateSubmittalPdfInput,
+  type UpdateSubmittalItemInput,
+} from './submittals/api/useSubmittalsApi';
+import {
   submittalStatusLabels,
   submittalStatusColors,
-  matchStatusLabels,
-  matchStatusColors,
-  getManufacturersWithSpecSheets,
 } from '../lib/data/submittals-mock';
-import type { Submittal, SubmittalStatus } from '../lib/types/submittals';
-import CreateSubmittalModal from './submittals/CreateSubmittalModal';
-import SubmittalDetailPanel from './submittals/SubmittalDetailPanel';
-import PrintSubmittalDialog from './submittals/PrintSubmittalDialog';
-import type { PrintSettings } from './submittals/PrintSubmittalDialog';
+import type { Submittal, SubmittalStatus, SpecSheetMatchStatus } from '../lib/types/submittals';
+import { defaultSubmittalConfig } from '../lib/types/submittals';
+
+// Dynamically import heavy components to reduce initial bundle
+const SubmittalDetailPanel = dynamic(
+  () => import('./submittals/SubmittalDetailPanel'),
+  { ssr: false, loading: () => <div className="animate-pulse bg-[var(--muted)] h-full" /> }
+);
+
+const CreateSubmittalModal = dynamic(
+  () => import('./submittals/CreateSubmittalModal'),
+  { ssr: false, loading: () => <div className="animate-pulse bg-[var(--muted)] h-64 rounded-lg" /> }
+);
+
+const PrintSubmittalDialog = dynamic(
+  () => import('./submittals/PrintSubmittalDialog'),
+  { ssr: false, loading: () => <div className="animate-pulse bg-[var(--muted)] h-64 rounded-lg" /> }
+);
+
+// Simplified type for API data display
+interface SubmittalDisplay {
+  id: string;
+  jobName: string;
+  submittalNumber: string;
+  status: SubmittalStatus;
+  submittalDate: string;
+  updatedAt: string;
+  createdBy: string;
+  currentRevision: number;
+  customers: Array<{ companyName?: string; contactName?: string }>;
+  items: Array<{
+    id: string;
+    fixtureType: string;
+    catalogNumber: string;
+    matchStatus: 'matched_with_highlight' | 'matched_no_highlight' | 'no_match';
+  }>;
+}
+
+// Map API status to frontend status
+const statusApiToFrontend: Record<SubmittalStatusGQL, SubmittalStatus> = {
+  'DRAFT': 'draft',
+  'SUBMITTED': 'for_approval',
+  'APPROVED': 'approved',
+  'APPROVED_AS_NOTED': 'approved_as_noted',
+  'REVISE_AND_RESUBMIT': 'resubmit_for_approval',
+  'REJECTED': 'rejected',
+};
+
+const statusFrontendToApi: Record<string, SubmittalStatusGQL | undefined> = {
+  'draft': 'DRAFT',
+  'for_approval': 'SUBMITTED',
+  'approved': 'APPROVED',
+  'approved_as_noted': 'APPROVED_AS_NOTED',
+  'resubmit_for_approval': 'REVISE_AND_RESUBMIT',
+  'rejected': 'REJECTED',
+  'all': undefined,
+};
+
+// Transform API response to display type
+function transformSubmittalResponse(response: SubmittalResponse): SubmittalDisplay {
+  return {
+    id: response.id,
+    jobName: response.description || `Submittal ${response.submittalNumber}`,
+    submittalNumber: response.submittalNumber,
+    status: statusApiToFrontend[response.status] || 'draft',
+    submittalDate: response.createdAt,
+    updatedAt: response.createdAt,
+    createdBy: response.createdBy?.fullName || 'Unknown',
+    currentRevision: response.revisions?.length ? response.revisions.length - 1 : 0,
+    customers: response.stakeholders
+      ?.filter(s => s.role === 'CUSTOMER')
+      .map(s => ({
+        companyName: s.companyName || 'Unknown',
+        contactName: s.contactName || '',
+      })) || [],
+    items: response.items?.map(item => ({
+      id: item.id,
+      fixtureType: item.partNumber || 'Unknown',
+      catalogNumber: item.partNumber || '',
+      matchStatus: item.matchStatus === 'EXACT_MATCH' ? 'matched_with_highlight' as const :
+                   item.matchStatus === 'PARTIAL_MATCH' ? 'matched_no_highlight' as const : 'no_match' as const,
+    })) || [],
+  };
+}
+
+// Transform API response to full Submittal type for detail panel
+function transformToFullSubmittal(response: SubmittalResponse): Submittal {
+  const mapMatchStatus = (status: string): SpecSheetMatchStatus => {
+    if (status === 'EXACT_MATCH') return 'matched_with_highlight';
+    if (status === 'PARTIAL_MATCH') return 'matched_no_highlight';
+    return 'no_match';
+  };
+
+  return {
+    id: response.id,
+    jobId: response.jobId || undefined,
+    jobName: response.description || `Submittal ${response.submittalNumber}`,
+    jobLocation: undefined,
+    quoteIds: response.quoteId ? [response.quoteId] : [],
+    customers: response.stakeholders
+      ?.filter(s => s.role === 'CUSTOMER')
+      .map(s => ({
+        contactId: s.id,
+        contactName: s.contactName || '',
+        companyName: s.companyName || undefined,
+        email: s.contactEmail || undefined,
+        role: 'customer' as const,
+      })) || [],
+    engineers: response.stakeholders
+      ?.filter(s => s.role === 'ENGINEER')
+      .map(s => ({
+        contactId: s.id,
+        contactName: s.contactName || '',
+        companyName: s.companyName || undefined,
+        email: s.contactEmail || undefined,
+        role: 'engineer' as const,
+      })) || [],
+    architects: response.stakeholders
+      ?.filter(s => s.role === 'ARCHITECT')
+      .map(s => ({
+        contactId: s.id,
+        contactName: s.contactName || '',
+        companyName: s.companyName || undefined,
+        email: s.contactEmail || undefined,
+        role: 'architect' as const,
+      })) || [],
+    bidDate: undefined,
+    submittalDate: response.createdAt,
+    createdAt: response.createdAt,
+    updatedAt: response.createdAt,
+    status: statusApiToFrontend[response.status] || 'draft',
+    currentRevision: response.revisions?.length ? response.revisions.length - 1 : 0,
+    items: response.items?.map((item, index) => ({
+      id: item.id,
+      submittalId: response.id,
+      quoteLineItemId: item.quoteDetailId || undefined,
+      quoteId: response.quoteId || undefined,
+      fixtureType: item.partNumber || `Item ${index + 1}`,
+      manufacturer: '', // Not provided in API response
+      catalogNumber: item.partNumber || '',
+      description: item.description || '',
+      quantity: item.quantity || undefined,
+      specSheetId: item.specSheetId || undefined,
+      highlightDefinitionId: item.highlightVersionId || undefined,
+      matchStatus: mapMatchStatus(item.matchStatus),
+      itemApprovalStatus: item.approvalStatus === 'APPROVED' ? 'approved' :
+                          item.approvalStatus === 'APPROVED_AS_NOTED' ? 'approved_as_noted' :
+                          item.approvalStatus === 'REJECTED' ? 'rejected' :
+                          item.approvalStatus === 'REVISE' ? 'revise_and_resubmit' : 'pending',
+      sortOrder: item.itemNumber || index,
+    })) || [],
+    revisions: response.revisions?.map(rev => ({
+      revisionNumber: rev.revisionNumber,
+      generatedAt: rev.createdAt,
+      generatedBy: rev.createdBy?.fullName || 'Unknown',
+      generatedPdfUrl: rev.pdfFileUrl || undefined,
+      generatedPdfName: rev.pdfFileName || undefined,
+      outputOptions: {
+        includeCoverPage: true,
+        includeTransmittalPage: true,
+        includeFixtureSummary: true,
+        showQuantities: true,
+        showDescriptions: true,
+        showLeadTimes: false,
+        useCustomerLogo: false,
+        attachments: [],
+        transmittedFor: [],
+        addressedTo: [],
+      },
+      emailsSent: [],
+      returnedPdfs: [],
+    })) || [],
+    config: defaultSubmittalConfig,
+    createdBy: response.createdBy?.fullName || 'Unknown',
+    updatedBy: response.createdBy?.fullName || 'Unknown',
+    tags: [],
+  };
+}
 
 export default function SubmittalsContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<SubmittalStatus | 'all'>('all');
-  const [selectedSubmittal, setSelectedSubmittal] = useState<Submittal | null>(null);
+  const [selectedSubmittalId, setSelectedSubmittalId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [printSubmittal, setPrintSubmittal] = useState<Submittal | null>(null);
-  // Resubmit mode state
-  const [resubmitMode, setResubmitMode] = useState(false);
-  const [resubmitItemIds, setResubmitItemIds] = useState<string[]>([]);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+
+  // API hooks
+  const apiStatus = statusFrontendToApi[statusFilter];
+  const { data: submittalsData, isLoading, error, refetch } = useSubmittalSearch({
+    searchTerm: searchQuery || undefined,
+    status: apiStatus,
+    limit: 100,
+  });
+  const createSubmittalMutation = useCreateSubmittal();
+  const updateSubmittalMutation = useUpdateSubmittal();
+  const updateSubmittalItemMutation = useUpdateSubmittalItem();
+  const generatePdfMutation = useGenerateSubmittalPdf();
+
+  // Find raw API response for selected submittal (to pass to detail panel)
+  const selectedSubmittalRaw = useMemo(() => {
+    if (!selectedSubmittalId || !submittalsData) return null;
+    return submittalsData.find(s => s.id === selectedSubmittalId) || null;
+  }, [selectedSubmittalId, submittalsData]);
+
+  // Transform to full Submittal type for detail panel
+  const selectedSubmittalFull = useMemo(() => {
+    if (!selectedSubmittalRaw) return null;
+    return transformToFullSubmittal(selectedSubmittalRaw);
+  }, [selectedSubmittalRaw]);
+
+  // Handle submittal update from detail panel
+  const handleSubmittalUpdate = useCallback(async (updates: Partial<Submittal>) => {
+    if (!selectedSubmittalId) return;
+
+    // Handle item updates (spec sheet attachments, etc.)
+    if (updates.items && selectedSubmittalFull) {
+      // Find items that have changed
+      for (const updatedItem of updates.items) {
+        const originalItem = selectedSubmittalFull.items.find(i => i.id === updatedItem.id);
+        if (!originalItem) continue;
+
+        // Check if spec sheet or highlight version changed
+        const hasChanges =
+          originalItem.specSheetId !== updatedItem.specSheetId ||
+          originalItem.highlightDefinitionId !== updatedItem.highlightDefinitionId;
+
+        if (hasChanges) {
+          try {
+            const itemUpdate: UpdateSubmittalItemInput = {};
+            if (originalItem.specSheetId !== updatedItem.specSheetId) {
+              itemUpdate.specSheetId = updatedItem.specSheetId || undefined;
+            }
+            if (originalItem.highlightDefinitionId !== updatedItem.highlightDefinitionId) {
+              itemUpdate.highlightVersionId = updatedItem.highlightDefinitionId || undefined;
+            }
+
+            await updateSubmittalItemMutation.mutateAsync({
+              id: updatedItem.id,
+              input: itemUpdate,
+              submittalId: selectedSubmittalId,
+            });
+            console.log(`Updated item ${updatedItem.id} with spec sheet/highlight changes`);
+          } catch (err) {
+            console.error('Error updating submittal item:', err);
+          }
+        }
+      }
+    }
+
+    // Map frontend status to API status if needed
+    const apiUpdates: { status?: SubmittalStatusGQL; description?: string } = {};
+    if (updates.status) {
+      apiUpdates.status = statusFrontendToApi[updates.status] as SubmittalStatusGQL;
+    }
+    if (updates.jobName) {
+      apiUpdates.description = updates.jobName;
+    }
+
+    if (Object.keys(apiUpdates).length > 0) {
+      try {
+        await updateSubmittalMutation.mutateAsync({
+          id: selectedSubmittalId,
+          input: apiUpdates,
+        });
+      } catch (err) {
+        console.error('Error updating submittal:', err);
+      }
+    }
+  }, [selectedSubmittalId, selectedSubmittalFull, updateSubmittalMutation, updateSubmittalItemMutation]);
+
+  // Handle create submittal from modal
+  const handleCreateSubmittal = useCallback(async (newSubmittal: Partial<Submittal>) => {
+    try {
+      await createSubmittalMutation.mutateAsync({
+        submittalNumber: `SUB-${Date.now()}`,
+        description: newSubmittal.jobName || 'New Submittal',
+        status: 'DRAFT',
+        quoteId: newSubmittal.quoteIds?.[0],
+      });
+      setShowCreateModal(false);
+      refetch();
+    } catch (err) {
+      console.error('Error creating submittal:', err);
+    }
+  }, [createSubmittalMutation, refetch]);
+
+  // Transform API data to display format
+  const submittals = useMemo(() => {
+    if (!submittalsData) return [];
+    return submittalsData.map(transformSubmittalResponse);
+  }, [submittalsData]);
 
   // Filter submittals
   const filteredSubmittals = useMemo(() => {
-    let result = [...mockSubmittals];
-
-    if (statusFilter !== 'all') {
-      result = result.filter(s => s.status === statusFilter);
-    }
+    let result = [...submittals];
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(s =>
         s.jobName.toLowerCase().includes(query) ||
-        s.items.some(i =>
-          i.catalogNumber.toLowerCase().includes(query) ||
-          i.manufacturer.toLowerCase().includes(query)
-        )
+        s.submittalNumber?.toLowerCase().includes(query) ||
+        s.items.some(i => i.catalogNumber.toLowerCase().includes(query))
       );
     }
 
     return result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [searchQuery, statusFilter]);
+  }, [submittals, searchQuery]);
 
   // Stats
   const stats = useMemo(() => {
-    const total = mockSubmittals.length;
-    const draft = mockSubmittals.filter(s => s.status === 'draft').length;
-    const forApproval = mockSubmittals.filter(s => s.status === 'for_approval' || s.status === 'resubmit_for_approval').length;
-    const approved = mockSubmittals.filter(s => s.status === 'approved' || s.status === 'approved_as_noted' || s.status === 'approved_as_submitted').length;
+    const total = submittals.length;
+    const draft = submittals.filter(s => s.status === 'draft').length;
+    const forApproval = submittals.filter(s => s.status === 'for_approval' || s.status === 'resubmit_for_approval').length;
+    const approved = submittals.filter(s => s.status === 'approved' || s.status === 'approved_as_noted' || s.status === 'approved_as_submitted').length;
     return { total, draft, forApproval, approved };
-  }, []);
+  }, [submittals]);
 
-  const manufacturers = getManufacturersWithSpecSheets();
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center p-6">
+        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+        </div>
+        <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">Error loading submittals</h3>
+        <p className="text-sm text-[var(--muted-foreground)] mb-4">{error.message}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -72,13 +363,16 @@ export default function SubmittalsContent() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 px-3 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors">
+            <Link
+              href="/spec-sheets"
+              className="flex items-center gap-2 px-3 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+            >
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M14 2v6h6" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               Spec Sheet Library
-            </button>
+            </Link>
             <button
               onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-2 px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
@@ -119,7 +413,7 @@ export default function SubmittalsContent() {
           </button>
         </div>
 
-        {/* Search & Filters */}
+        {/* Search & View Toggle */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-md">
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]">
@@ -128,16 +422,16 @@ export default function SubmittalsContent() {
             </svg>
             <input
               type="text"
-              placeholder="Search submittals, products, or manufacturers..."
+              placeholder="Search submittals..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent bg-[var(--background)]"
+              className="w-full pl-10 pr-4 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
             />
           </div>
           <div className="flex items-center border border-[var(--border)] rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode('list')}
-              className={`p-2 ${viewMode === 'list' ? 'bg-[var(--muted)]' : 'hover:bg-[var(--muted)]/50'} transition-colors`}
+              className={`p-2 ${viewMode === 'list' ? 'bg-[var(--muted)]' : ''} transition-colors`}
             >
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M4 6h16M4 10h16M4 14h16M4 18h16" strokeLinecap="round"/>
@@ -145,7 +439,7 @@ export default function SubmittalsContent() {
             </button>
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-2 ${viewMode === 'grid' ? 'bg-[var(--muted)]' : 'hover:bg-[var(--muted)]/50'} transition-colors`}
+              className={`p-2 ${viewMode === 'grid' ? 'bg-[var(--muted)]' : ''} transition-colors`}
             >
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="3" width="6" height="6" rx="1"/>
@@ -160,7 +454,12 @@ export default function SubmittalsContent() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
-        {filteredSubmittals.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center h-full">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]"></div>
+            <p className="mt-4 text-sm text-[var(--muted-foreground)]">Loading submittals...</p>
+          </div>
+        ) : filteredSubmittals.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="w-16 h-16 rounded-full bg-[var(--muted)] flex items-center justify-center mb-4">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
@@ -175,7 +474,10 @@ export default function SubmittalsContent() {
                 : 'Create your first submittal package to get started'}
             </p>
             {!searchQuery && statusFilter === 'all' && (
-              <button className="flex items-center gap-2 px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors">
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              >
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
                 </svg>
@@ -189,15 +491,14 @@ export default function SubmittalsContent() {
               <div
                 key={submittal.id}
                 className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => setSelectedSubmittal(submittal)}
+                onClick={() => setSelectedSubmittalId(submittal.id)}
               >
-                {/* Submittal Header */}
                 <div className="px-5 py-4 flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="text-base font-semibold text-[var(--foreground)]">{submittal.jobName}</h3>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${submittalStatusColors[submittal.status].bg} ${submittalStatusColors[submittal.status].text}`}>
-                        {submittalStatusLabels[submittal.status]}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${submittalStatusColors[submittal.status]?.bg || 'bg-gray-100'} ${submittalStatusColors[submittal.status]?.text || 'text-gray-800'}`}>
+                        {submittalStatusLabels[submittal.status] || submittal.status}
                       </span>
                       {submittal.currentRevision > 0 && (
                         <span className="text-xs text-[var(--muted-foreground)] bg-[var(--muted)] px-2 py-0.5 rounded">
@@ -205,85 +506,38 @@ export default function SubmittalsContent() {
                         </span>
                       )}
                     </div>
-                    {submittal.jobLocation && (
-                      <p className="text-sm text-[var(--muted-foreground)] mb-2">{submittal.jobLocation}</p>
-                    )}
+                    <p className="text-sm text-[var(--muted-foreground)] mb-2">#{submittal.submittalNumber}</p>
                     <div className="flex items-center gap-4 text-xs text-[var(--muted-foreground)]">
-                      <span className="flex items-center gap-1">
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="3" y="4" width="14" height="14" rx="2"/>
-                          <path d="M3 8h14M7 2v4M13 2v4"/>
-                        </svg>
-                        {new Date(submittal.submittalDate).toLocaleDateString()}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                          <path d="M14 2v6h6"/>
-                        </svg>
-                        {submittal.items.length} items
-                      </span>
-                      {submittal.customers.length > 0 && (
-                        <span className="flex items-center gap-1">
-                          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="4" y="2" width="12" height="16" rx="2"/>
-                            <path d="M8 6h4M8 9h4M8 12h4"/>
-                          </svg>
-                          {submittal.customers[0].companyName}
+                      <span>{new Date(submittal.submittalDate).toLocaleDateString()}</span>
+                      <span>{submittal.items.length} items</span>
+                      {submittal.customers.length > 0 && submittal.customers[0].companyName && (
+                        <span>{submittal.customers[0].companyName}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {submittal.items.length > 0 && (
+                  <div className="px-5 pb-4">
+                    <div className="flex flex-wrap gap-2">
+                      {submittal.items.slice(0, 5).map((item) => (
+                        <div key={item.id} className="flex items-center gap-2 px-2 py-1 bg-[var(--muted)]/50 rounded text-xs">
+                          <span className="font-medium">{item.fixtureType}</span>
+                          <span className={`w-2 h-2 rounded-full ${
+                            item.matchStatus === 'matched_with_highlight' ? 'bg-green-500' :
+                            item.matchStatus === 'matched_no_highlight' ? 'bg-yellow-500' : 'bg-red-500'
+                          }`} />
+                        </div>
+                      ))}
+                      {submittal.items.length > 5 && (
+                        <span className="px-2 py-1 text-xs text-[var(--muted-foreground)]">
+                          +{submittal.items.length - 5} more
                         </span>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {submittal.revisions.length > 0 && submittal.revisions[submittal.currentRevision]?.generatedPdfUrl && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); }}
-                        className="p-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors"
-                        title="Download PDF"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M4 16v2a2 2 0 002 2h8a2 2 0 002-2v-2M10 4v10M6 10l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); }}
-                      className="p-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="10" cy="5" r="1.5"/>
-                        <circle cx="10" cy="10" r="1.5"/>
-                        <circle cx="10" cy="15" r="1.5"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+                )}
 
-                {/* Items Preview */}
-                <div className="px-5 pb-4">
-                  <div className="flex flex-wrap gap-2">
-                    {submittal.items.slice(0, 5).map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-2 px-2 py-1 bg-[var(--muted)]/50 rounded text-xs"
-                      >
-                        <span className="font-medium text-[var(--foreground)]">{item.fixtureType}</span>
-                        <span className="text-[var(--muted-foreground)]">{item.catalogNumber}</span>
-                        <span className={`w-2 h-2 rounded-full ${
-                          item.matchStatus === 'matched_with_highlight' ? 'bg-green-500' :
-                          item.matchStatus === 'matched_no_highlight' ? 'bg-yellow-500' : 'bg-red-500'
-                        }`} />
-                      </div>
-                    ))}
-                    {submittal.items.length > 5 && (
-                      <span className="px-2 py-1 text-xs text-[var(--muted-foreground)]">
-                        +{submittal.items.length - 5} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Footer Stats */}
                 <div className="px-5 py-3 bg-[var(--muted)]/30 border-t border-[var(--border)] flex items-center justify-between">
                   <div className="flex items-center gap-4 text-xs">
                     <span className="flex items-center gap-1 text-green-600">
@@ -307,137 +561,127 @@ export default function SubmittalsContent() {
             ))}
           </div>
         ) : (
-          /* Grid View */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredSubmittals.map((submittal) => (
               <div
                 key={submittal.id}
                 className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => setSelectedSubmittal(submittal)}
+                onClick={() => setSelectedSubmittalId(submittal.id)}
               >
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${submittalStatusColors[submittal.status].bg} ${submittalStatusColors[submittal.status].text}`}>
-                      {submittalStatusLabels[submittal.status]}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${submittalStatusColors[submittal.status]?.bg || 'bg-gray-100'} ${submittalStatusColors[submittal.status]?.text || 'text-gray-800'}`}>
+                      {submittalStatusLabels[submittal.status] || submittal.status}
                     </span>
                     {submittal.currentRevision > 0 && (
                       <span className="text-xs text-[var(--muted-foreground)]">Rev {submittal.currentRevision}</span>
                     )}
                   </div>
                   <h3 className="font-semibold text-[var(--foreground)] mb-1 line-clamp-1">{submittal.jobName}</h3>
-                  <p className="text-sm text-[var(--muted-foreground)] mb-3 line-clamp-1">
-                    {submittal.jobLocation || 'No location'}
-                  </p>
+                  <p className="text-sm text-[var(--muted-foreground)] mb-3">#{submittal.submittalNumber}</p>
                   <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
                     <span>{submittal.items.length} items</span>
                     <span>{new Date(submittal.submittalDate).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <div className="px-4 py-2 bg-[var(--muted)]/30 border-t border-[var(--border)]">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-[var(--muted)] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-500"
-                        style={{
-                          width: `${(submittal.items.filter(i => i.matchStatus === 'matched_with_highlight').length / submittal.items.length) * 100}%`
-                        }}
-                      />
+                {submittal.items.length > 0 && (
+                  <div className="px-4 py-2 bg-[var(--muted)]/30 border-t border-[var(--border)]">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-[var(--muted)] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500"
+                          style={{
+                            width: `${(submittal.items.filter(i => i.matchStatus === 'matched_with_highlight').length / submittal.items.length) * 100}%`
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {Math.round((submittal.items.filter(i => i.matchStatus === 'matched_with_highlight').length / submittal.items.length) * 100)}%
+                      </span>
                     </div>
-                    <span className="text-xs text-[var(--muted-foreground)]">
-                      {Math.round((submittal.items.filter(i => i.matchStatus === 'matched_with_highlight').length / submittal.items.length) * 100)}%
-                    </span>
                   </div>
-                </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Spec Sheet Library Summary */}
-      <div className="flex-shrink-0 px-6 py-3 border-t border-[var(--border)] bg-[var(--muted)]/30">
-        <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-4">
-            <span className="text-[var(--muted-foreground)]">
-              Spec Sheet Library: <span className="font-medium text-[var(--foreground)]">{mockSpecSheets.length} sheets</span>
-            </span>
-            <span className="text-[var(--muted-foreground)]">
-              from <span className="font-medium text-[var(--foreground)]">{manufacturers.length} manufacturers</span>
-            </span>
+      {/* Detail Panel - Full component */}
+      {selectedSubmittalFull && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
+          <div className="w-full max-w-3xl bg-[var(--background)] shadow-xl overflow-auto">
+            <SubmittalDetailPanel
+              submittal={selectedSubmittalFull}
+              onClose={() => setSelectedSubmittalId(null)}
+              onUpdate={handleSubmittalUpdate}
+              onPrint={() => setShowPrintDialog(true)}
+            />
           </div>
-          <button className="text-[var(--primary)] hover:text-[var(--primary-hover)] text-sm">
-            Manage Library
-          </button>
         </div>
-      </div>
+      )}
 
-      {/* Create Submittal Modal */}
+      {/* Create Modal - Full component */}
       {showCreateModal && (
         <CreateSubmittalModal
           onClose={() => setShowCreateModal(false)}
-          onCreate={(submittalData) => {
-            // In real implementation, this would create a new submittal
-            console.log('Creating submittal:', submittalData);
-            setShowCreateModal(false);
-            // Could redirect to the new submittal detail view
-          }}
-        />
-      )}
-
-      {/* Submittal Detail Panel */}
-      {selectedSubmittal && (
-        <SubmittalDetailPanel
-          submittal={selectedSubmittal}
-          onClose={() => setSelectedSubmittal(null)}
-          onUpdate={(updates) => {
-            // In real implementation, this would update the submittal in the database
-            // For now, update the local state
-            console.log('Updating submittal:', updates);
-            setSelectedSubmittal(prev => prev ? { ...prev, ...updates } : null);
-          }}
-          onPrint={() => {
-            setResubmitMode(false);
-            setResubmitItemIds([]);
-            setPrintSubmittal(selectedSubmittal);
-          }}
-          onResubmit={(itemIds) => {
-            // Open print dialog in resubmit mode with pre-selected items
-            setResubmitMode(true);
-            setResubmitItemIds(itemIds);
-            setPrintSubmittal(selectedSubmittal);
-          }}
+          onCreate={handleCreateSubmittal}
         />
       )}
 
       {/* Print Dialog */}
-      {printSubmittal && (
+      {showPrintDialog && selectedSubmittalFull && (
         <PrintSubmittalDialog
-          submittal={printSubmittal}
-          onClose={() => {
-            setPrintSubmittal(null);
-            setResubmitMode(false);
-            setResubmitItemIds([]);
-          }}
-          onPrint={(settings: PrintSettings) => {
-            // In real implementation, this would generate and print/email the submittal
-            console.log('Printing submittal with settings:', settings);
-            console.log('Resubmit mode:', resubmitMode);
+          submittal={selectedSubmittalFull}
+          onClose={() => setShowPrintDialog(false)}
+          onPrint={async (settings) => {
+            console.log('Print settings:', settings);
+            try {
+              const input: GenerateSubmittalPdfInput = {
+                submittalId: selectedSubmittalFull.id,
+                outputType: settings.outputType,
+                includeCoverPage: settings.outputOptions.includeCoverPage,
+                includeTransmittalPage: settings.outputOptions.includeTransmittalPage,
+                includeFixtureSummary: settings.outputOptions.includeFixtureSummary,
+                showQuantities: settings.outputOptions.showQuantities,
+                showDescriptions: settings.outputOptions.showDescriptions,
+                showLeadTimes: settings.outputOptions.showLeadTimes,
+                useCustomerLogo: settings.outputOptions.useCustomerLogo,
+                capFileSizeMb: settings.capFileSize !== 'none' ? parseInt(settings.capFileSize) : undefined,
+                attachedItems: settings.transmittal.attached,
+                attachedOther: settings.transmittal.attachedOther || undefined,
+                transmittedFor: settings.transmittal.transmittedFor,
+                transmittedForOther: settings.transmittal.transmittedForOther || undefined,
+                copies: settings.transmittal.copies,
+                selectedItemIds: settings.selectedItemIds,
+                addressedToIds: settings.outputOptions.addressedTo?.map(s => s.contactId),
+                createRevision: true,
+              };
 
-            // Simulate creating a new revision
-            if (selectedSubmittal) {
-              const newRevisionNumber = selectedSubmittal.currentRevision + 1;
-              console.log(`Creating revision ${newRevisionNumber} with selected items:`, settings.selectedItemIds);
+              const result = await generatePdfMutation.mutateAsync(input);
 
-              // In real app, this would update the submittal's revisions array
-              // and create the PDF
+              if (result.success && result.pdfUrl) {
+                // Open PDF in new tab or trigger download
+                if (result.pdfUrl.startsWith('data:')) {
+                  // Base64 data URL - open in new tab
+                  const newWindow = window.open();
+                  if (newWindow) {
+                    newWindow.document.write(`<iframe src="${result.pdfUrl}" style="width:100%;height:100%;border:none;"></iframe>`);
+                  }
+                } else {
+                  // Regular URL - download
+                  window.open(result.pdfUrl, '_blank');
+                }
+              } else if (!result.success) {
+                console.error('PDF generation failed:', result.error);
+                alert(`Error generating PDF: ${result.error}`);
+              }
+            } catch (error) {
+              console.error('Error generating PDF:', error);
+              alert(`Error generating PDF: ${error}`);
             }
-
-            setPrintSubmittal(null);
-            setResubmitMode(false);
-            setResubmitItemIds([]);
+            setShowPrintDialog(false);
           }}
-          resubmitMode={resubmitMode}
-          resubmitItemIds={resubmitItemIds}
         />
       )}
     </div>

@@ -1,54 +1,52 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Submittal, SubmittalItem, TransmittalPurpose, SubmittalStakeholder, SubmittalConfig } from '../../lib/types/submittals';
 import { defaultSubmittalConfig } from '../../lib/types/submittals';
+import { searchQuotes, type QuoteSearchResult } from '../lib/api/search';
+import { useQuote } from '../quotes/api/useQuotesApi';
+import { useFactories } from '../warehouse/api/useFactoriesApi';
 
-// Mock quotes data with recipients (would come from actual quote data in real app)
-const mockQuotesForSubmittal = [
-  {
-    id: 'Q-2024-001',
-    name: 'Downtown Medical Center - Lighting Package',
-    customer: 'Turner Construction',
-    itemCount: 12,
-    recipients: [
-      { id: 'r1', name: 'John Smith', company: 'Turner Construction', role: 'customer' as const, email: 'jsmith@turner.com' },
-      { id: 'r2', name: 'Sarah Johnson', company: 'HKS Architects', role: 'architect' as const, email: 'sjohnson@hks.com' },
-      { id: 'r3', name: 'Mike Chen', company: 'WSP Engineering', role: 'engineer' as const, email: 'mchen@wsp.com' },
-      { id: 'r4', name: 'Lisa Brown', company: 'Turner Construction', role: 'customer' as const, email: 'lbrown@turner.com' },
-    ]
-  },
-  {
-    id: 'Q-2024-002',
-    name: 'Tech Campus Phase 2',
-    customer: 'Skanska USA',
-    itemCount: 8,
-    recipients: [
-      { id: 'r5', name: 'David Lee', company: 'Skanska USA', role: 'customer' as const, email: 'dlee@skanska.com' },
-      { id: 'r6', name: 'Emily White', company: 'Gensler', role: 'architect' as const, email: 'ewhite@gensler.com' },
-    ]
-  },
-  {
-    id: 'Q-2024-003',
-    name: 'Airport Terminal Expansion',
-    customer: 'Walsh Group',
-    itemCount: 24,
-    recipients: [
-      { id: 'r7', name: 'Robert Garcia', company: 'Walsh Group', role: 'customer' as const, email: 'rgarcia@walsh.com' },
-      { id: 'r8', name: 'Jennifer Martinez', company: 'HNTB', role: 'engineer' as const, email: 'jmartinez@hntb.com' },
-      { id: 'r9', name: 'Chris Taylor', company: 'SOM', role: 'architect' as const, email: 'ctaylor@som.com' },
-    ]
-  },
-  {
-    id: 'Q-2024-004',
-    name: 'Convention Center Renovation',
-    customer: 'JE Dunn',
-    itemCount: 15,
-    recipients: [
-      { id: 'r10', name: 'Amanda Wilson', company: 'JE Dunn', role: 'customer' as const, email: 'awilson@jedunn.com' },
-    ]
-  },
-];
+// Hook for searching quotes with debounce
+function useQuoteSearch(searchTerm: string, enabled: boolean = true) {
+  const [debouncedTerm, setDebouncedTerm] = useState(searchTerm);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  return useQuery<QuoteSearchResult[], Error>({
+    queryKey: ['quotes', 'search', debouncedTerm],
+    queryFn: () => searchQuotes(debouncedTerm || '', 20),
+    enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
+// Transform API quote to display format
+interface QuoteForSubmittal {
+  id: string;
+  quoteId: string; // UUID for API calls
+  name: string;
+  customer: string;
+  itemCount: number;
+  recipients: QuoteRecipient[];
+}
+
+function transformQuoteResult(quote: QuoteSearchResult): QuoteForSubmittal {
+  return {
+    id: quote.quoteNumber || quote.id,
+    quoteId: quote.id,
+    name: quote.jobName || quote.quoteNumber || 'Unnamed Quote',
+    customer: '', // Not available in search result
+    itemCount: 0, // Will be populated when quote details are fetched
+    recipients: [],
+  };
+}
 
 // Recipient type that can be passed from quote
 export interface QuoteRecipient {
@@ -78,8 +76,8 @@ interface CreateSubmittalModalProps {
   quoteLineItems?: QuoteLineItem[];
 }
 
-type CreateMode = 'from-quote' | 'from-scratch';
-type Step = 'select-mode' | 'select-quote' | 'select-recipients' | 'select-items' | 'configure' | 'review';
+// Submittals are always created from a quote
+type Step = 'select-quote' | 'select-recipients' | 'select-items' | 'configure' | 'review';
 
 const TRANSMITTAL_PURPOSES: { value: TransmittalPurpose; label: string }[] = [
   { value: 'prior_approval', label: 'Prior Approval' },
@@ -117,12 +115,13 @@ export default function CreateSubmittalModal({
   quoteRecipients,
   quoteLineItems,
 }: CreateSubmittalModalProps) {
-  // Mode and step state
-  const [mode, setMode] = useState<CreateMode>(preselectedQuoteId ? 'from-quote' : 'from-scratch');
-  const [step, setStep] = useState<Step>(preselectedQuoteId ? 'select-recipients' : 'select-mode');
+  // Step state - if quote is preselected, skip to recipients; otherwise show quote search
+  const [step, setStep] = useState<Step>(preselectedQuoteId ? 'select-recipients' : 'select-quote');
 
-  // Quote selection
-  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(preselectedQuoteId || null);
+  // Quote selection - supports multiple quotes
+  const [selectedQuoteIds, setSelectedQuoteIds] = useState<Set<string>>(
+    preselectedQuoteId ? new Set([preselectedQuoteId]) : new Set()
+  );
   const [quoteSearch, setQuoteSearch] = useState('');
 
   // Recipient selection
@@ -151,46 +150,107 @@ export default function CreateSubmittalModal({
     setConfig(prev => ({ ...prev, [key]: value }));
   };
 
-  // Line items - use passed items or fallback to mock
+  // API hooks for quote search
+  const { data: quotesSearchResults, isLoading: isSearchingQuotes } = useQuoteSearch(quoteSearch, step === 'select-quote');
+
+  // Fetch selected quote details when quotes are selected (first one for now, future: fetch all)
+  const firstSelectedQuoteId = Array.from(selectedQuoteIds)[0] || '';
+  const { data: selectedQuoteDetails, isLoading: isLoadingQuoteDetails } = useQuote(firstSelectedQuoteId);
+
+  // Fetch factories for manufacturer name lookup
+  const { data: factories } = useFactories();
+
+  // Build factory ID to name map
+  const factoryMap = useMemo(() => {
+    const map = new Map<string, string>();
+    factories?.forEach(f => map.set(f.id, f.title));
+    return map;
+  }, [factories]);
+
+  // Transform search results to display format
+  const filteredQuotes = useMemo(() => {
+    if (!quotesSearchResults) return [];
+    return quotesSearchResults.map(transformQuoteResult);
+  }, [quotesSearchResults]);
+
+  // Selected quotes info (from API or preselected props)
+  const selectedQuotes = useMemo(() => {
+    if (preselectedQuoteName && preselectedQuoteId) {
+      return [{
+        id: preselectedQuoteId,
+        quoteId: preselectedQuoteId,
+        name: preselectedQuoteName,
+        customer: '',
+        itemCount: quoteLineItems?.length || 0,
+        recipients: [],
+      }];
+    }
+    // Build list from search results and/or fetched details
+    const quotes: QuoteForSubmittal[] = [];
+    for (const quoteId of selectedQuoteIds) {
+      // If we have details for this quote (first selected), use those
+      if (selectedQuoteDetails && selectedQuoteDetails.id === quoteId) {
+        quotes.push({
+          id: selectedQuoteDetails.quoteNumber || selectedQuoteDetails.id,
+          quoteId: selectedQuoteDetails.id,
+          name: selectedQuoteDetails.soldToCustomer?.companyName || selectedQuoteDetails.quoteNumber || 'Unnamed Quote',
+          customer: selectedQuoteDetails.soldToCustomer?.companyName || '',
+          itemCount: selectedQuoteDetails.details?.length || 0,
+          recipients: [],
+        });
+      } else {
+        // Find from search results
+        const fromSearch = filteredQuotes.find(q => q.quoteId === quoteId);
+        if (fromSearch) {
+          quotes.push(fromSearch);
+        }
+      }
+    }
+    return quotes;
+  }, [preselectedQuoteName, preselectedQuoteId, selectedQuoteDetails, selectedQuoteIds, filteredQuotes, quoteLineItems]);
+
+  // First selected quote (for display purposes)
+  const selectedQuote = selectedQuotes[0] || null;
+
+  // Line items - use passed items or from quote details
   const lineItems = useMemo(() => {
     // If line items were passed from the quote page, use those
     if (quoteLineItems && quoteLineItems.length > 0) {
       return quoteLineItems;
     }
-    // Otherwise use mock data for demo
-    if (!selectedQuoteId) return [];
-    return [
-      { id: 'li-1', catalogNumber: 'AX1-LED-40K-DIM', manufacturer: 'Acuity Brands', description: 'LED Panel 2x4', quantity: 48 },
-      { id: 'li-2', catalogNumber: 'RR-LED-24-50K', manufacturer: 'Acuity Brands', description: 'Recessed Round Downlight', quantity: 24 },
-      { id: 'li-3', catalogNumber: '?"RA2-MAIN', manufacturer: 'Lutron', description: 'RadioRA Main Repeater', quantity: 2 },
-      { id: 'li-4', catalogNumber: 'PJ2-WALL-WH', manufacturer: 'Lutron', description: 'Pico Wireless Control', quantity: 16 },
-      { id: 'li-5', catalogNumber: 'D4006-2K-WH', manufacturer: 'Leviton', description: 'Decora Dimmer Switch', quantity: 12 },
-      { id: 'li-6', catalogNumber: 'OSW-P0W-WH', manufacturer: 'Leviton', description: 'Occupancy Sensor Wall Mount', quantity: 8 },
-      { id: 'li-7', catalogNumber: 'EM-LED-UNV', manufacturer: 'Philips', description: 'Emergency LED Driver', quantity: 6 },
-      { id: 'li-8', catalogNumber: 'TL5-HO-54W', manufacturer: 'Philips', description: 'T5HO Fluorescent Lamp', quantity: 100 },
-    ];
-  }, [selectedQuoteId, quoteLineItems]);
+    // Get line items from fetched quote details
+    if (selectedQuoteDetails?.details && selectedQuoteDetails.details.length > 0) {
+      return selectedQuoteDetails.details.map((detail, index) => ({
+        id: detail.id || `li-${index}`,
+        catalogNumber: detail.product?.factoryPartNumber || '',
+        manufacturer: detail.factoryId ? (factoryMap.get(detail.factoryId) || '') : '',
+        description: detail.product?.description || '',
+        quantity: detail.quantity || 0,
+      }));
+    }
+    return [];
+  }, [selectedQuoteDetails, quoteLineItems, factoryMap]);
 
-  // Filtered quotes (for quote selection step when not preselected)
-  const filteredQuotes = useMemo(() => {
-    if (!quoteSearch) return mockQuotesForSubmittal;
-    const search = quoteSearch.toLowerCase();
-    return mockQuotesForSubmittal.filter(q =>
-      q.name.toLowerCase().includes(search) ||
-      q.id.toLowerCase().includes(search) ||
-      q.customer.toLowerCase().includes(search)
-    );
-  }, [quoteSearch]);
-
-  // Selected quote (from mock data or use passed name)
-  const selectedQuote = preselectedQuoteName
-    ? { id: preselectedQuoteId || '', name: preselectedQuoteName, customer: '', itemCount: lineItems.length, recipients: [] }
-    : mockQuotesForSubmittal.find(q => q.id === selectedQuoteId);
-
-  // Recipients - use passed recipients or fallback to mock quote recipients
-  const recipients: QuoteRecipient[] = (quoteRecipients && quoteRecipients.length > 0)
-    ? quoteRecipients
-    : (selectedQuote?.recipients || []);
+  // Recipients - use passed recipients, or extract from quote's customer data
+  const recipients: QuoteRecipient[] = useMemo(() => {
+    // If recipients were passed from the quote page, use those
+    if (quoteRecipients && quoteRecipients.length > 0) {
+      return quoteRecipients;
+    }
+    // Extract recipient from quote's soldToCustomer
+    if (selectedQuoteDetails?.soldToCustomer) {
+      const customer = selectedQuoteDetails.soldToCustomer;
+      return [{
+        id: customer.id || 'customer-1',
+        name: customer.companyName || 'Customer',
+        email: '', // Email not available in customer lite response
+        company: customer.companyName || '',
+        role: 'customer' as const,
+      }];
+    }
+    // Fallback to quote's recipients if any
+    return selectedQuote?.recipients || [];
+  }, [quoteRecipients, selectedQuoteDetails, selectedQuote]);
 
   // Selected recipients details
   const selectedRecipients = recipients.filter(r => selectedRecipientIds.has(r.id));
@@ -233,9 +293,6 @@ export default function CreateSubmittalModal({
   // Handle next step
   const handleNext = () => {
     switch (step) {
-      case 'select-mode':
-        setStep(mode === 'from-quote' ? 'select-quote' : 'configure');
-        break;
       case 'select-quote':
         setStep('select-recipients');
         break;
@@ -259,16 +316,22 @@ export default function CreateSubmittalModal({
   const handleBack = () => {
     switch (step) {
       case 'select-quote':
-        setStep('select-mode');
+        // First step when no preselected quote - close modal
+        onClose();
         break;
       case 'select-recipients':
-        setStep('select-quote');
+        // Go back to quote selection only if no preselected quote
+        if (!preselectedQuoteId) {
+          setStep('select-quote');
+        } else {
+          onClose();
+        }
         break;
       case 'select-items':
         setStep('select-recipients');
         break;
       case 'configure':
-        setStep(mode === 'from-quote' ? 'select-items' : 'select-mode');
+        setStep('select-items');
         break;
       case 'review':
         setStep('configure');
@@ -278,20 +341,19 @@ export default function CreateSubmittalModal({
 
   // Handle create
   const handleCreate = () => {
-    const items: Partial<SubmittalItem>[] = mode === 'from-quote'
-      ? lineItems
-          .filter(li => selectedItemIds.has(li.id))
-          .map((li, index) => ({
-            id: `SI-NEW-${Date.now()}-${index}`,
-            catalogNumber: li.catalogNumber,
-            manufacturer: li.manufacturer,
-            description: li.description,
-            quantity: li.quantity,
-            sortOrder: index,
-            matchStatus: 'no_match' as const,
-            fixtureType: `F${index + 1}`,
-          }))
-      : [];
+    // Always create from quote - get selected items
+    const items: Partial<SubmittalItem>[] = lineItems
+      .filter(li => selectedItemIds.has(li.id))
+      .map((li, index) => ({
+        id: `SI-NEW-${Date.now()}-${index}`,
+        catalogNumber: li.catalogNumber,
+        manufacturer: li.manufacturer,
+        description: li.description,
+        quantity: li.quantity,
+        sortOrder: index,
+        matchStatus: 'no_match' as const,
+        fixtureType: `F${index + 1}`,
+      }));
 
     // Convert selected recipients to stakeholders
     const customerRoles: QuoteRecipient['role'][] = ['customer', 'gc', 'ec', 'other'];
@@ -355,7 +417,7 @@ export default function CreateSubmittalModal({
 
     onCreate({
       jobName: submittalName,
-      quoteIds: mode === 'from-quote' && selectedQuoteId ? [selectedQuoteId] : [],
+      quoteIds: Array.from(selectedQuoteIds),
       items: items as SubmittalItem[],
       status: 'draft',
       currentRevision: 0,
@@ -370,12 +432,11 @@ export default function CreateSubmittalModal({
   // Can proceed to next step?
   const canProceed = useMemo(() => {
     switch (step) {
-      case 'select-mode':
-        return true;
       case 'select-quote':
-        return !!selectedQuoteId;
+        return selectedQuoteIds.size > 0;
       case 'select-recipients':
-        return selectedRecipientIds.size > 0;
+        // Allow proceeding if any recipients selected OR any manual contacts entered
+        return selectedRecipientIds.size > 0 || architectName.trim() || engineerName.trim() || otherContactName.trim();
       case 'select-items':
         return selectedItemIds.size > 0;
       case 'configure':
@@ -385,16 +446,18 @@ export default function CreateSubmittalModal({
       default:
         return false;
     }
-  }, [step, selectedQuoteId, selectedRecipientIds, selectedItemIds, submittalName]);
+  }, [step, selectedQuoteIds, selectedRecipientIds, selectedItemIds, submittalName, architectName, engineerName, otherContactName]);
 
-  // Step indicator
-  const steps = mode === 'from-quote'
-    ? ['Mode', 'Quote', 'Recipients', 'Items', 'Configure', 'Review']
-    : ['Mode', 'Configure', 'Review'];
+  // Step indicator - always from quote flow
+  const steps = preselectedQuoteId
+    ? ['Recipients', 'Items', 'Configure', 'Review']
+    : ['Quotes', 'Recipients', 'Items', 'Configure', 'Review'];
 
-  const currentStepIndex = mode === 'from-quote'
-    ? ['select-mode', 'select-quote', 'select-recipients', 'select-items', 'configure', 'review'].indexOf(step)
-    : ['select-mode', 'configure', 'review'].indexOf(step);
+  const stepKeys = preselectedQuoteId
+    ? ['select-recipients', 'select-items', 'configure', 'review']
+    : ['select-quote', 'select-recipients', 'select-items', 'configure', 'review'];
+
+  const currentStepIndex = stepKeys.indexOf(step);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -404,9 +467,8 @@ export default function CreateSubmittalModal({
           <div>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Create Submittal</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
-              {step === 'select-mode' && 'Choose how to create your submittal'}
-              {step === 'select-quote' && 'Select a quote to pull items from'}
-              {step === 'select-recipients' && 'Select who this submittal is for'}
+              {step === 'select-quote' && 'Select one or more quotes to pull items from'}
+              {step === 'select-recipients' && 'Add recipients and project contacts'}
               {step === 'select-items' && 'Choose which items to include'}
               {step === 'configure' && 'Configure submittal details'}
               {step === 'review' && 'Review and create'}
@@ -455,64 +517,23 @@ export default function CreateSubmittalModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* Step: Select Mode */}
-          {step === 'select-mode' && (
-            <div className="space-y-4">
-              <button
-                onClick={() => setMode('from-quote')}
-                className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${
-                  mode === 'from-quote'
-                    ? 'border-[var(--primary)] bg-[var(--primary)]/5'
-                    : 'border-[var(--border)] hover:border-[var(--muted-foreground)]'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    mode === 'from-quote' ? 'border-[var(--primary)]' : 'border-[var(--muted-foreground)]'
-                  }`}>
-                    {mode === 'from-quote' && (
-                      <div className="w-2.5 h-2.5 rounded-full bg-[var(--primary)]" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-medium text-[var(--foreground)]">Create from Quote</div>
-                    <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                      Import line items from an existing quote. Spec sheets will be automatically matched.
-                    </p>
-                  </div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setMode('from-scratch')}
-                className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${
-                  mode === 'from-scratch'
-                    ? 'border-[var(--primary)] bg-[var(--primary)]/5'
-                    : 'border-[var(--border)] hover:border-[var(--muted-foreground)]'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    mode === 'from-scratch' ? 'border-[var(--primary)]' : 'border-[var(--muted-foreground)]'
-                  }`}>
-                    {mode === 'from-scratch' && (
-                      <div className="w-2.5 h-2.5 rounded-full bg-[var(--primary)]" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-medium text-[var(--foreground)]">Create from Scratch</div>
-                    <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                      Start with a blank submittal and manually add items and spec sheets.
-                    </p>
-                  </div>
-                </div>
-              </button>
-            </div>
-          )}
-
-          {/* Step: Select Quote */}
+          {/* Step: Select Quotes (multi-select) */}
           {step === 'select-quote' && (
             <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  {selectedQuoteIds.size} quote{selectedQuoteIds.size !== 1 ? 's' : ''} selected
+                </p>
+                {selectedQuoteIds.size > 0 && (
+                  <button
+                    onClick={() => setSelectedQuoteIds(new Set())}
+                    className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]"
+                  >
+                    Clear Selection
+                  </button>
+                )}
+              </div>
+
               <div className="relative">
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]">
                   <circle cx="9" cy="9" r="6" />
@@ -522,192 +543,132 @@ export default function CreateSubmittalModal({
                   type="text"
                   value={quoteSearch}
                   onChange={(e) => setQuoteSearch(e.target.value)}
-                  placeholder="Search quotes..."
+                  placeholder="Search quotes by number or job name..."
                   className="w-full pl-10 pr-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                 />
+                {isSearchingQuotes && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin h-4 w-4 border-2 border-[var(--primary)] border-t-transparent rounded-full" />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2 max-h-80 overflow-y-auto">
+                {filteredQuotes.length === 0 && !isSearchingQuotes && (
+                  <div className="text-center py-8 text-[var(--muted-foreground)]">
+                    <p>{quoteSearch ? 'No quotes found matching your search.' : 'Start typing to search for quotes.'}</p>
+                  </div>
+                )}
                 {filteredQuotes.map(quote => (
-                  <button
-                    key={quote.id}
-                    onClick={() => {
-                      setSelectedQuoteId(quote.id);
-                      // Reset recipient selection when quote changes
-                      setSelectedRecipientIds(new Set());
-                    }}
-                    className={`w-full p-3 rounded-lg border text-left transition-colors ${
-                      selectedQuoteId === quote.id
-                        ? 'border-[var(--primary)] bg-[var(--primary)]/5'
-                        : 'border-[var(--border)] hover:bg-[var(--muted)]/50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-[var(--foreground)]">{quote.name}</div>
-                        <div className="text-sm text-[var(--muted-foreground)]">
-                          {quote.id} • {quote.customer}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm text-[var(--muted-foreground)]">
-                          {quote.itemCount} items
-                        </div>
-                        <div className="text-xs text-[var(--muted-foreground)]">
-                          {quote.recipients.length} recipients
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Step: Select Recipients */}
-          {step === 'select-recipients' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-[var(--muted-foreground)]">
-                  {selectedRecipientIds.size} of {recipients.length} recipients selected
-                </p>
-                <button
-                  onClick={() => {
-                    if (selectedRecipientIds.size === recipients.length) {
-                      setSelectedRecipientIds(new Set());
-                    } else {
-                      setSelectedRecipientIds(new Set(recipients.map(r => r.id)));
-                    }
-                  }}
-                  className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]"
-                >
-                  {selectedRecipientIds.size === recipients.length ? 'Deselect All' : 'Select All'}
-                </button>
-              </div>
-
-              <div className="space-y-2 max-h-80 overflow-y-auto">
-                {recipients.map(recipient => (
                   <label
-                    key={recipient.id}
+                    key={quote.quoteId}
                     className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selectedRecipientIds.has(recipient.id)
+                      selectedQuoteIds.has(quote.quoteId)
                         ? 'border-[var(--primary)] bg-[var(--primary)]/5'
                         : 'border-[var(--border)] hover:bg-[var(--muted)]/50'
                     }`}
                   >
                     <input
                       type="checkbox"
-                      checked={selectedRecipientIds.has(recipient.id)}
-                      onChange={() => toggleRecipient(recipient.id)}
+                      checked={selectedQuoteIds.has(quote.quoteId)}
+                      onChange={() => {
+                        setSelectedQuoteIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(quote.quoteId)) {
+                            next.delete(quote.quoteId);
+                          } else {
+                            next.add(quote.quoteId);
+                          }
+                          return next;
+                        });
+                      }}
                       className="accent-[var(--primary)] w-4 h-4"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-[var(--foreground)]">{recipient.name}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${ROLE_COLORS[recipient.role].bg} ${ROLE_COLORS[recipient.role].text}`}>
-                          {ROLE_LABELS[recipient.role]}
-                        </span>
+                      <div className="font-medium text-[var(--foreground)]">{quote.name}</div>
+                      <div className="text-sm text-[var(--muted-foreground)]">
+                        {quote.id}{quote.customer ? ` • ${quote.customer}` : ''}
                       </div>
-                      <p className="text-sm text-[var(--muted-foreground)]">{recipient.company}</p>
                     </div>
-                    <div className="text-sm text-[var(--muted-foreground)]">
-                      {recipient.email}
+                    <div className="text-right">
+                      {isLoadingQuoteDetails && selectedQuoteIds.has(quote.quoteId) ? (
+                        <div className="animate-spin h-4 w-4 border-2 border-[var(--primary)] border-t-transparent rounded-full" />
+                      ) : (
+                        <div className="text-sm text-[var(--muted-foreground)]">
+                          {quote.itemCount > 0 ? `${quote.itemCount} items` : '—'}
+                        </div>
+                      )}
                     </div>
                   </label>
                 ))}
               </div>
+            </div>
+          )}
 
-              {recipients.length === 0 && (
-                <div className="text-center py-8 text-[var(--muted-foreground)]">
-                  <p>No recipients found for this quote.</p>
-                  <p className="text-sm mt-1">Please add recipients to the quote first.</p>
-                </div>
+          {/* Step: Select Recipients (consolidated with manual contacts) */}
+          {step === 'select-recipients' && (
+            <div className="space-y-4">
+              {/* Quote Recipients Section */}
+              {recipients.length > 0 && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-[var(--foreground)]">
+                      Quote Recipients
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (selectedRecipientIds.size === recipients.length) {
+                          setSelectedRecipientIds(new Set());
+                        } else {
+                          setSelectedRecipientIds(new Set(recipients.map(r => r.id)));
+                        }
+                      }}
+                      className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]"
+                    >
+                      {selectedRecipientIds.size === recipients.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {recipients.map(recipient => (
+                      <label
+                        key={recipient.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                          selectedRecipientIds.has(recipient.id)
+                            ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                            : 'border-[var(--border)] hover:bg-[var(--muted)]/50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedRecipientIds.has(recipient.id)}
+                          onChange={() => toggleRecipient(recipient.id)}
+                          className="accent-[var(--primary)] w-4 h-4"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-[var(--foreground)]">{recipient.name}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded ${ROLE_COLORS[recipient.role].bg} ${ROLE_COLORS[recipient.role].text}`}>
+                              {ROLE_LABELS[recipient.role]}
+                            </span>
+                          </div>
+                          <p className="text-sm text-[var(--muted-foreground)]">{recipient.company}</p>
+                        </div>
+                        <div className="text-sm text-[var(--muted-foreground)]">
+                          {recipient.email}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </>
               )}
-            </div>
-          )}
 
-          {/* Step: Select Items */}
-          {step === 'select-items' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-[var(--muted-foreground)]">
-                  {selectedItemIds.size} of {lineItems.length} items selected
-                </p>
-                <button
-                  onClick={toggleAllItems}
-                  className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]"
-                >
-                  {selectedItemIds.size === lineItems.length ? 'Deselect All' : 'Select All'}
-                </button>
-              </div>
-
-              <div className="space-y-2 max-h-80 overflow-y-auto">
-                {lineItems.map(item => (
-                  <label
-                    key={item.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selectedItemIds.has(item.id)
-                        ? 'border-[var(--primary)] bg-[var(--primary)]/5'
-                        : 'border-[var(--border)] hover:bg-[var(--muted)]/50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedItemIds.has(item.id)}
-                      onChange={() => toggleItem(item.id)}
-                      className="accent-[var(--primary)]"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-[var(--foreground)]">{item.catalogNumber}</span>
-                        <span className="text-xs px-2 py-0.5 bg-[var(--muted)] rounded">{item.manufacturer}</span>
-                      </div>
-                      <p className="text-sm text-[var(--muted-foreground)] truncate">{item.description}</p>
-                    </div>
-                    <div className="text-sm text-[var(--muted-foreground)]">
-                      Qty: {item.quantity}
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Step: Configure */}
-          {step === 'configure' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-                  Submittal Name *
-                </label>
-                <input
-                  type="text"
-                  value={submittalName}
-                  onChange={(e) => setSubmittalName(e.target.value)}
-                  placeholder="Enter submittal name..."
-                  className="w-full px-3 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-                  Transmittal Purpose
-                </label>
-                <select
-                  value={transmittalPurpose}
-                  onChange={(e) => setTransmittalPurpose(e.target.value as TransmittalPurpose)}
-                  className="w-full px-3 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                >
-                  {TRANSMITTAL_PURPOSES.map(p => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Project Contacts Section */}
-              <div className="pt-4 border-t border-[var(--border)]">
-                <h4 className="text-sm font-medium text-[var(--foreground)] mb-3">Project Contacts (Optional)</h4>
-                <div className="space-y-4">
+              {/* Manual Project Contacts Section */}
+              <div className={recipients.length > 0 ? 'pt-4 border-t border-[var(--border)]' : ''}>
+                <h4 className="text-sm font-medium text-[var(--foreground)] mb-3">
+                  {recipients.length > 0 ? 'Additional Project Contacts' : 'Project Contacts'}
+                </h4>
+                <div className="space-y-3">
                   {/* Architect */}
                   <div className="p-3 bg-[var(--muted)]/30 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
@@ -794,6 +755,108 @@ export default function CreateSubmittalModal({
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {recipients.length === 0 && !architectName && !engineerName && !otherContactName && (
+                <p className="text-sm text-[var(--muted-foreground)] text-center py-2">
+                  Add at least one recipient or project contact to continue.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Step: Select Items */}
+          {step === 'select-items' && (
+            <div className="space-y-4">
+              {isLoadingQuoteDetails ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin h-6 w-6 border-2 border-[var(--primary)] border-t-transparent rounded-full mr-3" />
+                  <span className="text-[var(--muted-foreground)]">Loading line items...</span>
+                </div>
+              ) : lineItems.length === 0 ? (
+                <div className="text-center py-8 text-[var(--muted-foreground)]">
+                  <p>No line items found for this quote.</p>
+                  <p className="text-sm mt-1">The quote may not have any products yet.</p>
+                </div>
+              ) : (
+                <>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  {selectedItemIds.size} of {lineItems.length} items selected
+                </p>
+                <button
+                  onClick={toggleAllItems}
+                  className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]"
+                >
+                  {selectedItemIds.size === lineItems.length ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {lineItems.map(item => (
+                  <label
+                    key={item.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                      selectedItemIds.has(item.id)
+                        ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                        : 'border-[var(--border)] hover:bg-[var(--muted)]/50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedItemIds.has(item.id)}
+                      onChange={() => toggleItem(item.id)}
+                      className="accent-[var(--primary)]"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-[var(--foreground)]">{item.catalogNumber || 'No catalog #'}</span>
+                        {item.manufacturer && (
+                          <span className="text-xs px-2 py-0.5 bg-[var(--muted)] rounded">{item.manufacturer}</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-[var(--muted-foreground)] truncate">{item.description}</p>
+                    </div>
+                    <div className="text-sm text-[var(--muted-foreground)]">
+                      Qty: {item.quantity}
+                    </div>
+                  </label>
+                ))}
+              </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Step: Configure */}
+          {step === 'configure' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
+                  Submittal Name *
+                </label>
+                <input
+                  type="text"
+                  value={submittalName}
+                  onChange={(e) => setSubmittalName(e.target.value)}
+                  placeholder="Enter submittal name..."
+                  className="w-full px-3 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
+                  Transmittal Purpose
+                </label>
+                <select
+                  value={transmittalPurpose}
+                  onChange={(e) => setTransmittalPurpose(e.target.value as TransmittalPurpose)}
+                  className="w-full px-3 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                >
+                  {TRANSMITTAL_PURPOSES.map(p => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Submittal Configuration Options */}
@@ -908,30 +971,22 @@ export default function CreateSubmittalModal({
                   <span className="text-sm text-[var(--muted-foreground)]">Submittal Name</span>
                   <span className="text-sm font-medium text-[var(--foreground)]">{submittalName}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-[var(--muted-foreground)]">Creation Mode</span>
-                  <span className="text-sm font-medium text-[var(--foreground)]">
-                    {mode === 'from-quote' ? 'From Quote' : 'From Scratch'}
-                  </span>
-                </div>
-                {mode === 'from-quote' && selectedQuote && (
+                {selectedQuotes.length > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-sm text-[var(--muted-foreground)]">Source Quote</span>
-                    <span className="text-sm font-medium text-[var(--foreground)]">{selectedQuote.id}</span>
+                    <span className="text-sm text-[var(--muted-foreground)]">Source Quote{selectedQuotes.length > 1 ? 's' : ''}</span>
+                    <span className="text-sm font-medium text-[var(--foreground)]">
+                      {selectedQuotes.map(q => q.id).join(', ')}
+                    </span>
                   </div>
                 )}
-                {mode === 'from-quote' && (
-                  <>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-[var(--muted-foreground)]">Recipients</span>
-                      <span className="text-sm font-medium text-[var(--foreground)]">{selectedRecipientIds.size}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-[var(--muted-foreground)]">Items</span>
-                      <span className="text-sm font-medium text-[var(--foreground)]">{selectedItemIds.size}</span>
-                    </div>
-                  </>
-                )}
+                <div className="flex justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Recipients</span>
+                  <span className="text-sm font-medium text-[var(--foreground)]">{selectedRecipientIds.size}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Items</span>
+                  <span className="text-sm font-medium text-[var(--foreground)]">{selectedItemIds.size}</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-[var(--muted-foreground)]">Transmittal Purpose</span>
                   <span className="text-sm font-medium text-[var(--foreground)]">
@@ -946,7 +1001,7 @@ export default function CreateSubmittalModal({
                 )}
               </div>
 
-              {mode === 'from-quote' && selectedRecipients.length > 0 && (
+              {selectedRecipients.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium text-[var(--foreground)] mb-2">Selected Recipients</h4>
                   <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--border)] max-h-32 overflow-y-auto">
@@ -965,24 +1020,22 @@ export default function CreateSubmittalModal({
                 </div>
               )}
 
-              {mode === 'from-quote' && (
-                <div>
-                  <h4 className="text-sm font-medium text-[var(--foreground)] mb-2">Selected Items</h4>
-                  <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--border)] max-h-48 overflow-y-auto">
-                    {lineItems
-                      .filter(li => selectedItemIds.has(li.id))
-                      .map(item => (
-                        <div key={item.id} className="px-3 py-2 flex items-center justify-between">
-                          <div>
-                            <span className="text-sm font-medium text-[var(--foreground)]">{item.catalogNumber}</span>
-                            <span className="text-xs text-[var(--muted-foreground)] ml-2">{item.manufacturer}</span>
-                          </div>
-                          <span className="text-xs text-[var(--muted-foreground)]">Qty: {item.quantity}</span>
+              <div>
+                <h4 className="text-sm font-medium text-[var(--foreground)] mb-2">Selected Items</h4>
+                <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--border)] max-h-48 overflow-y-auto">
+                  {lineItems
+                    .filter(li => selectedItemIds.has(li.id))
+                    .map(item => (
+                      <div key={item.id} className="px-3 py-2 flex items-center justify-between">
+                        <div>
+                          <span className="text-sm font-medium text-[var(--foreground)]">{item.catalogNumber}</span>
+                          <span className="text-xs text-[var(--muted-foreground)] ml-2">{item.manufacturer}</span>
                         </div>
-                      ))}
-                  </div>
+                        <span className="text-xs text-[var(--muted-foreground)]">Qty: {item.quantity}</span>
+                      </div>
+                    ))}
                 </div>
-              )}
+              </div>
 
               {/* Project Contacts Summary */}
               {(architectName || engineerName || otherContactName) && (
@@ -1047,10 +1100,10 @@ export default function CreateSubmittalModal({
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/30">
           <button
-            onClick={step === 'select-mode' ? onClose : handleBack}
+            onClick={handleBack}
             className="px-4 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
           >
-            {step === 'select-mode' ? 'Cancel' : 'Back'}
+            {(step === 'select-quote' || (step === 'select-recipients' && preselectedQuoteId)) ? 'Cancel' : 'Back'}
           </button>
 
           {step === 'review' ? (

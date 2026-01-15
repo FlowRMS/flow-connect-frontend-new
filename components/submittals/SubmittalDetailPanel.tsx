@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type {
   Submittal,
   SubmittalItem,
@@ -11,15 +11,20 @@ import type {
   ReturnedPdf,
   EmailSendRecord,
   ItemChange,
+  SpecSheet,
 } from '../../lib/types/submittals';
 import { defaultSubmittalConfig } from '../../lib/types/submittals';
 import {
-  mockSpecSheets,
   submittalStatusLabels,
   submittalStatusColors,
   matchStatusLabels,
   matchStatusColors,
 } from '../../lib/data/submittals-mock';
+import {
+  useSpecSheetSearchWithFactoryNames,
+  useManufacturersWithSpecSheets,
+  useHighlightVersions,
+} from './api/useSpecSheetsApi';
 import RevisionTimeline from './RevisionTimeline';
 import SendSubmittalEmailDialog from './SendSubmittalEmailDialog';
 import ReturnedPdfUpload from './ReturnedPdfUpload';
@@ -55,6 +60,44 @@ export default function SubmittalDetailPanel({
   const [emailDialogRevision, setEmailDialogRevision] = useState<SubmittalRevision | null>(null);
   const [uploadDialogRevision, setUploadDialogRevision] = useState<SubmittalRevision | null>(null);
   const [analysisReturnedPdf, setAnalysisReturnedPdf] = useState<ReturnedPdf | null>(null);
+
+  // Settings tab state
+  const [editingJobName, setEditingJobName] = useState(submittal.jobName);
+  const [editingJobLocation, setEditingJobLocation] = useState(submittal.jobLocation || '');
+  const [editingBidDate, setEditingBidDate] = useState(submittal.bidDate?.split('T')[0] || '');
+  const [editingTags, setEditingTags] = useState<string[]>(submittal.tags || []);
+  const [newTagInput, setNewTagInput] = useState('');
+
+  // Spec sheet picker state
+  const [specSheetManufacturerId, setSpecSheetManufacturerId] = useState<string | null>(null);
+  const [showHighlightPicker, setShowHighlightPicker] = useState(false);
+  const [selectedSpecSheetForHighlight, setSelectedSpecSheetForHighlight] = useState<string | null>(null);
+
+  // API hooks for spec sheets
+  const { data: manufacturers = [], isLoading: isLoadingManufacturers } = useManufacturersWithSpecSheets();
+  const { data: specSheetsFromApi, isLoading: isLoadingSpecSheets } = useSpecSheetSearchWithFactoryNames({
+    factoryId: specSheetManufacturerId || undefined,
+    searchTerm: specSheetSearch || undefined,
+    publishedOnly: false,
+    limit: 50,
+  }, showSpecSheetPicker);
+
+  // Get highlight versions for the selected item's spec sheet
+  const selectedItem = useMemo(() => {
+    if (!selectedItemId) return null;
+    return submittal.items.find(i => i.id === selectedItemId) || null;
+  }, [selectedItemId, submittal.items]);
+
+  const { data: highlightVersions = [], isLoading: isLoadingHighlightVersions } = useHighlightVersions(
+    selectedSpecSheetForHighlight || selectedItem?.specSheetId || null
+  );
+
+  // Auto-select first manufacturer when picker opens
+  useEffect(() => {
+    if (showSpecSheetPicker && !specSheetManufacturerId && manufacturers.length > 0) {
+      setSpecSheetManufacturerId(manufacturers[0].id);
+    }
+  }, [showSpecSheetPicker, specSheetManufacturerId, manufacturers]);
 
   const updateEditingConfig = (key: keyof SubmittalConfig, value: boolean) => {
     setEditingConfig(prev => ({ ...prev, [key]: value }));
@@ -246,26 +289,19 @@ export default function SubmittalDetailPanel({
     return { total, ready, needsHighlight, missing };
   }, [submittal.items]);
 
-  // Filtered spec sheets for picker
-  const filteredSpecSheets = useMemo(() => {
-    if (!specSheetSearch) return mockSpecSheets;
-    const search = specSheetSearch.toLowerCase();
-    return mockSpecSheets.filter(s =>
-      s.displayName.toLowerCase().includes(search) ||
-      s.manufacturer.toLowerCase().includes(search) ||
-      s.fileName.toLowerCase().includes(search)
-    );
-  }, [specSheetSearch]);
+  // Spec sheets from API (already filtered by search and manufacturer)
+  const filteredSpecSheets: SpecSheet[] = specSheetsFromApi || [];
 
-  // Selected item details
-  const selectedItem = selectedItemId
-    ? submittal.items.find(i => i.id === selectedItemId)
-    : null;
-
-  // Matching spec sheet for selected item
-  const selectedItemSpecSheet = selectedItem?.specSheetId
-    ? mockSpecSheets.find(s => s.id === selectedItem.specSheetId)
-    : null;
+  // Matching spec sheet for selected item (from API data)
+  const selectedItemSpecSheet = useMemo(() => {
+    if (!selectedItem?.specSheetId) return null;
+    // First check in currently loaded spec sheets
+    const fromCurrent = filteredSpecSheets.find(s => s.id === selectedItem.specSheetId);
+    if (fromCurrent) return fromCurrent;
+    // If not found, the spec sheet might be from a different manufacturer
+    // In that case, we would need to fetch it separately (future enhancement)
+    return null;
+  }, [selectedItem?.specSheetId, filteredSpecSheets]);
 
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: 'items', label: 'Items', count: submittal.items.length },
@@ -290,6 +326,34 @@ export default function SubmittalDetailPanel({
 
     onUpdate({ items: updatedItems });
     setShowSpecSheetPicker(false);
+
+    // Show highlight picker if versions exist for this spec sheet
+    setSelectedSpecSheetForHighlight(specSheetId);
+    setShowHighlightPicker(true);
+  };
+
+  const handleAttachHighlightVersion = (highlightVersionId: string) => {
+    if (!selectedItemId || !onUpdate) return;
+
+    const updatedItems = submittal.items.map(item => {
+      if (item.id === selectedItemId) {
+        return {
+          ...item,
+          highlightDefinitionId: highlightVersionId,
+          matchStatus: 'matched_with_highlight' as SpecSheetMatchStatus,
+        };
+      }
+      return item;
+    });
+
+    onUpdate({ items: updatedItems });
+    setShowHighlightPicker(false);
+    setSelectedSpecSheetForHighlight(null);
+  };
+
+  const handleSkipHighlightVersion = () => {
+    setShowHighlightPicker(false);
+    setSelectedSpecSheetForHighlight(null);
   };
 
   const handleRemoveSpecSheet = (itemId: string) => {
@@ -309,6 +373,37 @@ export default function SubmittalDetailPanel({
 
     onUpdate({ items: updatedItems });
   };
+
+  // Settings handlers
+  const handleAddTag = () => {
+    if (newTagInput.trim() && !editingTags.includes(newTagInput.trim())) {
+      setEditingTags(prev => [...prev, newTagInput.trim()]);
+      setNewTagInput('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setEditingTags(prev => prev.filter(tag => tag !== tagToRemove));
+  };
+
+  const handleSaveSettings = () => {
+    if (!onUpdate) return;
+    onUpdate({
+      jobName: editingJobName,
+      jobLocation: editingJobLocation || undefined,
+      bidDate: editingBidDate || undefined,
+      tags: editingTags,
+    });
+  };
+
+  const hasSettingsChanges = useMemo(() => {
+    return (
+      editingJobName !== submittal.jobName ||
+      editingJobLocation !== (submittal.jobLocation || '') ||
+      editingBidDate !== (submittal.bidDate?.split('T')[0] || '') ||
+      JSON.stringify(editingTags) !== JSON.stringify(submittal.tags || [])
+    );
+  }, [editingJobName, editingJobLocation, editingBidDate, editingTags, submittal]);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -788,7 +883,8 @@ export default function SubmittalDetailPanel({
                   </label>
                   <input
                     type="text"
-                    defaultValue={submittal.jobName}
+                    value={editingJobName}
+                    onChange={(e) => setEditingJobName(e.target.value)}
                     className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                   />
                 </div>
@@ -798,7 +894,8 @@ export default function SubmittalDetailPanel({
                   </label>
                   <input
                     type="text"
-                    defaultValue={submittal.jobLocation || ''}
+                    value={editingJobLocation}
+                    onChange={(e) => setEditingJobLocation(e.target.value)}
                     placeholder="Enter job location..."
                     className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                   />
@@ -809,7 +906,8 @@ export default function SubmittalDetailPanel({
                   </label>
                   <input
                     type="date"
-                    defaultValue={submittal.bidDate?.split('T')[0] || ''}
+                    value={editingBidDate}
+                    onChange={(e) => setEditingBidDate(e.target.value)}
                     className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                   />
                 </div>
@@ -818,20 +916,50 @@ export default function SubmittalDetailPanel({
                     Tags
                   </label>
                   <div className="flex flex-wrap gap-2 mb-2">
-                    {(submittal.tags || []).map((tag, i) => (
+                    {editingTags.map((tag, i) => (
                       <span key={i} className="px-2 py-1 text-xs bg-[var(--muted)] rounded-full flex items-center gap-1">
                         {tag}
-                        <button className="hover:text-red-500">×</button>
+                        <button
+                          onClick={() => handleRemoveTag(tag)}
+                          className="hover:text-red-500"
+                        >
+                          ×
+                        </button>
                       </span>
                     ))}
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Add a tag..."
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newTagInput}
+                      onChange={(e) => setNewTagInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+                      placeholder="Add a tag..."
+                      className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                    />
+                    <button
+                      onClick={handleAddTag}
+                      disabled={!newTagInput.trim()}
+                      className="px-3 py-2 text-sm bg-[var(--muted)] hover:bg-[var(--muted)]/70 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                  </div>
                 </div>
-                <div className="pt-4 border-t border-[var(--border)]">
+
+                {/* Save button */}
+                {hasSettingsChanges && (
+                  <div className="pt-4 border-t border-[var(--border)]">
+                    <button
+                      onClick={handleSaveSettings}
+                      className="px-4 py-2 text-sm bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] rounded-lg transition-colors"
+                    >
+                      Save Changes
+                    </button>
+                  </div>
+                )}
+
+                <div className={`${hasSettingsChanges ? '' : 'pt-4 border-t border-[var(--border)]'}`}>
                   <button className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                     Delete Submittal
                   </button>
@@ -848,7 +976,10 @@ export default function SubmittalDetailPanel({
               <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
                 <h3 className="font-semibold text-[var(--foreground)]">Select Spec Sheet</h3>
                 <button
-                  onClick={() => setShowSpecSheetPicker(false)}
+                  onClick={() => {
+                    setShowSpecSheetPicker(false);
+                    setSpecSheetSearch('');
+                  }}
                   className="p-1.5 hover:bg-[var(--muted)] rounded transition-colors"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -856,7 +987,28 @@ export default function SubmittalDetailPanel({
                   </svg>
                 </button>
               </div>
-              <div className="p-4 border-b border-[var(--border)]">
+              <div className="p-4 border-b border-[var(--border)] space-y-3">
+                {/* Manufacturer selector */}
+                <div>
+                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Manufacturer</label>
+                  <select
+                    value={specSheetManufacturerId || ''}
+                    onChange={(e) => setSpecSheetManufacturerId(e.target.value || null)}
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 text-sm"
+                    disabled={isLoadingManufacturers}
+                  >
+                    {isLoadingManufacturers ? (
+                      <option>Loading manufacturers...</option>
+                    ) : manufacturers.length === 0 ? (
+                      <option>No manufacturers found</option>
+                    ) : (
+                      manufacturers.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                {/* Search input */}
                 <div className="relative">
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]">
                     <circle cx="9" cy="9" r="6"/>
@@ -869,31 +1021,121 @@ export default function SubmittalDetailPanel({
                     placeholder="Search spec sheets..."
                     className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                   />
+                  {isLoadingSpecSheets && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="animate-spin h-4 w-4 border-2 border-[var(--primary)] border-t-transparent rounded-full" />
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-2">
-                {filteredSpecSheets.map(specSheet => (
-                  <button
-                    key={specSheet.id}
-                    onClick={() => handleAttachSpecSheet(specSheet.id)}
-                    className="w-full p-3 text-left rounded-lg hover:bg-[var(--muted)]/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-red-100 rounded flex items-center justify-center flex-shrink-0">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
-                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                          <path d="M14 2v6h6"/>
-                        </svg>
+                {isLoadingSpecSheets ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin h-6 w-6 border-2 border-[var(--primary)] border-t-transparent rounded-full" />
+                  </div>
+                ) : filteredSpecSheets.length === 0 ? (
+                  <div className="text-center py-8 text-[var(--muted-foreground)]">
+                    <p className="text-sm">
+                      {specSheetManufacturerId
+                        ? 'No spec sheets found for this manufacturer.'
+                        : 'Select a manufacturer to view spec sheets.'}
+                    </p>
+                  </div>
+                ) : (
+                  filteredSpecSheets.map(specSheet => (
+                    <button
+                      key={specSheet.id}
+                      onClick={() => handleAttachSpecSheet(specSheet.id)}
+                      className="w-full p-3 text-left rounded-lg hover:bg-[var(--muted)]/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-red-100 rounded flex items-center justify-center flex-shrink-0">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                            <path d="M14 2v6h6"/>
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[var(--foreground)] truncate">{specSheet.displayName}</p>
+                          <p className="text-xs text-[var(--muted-foreground)]">
+                            {specSheet.manufacturer} • {specSheet.pageCount} pages
+                            {specSheet.highlightCount && specSheet.highlightCount > 0 && (
+                              <span className="ml-2 text-amber-600">• {specSheet.highlightCount} highlight{specSheet.highlightCount !== 1 ? 's' : ''}</span>
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--foreground)] truncate">{specSheet.displayName}</p>
-                        <p className="text-xs text-[var(--muted-foreground)]">
-                          {specSheet.manufacturer} • {specSheet.pageCount} pages
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Highlight Version Picker Modal */}
+        {showHighlightPicker && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl w-full max-w-md">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+                <h3 className="font-semibold text-[var(--foreground)]">Select Highlight Version</h3>
+                <button
+                  onClick={handleSkipHighlightVersion}
+                  className="p-1.5 hover:bg-[var(--muted)] rounded transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="p-4">
+                {isLoadingHighlightVersions ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin h-6 w-6 border-2 border-[var(--primary)] border-t-transparent rounded-full" />
+                  </div>
+                ) : highlightVersions.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-[var(--muted-foreground)]">No highlight versions available for this spec sheet.</p>
+                    <button
+                      onClick={handleSkipHighlightVersion}
+                      className="mt-4 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                    >
+                      Continue Without Highlights
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-[var(--muted-foreground)] mb-3">
+                      Select a highlight version to use with this spec sheet:
+                    </p>
+                    {highlightVersions.map(version => (
+                      <button
+                        key={version.id}
+                        onClick={() => handleAttachHighlightVersion(version.id)}
+                        className="w-full p-3 text-left rounded-lg border border-[var(--border)] hover:bg-[var(--muted)]/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-[var(--foreground)]">{version.name}</p>
+                            <p className="text-xs text-[var(--muted-foreground)]">
+                              Version {version.versionNumber}
+                              {version.description && ` • ${version.description}`}
+                            </p>
+                          </div>
+                          <span className="text-xs px-2 py-1 rounded bg-amber-100 text-amber-700">
+                            {version.regions?.length || 0} highlight{(version.regions?.length || 0) !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                    <button
+                      onClick={handleSkipHighlightVersion}
+                      className="w-full mt-2 px-4 py-2 text-[var(--muted-foreground)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/50 transition-colors"
+                    >
+                      Skip - No Highlights
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

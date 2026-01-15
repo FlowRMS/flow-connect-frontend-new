@@ -19,6 +19,7 @@ import {
   removeSubmittalStakeholder,
   createSubmittalRevision,
   sendSubmittalEmail,
+  generateSubmittalPdf,
   type SubmittalResponse,
   type SubmittalItemResponse,
   type SubmittalStakeholderResponse,
@@ -29,6 +30,8 @@ import {
   type UpdateSubmittalItemInput,
   type SubmittalStakeholderInput,
   type SendSubmittalEmailInput,
+  type GenerateSubmittalPdfInput,
+  type GenerateSubmittalPdfResponse,
   type SubmittalStatusGQL,
 } from '@/components/lib/graphql/submittals';
 
@@ -268,6 +271,24 @@ export function useSendSubmittalEmail() {
 }
 
 // ============================================================================
+// Mutation Hooks - PDF Generation
+// ============================================================================
+
+/**
+ * Generate a submittal PDF
+ */
+export function useGenerateSubmittalPdf() {
+  const queryClient = useQueryClient();
+
+  return useMutation<GenerateSubmittalPdfResponse, Error, GenerateSubmittalPdfInput>({
+    mutationFn: generateSubmittalPdf,
+    onSuccess: (_, { submittalId }) => {
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+    },
+  });
+}
+
+// ============================================================================
 // Re-export types
 // ============================================================================
 
@@ -282,6 +303,8 @@ export type {
   UpdateSubmittalItemInput,
   SubmittalStakeholderInput,
   SendSubmittalEmailInput,
+  GenerateSubmittalPdfInput,
+  GenerateSubmittalPdfResponse,
   SubmittalStatusGQL,
   SubmittalItemApprovalStatusGQL,
   SubmittalItemMatchStatusGQL,

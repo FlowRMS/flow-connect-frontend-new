@@ -168,6 +168,41 @@ export interface SendSubmittalEmailInput {
   recipientEmails: string[];
 }
 
+export interface GenerateSubmittalPdfInput {
+  submittalId: string;
+  outputType?: 'pdf' | 'email' | 'email_link';
+  includeCoverPage?: boolean;
+  includeTransmittalPage?: boolean;
+  includeFixtureSummary?: boolean;
+  includePages?: boolean;
+  includeTypeCoverPage?: boolean;
+  showQuantities?: boolean;
+  showDescriptions?: boolean;
+  showLeadTimes?: boolean;
+  hideNotes?: boolean;
+  useCustomerLogo?: boolean;
+  printDuplex?: boolean;
+  capFileSizeMb?: number;
+  attachedItems?: string[];
+  attachedOther?: string;
+  transmittedFor?: string[];
+  transmittedForOther?: string;
+  copies?: number;
+  selectedItemIds?: string[];
+  addressedToIds?: string[];
+  createRevision?: boolean;
+  revisionNotes?: string;
+}
+
+export interface GenerateSubmittalPdfResponse {
+  success: boolean;
+  error?: string;
+  pdfUrl?: string;
+  pdfFileName?: string;
+  pdfFileSizeBytes?: number;
+  revision?: SubmittalRevisionResponse;
+}
+
 // ============================================================================
 // GraphQL Fragments
 // ============================================================================
@@ -381,6 +416,22 @@ const SEND_SUBMITTAL_EMAIL = `
   mutation SendSubmittalEmail($input: SendSubmittalEmailInput!) {
     sendSubmittalEmail(input: $input)
   }
+`;
+
+const GENERATE_SUBMITTAL_PDF = `
+  mutation GenerateSubmittalPdf($input: GenerateSubmittalPdfInput!) {
+    generateSubmittalPdf(input: $input) {
+      success
+      error
+      pdfUrl
+      pdfFileName
+      pdfFileSizeBytes
+      revision {
+        ...SubmittalRevisionFields
+      }
+    }
+  }
+  ${SUBMITTAL_REVISION_FRAGMENT}
 `;
 
 // ============================================================================
@@ -611,4 +662,23 @@ export async function sendSubmittalEmail(input: SendSubmittalEmailInput): Promis
   }
 
   return response.data?.sendSubmittalEmail || false;
+}
+
+export async function generateSubmittalPdf(
+  input: GenerateSubmittalPdfInput
+): Promise<GenerateSubmittalPdfResponse> {
+  const response = await crmGraphQLRequest<{ generateSubmittalPdf: GenerateSubmittalPdfResponse }>({
+    query: GENERATE_SUBMITTAL_PDF,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to generate PDF');
+  }
+
+  if (!response.data?.generateSubmittalPdf) {
+    throw new Error('No response returned from generate PDF mutation');
+  }
+
+  return response.data.generateSubmittalPdf;
 }

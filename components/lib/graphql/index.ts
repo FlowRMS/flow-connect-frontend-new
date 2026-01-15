@@ -431,3 +431,12 @@ export {
   type BulkDeleteResult,
   type BulkDeleteFailure,
 } from './bulk-operations';
+
+// Overage module
+export {
+  findEffectiveCommissionRateAndOverage,
+  calculateOverageForLineItems,
+  type OverageRecord,
+  type OverageTypeEnum,
+  type OverageCalculationInput,
+} from './overage';
