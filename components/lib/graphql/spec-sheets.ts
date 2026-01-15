@@ -46,6 +46,7 @@ export interface HighlightRegionResponse {
   shapeType: string;
   color: string;
   annotation: string | null;
+  tags: string[] | null;
   createdAt: string;
 }
 
@@ -92,6 +93,7 @@ export interface CreateHighlightVersionInput {
   specSheetId: string;
   name: string;
   description?: string;
+  regions?: HighlightRegionInput[];
 }
 
 export interface HighlightRegionInput {
@@ -103,6 +105,7 @@ export interface HighlightRegionInput {
   shapeType: string;
   color: string;
   annotation?: string;
+  tags?: string[];
 }
 
 // ============================================================================
@@ -216,7 +219,7 @@ const SEARCH_SPEC_SHEETS = `
 
 const GET_HIGHLIGHT_VERSIONS = `
   query GetHighlightVersions($specSheetId: UUID!) {
-    specSheetHighlightVersions(specSheetId: $specSheetId) {
+    highlightVersionsBySpecSheet(specSheetId: $specSheetId) {
       id
       specSheetId
       name
@@ -233,6 +236,7 @@ const GET_HIGHLIGHT_VERSIONS = `
         shapeType
         color
         annotation
+        tags
         createdAt
       }
       createdAt
@@ -246,7 +250,7 @@ const GET_HIGHLIGHT_VERSIONS = `
 
 const GET_HIGHLIGHT_VERSION = `
   query GetHighlightVersion($id: UUID!) {
-    specSheetHighlightVersion(id: $id) {
+    highlightVersion(id: $id) {
       id
       specSheetId
       name
@@ -263,6 +267,7 @@ const GET_HIGHLIGHT_VERSION = `
         shapeType
         color
         annotation
+        tags
         createdAt
       }
       createdAt
@@ -348,7 +353,7 @@ const DELETE_SPEC_SHEET = `
 
 const CREATE_HIGHLIGHT_VERSION = `
   mutation CreateHighlightVersion($input: CreateHighlightVersionInput!) {
-    createSpecSheetHighlightVersion(input: $input) {
+    createHighlightVersion(input: $input) {
       id
       specSheetId
       name
@@ -365,6 +370,7 @@ const CREATE_HIGHLIGHT_VERSION = `
         shapeType
         color
         annotation
+        tags
         createdAt
       }
       createdAt
@@ -377,8 +383,8 @@ const CREATE_HIGHLIGHT_VERSION = `
 `;
 
 const UPDATE_HIGHLIGHT_REGIONS = `
-  mutation UpdateHighlightRegions($versionId: UUID!, $regions: [HighlightRegionInput!]!) {
-    updateSpecSheetHighlightRegions(versionId: $versionId, regions: $regions) {
+  mutation UpdateHighlightRegions($input: UpdateHighlightRegionsInput!) {
+    updateHighlightRegions(input: $input) {
       id
       specSheetId
       name
@@ -395,6 +401,7 @@ const UPDATE_HIGHLIGHT_REGIONS = `
         shapeType
         color
         annotation
+        tags
         createdAt
       }
       createdAt
@@ -408,7 +415,7 @@ const UPDATE_HIGHLIGHT_REGIONS = `
 
 const DELETE_HIGHLIGHT_VERSION = `
   mutation DeleteHighlightVersion($id: UUID!) {
-    deleteSpecSheetHighlightVersion(id: $id)
+    deleteHighlightVersion(id: $id)
   }
 `;
 
@@ -472,7 +479,7 @@ export async function searchSpecSheets(params: {
 }
 
 export async function fetchHighlightVersions(specSheetId: string): Promise<HighlightVersionResponse[]> {
-  const response = await crmGraphQLRequest<{ specSheetHighlightVersions: HighlightVersionResponse[] }>({
+  const response = await crmGraphQLRequest<{ highlightVersionsBySpecSheet: HighlightVersionResponse[] }>({
     query: GET_HIGHLIGHT_VERSIONS,
     variables: { specSheetId },
   });
@@ -481,11 +488,11 @@ export async function fetchHighlightVersions(specSheetId: string): Promise<Highl
     throw new Error(response.errors[0]?.message || 'Failed to fetch highlight versions');
   }
 
-  return response.data?.specSheetHighlightVersions || [];
+  return response.data?.highlightVersionsBySpecSheet || [];
 }
 
 export async function fetchHighlightVersion(id: string): Promise<HighlightVersionResponse | null> {
-  const response = await crmGraphQLRequest<{ specSheetHighlightVersion: HighlightVersionResponse }>({
+  const response = await crmGraphQLRequest<{ highlightVersion: HighlightVersionResponse }>({
     query: GET_HIGHLIGHT_VERSION,
     variables: { id },
   });
@@ -494,7 +501,7 @@ export async function fetchHighlightVersion(id: string): Promise<HighlightVersio
     throw new Error(response.errors[0]?.message || 'Failed to fetch highlight version');
   }
 
-  return response.data?.specSheetHighlightVersion || null;
+  return response.data?.highlightVersion || null;
 }
 
 // ============================================================================
@@ -568,7 +575,7 @@ export async function deleteSpecSheet(id: string): Promise<boolean> {
 }
 
 export async function createHighlightVersion(input: CreateHighlightVersionInput): Promise<HighlightVersionResponse> {
-  const response = await crmGraphQLRequest<{ createSpecSheetHighlightVersion: HighlightVersionResponse }>({
+  const response = await crmGraphQLRequest<{ createHighlightVersion: HighlightVersionResponse }>({
     query: CREATE_HIGHLIGHT_VERSION,
     variables: { input },
   });
@@ -577,35 +584,35 @@ export async function createHighlightVersion(input: CreateHighlightVersionInput)
     throw new Error(response.errors[0]?.message || 'Failed to create highlight version');
   }
 
-  if (!response.data?.createSpecSheetHighlightVersion) {
+  if (!response.data?.createHighlightVersion) {
     throw new Error('No highlight version returned from create mutation');
   }
 
-  return response.data.createSpecSheetHighlightVersion;
+  return response.data.createHighlightVersion;
 }
 
 export async function updateHighlightRegions(
   versionId: string,
   regions: HighlightRegionInput[]
 ): Promise<HighlightVersionResponse> {
-  const response = await crmGraphQLRequest<{ updateSpecSheetHighlightRegions: HighlightVersionResponse }>({
+  const response = await crmGraphQLRequest<{ updateHighlightRegions: HighlightVersionResponse }>({
     query: UPDATE_HIGHLIGHT_REGIONS,
-    variables: { versionId, regions },
+    variables: { input: { versionId, regions } },
   });
 
   if (response.errors) {
     throw new Error(response.errors[0]?.message || 'Failed to update highlight regions');
   }
 
-  if (!response.data?.updateSpecSheetHighlightRegions) {
+  if (!response.data?.updateHighlightRegions) {
     throw new Error('No highlight version returned from update mutation');
   }
 
-  return response.data.updateSpecSheetHighlightRegions;
+  return response.data.updateHighlightRegions;
 }
 
 export async function deleteHighlightVersion(id: string): Promise<boolean> {
-  const response = await crmGraphQLRequest<{ deleteSpecSheetHighlightVersion: boolean }>({
+  const response = await crmGraphQLRequest<{ deleteHighlightVersion: boolean }>({
     query: DELETE_HIGHLIGHT_VERSION,
     variables: { id },
   });
@@ -614,7 +621,7 @@ export async function deleteHighlightVersion(id: string): Promise<boolean> {
     throw new Error(response.errors[0]?.message || 'Failed to delete highlight version');
   }
 
-  return response.data?.deleteSpecSheetHighlightVersion || false;
+  return response.data?.deleteHighlightVersion || false;
 }
 
 export async function moveFolder(

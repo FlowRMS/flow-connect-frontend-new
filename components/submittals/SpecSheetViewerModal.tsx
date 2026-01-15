@@ -17,9 +17,6 @@ import {
 // Set up the worker for react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-// Demo PDF path - used for all spec sheets in this demo
-const DEMO_PDF_PATH = '/spec-sheets/NPTPSW_spec.pdf';
-
 // Version type for saved highlight configurations (maps from API response)
 type HighlightVersion = {
   id: string;
@@ -44,7 +41,7 @@ function transformVersionResponse(response: HighlightVersionResponse): Highlight
       shape: r.shapeType as HighlightShape,
       color: r.color,
       annotation: r.annotation || undefined,
-      tags: [],
+      tags: r.tags || [],
     })),
     createdAt: response.createdAt,
     createdBy: response.createdBy.fullName,
@@ -129,6 +126,10 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
   const [activeColor, setActiveColor] = useState('#FFEB3B');
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
 
+  // Track modifications to saved regions (like tags)
+  const [modifiedSavedRegions, setModifiedSavedRegions] = useState<Set<string>>(new Set());
+  const [savedRegionOverrides, setSavedRegionOverrides] = useState<Map<string, Partial<HighlightRegion>>>(new Map());
+
   // Collapsible section states
   const [sectionsExpanded, setSectionsExpanded] = useState({
     details: false,
@@ -149,8 +150,16 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
   const selectedVersion = versions.find(v => v.id === selectedVersionId);
   const savedRegions = useMemo(() => {
     const version = versions.find(v => v.id === selectedVersionId);
-    return version?.regions || [];
-  }, [versions, selectedVersionId]);
+    const baseRegions = version?.regions || [];
+    // Apply any local overrides to saved regions
+    return baseRegions.map(r => {
+      const override = savedRegionOverrides.get(r.id);
+      if (override) {
+        return { ...r, ...override };
+      }
+      return r;
+    });
+  }, [versions, selectedVersionId, savedRegionOverrides]);
 
   // Combine saved regions with current drawing regions
   const allRegions = useMemo(() => {
@@ -163,21 +172,40 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
     return allRegions.find(r => r.id === selectedRegionId);
   }, [selectedRegionId, allRegions]);
 
+  // Check if a region is a saved region
+  const isSavedRegion = useCallback((regionId: string) => {
+    const version = versions.find(v => v.id === selectedVersionId);
+    return version?.regions.some(r => r.id === regionId) || false;
+  }, [versions, selectedVersionId]);
+
   // Add tag to selected region
   const handleAddTag = () => {
     if (!selectedRegionId || !newTag.trim()) return;
 
     const tag = newTag.trim();
-    const updatedRegions = allRegions.map(r => {
-      if (r.id === selectedRegionId) {
-        const existingTags = r.tags || [];
-        if (existingTags.includes(tag)) return r;
-        return { ...r, tags: [...existingTags, tag] };
-      }
-      return r;
-    });
 
-    handleRegionsChange(updatedRegions);
+    if (isSavedRegion(selectedRegionId)) {
+      // For saved regions, use overrides
+      const currentOverride = savedRegionOverrides.get(selectedRegionId) || {};
+      const existingRegion = allRegions.find(r => r.id === selectedRegionId);
+      const existingTags = existingRegion?.tags || [];
+      if (!existingTags.includes(tag)) {
+        const newOverrides = new Map(savedRegionOverrides);
+        newOverrides.set(selectedRegionId, { ...currentOverride, tags: [...existingTags, tag] });
+        setSavedRegionOverrides(newOverrides);
+        setModifiedSavedRegions(prev => new Set(prev).add(selectedRegionId));
+      }
+    } else {
+      // For drawing regions, update directly
+      setDrawingRegions(prev => prev.map(r => {
+        if (r.id === selectedRegionId) {
+          const existingTags = r.tags || [];
+          if (existingTags.includes(tag)) return r;
+          return { ...r, tags: [...existingTags, tag] };
+        }
+        return r;
+      }));
+    }
     setNewTag('');
   };
 
@@ -185,14 +213,24 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
   const handleRemoveTag = (tag: string) => {
     if (!selectedRegionId) return;
 
-    const updatedRegions = allRegions.map(r => {
-      if (r.id === selectedRegionId) {
-        return { ...r, tags: (r.tags || []).filter(t => t !== tag) };
-      }
-      return r;
-    });
-
-    handleRegionsChange(updatedRegions);
+    if (isSavedRegion(selectedRegionId)) {
+      // For saved regions, use overrides
+      const currentOverride = savedRegionOverrides.get(selectedRegionId) || {};
+      const existingRegion = allRegions.find(r => r.id === selectedRegionId);
+      const existingTags = existingRegion?.tags || [];
+      const newOverrides = new Map(savedRegionOverrides);
+      newOverrides.set(selectedRegionId, { ...currentOverride, tags: existingTags.filter(t => t !== tag) });
+      setSavedRegionOverrides(newOverrides);
+      setModifiedSavedRegions(prev => new Set(prev).add(selectedRegionId));
+    } else {
+      // For drawing regions, update directly
+      setDrawingRegions(prev => prev.map(r => {
+        if (r.id === selectedRegionId) {
+          return { ...r, tags: (r.tags || []).filter(t => t !== tag) };
+        }
+        return r;
+      }));
+    }
   };
 
   // Clear drawing regions when switching versions
@@ -258,6 +296,7 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
           shapeType: r.shape,
           color: r.color,
           annotation: r.annotation,
+          tags: r.tags,
         })),
       });
 
@@ -272,7 +311,7 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
 
   // Update current version with new regions via API
   const handleUpdateVersion = async () => {
-    if (drawingRegions.length === 0) return;
+    if (drawingRegions.length === 0 && modifiedSavedRegions.size === 0) return;
     if (selectedVersionId === 'new') {
       // For unsaved versions, prompt to save as new
       setShowSaveModal(true);
@@ -292,9 +331,11 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
           shapeType: r.shape,
           color: r.color,
           annotation: r.annotation,
+          tags: r.tags,
         })),
       });
       setDrawingRegions([]);
+      setModifiedSavedRegions(new Set());
     } catch (error) {
       console.error('Failed to update version:', error);
     }
@@ -529,9 +570,9 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
         {/* Main Content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Page Thumbnails */}
-          <div className="w-28 border-r border-[var(--border)] bg-[var(--muted)]/20 overflow-y-auto p-3 space-y-2">
+          <div className="w-32 border-r border-[var(--border)] bg-[var(--muted)]/20 overflow-y-auto p-3 space-y-2">
             <Document
-              file={DEMO_PDF_PATH}
+              file={specSheet.fileUrl}
               onLoadSuccess={() => {}}
               loading={null}
               error={null}
@@ -544,7 +585,7 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
                   <button
                     key={pageNum}
                     onClick={() => setCurrentPage(pageNum)}
-                    className={`w-full bg-white border rounded-lg shadow-sm transition-all relative overflow-hidden mb-2 ${
+                    className={`w-full bg-white border rounded-lg shadow-sm transition-all relative mb-2 ${
                       currentPage === pageNum
                         ? 'ring-2 ring-[var(--primary)] border-[var(--primary)]'
                         : 'border-[var(--border)] hover:shadow-md'
@@ -560,7 +601,7 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
                       {pageNum}
                     </div>
                     {pageHighlightCount > 0 && (
-                      <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-green-500 text-white text-[10px] rounded-full flex items-center justify-center font-medium">
+                      <div className="absolute top-1 right-1 w-5 h-5 bg-green-500 text-white text-[10px] rounded-full flex items-center justify-center font-medium shadow-sm">
                         {pageHighlightCount}
                       </div>
                     )}
@@ -573,7 +614,7 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
           {/* PDF Viewer */}
           <div className="flex-1 overflow-auto bg-[var(--muted)]/30 p-6 flex justify-center">
             <Document
-              file={DEMO_PDF_PATH}
+              file={specSheet.fileUrl}
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={onDocumentLoadError}
               loading={
