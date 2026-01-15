@@ -1,22 +1,12 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useSidebarConfig } from '@/contexts/SidebarConfigContext';
-import { useNavigationMorph, isMorphableItem } from '@/contexts/NavigationMorphContext';
 
 const SCROLL_STORAGE_KEY = 'sidebar-scroll-position';
-
-// Smooth spring config for the sliding pill
-const pillSpring = {
-  type: 'spring' as const,
-  stiffness: 350,
-  damping: 30,
-  mass: 0.8,
-};
 
 // Custom hook to detect mobile screen size
 function useIsMobile() {
@@ -60,7 +50,7 @@ export function MobileSidebarProvider({ children }: { children: React.ReactNode 
 }
 
 // Icon mapping for each nav item
-const iconMap: Record<string, React.ReactNode> = {
+export const iconMap: Record<string, React.ReactNode> = {
   // FlowAI icons
   'flow-ai-scan': (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -205,6 +195,12 @@ const iconMap: Record<string, React.ReactNode> = {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
       <circle cx="12" cy="12" r="4"/>
+    </svg>
+  ),
+  'credits': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M8 12h8"/>
     </svg>
   ),
   'acknowledgements': (
@@ -487,100 +483,12 @@ const iconMap: Record<string, React.ReactNode> = {
   ),
 };
 
-// Export iconMap for use in other components
-export { iconMap };
-
-// Simple, smooth click highlight for sidebar items
-function ClickHighlight({ isActive }: { isActive: boolean }) {
-  return (
-    <AnimatePresence>
-      {isActive && (
-        <motion.div
-          className="absolute inset-0 rounded-lg bg-[var(--primary)]/15 pointer-events-none"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-        />
-      )}
-    </AnimatePresence>
-  );
-}
-
 export default function Sidebar() {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { isOpen, setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
   const { config, toggleGroup } = useSidebarConfig();
   const navRef = useRef<HTMLElement>(null);
-  const { registerSidebarItem, startMorph, isAnimating, activeItemId } = useNavigationMorph();
-
-  // Track which item was just clicked for animation
-  const [clickedItemId, setClickedItemId] = useState<string | null>(null);
-
-  // Track visually selected item - updates immediately on click, before page loads
-  const [visuallySelectedId, setVisuallySelectedId] = useState<string | null>(null);
-
-  // Store refs to all nav items for pill position calculation
-  const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
-
-  // Track pill position for smooth sliding animation
-  const [pillPosition, setPillPosition] = useState<{ top: number; height: number } | null>(null);
-
-  // Update pill position when visual selection changes
-  useEffect(() => {
-    if (visuallySelectedId && itemRefs.current.has(visuallySelectedId)) {
-      const element = itemRefs.current.get(visuallySelectedId);
-      const nav = navRef.current;
-      if (element && nav) {
-        const elementRect = element.getBoundingClientRect();
-        const navRect = nav.getBoundingClientRect();
-        setPillPosition({
-          top: elementRect.top - navRect.top + nav.scrollTop,
-          height: elementRect.height,
-        });
-      }
-    }
-  }, [visuallySelectedId, isCollapsed]);
-
-  // Also update pill position on scroll
-  useEffect(() => {
-    const updatePillOnScroll = () => {
-      if (visuallySelectedId && itemRefs.current.has(visuallySelectedId)) {
-        const element = itemRefs.current.get(visuallySelectedId);
-        const nav = navRef.current;
-        if (element && nav) {
-          const elementRect = element.getBoundingClientRect();
-          const navRect = nav.getBoundingClientRect();
-          setPillPosition({
-            top: elementRect.top - navRect.top + nav.scrollTop,
-            height: elementRect.height,
-          });
-        }
-      }
-    };
-
-    const nav = navRef.current;
-    if (nav) {
-      nav.addEventListener('scroll', updatePillOnScroll, { passive: true });
-      return () => nav.removeEventListener('scroll', updatePillOnScroll);
-    }
-  }, [visuallySelectedId]);
-
-  // Sync visual selection with pathname when page actually loads
-  useEffect(() => {
-    // Find the item that matches the current pathname
-    const allItems = config.groups.flatMap(g => g.items.filter(i => i.enabled));
-    const matchingItem = allItems.find(item => {
-      const isExactMatchOnly = item.href === '/' || item.href === '/flow-ai';
-      return isExactMatchOnly
-        ? pathname === item.href
-        : pathname === item.href || pathname.startsWith(item.href + '/');
-    });
-    if (matchingItem) {
-      setVisuallySelectedId(matchingItem.id);
-    }
-  }, [pathname, config.groups]);
 
   // Restore scroll position on mount
   useEffect(() => {
@@ -596,39 +504,6 @@ export default function Sidebar() {
       sessionStorage.setItem(SCROLL_STORAGE_KEY, navRef.current.scrollTop.toString());
     }
   };
-
-  // Handle morphable item click - navigation happens immediately, animation is fire-and-forget
-  const handleMorphClick = useCallback((
-    e: React.MouseEvent,
-    itemId: string,
-    href: string,
-    isActive: boolean
-  ) => {
-    // Don't animate if already active
-    if (isActive) return;
-
-    // IMMEDIATELY update visual selection - this makes the pill slide instantly
-    setVisuallySelectedId(itemId);
-
-    // Trigger click animation
-    setClickedItemId(itemId);
-    setTimeout(() => setClickedItemId(null), 600);
-
-    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return;
-    }
-
-    // Only morph for morphable items - start animation but don't wait for it
-    if (isMorphableItem(itemId)) {
-      const icon = iconMap[itemId];
-      if (icon) {
-        // Fire and forget - don't await, let navigation happen immediately
-        startMorph(itemId, icon);
-      }
-    }
-
-    // Navigation happens immediately - no delay
-  }, [startMorph]);
 
   return (
     <div className={`${isCollapsed ? 'w-16' : 'w-60'} bg-[var(--card)] border-r border-[var(--border)] flex flex-col transition-all duration-300`}>
@@ -685,20 +560,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav ref={navRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-3 relative">
-        {/* Single sliding pill that animates between items */}
-        {pillPosition && (
-          <motion.div
-            className="absolute left-3 right-3 bg-[var(--primary)] rounded-lg pointer-events-none z-0"
-            initial={false}
-            animate={{
-              top: pillPosition.top,
-              height: pillPosition.height,
-            }}
-            transition={pillSpring}
-          />
-        )}
-        <div className="relative z-10">
+      <nav ref={navRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-3">
         {config.groups.map((group, groupIndex) => {
           const enabledItems = group.items.filter(item => item.enabled);
           if (enabledItems.length === 0) return null;
@@ -730,103 +592,26 @@ export default function Sidebar() {
               {(isCollapsed || !group.collapsed) && (
                 <div className={!isCollapsed ? 'mt-1' : ''}>
                   {enabledItems.map((item) => {
-                    // Use visual selection for the sliding pill - updates instantly on click
-                    const isVisuallyActive = visuallySelectedId === item.id;
-
-                    const isMorphable = isMorphableItem(item.id);
-                    const isThisAnimating = activeItemId === item.id;
-                    const isClicked = clickedItemId === item.id;
-
+                    // Check if current path matches exactly OR starts with the item href (for nested routes)
+                    // For root paths like "/" or "/flow-ai" we need exact match to avoid over-matching
+                    const isExactMatchOnly = item.href === '/' || item.href === '/flow-ai';
+                    const isActive = isExactMatchOnly
+                      ? pathname === item.href
+                      : pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
-                      <motion.div
+                      <Link
                         key={item.id}
-                        ref={(el) => {
-                          if (el) {
-                            itemRefs.current.set(item.id, el);
-                            if (isMorphable) {
-                              registerSidebarItem(item.id, el);
-                            }
-                          }
-                        }}
-                        whileHover={!isVisuallyActive ? { x: 3 } : {}}
-                        whileTap={{ scale: 0.97 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                        href={item.href}
+                        title={isCollapsed ? item.name : undefined}
+                        className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5'} rounded-lg text-sm font-medium transition-all mb-1 ${
+                          isActive
+                            ? 'bg-[var(--primary)] text-white'
+                            : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
+                        }`}
                       >
-                        <Link
-                          href={item.href}
-                          prefetch={true}
-                          onClick={(e) => handleMorphClick(e, item.id, item.href, isVisuallyActive)}
-                          title={isCollapsed ? item.name : undefined}
-                          className={`
-                            relative w-full flex items-center overflow-hidden
-                            ${isCollapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5'}
-                            rounded-lg text-sm font-medium mb-1
-                            ${isVisuallyActive
-                              ? 'text-white'
-                              : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
-                            }
-                          `}
-                        >
-                          {/* Click highlight */}
-                          <ClickHighlight isActive={isClicked && !isVisuallyActive} />
-
-                          {/* Icon with click and morph animation */}
-                          <motion.div
-                            className="flex items-center justify-center flex-shrink-0 relative z-10"
-                            animate={isThisAnimating ? {
-                              opacity: 0,
-                              scale: 0.5,
-                            } : isClicked ? {
-                              opacity: 1,
-                              scale: [1, 1.2, 1],
-                              rotate: [0, -8, 0],
-                            } : {
-                              opacity: 1,
-                              scale: 1,
-                              rotate: 0,
-                            }}
-                            transition={isClicked ? {
-                              duration: 0.4,
-                              ease: [0.34, 1.56, 0.64, 1],
-                            } : {
-                              type: 'spring',
-                              stiffness: 500,
-                              damping: 30,
-                            }}
-                          >
-                            {iconMap[item.id]}
-                          </motion.div>
-
-                          {/* Label with click animation */}
-                          {!isCollapsed && (
-                            <motion.span
-                              className="whitespace-nowrap relative z-10"
-                              animate={isThisAnimating ? {
-                                opacity: 0.5,
-                                x: -4,
-                              } : isClicked ? {
-                                opacity: 1,
-                                x: [0, 2, 0],
-                                scale: [1, 1.02, 1],
-                              } : {
-                                opacity: 1,
-                                x: 0,
-                                scale: 1,
-                              }}
-                              transition={isClicked ? {
-                                duration: 0.35,
-                                ease: [0.34, 1.56, 0.64, 1],
-                              } : {
-                                type: 'spring',
-                                stiffness: 500,
-                                damping: 30,
-                              }}
-                            >
-                              {item.name}
-                            </motion.span>
-                          )}
-                        </Link>
-                      </motion.div>
+                        {iconMap[item.id]}
+                        {!isCollapsed && <span>{item.name}</span>}
+                      </Link>
                     );
                   })}
                 </div>
@@ -834,7 +619,6 @@ export default function Sidebar() {
             </div>
           );
         })}
-        </div>
       </nav>
     </div>
   );

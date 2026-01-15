@@ -88,7 +88,7 @@ function createEmptyOrder(): Order {
 /**
  * Transform API Order detail to UI Order format
  */
-function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
+export function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
   // Map line items from API format to UI format
   const lineItems: OrderLineItem[] = (apiOrder.details || []).map((detail: OrderDetail, index: number) => {
     // Parse values first so we can calculate if API values are missing
