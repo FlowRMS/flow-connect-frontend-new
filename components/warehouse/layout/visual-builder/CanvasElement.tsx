@@ -109,12 +109,17 @@ export default function CanvasElement({
                 e.stopPropagation();
                 onAddChild(element.id, element.type);
               }}
-              className={`p-1 rounded-md bg-white/30 hover:bg-white/70 shadow-sm ${colors.text} transition-colors`}
+              className={`flex items-center gap-1 px-1.5 py-1 rounded-md bg-white/40 hover:bg-white/80 shadow-sm ${colors.text} transition-colors`}
               title={`Add ${levelLabels[nextType]}`}
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
+              {(element.width ?? 0) >= 150 && (
+                <span className="text-[9px] font-medium whitespace-nowrap">
+                  Add {levelLabels[nextType]}
+                </span>
+              )}
             </button>
           )}
         </div>

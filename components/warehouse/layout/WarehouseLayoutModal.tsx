@@ -230,6 +230,7 @@ export default function WarehouseLayoutModal({
             onDelete={locationManagement.deleteLocation}
             onSave={handleSave}
             onClose={onClose}
+            isSaving={locationManagement.isSaving}
             onWheel={canvasInteractions.handleCanvasWheel}
             onMouseDown={canvasInteractions.handleCanvasMouseDown}
             onMouseMove={canvasInteractions.handleCanvasMouseMove}
