@@ -13,6 +13,7 @@ import {
   updateCheck as _updateCheck,
   deleteCheck as _deleteCheck,
   fetchPostedStatement as _fetchPostedStatement,
+  postCheck as _postCheck,
   type CreateCheckInput,
   type UpdateCheckInput,
 } from '../../lib/graphql/checks';
@@ -27,6 +28,7 @@ export {
   updateCheck,
   deleteCheck,
   fetchPostedStatement,
+  postCheck,
   type Check,
   type CheckLandingPage,
   type CheckFactory,
@@ -219,5 +221,26 @@ export function usePostedStatement(checkId: string | null, enabled: boolean = tr
     queryKey: ['postedStatement', checkId],
     queryFn: () => (checkId ? _fetchPostedStatement(checkId) : null),
     enabled: !!checkId && enabled,
+  });
+}
+
+/**
+ * Hook to post a check
+ * Changes status from OPEN to POSTED, finalizing the check
+ */
+export function usePostCheck() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (checkId: string) => _postCheck(checkId),
+    onSuccess: (data) => {
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ['check', data.id] });
+      queryClient.invalidateQueries({ queryKey: ['checksLandingPage'] });
+      queryClient.invalidateQueries({ queryKey: ['checksInfinite'] });
+      queryClient.invalidateQueries({ queryKey: ['checkSearch'] });
+      queryClient.invalidateQueries({ queryKey: ['checksByFactory'] });
+      queryClient.invalidateQueries({ queryKey: ['postedStatement', data.id] });
+    },
   });
 }

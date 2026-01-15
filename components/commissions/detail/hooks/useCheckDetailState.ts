@@ -27,6 +27,7 @@ import {
   useCreateCheck,
   useUpdateCheck,
   useDeleteCheck,
+  usePostCheck,
 } from '@/components/orders/api/checksApi';
 import { unpostCheck as unpostCheckApi } from '@/components/lib/graphql/checks';
 import type { AdjustmentLandingPage } from '@/components/orders/api/adjustmentsApi';
@@ -59,6 +60,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   const createCheckMutation = useCreateCheck();
   const updateCheckMutation = useUpdateCheck();
   const deleteCheckMutation = useDeleteCheck();
+  const postCheckMutation = usePostCheck();
 
   // Track if we've made local edits (for unsaved changes indicator)
   const [hasLocalEdits, setHasLocalEdits] = useState(false);
@@ -249,6 +251,11 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
   const handleSetPostedDate = useCallback((value: string) => {
     setPostedDate(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetStatus = useCallback((value: CheckStatus) => {
+    setStatus(value);
     if (!isCreateMode) setHasLocalEdits(true);
   }, [isCreateMode]);
 
@@ -803,22 +810,42 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       commissionMonth: formattedCommissionMonth,
       enteredCommissionAmount: String(commissionAmount),
       factoryId,
-      status: status === 'posted' ? 'POSTED' : 'OPEN',
       creationType: 'MANUAL',
-      details: details.length > 0 ? details : undefined,
+      details: details,
     };
 
     try {
+      let savedCheckId = checkId;
+
       if (isCreateMode) {
         const newCheck = await createCheckMutation.mutateAsync(input);
-        toast.success('Check created successfully');
-        router.push(`/commissions/${newCheck.id}`);
+        savedCheckId = newCheck.id;
+        setHasLocalEdits(false);
+
+        // If user selected "posted" status, post the check after creating it
+        if (status === 'posted') {
+          await postCheckMutation.mutateAsync(savedCheckId);
+          toast.success('Check created and posted successfully');
+        } else {
+          toast.success('Check created successfully');
+        }
+
+        router.push(`/commissions/${savedCheckId}`);
       } else {
         await updateCheckMutation.mutateAsync({
           ...input,
           id: checkId,
         });
-        toast.success('Check updated successfully');
+        setHasLocalEdits(false);
+
+        // If user selected "posted" status and check wasn't originally posted, post it
+        if (status === 'posted' && apiCheck?.status !== 'POSTED') {
+          await postCheckMutation.mutateAsync(checkId);
+          toast.success('Check saved and posted successfully');
+        } else {
+          toast.success('Check updated successfully');
+        }
+
         refetchCheck();
       }
     } catch (error) {
@@ -835,10 +862,12 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     commissionAmount,
     factoryId,
     status,
+    apiCheck?.status,
     lineItems,
     adjustments,
     createCheckMutation,
     updateCheckMutation,
+    postCheckMutation,
     router,
     refetchCheck,
   ]);
@@ -928,7 +957,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     handleSaveAndClose,
     handleDelete,
     handleUnpost,
-    isSaving: createCheckMutation.isPending || updateCheckMutation.isPending,
+    isSaving: createCheckMutation.isPending || updateCheckMutation.isPending || postCheckMutation.isPending,
     isDeleting: deleteCheckMutation.isPending,
     isUnposting,
 
@@ -1027,7 +1056,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     checkDate,
     setCheckDate: handleSetCheckDate,
     status,
-    setStatus,
+    setStatus: handleSetStatus,
     postedDate,
     setPostedDate: handleSetPostedDate,
     // Whether the check was originally posted (from API) - used to disable Save button

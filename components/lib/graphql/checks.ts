@@ -253,7 +253,6 @@ export interface CreateCheckInput {
   commissionMonth?: string;
   enteredCommissionAmount: string;
   factoryId: string;
-  status?: CheckStatus;
   creationType?: CheckCreationType;
   details?: CheckDetailInput[];
 }
@@ -503,6 +502,14 @@ const UNPOST_CHECK = `
   }
 `;
 
+const POST_CHECK = `
+  mutation PostCheck($checkId: UUID!) {
+    postCheck(checkId: $checkId) {
+      ${CHECK_FIELDS}
+    }
+  }
+`;
+
 const GET_POSTED_STATEMENT = `
   query GetPostedStatement($checkId: UUID!) {
     postedStatement(checkId: $checkId) {
@@ -741,4 +748,25 @@ export async function fetchPostedStatement(checkId: string): Promise<PostedState
   }
 
   return response.data?.postedStatement || null;
+}
+
+/**
+ * Post a check - changes status from OPEN to POSTED
+ * This finalizes the check and prevents further editing
+ */
+export async function postCheck(checkId: string): Promise<Check> {
+  const response = await crmGraphQLRequest<{ postCheck: Check }>({
+    query: POST_CHECK,
+    variables: { checkId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to post check');
+  }
+
+  if (!response.data?.postCheck) {
+    throw new Error('No check returned from post mutation');
+  }
+
+  return response.data.postCheck;
 }
