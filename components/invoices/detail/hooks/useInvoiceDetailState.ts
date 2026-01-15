@@ -951,6 +951,31 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     setSelectedLineItemForDetails(null);
   };
 
+  // Live update additional details for a line item (without closing modal)
+  const liveUpdateAdditionalDetails = (updates: Partial<InvoiceLineItem>) => {
+    // Update the selected line item so the modal stays in sync
+    setSelectedLineItemForDetails((prev) => prev ? { ...prev, ...updates } : prev);
+
+    // Use functional update pattern to avoid stale closure issues
+    // This reads from prev instead of the closure-captured selectedLineItemForDetails
+    setLocalInvoice((prevInvoice) => {
+      if (!prevInvoice) return prevInvoice;
+
+      // Get the line item ID from the current selectedLineItemForDetails state
+      const lineItemIdToUpdate = selectedLineItemForDetails?.id;
+      if (!lineItemIdToUpdate) return prevInvoice;
+
+      return {
+        ...prevInvoice,
+        lineItems: prevInvoice.lineItems.map((li) =>
+          li.id === lineItemIdToUpdate ? { ...li, ...updates } : li
+        ),
+      };
+    });
+
+    if (!isCreateMode) setHasLocalEdits(true);
+  };
+
   if (!invoice && !isLoading) {
     return null;
   }
@@ -1084,6 +1109,7 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     setSelectedLineItemForDetails,
     openAdditionalDetails,
     saveAdditionalDetails,
+    liveUpdateAdditionalDetails,
 
     // Computed values
     isConnectedToOrder,

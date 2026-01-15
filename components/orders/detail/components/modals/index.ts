@@ -20,3 +20,6 @@ export * from './adjustments';
 
 // Acknowledgements Modals
 export * from './acknowledgements';
+
+// Invoices Modals
+export * from './invoices';

@@ -40,8 +40,9 @@ import {
 } from '@/components/flow-ai/ui/dialog';
 import { CitationsPane } from '@/components/flow-ai/flowrms/CitationsPane';
 import { AdminSettingsDialog } from '@/components/flow-ai/flowrms/AdminSettingsDialog';
-import { VoiceSettingsDialog, VoiceSettings, DEFAULT_VOICE_SETTINGS } from '@/components/flow-ai/flowrms/VoiceSettingsDialog';
+import { VoiceSettingsDialog, VoiceSettings, DEFAULT_VOICE_SETTINGS, VOICE_PERSONALITIES } from '@/components/flow-ai/flowrms/VoiceSettingsDialog';
 import { ApprovalPrompt } from '@/components/flow-ai/flowrms/ApprovalPrompt';
+import { useChatSettings } from '@/contexts/UserSettingsContext';
 
 const ROLE_PRIORITY: Record<MessageRole, number> = {
   USER: 0,
@@ -73,59 +74,62 @@ export default function AIChatPage() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // Voice settings state
-  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS);
-  
-  // Chat config state
-  const [disableSuggestions, setDisableSuggestions] = useState(false);
-  const [enableVectorSearch, setEnableVectorSearch] = useState(false);
+  // Get chat settings from UserSettingsContext (saved via Settings page)
+  const { settings: savedChatSettings, saveSettings: saveChatSettings, isInitialized: settingsInitialized } = useChatSettings();
+
+  // Derive values from saved settings with defaults
+  const followUpSuggestionsEnabled = savedChatSettings?.followUpSuggestions ?? true;
+  const disableSuggestions = !followUpSuggestionsEnabled;
+  const enableVectorSearch = savedChatSettings?.vectorSearch ?? false;
+  const ttsEnabled = savedChatSettings?.ttsEnabled ?? true;
+  const voicePersonalityId = savedChatSettings?.voicePersonalityId ?? 'bella';
+  const speakingSpeed = savedChatSettings?.speakingSpeed ?? 1.0;
+
+  // Convert saved settings to VoiceSettings format for useTextToSpeech hook
+  const voiceSettings: VoiceSettings = useMemo(() => {
+    const personality = VOICE_PERSONALITIES.find(v => v.id === voicePersonalityId) || VOICE_PERSONALITIES[2];
+    return {
+      personality,
+      speed: speakingSpeed,
+      enabled: ttsEnabled,
+    };
+  }, [voicePersonalityId, speakingSpeed, ttsEnabled]);
 
   // Approval state
   const [approvalRequired, setApprovalRequired] = useState(false);
   const [approvalCallback, setApprovalCallback] = useState<(approved: boolean) => void>(() => {});
 
-  // Load voice settings from local storage on mount
-  useEffect(() => {
-    const savedSettings = localStorage.getItem('flowchat-voice-settings');
-    if (savedSettings) {
-      try {
-        setVoiceSettings(JSON.parse(savedSettings));
-      } catch (e) {
-        console.error('Failed to parse voice settings', e);
-      }
-    }
-    
-    // Load chat config settings
-    const savedChatConfig = localStorage.getItem('flowchat-config');
-    if (savedChatConfig) {
-      try {
-        const config = JSON.parse(savedChatConfig);
-        setDisableSuggestions(config.disableSuggestions ?? false);
-        setEnableVectorSearch(config.enableVectorSearch ?? false);
-      } catch (e) {
-        console.error('Failed to parse chat config', e);
-      }
-    }
-  }, []);
+  // Handle voice settings change from dialog (save to context/backend)
+  const handleVoiceSettingsChange = useCallback((newSettings: VoiceSettings) => {
+    saveChatSettings({
+      followUpSuggestions: followUpSuggestionsEnabled,
+      vectorSearch: enableVectorSearch,
+      ttsEnabled: newSettings.enabled,
+      voicePersonalityId: newSettings.personality.id,
+      speakingSpeed: newSettings.speed,
+    }, 'my');
+  }, [saveChatSettings, followUpSuggestionsEnabled, enableVectorSearch]);
 
-  // Save voice settings when changed
-  const handleVoiceSettingsChange = (newSettings: VoiceSettings) => {
-    setVoiceSettings(newSettings);
-    localStorage.setItem('flowchat-voice-settings', JSON.stringify(newSettings));
-  };
-  
-  // Save chat config when changed
-  const handleDisableSuggestionsChange = (value: boolean) => {
-    setDisableSuggestions(value);
-    const config = { disableSuggestions: value, enableVectorSearch };
-    localStorage.setItem('flowchat-config', JSON.stringify(config));
-  };
-  
-  const handleEnableVectorSearchChange = (value: boolean) => {
-    setEnableVectorSearch(value);
-    const config = { disableSuggestions, enableVectorSearch: value };
-    localStorage.setItem('flowchat-config', JSON.stringify(config));
-  };
+  // Handle chat config changes (save to context/backend)
+  const handleDisableSuggestionsChange = useCallback((value: boolean) => {
+    saveChatSettings({
+      followUpSuggestions: !value,
+      vectorSearch: enableVectorSearch,
+      ttsEnabled,
+      voicePersonalityId,
+      speakingSpeed,
+    }, 'my');
+  }, [saveChatSettings, enableVectorSearch, ttsEnabled, voicePersonalityId, speakingSpeed]);
+
+  const handleEnableVectorSearchChange = useCallback((value: boolean) => {
+    saveChatSettings({
+      followUpSuggestions: followUpSuggestionsEnabled,
+      vectorSearch: value,
+      ttsEnabled,
+      voicePersonalityId,
+      speakingSpeed,
+    }, 'my');
+  }, [saveChatSettings, followUpSuggestionsEnabled, ttsEnabled, voicePersonalityId, speakingSpeed]);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

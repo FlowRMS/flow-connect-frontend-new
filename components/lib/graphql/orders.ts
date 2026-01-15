@@ -89,6 +89,23 @@ export interface OrderUom {
   title?: string;
 }
 
+// Invoice attached to an order detail (line item level)
+export interface OrderDetailInvoice {
+  balanceId?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+  dueDate?: string;
+  entityDate?: string;
+  id: string;
+  invoiceNumber?: string;
+  locked?: boolean;
+  orderId?: string;
+  published?: boolean;
+  status?: string;
+  url?: string;
+}
+
 export interface OrderDetail {
   id: string;
   cancelledBalance?: number;
@@ -120,6 +137,7 @@ export interface OrderDetail {
   unitPrice?: string;
   uom?: OrderUom;
   uomId?: string;
+  invoice?: OrderDetailInvoice;
 }
 
 export interface OrderInsideRep {
@@ -431,6 +449,21 @@ const FIND_ORDER_BY_ID = `
           divisionFactor
           id
           title
+        }
+        invoice {
+          balanceId
+          createdAt
+          createdById
+          creationType
+          dueDate
+          entityDate
+          id
+          invoiceNumber
+          locked
+          orderId
+          published
+          status
+          url
         }
       }
       dueDate
