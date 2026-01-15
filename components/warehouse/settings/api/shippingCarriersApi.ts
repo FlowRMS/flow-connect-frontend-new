@@ -117,23 +117,6 @@ const GET_SHIPPING_CARRIERS = `
       pickupLocation
       remarks
       internalNotes
-      billingAddress {
-        id
-        line1
-        line2
-        city
-        state
-        zipCode
-        country
-        isPrimary
-      }
-      primaryContact {
-        id
-        firstName
-        lastName
-        email
-        phone
-      }
     }
   }
 `;
@@ -161,23 +144,43 @@ const GET_SHIPPING_CARRIER = `
       pickupLocation
       remarks
       internalNotes
-      billingAddress {
-        id
-        line1
-        line2
-        city
-        state
-        zipCode
-        country
-        isPrimary
-      }
-      primaryContact {
-        id
-        firstName
-        lastName
-        email
-        phone
-      }
+    }
+  }
+`;
+
+// Separate queries for linked entities (avoids N+1 on list queries)
+const GET_CARRIER_ADDRESSES = `
+  query GetCarrierAddresses($sourceId: UUID!, $sourceType: AddressSourceTypeEnum!) {
+    addressesBySource(sourceId: $sourceId, sourceType: $sourceType) {
+      id
+      line1
+      line2
+      city
+      state
+      zipCode
+      country
+      isPrimary
+    }
+  }
+`;
+
+const GET_CARRIER_CONTACT_LINKS = `
+  query GetCarrierContactLinks($sourceType: EntityType!, $sourceId: UUID!) {
+    linksFromSource(sourceType: $sourceType, sourceId: $sourceId) {
+      targetEntityType
+      targetEntityId
+    }
+  }
+`;
+
+const GET_CONTACT = `
+  query GetContact($id: UUID!) {
+    contact(id: $id) {
+      id
+      firstName
+      lastName
+      email
+      phone
     }
   }
 `;
@@ -288,6 +291,64 @@ export async function fetchShippingCarrierById(id: string): Promise<ShippingCarr
   }
 
   return response.data?.shippingCarrier || null;
+}
+
+/**
+ * Fetch billing address for a shipping carrier using separate query
+ */
+export async function fetchCarrierBillingAddress(carrierId: string): Promise<Address | null> {
+  const response = await crmGraphQLRequest<{ addressesBySource: Address[] }>({
+    query: GET_CARRIER_ADDRESSES,
+    variables: { sourceId: carrierId, sourceType: 'SHIPPING_CARRIER' },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch carrier address');
+  }
+
+  // Return the first (billing) address if exists
+  return response.data?.addressesBySource?.[0] || null;
+}
+
+interface LinkRelation {
+  targetEntityType: string;
+  targetEntityId: string;
+}
+
+/**
+ * Fetch primary contact for a shipping carrier using separate queries
+ */
+export async function fetchCarrierPrimaryContact(carrierId: string): Promise<Contact | null> {
+  // First get the link to find the contact ID
+  const linksResponse = await crmGraphQLRequest<{ linksFromSource: LinkRelation[] }>({
+    query: GET_CARRIER_CONTACT_LINKS,
+    variables: { sourceType: 'SHIPPING_CARRIER', sourceId: carrierId },
+  });
+
+  if (linksResponse.errors) {
+    throw new Error(linksResponse.errors[0]?.message || 'Failed to fetch carrier contact links');
+  }
+
+  // Find the contact link
+  const contactLink = linksResponse.data?.linksFromSource?.find(
+    link => link.targetEntityType === 'CONTACT'
+  );
+
+  if (!contactLink) {
+    return null;
+  }
+
+  // Fetch the contact details
+  const contactResponse = await crmGraphQLRequest<{ contact: Contact }>({
+    query: GET_CONTACT,
+    variables: { id: contactLink.targetEntityId },
+  });
+
+  if (contactResponse.errors) {
+    throw new Error(contactResponse.errors[0]?.message || 'Failed to fetch contact');
+  }
+
+  return contactResponse.data?.contact || null;
 }
 
 /**
