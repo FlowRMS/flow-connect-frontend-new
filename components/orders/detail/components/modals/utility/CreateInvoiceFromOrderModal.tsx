@@ -8,8 +8,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateInvoiceFromOrder } from '@/components/invoices/api/useInvoicesApi';
-import type { Invoice } from '@/components/invoices/api/invoicesApi';
+import type { Invoice, OrderDetailInputForInvoice } from '@/components/invoices/api/invoicesApi';
 import type { OrderLineItem } from '@/lib/types/rms';
+
+interface LineItemOverride {
+  quantity: string;
+  unitPrice: string;
+}
 
 interface CreateInvoiceFromOrderModalProps {
   isOpen: boolean;
@@ -67,7 +72,19 @@ export function CreateInvoiceFromOrderModal({
     return new Set(invoiceableItems.map(item => item.id));
   });
 
-  // Sync selection state when modal opens or initialSelectedItemIds changes
+  // State for quantity and unit price overrides per line item
+  const [lineItemOverrides, setLineItemOverrides] = useState<Record<string, LineItemOverride>>(() => {
+    const overrides: Record<string, LineItemOverride> = {};
+    invoiceableItems.forEach(item => {
+      overrides[item.id] = {
+        quantity: String(item.quantity || '0'),
+        unitPrice: String(item.unitPrice || '0'),
+      };
+    });
+    return overrides;
+  });
+
+  // Sync selection state and overrides when modal opens or initialSelectedItemIds changes
   useEffect(() => {
     if (isOpen) {
       if (initialSelectedItemIds && initialSelectedItemIds.size > 0) {
@@ -84,15 +101,32 @@ export function CreateInvoiceFromOrderModal({
       } else {
         setSelectedItemIds(new Set(invoiceableItems.map(item => item.id)));
       }
+      // Initialize overrides with original values
+      const overrides: Record<string, LineItemOverride> = {};
+      invoiceableItems.forEach(item => {
+        overrides[item.id] = {
+          quantity: String(item.quantity || '0'),
+          unitPrice: String(item.unitPrice || '0'),
+        };
+      });
+      setLineItemOverrides(overrides);
     }
   }, [isOpen, initialSelectedItemIds, invoiceableItems]);
 
-  // Calculate totals for selected items
+  // Calculate totals for selected items using overridden values
   const selectedTotal = useMemo(() => {
     return invoiceableItems
       .filter(item => selectedItemIds.has(item.id))
-      .reduce((sum, item) => sum + (Number(item.extendedPrice) || 0), 0);
-  }, [invoiceableItems, selectedItemIds]);
+      .reduce((sum, item) => {
+        const override = lineItemOverrides[item.id];
+        if (override) {
+          const qty = Number(override.quantity) || 0;
+          const price = Number(override.unitPrice) || 0;
+          return sum + (qty * price);
+        }
+        return sum + (Number(item.extendedPrice) || 0);
+      }, 0);
+  }, [invoiceableItems, selectedItemIds, lineItemOverrides]);
 
   const allSelected = selectedItemIds.size === invoiceableItems.length && invoiceableItems.length > 0;
   const noneSelected = selectedItemIds.size === 0;
@@ -119,6 +153,16 @@ export function CreateInvoiceFromOrderModal({
     }
   };
 
+  const handleOverrideChange = (itemId: string, field: 'quantity' | 'unitPrice', value: string) => {
+    setLineItemOverrides(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        [field]: value,
+      },
+    }));
+  };
+
   const handleProceedToInput = () => {
     if (noneSelected) {
       setError('Please select at least one line item');
@@ -141,17 +185,25 @@ export function CreateInvoiceFromOrderModal({
     setError(null);
 
     try {
-      // Build array of selected detail IDs (only if subset selected)
-      const orderDetailIds = invoiceableItems.length > 0 && selectedItemIds.size < invoiceableItems.length
-        ? Array.from(selectedItemIds)
-        : undefined;
+      // Build array of order detail inputs with quantity and unitPrice overrides
+      const orderDetailsInputs: OrderDetailInputForInvoice[] | undefined =
+        invoiceableItems.length > 0
+          ? Array.from(selectedItemIds).map(itemId => {
+              const override = lineItemOverrides[itemId];
+              return {
+                orderDetailId: itemId,
+                quantity: override?.quantity || '0',
+                unitPrice: override?.unitPrice || '0',
+              };
+            })
+          : undefined;
 
       const invoice = await createInvoiceMutation.mutateAsync({
         orderId,
         invoiceNumber: invoiceNumber.trim(),
         factoryId: initialFactoryId,
         dueDate,
-        orderDetailIds,
+        orderDetailsInputs,
       });
 
       setCreatedInvoice(invoice);
@@ -192,6 +244,15 @@ export function CreateInvoiceFromOrderModal({
     } else {
       setSelectedItemIds(new Set(invoiceableItems.map(item => item.id)));
     }
+    // Reset line item overrides to original values
+    const overrides: Record<string, LineItemOverride> = {};
+    invoiceableItems.forEach(item => {
+      overrides[item.id] = {
+        quantity: String(item.quantity || '0'),
+        unitPrice: String(item.unitPrice || '0'),
+      };
+    });
+    setLineItemOverrides(overrides);
     onClose();
   };
 
@@ -255,10 +316,13 @@ export function CreateInvoiceFromOrderModal({
                 <div className="space-y-2">
                   {invoiceableItems.map((item, index) => {
                     const isSelected = selectedItemIds.has(item.id);
+                    const override = lineItemOverrides[item.id];
+                    const currentQty = Number(override?.quantity) || 0;
+                    const currentPrice = Number(override?.unitPrice) || 0;
+                    const lineTotal = currentQty * currentPrice;
                     return (
-                      <button
+                      <div
                         key={item.id}
-                        onClick={() => handleToggleItem(item.id)}
                         className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                           isSelected
                             ? 'border-indigo-500 bg-indigo-50/50 shadow-sm'
@@ -267,15 +331,18 @@ export function CreateInvoiceFromOrderModal({
                       >
                         <div className="flex items-start gap-3">
                           {/* Checkbox */}
-                          <div className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                            isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'
-                          }`}>
+                          <button
+                            onClick={() => handleToggleItem(item.id)}
+                            className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                              isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'
+                            }`}
+                          >
                             {isSelected && (
                               <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                               </svg>
                             )}
-                          </div>
+                          </button>
 
                           {/* Item Number Badge */}
                           <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
@@ -290,25 +357,6 @@ export function CreateInvoiceFromOrderModal({
                               <span className="font-semibold text-gray-900 truncate">
                                 {item.partNumber || 'Unknown Product'}
                               </span>
-                            </div>
-                            {item.description && (
-                              <p className="text-xs text-gray-500 truncate mb-2">
-                                {item.description}
-                              </p>
-                            )}
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                              <span className="inline-flex items-center gap-1">
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-                                </svg>
-                                Qty: <span className="font-medium text-gray-700">{Math.round(Number(item.quantity) || 0)}</span>
-                              </span>
-                              <span className="inline-flex items-center gap-1">
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                Unit: <span className="font-medium text-gray-700">{formatCurrency(Number(item.unitPrice) || 0)}</span>
-                              </span>
                               {item.status && (
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
                                   item.status === 'shipped' ? 'bg-green-100 text-green-700' :
@@ -320,16 +368,53 @@ export function CreateInvoiceFromOrderModal({
                                 </span>
                               )}
                             </div>
+                            {item.description && (
+                              <p className="text-xs text-gray-500 truncate mb-3">
+                                {item.description}
+                              </p>
+                            )}
+                            {/* Editable Quantity and Unit Price */}
+                            <div className="flex flex-wrap items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs text-gray-500 font-medium">Qty:</label>
+                                <input
+                                  type="number"
+                                  value={override?.quantity || ''}
+                                  onChange={(e) => handleOverrideChange(item.id, 'quantity', e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-20 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                  min="0"
+                                  step="1"
+                                />
+                                <span className="text-xs text-gray-400">(orig: {Math.round(Number(item.quantity) || 0)})</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs text-gray-500 font-medium">Unit Price:</label>
+                                <div className="relative">
+                                  <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">$</span>
+                                  <input
+                                    type="number"
+                                    value={override?.unitPrice || ''}
+                                    onChange={(e) => handleOverrideChange(item.id, 'unitPrice', e.target.value)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-24 pl-5 pr-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                </div>
+                                <span className="text-xs text-gray-400">(orig: {formatCurrency(Number(item.unitPrice) || 0)})</span>
+                              </div>
+                            </div>
                           </div>
 
                           {/* Item Total */}
                           <div className="text-right flex-shrink-0">
                             <span className={`text-sm font-bold ${isSelected ? 'text-indigo-600' : 'text-gray-900'}`}>
-                              {formatCurrency(Number(item.extendedPrice) || 0)}
+                              {formatCurrency(lineTotal)}
                             </span>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>

@@ -889,15 +889,15 @@ const CREATE_INVOICE_FROM_ORDER = `
     $factoryId: UUID!
     $invoiceNumber: String!
     $orderId: UUID!
-    $dueDate: Date!
-    $orderDetailIds: [UUID!]
+    $dueDate: Date
+    $orderDetailsInputs: [OrderDetailToInvoiceDetailInput!] = null
   ) {
     createInvoiceFromOrder(
       factoryId: $factoryId
       invoiceNumber: $invoiceNumber
       orderId: $orderId
       dueDate: $dueDate
-      orderDetailIds: $orderDetailIds
+      orderDetailsInputs: $orderDetailsInputs
     ) {
       id
       invoiceNumber
@@ -1197,21 +1197,27 @@ export async function deleteInvoice(id: string): Promise<boolean> {
 // Create Invoice from Order
 // ============================================================================
 
+export interface OrderDetailInputForInvoice {
+  orderDetailId: string;
+  quantity: string;
+  unitPrice: string;
+}
+
 export interface CreateInvoiceFromOrderInput {
   factoryId: string;
   invoiceNumber: string;
   orderId: string;
   dueDate: string;
-  orderDetailIds?: string[];
+  orderDetailsInputs?: OrderDetailInputForInvoice[];
 }
 
 /**
  * Create an invoice from an order
  */
 export async function createInvoiceFromOrder(input: CreateInvoiceFromOrderInput): Promise<Invoice> {
-  // Pass array of IDs directly (backend expects [UUID!])
-  const orderDetailIds = input.orderDetailIds?.length
-    ? input.orderDetailIds
+  // Pass array of order detail inputs (with quantity and unitPrice overrides)
+  const orderDetailsInputs = input.orderDetailsInputs?.length
+    ? input.orderDetailsInputs
     : undefined;
 
   const response = await crmGraphQLRequest<{ createInvoiceFromOrder: Invoice }>({
@@ -1221,7 +1227,7 @@ export async function createInvoiceFromOrder(input: CreateInvoiceFromOrderInput)
       invoiceNumber: input.invoiceNumber,
       orderId: input.orderId,
       dueDate: input.dueDate,
-      orderDetailIds,
+      orderDetailsInputs,
     },
   });
 
