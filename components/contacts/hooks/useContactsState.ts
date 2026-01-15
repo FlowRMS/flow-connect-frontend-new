@@ -160,6 +160,12 @@ export function useContactsState() {
       : contacts.filter(contact => contact.contactType.includes(selectedType));
   }, [contacts, selectedType]);
 
+  // Get total count from first page
+  const totalCount = useMemo(() => {
+    if (!contactsData?.pages || contactsData.pages.length === 0) return 0;
+    return contactsData.pages[0].total;
+  }, [contactsData]);
+
   // Convert ActiveFilter to LandingPageFilter for server-side filtering
   const toServerFilters = useCallback((filters: ActiveFilter[]): LandingPageFilter[] => {
     return filters.map(f => {
@@ -351,6 +357,7 @@ export function useContactsState() {
     filteredContacts,
     isLoading,
     error,
+    totalCount,
 
     // Pagination
     fetchNextPage,
