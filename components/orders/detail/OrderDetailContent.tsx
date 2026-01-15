@@ -6,12 +6,13 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOrderDetailState } from './hooks/useOrderDetailState';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { OrderDetailHeader } from './components/header';
 import { LineItemsTable } from './components/line-items';
-import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab } from './components/tabs';
+import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab, InvoicesTab } from './components/tabs';
 import { FilesTab } from '@/components/shared/FilesTab';
 import {
   SetOverageModal,
@@ -34,10 +35,15 @@ import {
   AcknowledgementDetailModal,
   DeleteConfirmModal,
   CreateInvoiceFromOrderModal,
+  InvoiceDetailModal,
 } from './components/modals';
+import { DuplicateOrderModal } from '../list/components/modals/DuplicateOrderModal';
+import { useDuplicateOrder, useDeleteOrder } from '../api/useOrdersApi';
+import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { useCreditsState } from './hooks/useCreditsState';
 import { useAdjustmentsState } from './hooks/useAdjustmentsState';
 import { useAcknowledgementsState } from './hooks/useAcknowledgementsState';
+import { useInvoicesState } from './hooks/useInvoicesState';
 import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipStatus } from './utils';
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
 import { orderToasts } from '@/components/lib/toast';
@@ -49,6 +55,7 @@ interface OrderDetailContentProps {
 export default function OrderDetailContent({ orderId }: OrderDetailContentProps) {
   const router = useRouter();
   const state = useOrderDetailState({ orderId });
+  const { setFullEntityContext } = useFlowChat();
 
   // Credits state management
   const creditsState = useCreditsState({ orderId: orderId !== 'new' ? orderId : null });
@@ -61,8 +68,121 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     orderId: orderId !== 'new' ? orderId : null,
   });
 
+  // Invoices state management
+  const invoicesState = useInvoicesState({
+    orderId: orderId !== 'new' ? orderId : null,
+  });
+
   // Create Invoice from Order modal state
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
+
+  // Duplicate Order modal state
+  const [showDuplicateOrderModal, setShowDuplicateOrderModal] = useState(false);
+  const duplicateOrderMutation = useDuplicateOrder();
+
+  // Delete Order state
+  const [showDeleteOrderModal, setShowDeleteOrderModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const deleteOrderMutation = useDeleteOrder();
+
+  // Current reps with names (for passing to line items when adding new ones)
+  const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
+  const [currentInsideReps, setCurrentInsideReps] = useState<RepSplitRate[]>([]);
+
+  // Auto-populate reps hook for settings toggle
+  const { fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory } = useAutoPopulateReps();
+
+  // Set full entity context for global chatbot (type, id, and order number)
+  useEffect(() => {
+    if (state?.order?.orderNumber && orderId) {
+      setFullEntityContext('order', orderId, state.order.orderNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state?.order?.orderNumber, orderId, setFullEntityContext]);
+
+  // Wrapped handlers for settings changes with rep redistribution
+  const handleSetShowOutsideRepPerLine = async (value: boolean) => {
+    state.setShowOutsideRepPerLine(value);
+
+    if (value) {
+      // Switching to per-line-item mode: ALWAYS fetch from END USER to get proper names
+      const endUserId = (order as any)?.endUserId;
+      if (endUserId) {
+        try {
+          const reps = await fetchOutsideRepsFromCustomer(endUserId);
+          if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentOutsideReps(reps);
+            const outsideSplitRates = reps.map((rep, idx) => ({
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            if (order?.lineItems && order.lineItems.length > 0) {
+              const updatedLineItems = order.lineItems.map(item => ({
+                ...item,
+                outsideSplitRates,
+              }));
+              state.updateLocalOrder({ lineItems: updatedLineItems });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch outside reps:', error);
+        }
+      }
+    } else if (order?.lineItems) {
+      // Switching to header mode: clear line item reps
+      const updatedLineItems = order.lineItems.map(item => ({
+        ...item,
+        outsideSplitRates: [],
+      }));
+      state.updateLocalOrder({ lineItems: updatedLineItems });
+    }
+  };
+
+  const handleSetShowInsideRepPerLine = async (value: boolean) => {
+    state.setShowInsideRepPerLine(value);
+
+    if (value) {
+      // Switching to per-line-item mode: ALWAYS fetch from factory to get proper names
+      if (order?.manufacturerId) {
+        try {
+          const reps = await fetchInsideRepsFromFactory(order.manufacturerId);
+          if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentInsideReps(reps);
+            const insideSplitRates = reps.map((rep, idx) => ({
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            if (order.lineItems && order.lineItems.length > 0) {
+              const updatedLineItems = order.lineItems.map(item => ({
+                ...item,
+                insideSplitRates,
+              }));
+              state.updateLocalOrder({ lineItems: updatedLineItems });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch inside reps:', error);
+        }
+      }
+    } else if (order?.lineItems) {
+      // Switching to header mode: clear line item reps
+      const updatedLineItems = order.lineItems.map(item => ({
+        ...item,
+        insideSplitRates: [],
+      }));
+      state.updateLocalOrder({ lineItems: updatedLineItems });
+    }
+  };
 
   // Loading state
   if (state?.isLoading) {
@@ -145,6 +265,63 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       // Helper to check if ID is a valid UUID (from API)
       const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+      // Validate required dates
+      if (!order.dueDate) {
+        console.error('❌ VALIDATION FAILED: Due Date is missing');
+        orderToasts.updateError('Due Date is required.');
+        return;
+      }
+
+      // Validate End User based on settings (REQUIRED field)
+      const orderEndUserId = (order as any).endUserId;
+
+      console.log('🔍 END USER VALIDATION CHECK:', {
+        showEndUserPerLine: state.showEndUserPerLine,
+        orderEndUserId: orderEndUserId,
+        lineItemsCount: order.lineItems?.length,
+        lineItems: order.lineItems?.map(item => ({
+          id: item.id,
+          lineNumber: item.lineNumber,
+          partNumber: item.partNumber,
+          endUserId: (item as any).endUserId,
+        }))
+      });
+
+      if (!state.showEndUserPerLine) {
+        // When toggle is OFF, header End User is REQUIRED
+        if (!orderEndUserId || orderEndUserId.trim() === '' || !isValidUUID(orderEndUserId)) {
+          console.error('❌ VALIDATION FAILED: Header End User is missing or invalid');
+          orderToasts.updateError('End User is required at the header level. Please select an End User.');
+          return;
+        }
+      } else {
+        // When toggle is ON, EACH line item MUST have End User
+        if (!order.lineItems || order.lineItems.length === 0) {
+          console.error('❌ VALIDATION FAILED: No line items');
+          orderToasts.updateError('Please add at least one line item.');
+          return;
+        }
+
+        const lineItemsWithoutEndUser = order.lineItems.filter(item => {
+          const lineEndUserId = (item as any).endUserId;
+          return !lineEndUserId || lineEndUserId.trim() === '' || !isValidUUID(lineEndUserId);
+        });
+
+        console.log('🔍 Line items without end user:', lineItemsWithoutEndUser.length, lineItemsWithoutEndUser.map(item => ({
+          id: item.id,
+          lineNumber: item.lineNumber,
+          partNumber: item.partNumber,
+        })));
+
+        if (lineItemsWithoutEndUser.length > 0) {
+          console.error('❌ VALIDATION FAILED: Line items missing End User');
+          orderToasts.updateError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
+          return;
+        }
+      }
+
+      console.log('✅ END USER VALIDATION PASSED');
+
       // Build inside reps array from insideRepSplits (supports multiple reps with split commission)
       // If split commission is enabled, use all reps from insideRepSplits; otherwise use primary insideRepId
       let insideSplitRates: { userId: string; splitRate: number; position: number }[] | undefined;
@@ -183,11 +360,12 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         }];
       }
 
-      // Get order-level endUserId (used when not in per-line mode)
-      const orderEndUserId = (order as any).endUserId;
-
       // Build details with insideSplitRates and outsideSplitRates at detail level
       const buildDetails = (includeId: boolean) => (order.lineItems || []).map((item, index) => {
+        // CRITICAL: Check if this is a new line item (no valid UUID)
+        // If the line item is new, its split rates should NOT have IDs either
+        const isNewLineItem = !item.id || !isValidUUID(item.id);
+
         // Determine which split rates to use based on per-line-item settings:
         // - If per-line-item is enabled, use the line item's own split rates
         // - If disabled, use header-level split rates for all line items
@@ -196,8 +374,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
         if (state.showInsideRepPerLine && (item as any).insideSplitRates?.length > 0) {
           // Use line item's own inside split rates
+          // Only include split rate ID if the parent line item is NOT new (existing in DB)
           lineInsideSplitRates = (item as any).insideSplitRates.map((sr: any, idx: number) => ({
-            ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
+            ...(!isNewLineItem && sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
             userId: sr.userId || '',
             splitRate: Number(sr.splitRate) || 100,
             position: sr.position ?? idx,
@@ -206,8 +385,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
         if (state.showOutsideRepPerLine && (item as any).outsideSplitRates?.length > 0) {
           // Use line item's own outside split rates
+          // Only include split rate ID if the parent line item is NOT new (existing in DB)
           lineOutsideSplitRates = (item as any).outsideSplitRates.map((sr: any, idx: number) => ({
-            ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
+            ...(!isNewLineItem && sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
             userId: sr.userId || '',
             splitRate: Number(sr.splitRate) || 100,
             position: sr.position ?? idx,
@@ -221,7 +401,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           productId: item.productId || undefined,
           productNameAdhoc: item.partNumber || undefined,
           productDescriptionAdhoc: item.description || undefined,
-          commissionRate: String((item.commissionRate || 0) * 100), // Convert decimal to percent for API
+          commissionRate: String(item.commissionRate || 0), // Already stored as whole percentage (e.g., 8 for 8%)
           divisionFactor: item.divisor ? String(item.divisor) : undefined,
           uomId: item.uomId || undefined, // Send uomId, null becomes undefined
           // Include inside and outside rep splitRates on each line item
@@ -233,11 +413,19 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           leadTime: (item as any).leadTime || undefined,
           note: (item as any).note || undefined,
         };
-        // Get endUserId: use line-item level if set, otherwise fall back to order-level
-        const lineEndUserId = (item as any).endUserId;
-        const endUserIdToUse = (lineEndUserId && isValidUUID(lineEndUserId))
-          ? lineEndUserId
-          : (orderEndUserId && isValidUUID(orderEndUserId) ? orderEndUserId : undefined);
+        // Get endUserId: RESPECT the showEndUserPerLine setting!
+        // - When showEndUserPerLine is TRUE: use line-item's endUserId
+        // - When showEndUserPerLine is FALSE: ALWAYS use header-level endUserId for ALL line items
+        let endUserIdToUse: string | undefined;
+
+        if (state.showEndUserPerLine) {
+          // Per-line-item is ON: use line item's end user
+          const lineEndUserId = (item as any).endUserId;
+          endUserIdToUse = (lineEndUserId && isValidUUID(lineEndUserId)) ? lineEndUserId : undefined;
+        } else {
+          // Per-line-item is OFF: ALWAYS use header-level end user, ignoring any line-item end users
+          endUserIdToUse = (orderEndUserId && isValidUUID(orderEndUserId)) ? orderEndUserId : undefined;
+        }
 
         if (endUserIdToUse) {
           detail.endUserId = endUserIdToUse;
@@ -279,7 +467,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         const result = await state.createOrderMutation.mutateAsync(createInput);
         console.log('Order created:', result);
         orderToasts.createSuccess(result.orderNumber || createInput.orderNumber);
-        router.push('/orders');
+        // Navigate to the newly created order detail page instead of landing page
+        router.push(`/orders/${result.id}`);
       } else {
         // Update existing order - split rates are now at detail level
         if (state.updateOrderMutation) {
@@ -309,6 +498,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           };
 
           await state.updateOrderMutation.mutateAsync(updateInput);
+          state.resetChanges();
           orderToasts.updateSuccess(order.orderNumber);
         }
       }
@@ -324,9 +514,23 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   };
 
   const handleDelete = () => {
-    if (confirm('Are you sure you want to delete this order?')) {
-      alert('Order deleted');
+    setShowDeleteOrderModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!order?.id) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteOrderMutation.mutateAsync(order.id);
+      orderToasts.deleteSuccess(order.orderNumber);
       router.push('/orders');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete order';
+      orderToasts.deleteError(errorMessage);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteOrderModal(false);
     }
   };
 
@@ -382,8 +586,58 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     alert(state.hasFreightLine ? 'Freight line would be removed' : 'Freight line would be added');
   };
 
+  // Handler to auto-populate outside reps for all line items
+  const handleAutoPopulateOutsideRepsToLineItems = (reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentOutsideReps(reps);
+
+    if (!order.lineItems || order.lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    const outsideSplitRates = reps.map((rep, idx) => ({
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same outside reps
+    const updatedLineItems = order.lineItems.map(item => ({
+      ...item,
+      outsideSplitRates,
+    }));
+
+    state.updateLocalOrder({ lineItems: updatedLineItems });
+  };
+
+  // Handler to auto-populate inside reps for all line items
+  const handleAutoPopulateInsideRepsToLineItems = (reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentInsideReps(reps);
+
+    if (!order.lineItems || order.lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    const insideSplitRates = reps.map((rep, idx) => ({
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same inside reps
+    const updatedLineItems = order.lineItems.map(item => ({
+      ...item,
+      insideSplitRates,
+    }));
+
+    state.updateLocalOrder({ lineItems: updatedLineItems });
+  };
+
   return (
-    <main className="flex flex-col h-screen bg-[var(--background)]">
+    <main className="h-full overflow-auto bg-[var(--background)]">
       {/* Header */}
       <OrderDetailHeader
         order={order}
@@ -413,6 +667,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         openInsideRepModal={state.openInsideRepModal}
         onUpdateOrder={state.updateLocalOrder}
         isCreateMode={isCreateMode}
+        hasChanges={state.hasChanges}
+        isSaving={state.createOrderMutation?.isPending || state.updateOrderMutation?.isPending}
         showEndUserPerLine={state.showEndUserPerLine}
         showOutsideRepPerLine={state.showOutsideRepPerLine}
         showInsideRepPerLine={state.showInsideRepPerLine}
@@ -431,42 +687,60 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         updateOrderStatus={state.updateOrderStatus}
         setShowQuoteLookupModal={state.setShowQuoteLookupModal}
         onCreateInvoice={() => setShowCreateInvoiceModal(true)}
+        onDuplicateOrder={() => setShowDuplicateOrderModal(true)}
+        onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
+        onAutoPopulateInsideRepsToLineItems={handleAutoPopulateInsideRepsToLineItems}
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex-1 flex flex-col p-6 overflow-hidden">
+      <div className="p-6">
         {/* Tab Navigation */}
-        <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white pt-4 px-4 -mx-6 -mt-6">
+        <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] bg-white pt-4 px-4 -mx-6 -mt-6">
           <div className="flex gap-1">
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
-              { id: 'files', label: 'Files' },
-              { id: 'credits', label: 'Credits' },
+              { id: 'files', label: 'Files', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'invoices', label: 'Invoices', disabled: isCreateMode, disabledReason: 'Save order first', count: invoicesState.invoices.length },
+              { id: 'credits', label: 'Credits', disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'adjustments', label: 'Adjustments', hidden: true }, // Hidden - adjustments now has its own page in sidebar
-              { id: 'acknowledgements', label: 'Acknowledgements' },
-              { id: 'notes', label: 'Notes' },
-              { id: 'tasks', label: 'Tasks' },
-              { id: 'activity', label: 'Activity' },
-              { id: 'linked-objects', label: 'Linked Objects' },
+              { id: 'acknowledgements', label: 'Acknowledgements', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'notes', label: 'Notes', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'tasks', label: 'Tasks', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'activity', label: 'Activity', comingSoon: true, disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'linked-objects', label: 'Linked Objects', disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'settings', label: 'Settings' },
             ].filter(tab => !tab.hidden).map(tab => (
               <button
                 key={tab.id}
-                onClick={() => state.setActiveTab(tab.id as any)}
+                onClick={() => !tab.disabled && !tab.comingSoon && state.setActiveTab(tab.id as any)}
+                disabled={tab.disabled || tab.comingSoon}
+                title={tab.disabled ? tab.disabledReason : tab.comingSoon ? 'Coming soon' : undefined}
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  state.activeTab === tab.id
+                  tab.disabled || tab.comingSoon
+                    ? 'border-transparent text-gray-300 cursor-not-allowed'
+                    : state.activeTab === tab.id
                     ? 'border-[var(--primary)] text-[var(--primary)]'
                     : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
                 }`}
               >
                 {tab.label}
+                {tab.comingSoon && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">
+                    SOON
+                  </span>
+                )}
                 {tab.count !== undefined && tab.count > 0 && (
-                  <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+                  <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${tab.disabled ? 'bg-gray-50 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                     {tab.count}
                   </span>
                 )}
               </button>
             ))}
+            {isCreateMode && (
+              <span className="ml-auto text-xs text-[var(--muted-foreground)] italic pr-2">
+                Some tabs will unlock after saving
+              </span>
+            )}
           </div>
 
           {/* View Controls - only show when Line Items tab is active */}
@@ -516,7 +790,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-auto pb-32">
+        <div className="pb-32">
           {state.activeTab === 'line-items' && (
             <LineItemsTable
               order={order}
@@ -547,7 +821,20 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onDeleteLines={handleDeleteLines}
               onUpdateLineItems={state.updateLineItems}
               showEndUserPerLine={state.showEndUserPerLine}
+              showOutsideRepPerLine={state.showOutsideRepPerLine}
+              showInsideRepPerLine={state.showInsideRepPerLine}
               onOpenAdditionalDetails={state.openAdditionalDetails}
+              currentOutsideReps={currentOutsideReps}
+              currentInsideReps={currentInsideReps}
+              onViewInvoice={(invoice) => invoicesState.viewInvoice({
+                id: invoice.id,
+                invoiceNumber: invoice.invoiceNumber,
+                status: invoice.status,
+                entityDate: invoice.entityDate,
+                dueDate: invoice.dueDate,
+                creationType: invoice.creationType,
+                locked: invoice.locked,
+              })}
             />
           )}
 
@@ -563,6 +850,15 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           {state.activeTab === 'notes' && <NotesTab orderId={orderId} />}
           {state.activeTab === 'tasks' && <TasksTab orderId={orderId} />}
           {state.activeTab === 'activity' && <ActivityTab />}
+          {state.activeTab === 'invoices' && (
+            <InvoicesTab
+              invoices={invoicesState.invoices}
+              isLoading={invoicesState.isLoadingInvoices}
+              error={invoicesState.invoicesError}
+              onViewInvoice={invoicesState.viewInvoice}
+              onCreateInvoice={() => setShowCreateInvoiceModal(true)}
+            />
+          )}
           {state.activeTab === 'credits' && (
             <CreditsTab
               credits={creditsState.credits}
@@ -602,9 +898,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               showEndUserPerLine={state.showEndUserPerLine}
               setShowEndUserPerLine={state.setShowEndUserPerLine}
               showOutsideRepPerLine={state.showOutsideRepPerLine}
-              setShowOutsideRepPerLine={state.setShowOutsideRepPerLine}
+              setShowOutsideRepPerLine={handleSetShowOutsideRepPerLine}
               showInsideRepPerLine={state.showInsideRepPerLine}
-              setShowInsideRepPerLine={state.setShowInsideRepPerLine}
+              setShowInsideRepPerLine={handleSetShowInsideRepPerLine}
               customerPartNumberSource={state.customerPartNumberSource}
               setCustomerPartNumberSource={state.setCustomerPartNumberSource}
               hasFreightLine={state.hasFreightLine}
@@ -755,6 +1051,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onClose={state.closeAdditionalDetails}
         lineItem={state.additionalDetailsLineItem}
         onSave={state.saveAdditionalDetails}
+        onLiveUpdate={state.liveUpdateAdditionalDetails}
         showEndUserPerLine={state.showEndUserPerLine}
         showOutsideRepPerLine={state.showOutsideRepPerLine}
         showInsideRepPerLine={state.showInsideRepPerLine}
@@ -861,10 +1158,57 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         factoryId={order.manufacturerId}
         factoryName={order.manufacturerName}
         lineItems={order.lineItems || []}
+        initialSelectedItemIds={state.selectedLineItems}
         onClose={() => setShowCreateInvoiceModal(false)}
         onSuccess={(invoice) => {
           orderToasts.invoiceCreatedFromOrder(invoice.invoiceNumber || invoice.id);
+          invoicesState.refetchInvoices();
         }}
+      />
+
+      {/* Invoice Detail Modal */}
+      <InvoiceDetailModal
+        isOpen={invoicesState.showInvoiceDetailModal}
+        onClose={invoicesState.closeInvoiceDetailModal}
+        invoice={invoicesState.selectedInvoice}
+        invoiceDetails={invoicesState.invoiceDetails}
+        isLoading={invoicesState.isLoadingInvoiceDetails}
+      />
+
+      {/* Duplicate Order Modal */}
+      <DuplicateOrderModal
+        isOpen={showDuplicateOrderModal}
+        orderNumber={order.orderNumber}
+        currentCustomerId={order.customerId}
+        currentCustomerName={order.customerName}
+        isPending={duplicateOrderMutation.isPending}
+        onClose={() => setShowDuplicateOrderModal(false)}
+        onDuplicate={async (newOrderNumber, newSoldToCustomerId) => {
+          try {
+            const duplicatedOrder = await duplicateOrderMutation.mutateAsync({
+              orderId: order.id,
+              newOrderNumber,
+              newSoldToCustomerId,
+            });
+            setShowDuplicateOrderModal(false);
+            orderToasts.duplicateSuccess(duplicatedOrder.orderNumber);
+            // Navigate to the new order
+            router.push(`/orders/${duplicatedOrder.id}`);
+          } catch (error) {
+            orderToasts.duplicateError(error instanceof Error ? error.message : 'Failed to duplicate order');
+          }
+        }}
+      />
+
+      {/* Delete Order Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={showDeleteOrderModal}
+        title="Delete Order?"
+        message="Are you sure you want to delete order"
+        itemName={order.orderNumber}
+        isPending={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteOrderModal(false)}
       />
     </main>
   );

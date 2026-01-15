@@ -224,14 +224,14 @@ export function ClusterModal({ cluster, isOpen, onClose, onUpdate }: ClusterModa
     try {
       console.log('📤 Uploading context files:', fileArray.map(f => f.name));
 
-      // Upload files one by one using CRM uploadFile function
+      // Upload files one by one using the same CRM uploadFile as the upload page
       const uploadResults: Array<{ id: string; fileName: string }> = [];
 
       for (const file of fileArray) {
         console.log('📤 Uploading single file:', file.name);
 
         try {
-          // Use CRM uploadFile - context files use UNDEFINED since they're not specific entity types
+          // Use the same uploadFile function as CombinedUploadPane - the returned id is the document reference
           const result = await uploadFile({
             file,
             fileName: file.name,

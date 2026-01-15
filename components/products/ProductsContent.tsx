@@ -2,11 +2,17 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import { useProductsState } from './hooks/useProductsState';
 import { CreateProductModal } from './modals/CreateProductModal';
 import { DeleteProductModal } from './modals/DeleteProductModal';
 import { ManageCategoriesModal } from './modals/ManageCategoriesModal';
 import { ManageUomsModal } from './modals/ManageUomsModal';
+import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
 import type { ProductLandingPage } from './api/useProductsApi';
 
 // Sort direction type
@@ -168,6 +174,22 @@ function ColumnHeader({
 
 export default function ProductsContent() {
   const router = useRouter();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'products';
+
   const {
     // State
     searchQuery,
@@ -203,6 +225,20 @@ export default function ProductsContent() {
     uniqueCategories,
     // Handlers
     handleProductDeleted,
+    // Bulk selection
+    selectAllMode,
+    selectedCount,
+    isAllSelected,
+    isPartiallySelected,
+    isItemSelected,
+    handleSelectAll,
+    handleSelectOne,
+    clearSelection,
+    getAllSelectedIds,
+    // Bulk delete modal
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleBulkDeleteSuccess,
   } = useProductsState();
 
   // Product to delete
@@ -258,17 +294,44 @@ export default function ProductsContent() {
 
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0">
         {/* Header */}
         <div className="p-6 pb-0">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-semibold text-[var(--foreground)]">Products</h1>
-              <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                Manage your product catalog, categories, and units of measure
-              </p>
+          <div className="flex items-center justify-between mb-6 overflow-visible">
+            <div className="flex items-start gap-4 overflow-visible">
+              {/* Morphing Icon Target - Cube Rotate Animation */}
+              <HeaderIconAnimation
+                isReceivingAnimation={isReceivingAnimation}
+                animationStyle="cube-rotate"
+                headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+              >
+                {iconMap['products']}
+              </HeaderIconAnimation>
+              <div className="overflow-hidden">
+                <motion.h1
+                  className="text-2xl font-semibold text-[var(--foreground)]"
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+                >
+                  Products
+                </motion.h1>
+                <motion.p
+                  className="text-sm text-[var(--muted-foreground)] mt-1"
+                  initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+                >
+                  Manage your product catalog, categories, and units of measure
+                </motion.p>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
+            <motion.div
+              className="flex items-center gap-3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+            >
               <button
                 onClick={() => setShowUomsModal(true)}
                 className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
@@ -297,7 +360,7 @@ export default function ProductsContent() {
                 </svg>
                 Add Product
               </button>
-            </div>
+            </motion.div>
           </div>
 
           {/* Stats Cards */}
@@ -368,6 +431,17 @@ export default function ProductsContent() {
           <div className="text-sm text-[var(--muted-foreground)] mb-4">
             Showing {filteredProducts.length} of {totalCount} products
           </div>
+
+          {/* Bulk Actions Toolbar */}
+          <BulkActionsToolbar
+            entityType="PRODUCTS"
+            selectedCount={selectedCount}
+            totalCount={totalCount}
+            loadedCount={filteredProducts.length}
+            selectAllMode={selectAllMode}
+            onClearSelection={clearSelection}
+            onDelete={() => setShowBulkDeleteModal(true)}
+          />
         </div>
 
         {/* Products Table */}
@@ -408,6 +482,17 @@ export default function ProductsContent() {
                 <table className="w-full min-w-[1200px]">
                   <thead>
                     <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
+                      <th className="px-4 py-3 text-left w-12">
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = isPartiallySelected;
+                          }}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
+                          className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                        />
+                      </th>
                       <th className="px-4 py-3 text-left">
                         <ColumnHeader
                           label="Part Number"
@@ -516,8 +601,18 @@ export default function ProductsContent() {
                       <tr
                         key={product.id}
                         onClick={() => handleProductClick(product)}
-                        className="hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
+                        className={`hover:bg-[var(--muted)]/20 transition-colors cursor-pointer ${
+                          isItemSelected(product.id) ? 'bg-[var(--primary)]/5' : ''
+                        }`}
                       >
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isItemSelected(product.id)}
+                            onChange={(e) => handleSelectOne(product.id, e.target.checked)}
+                            className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-[var(--foreground)]">
                             {product.factoryPartNumber}
@@ -629,6 +724,17 @@ export default function ProductsContent() {
       <ManageUomsModal
         isOpen={showUomsModal}
         onClose={() => setShowUomsModal(false)}
+      />
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="PRODUCTS"
+        selectedCount={selectedCount}
+        getAllSelectedIds={getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['products']]}
       />
     </main>
   );

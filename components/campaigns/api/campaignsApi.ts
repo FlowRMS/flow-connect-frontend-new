@@ -5,6 +5,7 @@
  */
 
 import { crmGraphQLRequest } from '../../lib/crm-graphql';
+import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/graphql/types';
 
 // ============================================================================
 // Types
@@ -221,11 +222,15 @@ export interface EmailProviderStatus {
 
 const FIND_CAMPAIGNS_LANDING_PAGES = `
   query FindCampaignsLandingPages(
+    $filters: [Filter!]
+    $orderBy: [OrderBy!]
     $limit: Int
     $offset: Int
   ) {
     findLandingPages(
       sourceType: CAMPAIGNS
+      filters: $filters
+      orderBy: $orderBy
       limit: $limit
       offset: $offset
     ) {
@@ -491,6 +496,8 @@ const CHECK_EMAIL_PROVIDERS = `
  * Fetch campaigns list using findLandingPages endpoint
  */
 export async function fetchCampaigns(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[],
   pagination?: PaginationParams
 ): Promise<PaginatedResult<CampaignLandingPage>> {
   const response = await crmGraphQLRequest<{
@@ -498,6 +505,8 @@ export async function fetchCampaigns(
   }>({
     query: FIND_CAMPAIGNS_LANDING_PAGES,
     variables: {
+      filters: filters && filters.length > 0 ? filters : undefined,
+      orderBy: orderBy && orderBy.length > 0 ? orderBy : undefined,
       limit: pagination?.limit,
       offset: pagination?.offset,
     },

@@ -20,16 +20,8 @@ import {
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { SortableJobCard } from '../SortableJobCard';
 import { JobCard } from '../JobCard';
+import { COLUMN_STATUS_COLORS } from '../utils';
 import type { Job, JobStage } from '../types';
-
-// Column status indicator colors (dots)
-const COLUMN_STATUS_COLORS: Record<string, string> = {
-  'Backlog': 'bg-gray-400',
-  'Bidding': 'bg-blue-500',
-  'Active': 'bg-amber-500',
-  'On Hold': 'bg-purple-500',
-  'Won': 'bg-green-500',
-};
 
 // Droppable Column Component
 function DroppableColumn({ 
@@ -151,7 +143,7 @@ export function KanbanView({
         {stages.map((stage) => {
           const stageJobs = getJobsByStatus(stage.name);
           const isOverColumn = overId === `stage-${stage.name}`;
-          const statusColor = COLUMN_STATUS_COLORS[stage.name] || 'bg-gray-400';
+          const statusColor = COLUMN_STATUS_COLORS[stage.name] || 'bg-indigo-500';
 
           return (
             <div key={stage.name} className="flex flex-col min-w-0 flex-1">

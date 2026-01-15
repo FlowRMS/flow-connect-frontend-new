@@ -45,6 +45,12 @@ export interface InvoiceLineItem {
     splitRate: number;
     position: number;
   }[];
+  insideSplitRates?: {
+    userId: string;
+    userName: string;
+    splitRate: number;
+    position: number;
+  }[];
   // Optional fields for warehouse/consignment tracking
   isWarehouseConsignment?: boolean;
   inventoryOnHand?: number;
@@ -86,6 +92,20 @@ export interface EditableInvoice extends Omit<BaseInvoice, 'lineItems'> {
   outsideRepName?: string;
   insideRepId?: string;
   insideRepName?: string;
+
+  // Header-level split rates (when NOT per-line-item, grabbed from first line item)
+  outsideSplitRates?: {
+    userId: string;
+    userName: string;
+    splitRate: number;
+    position: number;
+  }[];
+  insideSplitRates?: {
+    userId: string;
+    userName: string;
+    splitRate: number;
+    position: number;
+  }[];
 
   // Per-line-item flags from order - when true, these are set per line item in Additional Details
   // When false, they should be shown in header fields (read-only from order)
@@ -168,6 +188,9 @@ export interface TabConfig {
   id: TabType;
   label: string;
   count?: number;
+  disabled?: boolean;
+  disabledReason?: string;
+  comingSoon?: boolean;
 }
 
 // Order tooltip state (for linked orders in line items)

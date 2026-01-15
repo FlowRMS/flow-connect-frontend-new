@@ -89,6 +89,23 @@ export interface OrderUom {
   title?: string;
 }
 
+// Invoice attached to an order detail (line item level)
+export interface OrderDetailInvoice {
+  balanceId?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+  dueDate?: string;
+  entityDate?: string;
+  id: string;
+  invoiceNumber?: string;
+  locked?: boolean;
+  orderId?: string;
+  published?: boolean;
+  status?: string;
+  url?: string;
+}
+
 export interface OrderDetail {
   id: string;
   cancelledBalance?: number;
@@ -120,6 +137,7 @@ export interface OrderDetail {
   unitPrice?: string;
   uom?: OrderUom;
   uomId?: string;
+  invoice?: OrderDetailInvoice;
 }
 
 export interface OrderInsideRep {
@@ -432,11 +450,32 @@ const FIND_ORDER_BY_ID = `
           id
           title
         }
+        invoice {
+          balanceId
+          createdAt
+          createdById
+          creationType
+          dueDate
+          entityDate
+          id
+          invoiceNumber
+          locked
+          orderId
+          published
+          status
+          url
+        }
       }
       dueDate
       entityDate
       factSoNumber
       factoryId
+      factory {
+        id
+        title
+        accountNumber
+        published
+      }
       freightTerms
       headerStatus
       job {
@@ -790,6 +829,73 @@ const DELETE_ORDER = `
   }
 `;
 
+const DUPLICATE_ORDER = `
+  mutation DuplicateOrder($orderId: UUID!, $newOrderNumber: String!, $newSoldToCustomerId: UUID!) {
+    duplicateOrder(orderId: $orderId, newOrderNumber: $newOrderNumber, newSoldToCustomerId: $newSoldToCustomerId) {
+      id
+      orderNumber
+      status
+      headerStatus
+      soldToCustomerId
+      soldToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      billToCustomerId
+      billToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      factoryId
+      factory {
+        id
+        title
+        accountNumber
+        published
+      }
+      entityDate
+      dueDate
+      createdAt
+      createdById
+      creationType
+      published
+      url
+      balance {
+        id
+        commission
+        commissionRate
+        discount
+        discountRate
+        quantity
+        subtotal
+        total
+      }
+      details {
+        id
+        itemNumber
+        productId
+        product {
+          id
+          factoryPartNumber
+          description
+        }
+        quantity
+        unitPrice
+        total
+        commission
+        commissionRate
+        status
+      }
+    }
+  }
+`;
+
 const CREATE_ORDER_FROM_QUOTE = `
   mutation CreateOrderFromQuote(
     $factoryId: UUID!
@@ -978,6 +1084,30 @@ export async function deleteOrder(id: string): Promise<boolean> {
   return true;
 }
 
+/**
+ * Duplicate an order with a new order number and sold-to customer
+ */
+export async function duplicateOrder(
+  orderId: string,
+  newOrderNumber: string,
+  newSoldToCustomerId: string
+): Promise<Order> {
+  const response = await crmGraphQLRequest<{ duplicateOrder: Order }>({
+    query: DUPLICATE_ORDER,
+    variables: { orderId, newOrderNumber, newSoldToCustomerId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to duplicate order');
+  }
+
+  if (!response.data?.duplicateOrder) {
+    throw new Error('No order returned from duplicate mutation');
+  }
+
+  return response.data.duplicateOrder;
+}
+
 // ============================================================================
 // Create Order from Quote
 // ============================================================================
@@ -1014,4 +1144,30 @@ export async function createOrderFromQuote(input: CreateOrderFromQuoteInput): Pr
   }
 
   return response.data.createOrderFromQuote;
+}
+
+/**
+ * Fetch all order IDs for bulk operations
+ * Handles pagination internally to get all IDs
+ */
+export async function fetchAllOrderIds(
+  filters?: OrderLandingPageFilter[],
+  orderBy?: OrderLandingPageOrderBy[]
+): Promise<string[]> {
+  // First, get total count
+  const initialResult = await fetchOrdersWithPagination(filters, orderBy, { limit: 1, offset: 0 });
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all IDs in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await fetchOrdersWithPagination(filters, orderBy, { limit: batchSize, offset });
+    allIds.push(...result.records.map(r => r.id));
+  }
+
+  return allIds;
 }

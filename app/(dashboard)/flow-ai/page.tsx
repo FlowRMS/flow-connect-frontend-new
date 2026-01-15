@@ -322,6 +322,7 @@ function FlowRMSPageContent() {
     updateExtractedDataSets,
     isApplyingTemplate,
     applyTemplate: applyTemplateFromTemplate,
+    activeTemplateName,
   } = usePendingReview(refreshHistory);
 
   // Update temp values when real values change
@@ -364,7 +365,9 @@ function FlowRMSPageContent() {
     isComplete: processingComplete,
     isProcessing: isEntityProcessing,
     progress: entityProgress,
-    startProcessing: startEntityProcessing
+    error: entityProcessingError,
+    startProcessing: startEntityProcessing,
+    reset: resetEntityProcessing,
   } = useProcessExtractedDtos(pendingId);
 
   // Navigate to entity matching when processing is complete
@@ -376,6 +379,32 @@ function FlowRMSPageContent() {
       setPendingEntityNavigation(null);
     }
   }, [processingComplete, pendingEntityNavigation, pendingId, router]);
+
+  // Handle entity processing errors - show toast and reset state
+  useEffect(() => {
+    if (entityProcessingError) {
+      console.error('❌ Entity processing error:', entityProcessingError);
+      // Extract a user-friendly message from the error
+      const errorMsg = entityProcessingError.includes('validation error')
+        ? 'Processing failed due to a data validation error.'
+        : 'Processing failed. Please try again.';
+
+      // Build description with error details and pending ID for support
+      const errorDetails = entityProcessingError.length > 150
+        ? entityProcessingError.substring(0, 150) + '...'
+        : entityProcessingError;
+      const pendingIdInfo = pendingId ? `\n\nDocument ID for support: ${pendingId}` : '';
+
+      toast.error(errorMsg, {
+        description: `${errorDetails}${pendingIdInfo}`,
+        duration: 15000, // Keep visible longer so user can copy the ID
+      });
+      // Reset the processing state so the user isn't stuck on the overlay
+      setIsApproving(false);
+      setPendingEntityNavigation(null);
+      resetEntityProcessing();
+    }
+  }, [entityProcessingError, resetEntityProcessing, pendingId]);
 
   // Load saveToTemplate from localStorage on mount
   useEffect(() => {
@@ -402,6 +431,7 @@ function FlowRMSPageContent() {
   const [manualEditInitialValue, setManualEditInitialValue] = useState('');
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [isSelectTemplateOpen, setIsSelectTemplateOpen] = useState(false);
+  const hasShownTemplateModalRef = useRef<string | null>(null);
 
   // Dummy quick prompts to replace additionalInstructions
   const dummyQuickPrompts = [
@@ -520,6 +550,7 @@ function FlowRMSPageContent() {
   // Check if entity type requires validation (quotes and orders only)
   const normalizedEntityType = entityType?.toUpperCase();
   const requiresFieldValidation = normalizedEntityType === 'QUOTES' || normalizedEntityType === 'ORDERS';
+  const isQuote = normalizedEntityType === 'QUOTES';
 
   // Extract sold to customer name from primary fields
   const soldToCustomerName = useMemo(() => {
@@ -533,6 +564,20 @@ function FlowRMSPageContent() {
     }
     return null;
   }, [primary]);
+
+  // Extract factory name from primary fields (for QUOTES only)
+  const factoryName = useMemo(() => {
+    if (!isQuote) return null;
+    const factoryField = primary.find(f => f.key === 'Factory');
+    if (factoryField?.nested) {
+      const nameField = factoryField.nested.find(nf => nf.key === 'Name');
+      const value = nameField?.value;
+      if (value && value !== 'NA' && value !== 'N/A') {
+        return value;
+      }
+    }
+    return null;
+  }, [primary, isQuote]);
 
   // Get line items that need end user names
   const lineItemsForEndUserAssignment = useMemo(() => {
@@ -576,6 +621,48 @@ function FlowRMSPageContent() {
     return lineItemsForEndUserAssignment.filter(item => !item.currentEndUserName);
   }, [lineItemsForEndUserAssignment]);
 
+  // Get line items that need factory names (for QUOTES only)
+  const lineItemsForFactoryAssignment = useMemo(() => {
+    if (!isQuote) return [];
+    return displayLineItems.map((item, idx) => {
+      const factoryNameValue = item.factory_name as string | null | undefined;
+      const flowIndex = item.flow_index as string | number | null;
+      // Get first non-internal column value as identifier
+      const keys = Object.keys(item).filter(k => !k.startsWith('_') && k !== 'internal_uuid');
+      const identifier = keys.length > 0 ? `${keys[0]}: ${item[keys[0]]}` : `Row ${idx + 1}`;
+
+      // Extract additional display fields with flexible key matching
+      const getFieldValue = (patterns: RegExp[]): string | number | null => {
+        for (const pattern of patterns) {
+          const key = keys.find(k => pattern.test(k));
+          if (key && item[key] != null && item[key] !== '') {
+            return item[key] as string | number;
+          }
+        }
+        return null;
+      };
+
+      const itemNumber = getFieldValue([/^item[_\s]?(number|no|#)?$/i, /^line[_\s]?(number|no|#|item)?$/i]);
+      const quantity = getFieldValue([/^(quantity|qty)$/i, /^(units?|count)$/i]);
+      const unitPrice = getFieldValue([/^unit[_\s]?price$/i, /^price$/i, /^(unit[_\s]?cost|cost)$/i]);
+
+      return {
+        rowIndex: idx,
+        flowIndex: flowIndex ?? null,
+        currentFactoryName: factoryNameValue?.trim() || null,
+        identifier,
+        itemNumber,
+        quantity,
+        unitPrice,
+      };
+    });
+  }, [displayLineItems, isQuote]);
+
+  // Check which line items are missing factory names (for QUOTES)
+  const lineItemsMissingFactory = useMemo(() => {
+    return lineItemsForFactoryAssignment.filter(item => !item.currentFactoryName);
+  }, [lineItemsForFactoryAssignment]);
+
   // Check if all required fields are valid
   // NOTE: This validation is ONLY for PDFs, not for CSV/spreadsheets
   const allRequiredFieldsValid = useMemo(() => {
@@ -584,8 +671,14 @@ function FlowRMSPageContent() {
     if (!requiresFieldValidation) return true;
     const hasSoldToName = Boolean(soldToCustomerName?.trim());
     const hasAllEndUsers = lineItemsMissingEndUser.length === 0;
+    // For QUOTES, also check factory validation
+    if (isQuote) {
+      const hasFactoryName = Boolean(factoryName?.trim());
+      const hasAllFactories = lineItemsMissingFactory.length === 0;
+      return hasSoldToName && hasAllEndUsers && hasFactoryName && hasAllFactories;
+    }
     return hasSoldToName && hasAllEndUsers;
-  }, [isCsv, requiresFieldValidation, soldToCustomerName, lineItemsMissingEndUser]);
+  }, [isCsv, requiresFieldValidation, soldToCustomerName, lineItemsMissingEndUser, isQuote, factoryName, lineItemsMissingFactory]);
 
   const instructionStatusRef = useRef(isInstructionRunning);
   const isSavingManualEditsRef = useRef(false);
@@ -741,6 +834,40 @@ function FlowRMSPageContent() {
   }, [pendingId, isInstructionRunning, refreshHistory]);
 
   const shouldShowWorkspace = Boolean(pendingId);
+
+  // Auto-show Select Template modal when reaching prompting step without a template applied
+  useEffect(() => {
+    if (
+      shouldShowWorkspace &&
+      !isHydrating &&
+      !isApplyingTemplate &&
+      !isInstructionRunning &&
+      !isSelectTemplateOpen &&
+      pendingId &&
+      hasShownTemplateModalRef.current !== pendingId &&
+      (!suggestedPrompts || suggestedPrompts.length === 0)
+    ) {
+      setIsSelectTemplateOpen(true);
+      hasShownTemplateModalRef.current = pendingId;
+    }
+  }, [
+    shouldShowWorkspace,
+    isHydrating,
+    isApplyingTemplate,
+    isInstructionRunning,
+    isSelectTemplateOpen,
+    pendingId,
+    suggestedPrompts,
+  ]);
+
+  // Reset the ref when pendingId changes (new document)
+  useEffect(() => {
+    if (pendingId && hasShownTemplateModalRef.current !== pendingId) {
+      // Reset when we get a new pendingId
+      hasShownTemplateModalRef.current = null;
+    }
+  }, [pendingId]);
+
   // Use entity processing action message when available, otherwise fall back to loadingAction
   const entityProcessingMessage = isEntityProcessing && entityProgress?.action ? entityProgress.action : null;
   const loadingMessage = isHydrating
@@ -914,6 +1041,56 @@ function FlowRMSPageContent() {
       updates.forEach(({ rowIndex, endUserName }) => {
         const sourcePath = `details.${rowIndex}.end_user.name`;
         updateManualEditValue(activeDataSetIndex, sourcePath, endUserName);
+      });
+    },
+    [activeDataSetIndex, updateManualEditValue]
+  );
+
+  // Search for factories (used for Factory assignment in RequiredFieldsGate - QUOTES only)
+  const handleSearchFactories = useCallback(
+    async (query: string, limit = 15): Promise<EntitySearchResult[]> => {
+      try {
+        const result = await flowrmsApolloClient.query<{ searchExistingEntities: Array<{ entityId: string; name: string; similarityScore?: number; metadata?: string }> }>({
+          query: Q_SEARCH_EXISTING_ENTITIES,
+          variables: {
+            input: {
+              entityType: 'FACTORIES',
+              query,
+              limit,
+            },
+          },
+          fetchPolicy: 'network-only',
+        });
+        const entities = result.data?.searchExistingEntities || [];
+        return entities.map((e) => ({
+          entityId: e.entityId,
+          name: e.name,
+          similarityScore: e.similarityScore,
+          metadata: e.metadata,
+        }));
+      } catch (error) {
+        console.error('Error searching factories:', error);
+        return [];
+      }
+    },
+    []
+  );
+
+  // Handle factory change from RequiredFieldsGate (QUOTES only)
+  const handleFactoryChange = useCallback(
+    (name: string, _entityId: string) => {
+      // Update the factory.name field via manual edit
+      updateManualEditValue(activeDataSetIndex, 'factory.name', name);
+    },
+    [activeDataSetIndex, updateManualEditValue]
+  );
+
+  // Handle factory name updates for line items from RequiredFieldsGate (QUOTES only)
+  const handleFactoryNamesChange = useCallback(
+    (updates: Array<{ rowIndex: number; factoryName: string }>) => {
+      updates.forEach(({ rowIndex, factoryName }) => {
+        const sourcePath = `details.${rowIndex}.factory.name`;
+        updateManualEditValue(activeDataSetIndex, sourcePath, factoryName);
       });
     },
     [activeDataSetIndex, updateManualEditValue]
@@ -1405,11 +1582,16 @@ function FlowRMSPageContent() {
   return (
     <div className="min-h-full bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
       {/* Document info bar */}
-      {documentLabel && (
+      {(documentLabel || activeTemplateName) && (
         <div className="border-b bg-card/50 px-4 py-2 flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Active document: <span className="font-medium text-foreground">{documentLabel}</span>
           </div>
+          {activeTemplateName && (
+            <div className="text-sm text-muted-foreground flex items-center gap-2">
+              Active template: <span className="font-medium text-foreground">{activeTemplateName}</span>
+            </div>
+           )}
           <div className="flex items-center gap-2">
             {convertedDocumentUrl && (
               <Button variant="outline" size="sm" asChild>
@@ -1429,7 +1611,7 @@ function FlowRMSPageContent() {
         </div>
       )}
 
-      <main className="flex-1 mx-auto px-2 py-6 w-full max-w-[85vw]">
+      <main className="flex-1 overflow-auto mx-auto px-2 py-6 w-full max-w-[85vw]">
         {noDocumentFound ? (
           <NoDocumentFoundState onDocumentUploaded={handleDocumentUploaded} />
         ) : !shouldShowWorkspace ? (
@@ -1491,31 +1673,53 @@ function FlowRMSPageContent() {
                 onEndUserNamesChange={handleEndUserNamesChange}
                 onSearchCustomers={handleSearchCustomers}
                 onSearchEndUsers={handleSearchEndUsers}
+                // Factory-related props (only for QUOTES)
+                factoryName={factoryName}
+                onFactoryChange={handleFactoryChange}
+                factoryLineItems={lineItemsForFactoryAssignment}
+                onFactoryNamesChange={handleFactoryNamesChange}
+                onSearchFactories={handleSearchFactories}
               />
             )}
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <LayoutToggle activeLayout={activeLayout} onChange={setActiveLayout} />
-              <Button
-                variant="outline"
-                className="justify-center lg:w-auto"
-                disabled={
-                  !pendingId || isHydrating || isInstructionRunning || isApplyingTemplate
-                }
-                onClick={() => setIsSelectTemplateOpen(true)}
-              >
-                {isApplyingTemplate ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Applying Template...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Select Template
-                  </>
-                )}
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  className={`justify-center lg:w-auto ${
+                    activeTemplateName 
+                      ? 'bg-primary/5 border-primary/30 text-primary hover:bg-primary/10' 
+                      : 'opacity-60'
+                  }`}
+                  disabled={true}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Active Template: <span className="font-semibold ml-1">
+                    {activeTemplateName || 'None'}
+                  </span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="justify-center lg:w-auto"
+                  disabled={
+                    !pendingId || isHydrating || isInstructionRunning || isApplyingTemplate
+                  }
+                  onClick={() => setIsSelectTemplateOpen(true)}
+                >
+                  {isApplyingTemplate ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Applying Template...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Select Template
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
             <div>
@@ -1625,6 +1829,7 @@ function FlowRMSPageContent() {
         onOpenChange={setIsSelectTemplateOpen}
         onApplyTemplate={handleApplyTemplate}
         isApplyingTemplate={isApplyingTemplate}
+        entityType={entityType}
       />
 
       <SupportSubmissionModal

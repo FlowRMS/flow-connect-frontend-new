@@ -1,12 +1,13 @@
 /**
  * Pre-Opportunity Detail View Component
  * Combines all detail components into a single view
+ * Now uses factory-grouped line items for better organization
  */
 
 import { useState } from 'react';
 import { PreOpportunityDetailHeader } from './PreOpportunityDetailHeader';
 import { PreOpportunityDetailsForm, type EditFormData } from './PreOpportunityDetailsForm';
-import { PreOpportunityLineItems } from './PreOpportunityLineItems';
+import { FactoryGroupedLineItemsView } from './FactoryGroupedLineItemsView';
 import { PreOpportunitySummary } from './PreOpportunitySummary';
 import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import { CreateQuoteFromPreOppModal } from '../modals/CreateQuoteFromPreOppModal';
@@ -68,7 +69,7 @@ export function PreOpportunityDetailView({
             editFormData={editFormData}
             onChange={onEditChange}
           />
-          <PreOpportunityLineItems
+          <FactoryGroupedLineItemsView
             preOpp={preOpp}
             isEditing={isEditing}
             onLineItemsChange={onLineItemsChange}

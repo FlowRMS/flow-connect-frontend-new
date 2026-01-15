@@ -40,8 +40,9 @@ import {
 } from '@/components/flow-ai/ui/dialog';
 import { CitationsPane } from '@/components/flow-ai/flowrms/CitationsPane';
 import { AdminSettingsDialog } from '@/components/flow-ai/flowrms/AdminSettingsDialog';
-import { VoiceSettingsDialog, VoiceSettings, DEFAULT_VOICE_SETTINGS } from '@/components/flow-ai/flowrms/VoiceSettingsDialog';
+import { VoiceSettingsDialog, VoiceSettings, DEFAULT_VOICE_SETTINGS, VOICE_PERSONALITIES } from '@/components/flow-ai/flowrms/VoiceSettingsDialog';
 import { ApprovalPrompt } from '@/components/flow-ai/flowrms/ApprovalPrompt';
+import { useChatSettings } from '@/contexts/UserSettingsContext';
 
 const ROLE_PRIORITY: Record<MessageRole, number> = {
   USER: 0,
@@ -71,60 +72,64 @@ export default function AIChatPage() {
   const [currentDocumentReferences, setCurrentDocumentReferences] = useState<DocumentReference[]>([]);
   const [streamingDocumentReferences, setStreamingDocumentReferences] = useState<DocumentReference[]>([]);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  
-  // Voice settings state
-  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS);
-  
-  // Chat config state
-  const [disableSuggestions, setDisableSuggestions] = useState(false);
-  const [enableVectorSearch, setEnableVectorSearch] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Get chat settings from UserSettingsContext (saved via Settings page)
+  const { settings: savedChatSettings, saveSettings: saveChatSettings, isInitialized: settingsInitialized } = useChatSettings();
+
+  // Derive values from saved settings with defaults
+  const followUpSuggestionsEnabled = savedChatSettings?.followUpSuggestions ?? true;
+  const disableSuggestions = !followUpSuggestionsEnabled;
+  const enableVectorSearch = savedChatSettings?.vectorSearch ?? false;
+  const ttsEnabled = savedChatSettings?.ttsEnabled ?? true;
+  const voicePersonalityId = savedChatSettings?.voicePersonalityId ?? 'bella';
+  const speakingSpeed = savedChatSettings?.speakingSpeed ?? 1.0;
+
+  // Convert saved settings to VoiceSettings format for useTextToSpeech hook
+  const voiceSettings: VoiceSettings = useMemo(() => {
+    const personality = VOICE_PERSONALITIES.find(v => v.id === voicePersonalityId) || VOICE_PERSONALITIES[2];
+    return {
+      personality,
+      speed: speakingSpeed,
+      enabled: ttsEnabled,
+    };
+  }, [voicePersonalityId, speakingSpeed, ttsEnabled]);
 
   // Approval state
   const [approvalRequired, setApprovalRequired] = useState(false);
   const [approvalCallback, setApprovalCallback] = useState<(approved: boolean) => void>(() => {});
 
-  // Load voice settings from local storage on mount
-  useEffect(() => {
-    const savedSettings = localStorage.getItem('flowchat-voice-settings');
-    if (savedSettings) {
-      try {
-        setVoiceSettings(JSON.parse(savedSettings));
-      } catch (e) {
-        console.error('Failed to parse voice settings', e);
-      }
-    }
-    
-    // Load chat config settings
-    const savedChatConfig = localStorage.getItem('flowchat-config');
-    if (savedChatConfig) {
-      try {
-        const config = JSON.parse(savedChatConfig);
-        setDisableSuggestions(config.disableSuggestions ?? false);
-        setEnableVectorSearch(config.enableVectorSearch ?? false);
-      } catch (e) {
-        console.error('Failed to parse chat config', e);
-      }
-    }
-  }, []);
+  // Handle voice settings change from dialog (save to context/backend)
+  const handleVoiceSettingsChange = useCallback((newSettings: VoiceSettings) => {
+    saveChatSettings({
+      followUpSuggestions: followUpSuggestionsEnabled,
+      vectorSearch: enableVectorSearch,
+      ttsEnabled: newSettings.enabled,
+      voicePersonalityId: newSettings.personality.id,
+      speakingSpeed: newSettings.speed,
+    }, 'my');
+  }, [saveChatSettings, followUpSuggestionsEnabled, enableVectorSearch]);
 
-  // Save voice settings when changed
-  const handleVoiceSettingsChange = (newSettings: VoiceSettings) => {
-    setVoiceSettings(newSettings);
-    localStorage.setItem('flowchat-voice-settings', JSON.stringify(newSettings));
-  };
-  
-  // Save chat config when changed
-  const handleDisableSuggestionsChange = (value: boolean) => {
-    setDisableSuggestions(value);
-    const config = { disableSuggestions: value, enableVectorSearch };
-    localStorage.setItem('flowchat-config', JSON.stringify(config));
-  };
-  
-  const handleEnableVectorSearchChange = (value: boolean) => {
-    setEnableVectorSearch(value);
-    const config = { disableSuggestions, enableVectorSearch: value };
-    localStorage.setItem('flowchat-config', JSON.stringify(config));
-  };
+  // Handle chat config changes (save to context/backend)
+  const handleDisableSuggestionsChange = useCallback((value: boolean) => {
+    saveChatSettings({
+      followUpSuggestions: !value,
+      vectorSearch: enableVectorSearch,
+      ttsEnabled,
+      voicePersonalityId,
+      speakingSpeed,
+    }, 'my');
+  }, [saveChatSettings, enableVectorSearch, ttsEnabled, voicePersonalityId, speakingSpeed]);
+
+  const handleEnableVectorSearchChange = useCallback((value: boolean) => {
+    saveChatSettings({
+      followUpSuggestions: followUpSuggestionsEnabled,
+      vectorSearch: value,
+      ttsEnabled,
+      voicePersonalityId,
+      speakingSpeed,
+    }, 'my');
+  }, [saveChatSettings, followUpSuggestionsEnabled, ttsEnabled, voicePersonalityId, speakingSpeed]);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -690,21 +695,22 @@ export default function AIChatPage() {
   }, [streamingDocumentReferences]);
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex flex-1 h-full bg-background overflow-hidden">
       {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
-      
+
       {/* Sidebar */}
       <div className={cn(
-        "w-96 flex-shrink-0 z-50 transition-transform duration-300 ease-in-out",
+        "flex-shrink-0 z-50 transition-all duration-300 ease-in-out h-full",
         "md:block md:relative md:translate-x-0",
         "fixed inset-y-0 left-0 bg-background",
-        isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+        isSidebarCollapsed ? "w-16" : "w-96"
       )}>
         <ChatSidebar
           chats={userChats}
@@ -719,13 +725,15 @@ export default function AIChatPage() {
           }}
           onDeleteChat={handleDeleteChat}
           isLoading={chatsLoading}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Header - minimal version with mobile sidebar toggle and settings */}
-        <header className="flex-shrink-0 border-b border-border/40 backdrop-blur-sm sticky top-0 z-10 bg-background/80">
+        <header className="flex-shrink-0 border-b border-border/40 backdrop-blur-sm bg-background/80 z-10">
           <div className="flex items-center justify-between px-4 md:px-8 py-3 md:py-4">
             <div className="flex items-center gap-2 md:gap-4">
               {/* Mobile Menu Button */}
@@ -763,9 +771,10 @@ export default function AIChatPage() {
           </div>
         </header>
 
-        {/* Messages Area */}
-        <ScrollArea ref={scrollAreaRef} className="flex-1">
-          <div className="max-w-6xl mx-auto px-3 sm:px-6 pb-48 md:pb-72">
+        {/* Messages Area - Takes remaining height after header */}
+        <div className="flex-1 relative min-h-0">
+          <ScrollArea ref={scrollAreaRef} className="h-full" showScrollbar>
+            <div className="max-w-6xl mx-auto px-3 sm:px-6 pb-48 md:pb-72">
             {displayMessages.length === 0 && !streamingMessage ? (
               <div className="flex flex-col items-center justify-center h-full py-16 md:py-32 px-4 md:px-6">
                 <div className="relative mb-6 md:mb-8">
@@ -858,8 +867,8 @@ export default function AIChatPage() {
           </div>
         </ScrollArea>
 
-        {/* Input Area - Floating over chat */}
-        <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-6 py-3 md:py-4 pointer-events-none">
+          {/* Input Area - Floating over chat */}
+          <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-6 py-3 md:py-4 pointer-events-none">
           <div className="max-w-6xl mx-auto space-y-2 md:space-y-3 pointer-events-auto">
             {/* Approval Prompt */}
             {approvalRequired && (
@@ -949,6 +958,7 @@ export default function AIChatPage() {
               AI can make mistakes. Verify important information.
             </p>
           </div>
+        </div>
         </div>
       </div>
 

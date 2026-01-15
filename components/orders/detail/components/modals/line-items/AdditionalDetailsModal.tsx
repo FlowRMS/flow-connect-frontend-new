@@ -10,7 +10,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { OrderLineItem } from '@/lib/types/rms';
 import { SearchableDropdownV2 } from '@/components/quotes-v2/components/SearchableDropdownV2';
 import { useCustomerSearch, useUserSearch } from '../../../../api';
-import { searchUsers } from '@/components/quotes/api/quotesApi';
+import { fetchUserById } from '@/components/lib/api/search';
+import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
 
 // Commission split rep interface
 interface CommissionSplitRep {
@@ -26,6 +27,7 @@ interface AdditionalDetailsModalProps {
   onClose: () => void;
   lineItem: OrderLineItem | null;
   onSave: (updates: Partial<OrderLineItem>) => void;
+  onLiveUpdate?: (updates: Partial<OrderLineItem>) => void;
   showEndUserPerLine?: boolean;
   showOutsideRepPerLine?: boolean;
   showInsideRepPerLine?: boolean;
@@ -36,6 +38,7 @@ export function AdditionalDetailsModal({
   onClose,
   lineItem,
   onSave,
+  onLiveUpdate,
   showEndUserPerLine = false,
   showOutsideRepPerLine = false,
   showInsideRepPerLine = false,
@@ -54,6 +57,9 @@ export function AdditionalDetailsModal({
   // Inside/Outside rep state for line item level
   const [insideSplitReps, setInsideSplitReps] = useState<CommissionSplitRep[]>([]);
   const [outsideSplitReps, setOutsideSplitReps] = useState<CommissionSplitRep[]>([]);
+
+  // Auto-populate reps hook
+  const { fetchOutsideRepsFromCustomer } = useAutoPopulateReps();
 
   // End user search
   const [endUserSearchTerm, setEndUserSearchTerm] = useState('');
@@ -126,26 +132,45 @@ export function AdditionalDetailsModal({
       // Initialize inside split reps from line item
       const insideSplitRates = (lineItem as any).insideSplitRates;
       if (insideSplitRates && insideSplitRates.length > 0) {
-        // Fetch user names for inside reps
-        searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
-          .then((users) => {
-            const repsWithNames: CommissionSplitRep[] = insideSplitRates.map((rep: any, idx: number) => {
-              const matchingUser = users.find(u => u.id === rep.userId);
+        // Fetch user names for inside reps by their IDs
+        Promise.all(
+          insideSplitRates.map(async (rep: any, idx: number) => {
+            // If userName is already stored, use it
+            if (rep.userName) {
               return {
                 id: rep.id || crypto.randomUUID(),
                 userId: rep.userId || '',
-                userName: matchingUser?.fullName || '',
+                userName: rep.userName,
                 splitRate: rep.splitRate || '100',
                 position: rep.position || idx + 1,
               };
-            });
-            setInsideSplitReps(repsWithNames);
+            }
+            // Otherwise fetch by ID
+            if (rep.userId) {
+              const user = await fetchUserById(rep.userId);
+              return {
+                id: rep.id || crypto.randomUUID(),
+                userId: rep.userId,
+                userName: user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Unknown',
+                splitRate: rep.splitRate || '100',
+                position: rep.position || idx + 1,
+              };
+            }
+            return {
+              id: rep.id || crypto.randomUUID(),
+              userId: '',
+              userName: 'Unknown',
+              splitRate: rep.splitRate || '100',
+              position: rep.position || idx + 1,
+            };
           })
+        )
+          .then((repsWithNames) => setInsideSplitReps(repsWithNames))
           .catch(() => {
             setInsideSplitReps(insideSplitRates.map((rep: any, idx: number) => ({
               id: rep.id || crypto.randomUUID(),
               userId: rep.userId || '',
-              userName: '',
+              userName: rep.userName || 'Unknown',
               splitRate: rep.splitRate || '100',
               position: rep.position || idx + 1,
             })));
@@ -157,26 +182,45 @@ export function AdditionalDetailsModal({
       // Initialize outside split reps from line item
       const outsideSplitRates = (lineItem as any).outsideSplitRates;
       if (outsideSplitRates && outsideSplitRates.length > 0) {
-        // Fetch user names for outside reps
-        searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
-          .then((users) => {
-            const repsWithNames: CommissionSplitRep[] = outsideSplitRates.map((rep: any, idx: number) => {
-              const matchingUser = users.find(u => u.id === rep.userId);
+        // Fetch user names for outside reps by their IDs
+        Promise.all(
+          outsideSplitRates.map(async (rep: any, idx: number) => {
+            // If userName is already stored, use it
+            if (rep.userName) {
               return {
                 id: rep.id || crypto.randomUUID(),
                 userId: rep.userId || '',
-                userName: matchingUser?.fullName || '',
+                userName: rep.userName,
                 splitRate: rep.splitRate || '100',
                 position: rep.position || idx + 1,
               };
-            });
-            setOutsideSplitReps(repsWithNames);
+            }
+            // Otherwise fetch by ID
+            if (rep.userId) {
+              const user = await fetchUserById(rep.userId);
+              return {
+                id: rep.id || crypto.randomUUID(),
+                userId: rep.userId,
+                userName: user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Unknown',
+                splitRate: rep.splitRate || '100',
+                position: rep.position || idx + 1,
+              };
+            }
+            return {
+              id: rep.id || crypto.randomUUID(),
+              userId: '',
+              userName: 'Unknown',
+              splitRate: rep.splitRate || '100',
+              position: rep.position || idx + 1,
+            };
           })
+        )
+          .then((repsWithNames) => setOutsideSplitReps(repsWithNames))
           .catch(() => {
             setOutsideSplitReps(outsideSplitRates.map((rep: any, idx: number) => ({
               id: rep.id || crypto.randomUUID(),
               userId: rep.userId || '',
-              userName: '',
+              userName: rep.userName || 'Unknown',
               splitRate: rep.splitRate || '100',
               position: rep.position || idx + 1,
             })));
@@ -196,7 +240,7 @@ export function AdditionalDetailsModal({
     const setReps = isInside ? setInsideSplitReps : setOutsideSplitReps;
 
     const newRep: CommissionSplitRep = {
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.id,
       userName: repName,
       splitRate: '0',
@@ -240,7 +284,10 @@ export function AdditionalDetailsModal({
   };
 
   const handleSave = () => {
-    const updates: any = { ...formData };
+    // Build updates object WITHOUT endUserId/endUserName by default
+    // Only include them if showEndUserPerLine is enabled (matching quotes behavior)
+    const { endUserId, endUserName, ...restFormData } = formData;
+    const updates: any = { ...restFormData };
 
     // Add inside/outside split rates if per-line-item is enabled
     if (showInsideRepPerLine && insideSplitReps.length > 0) {
@@ -261,6 +308,12 @@ export function AdditionalDetailsModal({
       }));
     }
 
+    // Only save endUserId and endUserName if per-line-item is enabled
+    if (showEndUserPerLine) {
+      updates.endUserId = endUserId;
+      updates.endUserName = endUserName;
+    }
+
     onSave(updates);
     onClose();
   };
@@ -271,7 +324,11 @@ export function AdditionalDetailsModal({
   // Validate split totals - only check if per-line-item is enabled AND reps are added
   const isInsideSplitValid = !showInsideRepPerLine || insideSplitReps.length === 0 || insideSplitTotal === 100;
   const isOutsideSplitValid = !showOutsideRepPerLine || outsideSplitReps.length === 0 || outsideSplitTotal === 100;
-  const canSave = isInsideSplitValid && isOutsideSplitValid;
+
+  // Validate End User - only check if per-line-item is enabled
+  const isEndUserValid = !showEndUserPerLine || (formData.endUserId && formData.endUserId.trim() !== '');
+
+  const canSave = isInsideSplitValid && isOutsideSplitValid && isEndUserValid;
 
   return (
     <>
@@ -308,12 +365,28 @@ export function AdditionalDetailsModal({
                 <SearchableDropdownV2
                   value={formData.endUserId}
                   displayValue={formData.endUserName}
-                  onChange={(id, label) => {
+                  onChange={async (id, label) => {
                     setFormData({
                       ...formData,
                       endUserId: id,
                       endUserName: label,
                     });
+                    // Auto-populate outside reps from end user when both end user per line item
+                    // AND outside rep per line item are enabled
+                    if (id && showOutsideRepPerLine) {
+                      const reps = await fetchOutsideRepsFromCustomer(id);
+                      if (reps.length > 0) {
+                        // Convert to the format expected by this modal
+                        const newOutsideSplitReps = reps.map((rep, idx) => ({
+                          id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+                          userId: rep.userId,
+                          userName: rep.userName,
+                          splitRate: rep.splitRate,
+                          position: idx + 1,
+                        }));
+                        setOutsideSplitReps(newOutsideSplitReps);
+                      }
+                    }
                   }}
                   options={endUserOptions}
                   placeholder="Search end user..."
@@ -471,15 +544,28 @@ export function AdditionalDetailsModal({
               <label className="block text-sm text-gray-700 mb-1">Commission Discount %</label>
               <div className="flex items-center gap-2">
                 <input
-                  type="number"
-                  value={formData.commissionDiscountPercent}
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.commissionDiscountPercent || ''}
                   onChange={(e) => {
+                    const value = e.target.value.replace(/^0+(?=\d)/, '');
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      e.target.value = value;
+                    }
                     const percent = parseFloat(e.target.value) || 0;
-                    // Calculate commission discount amount based on line item's commission amount
-                    const commissionAmount = lineItem?.commissionAmount || 0;
-                    const discountAmount = (commissionAmount * percent) / 100;
+                    // Calculate commission discount amount based on line item's commission total
+                    // Use commissionAmount if available, otherwise calculate from extendedPrice * commissionRate
+                    const extendedPrice = lineItem?.extendedPrice || 0;
+                    const commissionRate = lineItem?.commissionRate || 0;
+                    const commissionTotal = lineItem?.commissionAmount || (extendedPrice * (commissionRate / 100));
+                    const discountAmount = (commissionTotal * percent) / 100;
                     setFormData({
                       ...formData,
+                      commissionDiscountPercent: percent,
+                      commissionDiscountAmount: discountAmount,
+                    });
+                    // Live update the line item (without closing modal)
+                    onLiveUpdate?.({
                       commissionDiscountPercent: percent,
                       commissionDiscountAmount: discountAmount,
                     });
@@ -509,15 +595,25 @@ export function AdditionalDetailsModal({
               <label className="block text-sm text-gray-700 mb-1">Line Discount %</label>
               <div className="flex items-center gap-2">
                 <input
-                  type="number"
-                  value={formData.lineDiscountPercent}
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.lineDiscountPercent || ''}
                   onChange={(e) => {
+                    const value = e.target.value.replace(/^0+(?=\d)/, '');
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      e.target.value = value;
+                    }
                     const percent = parseFloat(e.target.value) || 0;
                     // Calculate line discount amount based on line item's extended price
                     const extendedPrice = lineItem?.extendedPrice || 0;
                     const discountAmount = (extendedPrice * percent) / 100;
                     setFormData({
                       ...formData,
+                      lineDiscountPercent: percent,
+                      lineDiscountAmount: discountAmount,
+                    });
+                    // Live update the line item (without closing modal)
+                    onLiveUpdate?.({
                       lineDiscountPercent: percent,
                       lineDiscountAmount: discountAmount,
                     });
@@ -570,9 +666,11 @@ export function AdditionalDetailsModal({
           {/* Footer */}
           <div className="px-6 py-4 border-t border-gray-200 flex-shrink-0">
             {!canSave && (
-              <p className="text-xs text-red-500 mb-2 text-center">
-                Split percentages must total 100%
-              </p>
+              <div className="text-xs text-red-500 mb-2 text-center space-y-1">
+                {!isInsideSplitValid && <p>Inside rep split percentages must total 100%</p>}
+                {!isOutsideSplitValid && <p>Outside rep split percentages must total 100%</p>}
+                {!isEndUserValid && <p>End User is required for this line item</p>}
+              </div>
             )}
             <button
               onClick={handleSave}

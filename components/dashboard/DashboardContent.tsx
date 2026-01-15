@@ -6,7 +6,9 @@
 'use client';
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import AdvancedFilters, { type ActiveFilter, type ActiveSort } from '../AdvancedFilters';
+import { MorphingPageHeader } from '../ui/MorphingPageHeader';
+import { iconMap } from '../Sidebar';
+import AdvancedFilters, { type ActiveFilter, type ActiveSort } from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import { useDashboardFilters } from './hooks/useDashboardFilters';
 import { useActivityFeed } from './hooks/useActivityFeed';
@@ -268,37 +270,32 @@ export default function DashboardContent() {
   }), [activities, filteredActivities, data]);
 
   return (
-    <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[var(--background)] p-3 sm:p-6">
-      {/* Header */}
-      <div className="mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)] mb-1 truncate">Activity Feed</h1>
-            <p className="text-xs sm:text-sm text-[var(--muted-foreground)]">
-              Your operational command center for manufacturing sales
-              {activityCounts.total > 0 && (
-                <span className="ml-1 sm:ml-2 text-[var(--primary)]">
-                  ({activityCounts.filtered} of {activityCounts.total})
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0 overflow-x-auto pb-1 sm:pb-0 -mx-1 px-1 sm:mx-0 sm:px-0">
+    <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[var(--background)]">
+      {/* Morphing Header */}
+      <MorphingPageHeader
+        itemId="activity-feed"
+        icon={iconMap['activity-feed']}
+        title="Activity Feed"
+        subtitle={`Your operational command center for manufacturing sales${activityCounts.total > 0 ? ` • ${activityCounts.filtered} of ${activityCounts.total}` : ''}`}
+        actions={
+          <div className="flex items-center gap-2">
             <StatusFilterButtons
               statusFilters={statusFilters}
               onToggleStatusFilter={toggleStatusFilter}
             />
-            <AdvancedFilters 
+            <AdvancedFilters
               filterOptions={activityFilterOptions}
               activeFilters={advancedFilters}
               onFiltersChange={handleAdvancedFiltersChange}
             />
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Action Buttons */}
-      <DashboardActionButtons
+      {/* Main Content */}
+      <div className="px-3 sm:px-6 pb-6">
+        {/* Action Buttons */}
+        <DashboardActionButtons
         onAddJob={() => setShowCreateJobModal(true)}
         onCreatePreOpportunity={() => setShowCreatePreOpportunityModal(true)}
         onAddTask={() => setShowCreateTaskModal(true)}
@@ -376,6 +373,7 @@ export default function DashboardContent() {
             </>
           )}
         </div>
+      </div>
       </div>
 
       {/* Create Modals */}

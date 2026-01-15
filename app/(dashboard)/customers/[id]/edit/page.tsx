@@ -3,10 +3,16 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import {
   useCustomer,
   useUpdateCustomer,
+  useCustomerChildren,
+  useCustomerBuyingGroupMembers,
+  type CustomerLiteResponse,
+  type CustomerSearchResult,
 } from '../../../../../components/customers/api/useCustomersApi';
+import { useCRMCustomerSearch } from '../../../../../components/hooks/useCRMApi';
 import {
   SplitRatesInput,
   type SplitRateEntry,
@@ -26,7 +32,7 @@ import {
 // Types
 // ============================================================================
 
-type TabId = 'overview' | 'addresses' | 'inside-reps' | 'outside-reps' | 'settings';
+type TabId = 'overview' | 'addresses' | 'child-customers' | 'buying-group-members' | 'inside-reps' | 'outside-reps' | 'settings';
 
 // Generate unique temp ID
 const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -43,6 +49,17 @@ export default function CustomerEditPage() {
   // API Hooks
   const { data: customer, isLoading, error } = useCustomer(customerId);
   const updateCustomer = useUpdateCustomer();
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and customer name)
+  useEffect(() => {
+    if (customer?.companyName && customerId) {
+      setFullEntityContext('customer', customerId, customer.companyName);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [customer?.companyName, customerId, setFullEntityContext]);
 
   // State
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -54,6 +71,52 @@ export default function CustomerEditPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
+  // Parent Customer / Buying Group selection state
+  const [parentId, setParentId] = useState<string | null>(null);
+  const [parentName, setParentName] = useState('');
+  const [buyingGroupId, setBuyingGroupId] = useState<string | null>(null);
+  const [buyingGroupName, setBuyingGroupName] = useState('');
+
+  // Customer search state for parent/buying group selection
+  const [parentSearch, setParentSearch] = useState('');
+  const [showParentDropdown, setShowParentDropdown] = useState(false);
+  const [parentSearchEnabled, setParentSearchEnabled] = useState(false);
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const [buyingGroupSearch, setBuyingGroupSearch] = useState('');
+  const [showBuyingGroupDropdown, setShowBuyingGroupDropdown] = useState(false);
+  const [buyingGroupSearchEnabled, setBuyingGroupSearchEnabled] = useState(false);
+  const buyingGroupRef = useRef<HTMLDivElement>(null);
+
+  // Customer search hooks using React Query
+  const { data: parentSearchResults = [], isLoading: isSearchingParent } = useCRMCustomerSearch(
+    parentSearch,
+    true, // published only
+    parentSearchEnabled
+  );
+  const { data: buyingGroupSearchResultsRaw = [], isLoading: isSearchingBuyingGroup } = useCRMCustomerSearch(
+    buyingGroupSearch,
+    true, // published only
+    buyingGroupSearchEnabled
+  );
+
+  // Filter parent search results - show only parent customers (isParent=true), exclude current customer
+  const filteredParentResults = useMemo(() =>
+    parentSearchResults.filter(c => c.id !== customerId && c.isParent === true),
+    [parentSearchResults, customerId]
+  );
+
+  // Filter buying group results - show only buying groups (isParent=true and no parentId/buyingGroupId), exclude current customer
+  const filteredBuyingGroupResults = useMemo(() =>
+    buyingGroupSearchResultsRaw.filter(c =>
+      c.id !== customerId &&
+      c.isParent === true &&
+      !c.parentId &&
+      !c.buyingGroupId
+    ),
+    [buyingGroupSearchResultsRaw, customerId]
+  );
+
   // Address hooks
   const { data: addresses = [], isLoading: addressesLoading } = useAddressesBySource(customerId, 'CUSTOMER');
   const createAddress = useCreateAddress();
@@ -62,15 +125,35 @@ export default function CustomerEditPage() {
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
 
+  // Hierarchy hooks - fetch child customers if this is a parent, or buying group members if this is a buying group
+  // A buying group is determined by having no parentId and no buyingGroupId (it's at the top of the hierarchy)
+  const isBuyingGroup = customer ? (customer.isParent && !customer.parentId && !customer.buyingGroupId) : false;
+  const { data: childCustomers = [], isLoading: childCustomersLoading } = useCustomerChildren(
+    customer?.isParent ? customerId : undefined
+  );
+  const { data: buyingGroupMembers = [], isLoading: buyingGroupMembersLoading } = useCustomerBuyingGroupMembers(
+    isBuyingGroup ? customerId : undefined
+  );
+
+  // Fetch parent customer details to get the name (when parentId exists)
+  const { data: parentCustomer } = useCustomer(customer?.parentId || undefined);
+  // Fetch buying group details to get the name (when buyingGroupId exists)
+  const { data: buyingGroupCustomer } = useCustomer(customer?.buyingGroupId || undefined);
+
   // Section refs for scroll-to functionality
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
     'addresses': null,
+    'child-customers': null,
+    'buying-group-members': null,
     'inside-reps': null,
     'outside-reps': null,
     'settings': null,
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Flag to disable scroll spy during programmatic scrolling
+  const isScrollingRef = useRef(false);
 
   // Calculate totals for validation (each rep type independently totals 100%)
   const insideTotal = useMemo(() =>
@@ -95,6 +178,10 @@ export default function CustomerEditPage() {
       setCompanyName(customer.companyName || '');
       setIsParent(customer.isParent ?? false);
       setPublished(customer.published ?? true);
+
+      // Initialize parent customer and buying group IDs
+      setParentId(customer.parentId || null);
+      setBuyingGroupId(customer.buyingGroupId || null);
 
       // Convert inside reps to entries
       const insideEntries: SplitRateEntry[] = (customer.insideReps || []).map((rep) => ({
@@ -121,22 +208,40 @@ export default function CustomerEditPage() {
     }
   }, [customer, initialized]);
 
+  // Set parent customer name when fetched
+  useEffect(() => {
+    if (parentCustomer && parentCustomer.companyName) {
+      setParentName(parentCustomer.companyName);
+    }
+  }, [parentCustomer]);
+
+  // Set buying group name when fetched
+  useEffect(() => {
+    if (buyingGroupCustomer && buyingGroupCustomer.companyName) {
+      setBuyingGroupName(buyingGroupCustomer.companyName);
+    }
+  }, [buyingGroupCustomer]);
+
   // Scroll spy effect
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'addresses', 'inside-reps', 'outside-reps', 'settings'];
+    const tabIds: TabId[] = ['overview', 'addresses', 'child-customers', 'buying-group-members', 'inside-reps', 'outside-reps', 'settings'];
 
     const handleScroll = () => {
-      const scrollTop = container.scrollTop;
+      // Skip scroll spy updates during programmatic scrolling
+      if (isScrollingRef.current) return;
+
+      const containerRect = container.getBoundingClientRect();
       let currentSection: TabId = 'overview';
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
         if (section) {
-          const sectionTop = section.offsetTop;
-          if (scrollTop >= sectionTop - 100) {
+          const sectionRect = section.getBoundingClientRect();
+          // Check if section top is at or above the container top + offset
+          if (sectionRect.top <= containerRect.top + 100) {
             currentSection = tabId;
           }
         }
@@ -145,19 +250,33 @@ export default function CustomerEditPage() {
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [isLoading]);
+  }, []);
 
   const scrollToSection = useCallback((tabId: TabId) => {
     const section = sectionRefs.current[tabId];
     const container = scrollContainerRef.current;
     if (section && container) {
+      // Disable scroll spy during programmatic scroll
+      isScrollingRef.current = true;
+      setActiveTab(tabId);
+
+      // Calculate the section's position relative to the scroll container
+      const containerRect = container.getBoundingClientRect();
+      const sectionRect = section.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
       const headerOffset = 20;
-      const sectionTop = section.offsetTop - headerOffset;
+
+      // Calculate the target scroll position
+      const sectionTop = sectionRect.top - containerRect.top + scrollTop - headerOffset;
+
       container.scrollTo({ top: sectionTop, behavior: 'smooth' });
+
+      // Re-enable scroll spy after scroll animation completes
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 500);
     }
-    setActiveTab(tabId);
   }, []);
 
   const handleFieldChange = () => {
@@ -173,6 +292,72 @@ export default function CustomerEditPage() {
     setOutsideRepEntries(entries);
     setHasChanges(true);
   };
+
+  // Parent Customer search handler
+  const handleParentSearch = useCallback((term: string) => {
+    setParentSearch(term);
+    setParentSearchEnabled(true);
+  }, []);
+
+  // Buying Group search handler
+  const handleBuyingGroupSearch = useCallback((term: string) => {
+    setBuyingGroupSearch(term);
+    setBuyingGroupSearchEnabled(true);
+  }, []);
+
+  // Handle parent customer selection
+  const handleSelectParent = (customer: CustomerSearchResult) => {
+    setParentId(customer.id);
+    setParentName(customer.companyName);
+    setShowParentDropdown(false);
+    setParentSearch('');
+    setParentSearchEnabled(false);
+    handleFieldChange();
+  };
+
+  // Handle clear parent customer
+  const handleClearParent = () => {
+    setParentId(null);
+    setParentName('');
+    setParentSearch('');
+    setParentSearchEnabled(false);
+    handleFieldChange();
+  };
+
+  // Handle buying group selection
+  const handleSelectBuyingGroup = (customer: CustomerSearchResult) => {
+    setBuyingGroupId(customer.id);
+    setBuyingGroupName(customer.companyName);
+    setShowBuyingGroupDropdown(false);
+    setBuyingGroupSearch('');
+    setBuyingGroupSearchEnabled(false);
+    handleFieldChange();
+  };
+
+  // Handle clear buying group
+  const handleClearBuyingGroup = () => {
+    setBuyingGroupId(null);
+    setBuyingGroupName('');
+    setBuyingGroupSearch('');
+    setBuyingGroupSearchEnabled(false);
+    handleFieldChange();
+  };
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (parentRef.current && !parentRef.current.contains(event.target as Node)) {
+        setShowParentDropdown(false);
+        setParentSearchEnabled(false);
+      }
+      if (buyingGroupRef.current && !buyingGroupRef.current.contains(event.target as Node)) {
+        setShowBuyingGroupDropdown(false);
+        setBuyingGroupSearchEnabled(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSave = async () => {
     if (!companyName.trim()) {
@@ -218,6 +403,8 @@ export default function CustomerEditPage() {
           companyName: companyName.trim(),
           isParent,
           published,
+          parentId: parentId || undefined,
+          buyingGroupId: buyingGroupId || undefined,
           insideSplitRates: insideSplitRates.length > 0 ? insideSplitRates : undefined,
           outsideSplitRates: outsideSplitRates.length > 0 ? outsideSplitRates : undefined,
         },
@@ -240,7 +427,7 @@ export default function CustomerEditPage() {
           input: {
             sourceId: customerId,
             sourceType: 'CUSTOMER',
-            addressType: addressData.addressType,
+            addressTypes: addressData.addressTypes || [addressData.addressType],
             line1: addressData.line1,
             line2: addressData.line2,
             city: addressData.city,
@@ -258,7 +445,7 @@ export default function CustomerEditPage() {
         await createAddress.mutateAsync({
           sourceId: customerId,
           sourceType: 'CUSTOMER',
-          addressType: addressData.addressType,
+          addressTypes: addressData.addressTypes || [addressData.addressType],
           line1: addressData.line1,
           line2: addressData.line2,
           city: addressData.city,
@@ -307,6 +494,10 @@ export default function CustomerEditPage() {
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview' },
     { id: 'addresses' as TabId, label: 'Addresses', count: addresses.length || null },
+    // Show Child Customers tab only for parent customers
+    ...(isParent ? [{ id: 'child-customers' as TabId, label: 'Child Customers', count: childCustomers.length || null }] : []),
+    // Show Buying Group Members tab only for buying groups (parent customers at the top of hierarchy)
+    ...(isBuyingGroup ? [{ id: 'buying-group-members' as TabId, label: 'Parent Customers', count: buyingGroupMembers.length || null }] : []),
     { id: 'inside-reps' as TabId, label: 'Inside Reps', count: insideRepEntries.length || null },
     { id: 'outside-reps' as TabId, label: 'Outside Reps', count: outsideRepEntries.length || null },
     { id: 'settings' as TabId, label: 'Settings' },
@@ -385,7 +576,7 @@ export default function CustomerEditPage() {
                   {companyName || 'Untitled Customer'}
                 </h1>
                 <p className="text-sm text-gray-500">
-                  {isParent ? 'Parent Customer' : 'Customer'} Profile
+                  {isBuyingGroup ? 'Buying Group' : isParent ? 'Parent Customer' : 'Customer'} Profile
                 </p>
               </div>
             </div>
@@ -399,7 +590,12 @@ export default function CustomerEditPage() {
             }`}>
               {published ? 'Published' : 'Draft'}
             </span>
-            {isParent && (
+            {isBuyingGroup && (
+              <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                Buying Group
+              </span>
+            )}
+            {isParent && !isBuyingGroup && (
               <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
                 Parent
               </span>
@@ -558,6 +754,180 @@ export default function CustomerEditPage() {
                   placeholder="Enter company name"
                 />
               </div>
+
+              {/* Parent Customer Selector - only show for non-parent customers */}
+              {!isParent && (
+                <div ref={parentRef} className="relative">
+                  <label className={labelClass}>
+                    Parent Customer
+                    {parentId && (
+                      <span className="ml-2 text-green-600 font-normal text-xs">
+                        Selected: {parentName || parentId.slice(0, 8) + '...'}
+                      </span>
+                    )}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={parentId ? (parentName || parentId.slice(0, 8) + '...') : parentSearch}
+                      onChange={(e) => {
+                        if (!parentId) {
+                          handleParentSearch(e.target.value);
+                          setShowParentDropdown(true);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (!parentId) {
+                          handleParentSearch('');
+                          setShowParentDropdown(true);
+                        }
+                      }}
+                      placeholder="Search for a parent customer..."
+                      readOnly={!!parentId}
+                      className={`flex-1 ${inputClass} ${parentId ? 'bg-green-50 border-green-300' : ''}`}
+                    />
+                    {isSearchingParent && !parentId && (
+                      <div className="flex items-center px-3">
+                        <svg className="w-5 h-5 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                      </div>
+                    )}
+                    {parentId && (
+                      <button
+                        type="button"
+                        onClick={handleClearParent}
+                        className="px-3 py-2 text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Assign this customer as a child of a parent customer.
+                  </p>
+
+                  {showParentDropdown && !parentId && (
+                    <>
+                      {isSearchingParent ? (
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                          Searching...
+                        </div>
+                      ) : filteredParentResults.length > 0 ? (
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {filteredParentResults.map((customer) => (
+                            <button
+                              key={customer.id}
+                              type="button"
+                              onClick={() => handleSelectParent(customer)}
+                              className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="font-medium text-gray-900">{customer.companyName}</div>
+                              <div className="text-xs text-gray-500 flex items-center gap-2">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                                  Parent Customer
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : parentSearchEnabled ? (
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                          {parentSearch ? `No parent customers found for "${parentSearch}"` : 'No parent customers available'}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Buying Group Selector - only show for parent customers */}
+              {isParent && (
+                <div ref={buyingGroupRef} className="relative">
+                  <label className={labelClass}>
+                    Buying Group
+                    {buyingGroupId && (
+                      <span className="ml-2 text-green-600 font-normal text-xs">
+                        Selected: {buyingGroupName || buyingGroupId.slice(0, 8) + '...'}
+                      </span>
+                    )}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={buyingGroupId ? (buyingGroupName || buyingGroupId.slice(0, 8) + '...') : buyingGroupSearch}
+                      onChange={(e) => {
+                        if (!buyingGroupId) {
+                          handleBuyingGroupSearch(e.target.value);
+                          setShowBuyingGroupDropdown(true);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (!buyingGroupId) {
+                          handleBuyingGroupSearch('');
+                          setShowBuyingGroupDropdown(true);
+                        }
+                      }}
+                      placeholder="Search for a buying group..."
+                      readOnly={!!buyingGroupId}
+                      className={`flex-1 ${inputClass} ${buyingGroupId ? 'bg-green-50 border-green-300' : ''}`}
+                    />
+                    {isSearchingBuyingGroup && !buyingGroupId && (
+                      <div className="flex items-center px-3">
+                        <svg className="w-5 h-5 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                      </div>
+                    )}
+                    {buyingGroupId && (
+                      <button
+                        type="button"
+                        onClick={handleClearBuyingGroup}
+                        className="px-3 py-2 text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Assign this parent customer to a buying group.
+                  </p>
+
+                  {showBuyingGroupDropdown && !buyingGroupId && (
+                    <>
+                      {isSearchingBuyingGroup ? (
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                          Searching...
+                        </div>
+                      ) : filteredBuyingGroupResults.length > 0 ? (
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {filteredBuyingGroupResults.map((customer) => (
+                            <button
+                              key={customer.id}
+                              type="button"
+                              onClick={() => handleSelectBuyingGroup(customer)}
+                              className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="font-medium text-gray-900">{customer.companyName}</div>
+                              <div className="text-xs text-gray-500 flex items-center gap-2">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                                  Buying Group
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : buyingGroupSearchEnabled ? (
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                          {buyingGroupSearch ? `No buying groups found for "${buyingGroupSearch}"` : 'No buying groups available'}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -702,6 +1072,156 @@ export default function CustomerEditPage() {
             )}
           </div>
         </div>
+
+        {/* ============ CHILD CUSTOMERS SECTION (only for parent customers) ============ */}
+        {isParent && (
+          <div ref={el => { sectionRefs.current['child-customers'] = el; }} id="section-child-customers">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Child Customers
+              </h2>
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              {childCustomersLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
+                </div>
+              ) : childCustomers.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No child customers yet</h3>
+                  <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+                    Child customers can be assigned to this parent customer by editing the child customer and selecting this customer as their parent.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {childCustomers.map((child) => (
+                    <div
+                      key={child.id}
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-amber-300 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/customers/${child.id}/edit`)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-medium text-amber-600">
+                            {child.companyName?.charAt(0).toUpperCase() || '?'}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{child.companyName}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                              child.published ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {child.published ? 'Published' : 'Draft'}
+                            </span>
+                            {child.isParent && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                                Parent
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ============ BUYING GROUP MEMBERS SECTION (only for buying groups) ============ */}
+        {isBuyingGroup && (
+          <div ref={el => { sectionRefs.current['buying-group-members'] = el; }} id="section-buying-group-members">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Parent Customers in Buying Group
+              </h2>
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-start gap-3 mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                <svg className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="text-sm text-indigo-900 font-medium">Buying Group Hierarchy</p>
+                  <p className="text-sm text-indigo-700 mt-1">
+                    This is a buying group. Parent customers below can be associated with this buying group, and each parent customer can have their own child customers.
+                  </p>
+                </div>
+              </div>
+
+              {buyingGroupMembersLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : buyingGroupMembers.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No parent customers in this buying group</h3>
+                  <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+                    Parent customers can be added to this buying group by editing the parent customer and selecting this customer as their buying group.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {buyingGroupMembers.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-indigo-300 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/customers/${member.id}/edit`)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-medium text-indigo-600">
+                            {member.companyName?.charAt(0).toUpperCase() || '?'}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{member.companyName}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                              member.published ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {member.published ? 'Published' : 'Draft'}
+                            </span>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                              Parent Customer
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ============ INSIDE REPS SECTION ============ */}
         <div ref={el => { sectionRefs.current['inside-reps'] = el; }} id="section-inside-reps">

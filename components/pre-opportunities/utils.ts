@@ -4,7 +4,7 @@
 
 import { STAGE_COLORS, FILTER_COLUMN_MAP, STATUS_CONFIG } from './constants';
 import type { PreOpportunity, PreOpportunityStatus, PreOpportunityLandingPage } from './types';
-import type { ActiveFilter } from '../AdvancedFilters';
+import type { ActiveFilter } from '../advancedFilters/AdvancedFilters';
 import type { LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
 
 /**

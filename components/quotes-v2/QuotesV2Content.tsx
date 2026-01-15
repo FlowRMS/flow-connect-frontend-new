@@ -2,13 +2,21 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '../ui/HeaderIconAnimations';
+import { iconMap } from '../Sidebar';
+import type { RefObject } from 'react';
 import type { QuoteV2, QuoteLandingPageFilter, QuoteLandingPageOrderBy } from './types';
 import type { QuotePipelineStage } from './types';
 import { transformLandingPageToQuoteV2 } from './types';
 import { KanbanViewV2 } from './views/KanbanViewV2';
 import { ListViewV2 } from './views/ListViewV2';
 import { useQuotesV2Infinite, useUpdateQuoteStageV2, useQuoteSearchV2, type QuoteSearchResult } from './api/quotesV2Api';
+import { fetchAllQuoteIds } from '../quotes/api/quotesApi';
 import { quoteToasts } from '../lib/toast';
+import { useBulkSelection } from '../shared';
+import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
@@ -16,6 +24,22 @@ type SortOption = 'createdAt' | 'entityDate' | 'total' | 'quoteNumber';
 
 export function QuotesV2Content() {
   const router = useRouter();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  // Register header target on mount
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'quotes';
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -168,6 +192,23 @@ export function QuotesV2Content() {
     return quotesData.pages[0].total;
   }, [quotesData]);
 
+  // Bulk selection hook
+  const bulkSelection = useBulkSelection({
+    items: quotes,
+    totalCount,
+    fetchAllIds: fetchAllQuoteIds,
+  });
+
+  // Bulk delete modal state
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // Handle successful bulk delete
+  const handleBulkDeleteSuccess = useCallback(() => {
+    bulkSelection.clearSelection();
+    setShowBulkDeleteModal(false);
+    refetch();
+  }, [bulkSelection, refetch]);
+
   // Computed totals
   const totals = useMemo(() => {
     const pipeline = quotes.reduce((sum, q) => sum + q.quoteAmount, 0);
@@ -219,20 +260,47 @@ export function QuotesV2Content() {
   }, [updateStageMutation, quotes]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-gray-50">
+    <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-4 bg-white border-b border-gray-200">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Quotes</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              {searchQuery.length >= 2
-                ? `${quotes.length} results for "${searchQuery}"`
-                : `Showing ${quotes.length} of ${totalCount} quotes`}
-            </p>
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Document Stack Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="document-stack"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['quotes']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-2xl font-semibold text-gray-900"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Quotes
+              </motion.h1>
+              <motion.p
+                className="text-sm text-gray-500 mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                {searchQuery.length >= 2
+                  ? `${quotes.length} results for "${searchQuery}"`
+                  : `Showing ${quotes.length} of ${totalCount} quotes`}
+              </motion.p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <motion.div
+            className="flex items-center gap-4"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             {/* Search Bar */}
             <div className="relative">
               <svg
@@ -405,7 +473,7 @@ export function QuotesV2Content() {
               </svg>
               New Quote
             </button>
-          </div>
+          </motion.div>
         </div>
 
         {/* Quick Filters */}
@@ -443,6 +511,17 @@ export function QuotesV2Content() {
             <span className="text-[10px] bg-gray-100 px-1 py-0.5 rounded uppercase ml-1">Soon</span>
           </button>
         </div>
+
+        {/* Bulk Actions Toolbar */}
+        <BulkActionsToolbar
+          entityType="QUOTES"
+          selectedCount={bulkSelection.selectedCount}
+          totalCount={totalCount}
+          loadedCount={quotes.length}
+          selectAllMode={bulkSelection.selectAllMode}
+          onClearSelection={bulkSelection.clearSelection}
+          onDelete={() => setShowBulkDeleteModal(true)}
+        />
       </div>
 
       {/* Content */}
@@ -483,7 +562,15 @@ export function QuotesV2Content() {
               />
             ) : (
               <>
-                <ListViewV2 quotes={quotes} onQuoteClick={handleQuoteClick} />
+                <ListViewV2
+                  quotes={quotes}
+                  onQuoteClick={handleQuoteClick}
+                  isItemSelected={bulkSelection.isItemSelected}
+                  isAllSelected={bulkSelection.isAllSelected}
+                  isPartiallySelected={bulkSelection.isPartiallySelected}
+                  onSelectAll={bulkSelection.handleSelectAll}
+                  onSelectOne={bulkSelection.handleSelectOne}
+                />
 
                 {/* Loading indicator for infinite scroll - list view */}
                 {isFetchingNextPage && (
@@ -504,6 +591,17 @@ export function QuotesV2Content() {
           </>
         )}
       </div>
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="QUOTES"
+        selectedCount={bulkSelection.selectedCount}
+        getAllSelectedIds={bulkSelection.getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['quotes-v2'], ['quotes']]}
+      />
     </div>
   );
 }

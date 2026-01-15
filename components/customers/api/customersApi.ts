@@ -56,6 +56,7 @@ export interface Customer {
   companyName: string;
   isParent: boolean;
   parentId?: string;
+  buyingGroupId?: string;
   published: boolean;
   createdBy?: User;
   insideReps?: SplitRate[];
@@ -72,12 +73,15 @@ export interface CustomerLandingPage {
   outsideReps?: string;
   isParent: boolean;
   published: boolean;
+  buyingGroup?: string;
+  parent?: string;
 }
 
 export interface CreateCustomerInput {
   companyName: string;
   isParent: boolean;
   parentId?: string;
+  buyingGroupId?: string;
   published: boolean;
   insideSplitRates?: CustomerSplitRateInput[];
   outsideSplitRates?: CustomerSplitRateInput[];
@@ -87,6 +91,7 @@ export interface UpdateCustomerInput {
   companyName?: string;
   isParent?: boolean;
   parentId?: string;
+  buyingGroupId?: string;
   published?: boolean;
   insideSplitRates?: CustomerSplitRateInput[];
   outsideSplitRates?: CustomerSplitRateInput[];
@@ -165,6 +170,8 @@ const FIND_CUSTOMERS_LANDING_PAGES = `
           outsideReps
           isParent
           published
+          buyingGroup
+          parent
         }
       }
       total
@@ -232,6 +239,7 @@ const FIND_CUSTOMER_BY_ID = `
         }
       }
       parentId
+      buyingGroupId
       published
     }
   }
@@ -297,6 +305,7 @@ const CREATE_CUSTOMER = `
         }
       }
       parentId
+      buyingGroupId
       published
     }
   }
@@ -362,6 +371,7 @@ const UPDATE_CUSTOMER = `
         }
       }
       parentId
+      buyingGroupId
       published
     }
   }
@@ -521,6 +531,32 @@ export async function deleteCustomer(id: string): Promise<boolean> {
 }
 
 /**
+ * Fetch all customer IDs matching the given filters
+ * Used for bulk operations when "select all" is enabled
+ */
+export async function fetchAllCustomerIds(
+  filters?: CustomerLandingPageFilter[],
+  orderBy?: CustomerLandingPageOrderBy[]
+): Promise<string[]> {
+  // First get total count
+  const initialResult = await fetchCustomersWithPagination(filters, orderBy, { limit: 1, offset: 0 });
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all records in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await fetchCustomersWithPagination(filters, orderBy, { limit: batchSize, offset });
+    allIds.push(...result.records.map(r => r.id));
+  }
+
+  return allIds;
+}
+
+/**
  * Search users for rep selection
  * Returns users filtered by inside/outside rep type
  * Empty searchTerm returns initial results
@@ -542,4 +578,78 @@ export async function searchUsers(params: UserSearchParams): Promise<UserSearchR
   }
 
   return response.data?.userSearch || [];
+}
+
+// ============================================================================
+// Customer Hierarchy Types & Queries
+// ============================================================================
+
+/**
+ * Lite response type for customer hierarchy relationships
+ */
+export interface CustomerLiteResponse {
+  id: string;
+  companyName: string;
+  published: boolean;
+  isParent: boolean;
+  parentId?: string;
+  buyingGroupId?: string;
+}
+
+const CUSTOMER_CHILDREN = `
+  query CustomerChildren($parentId: UUID!) {
+    customerChildren(parentId: $parentId) {
+      id
+      companyName
+      published
+      isParent
+      parentId
+      buyingGroupId
+    }
+  }
+`;
+
+const CUSTOMER_BUYING_GROUP_MEMBERS = `
+  query CustomerBuyingGroupMembers($buyingGroupId: UUID!) {
+    customerBuyingGroupMembers(buyingGroupId: $buyingGroupId) {
+      id
+      companyName
+      published
+      isParent
+      parentId
+      buyingGroupId
+    }
+  }
+`;
+
+/**
+ * Fetch child customers of a parent customer
+ */
+export async function fetchCustomerChildren(parentId: string): Promise<CustomerLiteResponse[]> {
+  const response = await crmGraphQLRequest<{ customerChildren: CustomerLiteResponse[] }>({
+    query: CUSTOMER_CHILDREN,
+    variables: { parentId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch customer children');
+  }
+
+  return response.data?.customerChildren || [];
+}
+
+/**
+ * Fetch buying group members (parent customers that belong to a buying group)
+ */
+export async function fetchCustomerBuyingGroupMembers(buyingGroupId: string): Promise<CustomerLiteResponse[]> {
+  const response = await crmGraphQLRequest<{ customerBuyingGroupMembers: CustomerLiteResponse[] }>({
+    query: CUSTOMER_BUYING_GROUP_MEMBERS,
+    variables: { buyingGroupId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch buying group members');
+  }
+
+  return response.data?.customerBuyingGroupMembers || [];
 }

@@ -10,12 +10,14 @@ import type { Order, OrderLineItem } from '@/lib/types/rms';
 import type { FulfillmentOrder } from '@/lib/types/warehouse';
 import type { TabType, LineItemAcknowledgement, LineItemCredit, ColumnKey } from '../types';
 import { mockFulfillmentOrders } from '@/lib/data/warehouse-mock';
-import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer, type Order as ApiOrder, type OrderDetail } from '../../api';
+import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchCustomers, getProductCpnByCustomer, type Order as ApiOrder, type OrderDetail } from '../../api';
+import { fetchFactoryById } from '@/components/warehouse/api/factoriesApi';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { useOrderHeader } from './useOrderHeader';
 import { useLineItemsTable } from './useLineItemsTable';
 import { useLineItemBulkActions } from './useLineItemBulkActions';
 import { toggleAllLineItems } from '../utils';
+import { useOrderSettings } from '@/contexts/UserSettingsContext';
 
 interface UseOrderDetailStateProps {
   orderId: string;
@@ -23,8 +25,31 @@ interface UseOrderDetailStateProps {
 
 /**
  * Create an empty order for create mode
+ * Includes one default line item so user can start entering data immediately
  */
 function createEmptyOrder(): Order {
+  const defaultLineItem = {
+    id: `li-${Date.now()}`,
+    lineNumber: 1,
+    partNumber: '',
+    description: '',
+    uom: null,
+    uomId: null,
+    divisor: 1,
+    quantity: 1,
+    quantityShipped: 0,
+    quantityInvoiced: 0,
+    quantityCredited: 0,
+    unitPrice: 0,
+    extendedPrice: 0,
+    commissionRate: 8, // Stored as whole percentage (8 for 8%)
+    commissionAmount: 0,
+    productId: '',
+    isCancelled: false,
+    isConsignment: false,
+    status: 'open' as const,
+  };
+
   return {
     id: '',
     orderNumber: '',
@@ -35,7 +60,7 @@ function createEmptyOrder(): Order {
     customerName: '',
     jobId: undefined,
     jobName: undefined,
-    status: 'draft',
+    status: 'OPEN',
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
     commissionStatus: 'pending',
@@ -46,7 +71,7 @@ function createEmptyOrder(): Order {
     requestedShipDate: undefined,
     actualShipDate: undefined,
     quoteId: undefined,
-    lineItems: [],
+    lineItems: [defaultLineItem],
     subtotal: 0,
     freight: 0,
     total: 0,
@@ -65,7 +90,21 @@ function createEmptyOrder(): Order {
  */
 function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
   // Map line items from API format to UI format
-  const lineItems: OrderLineItem[] = (apiOrder.details || []).map((detail: OrderDetail, index: number) => ({
+  const lineItems: OrderLineItem[] = (apiOrder.details || []).map((detail: OrderDetail, index: number) => {
+    // Parse values first so we can calculate if API values are missing
+    const quantity = parseFloat(detail.quantity || '0');
+    const unitPrice = parseFloat(detail.unitPrice || '0');
+    const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
+    const commissionRate = parseFloat(detail.commissionRate || '0');
+
+    // Calculate extended price - always calculate from inputs to ensure correctness
+    // The API subtotal/commission fields can be stale or incorrect, so we recalculate
+    const extendedPrice = quantity * unitPrice / divisor;
+
+    // Calculate commission amount based on extended price and commission rate
+    const commissionAmount = extendedPrice * (commissionRate / 100);
+
+    return {
     id: detail.id,
     lineNumber: detail.itemNumber || index + 1,
     productId: detail.productId || '',
@@ -74,18 +113,18 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     description: detail.product?.description || detail.productDescriptionAdhoc || '',
     uom: detail.uom?.title || null,
     uomId: detail.uom?.id || null,
-    divisor: detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1'),
-    quantity: parseFloat(detail.quantity || '0'),
-    unitPrice: parseFloat(detail.unitPrice || '0'),
-    extendedPrice: detail.subtotal || 0,
-    commissionRate: parseFloat(detail.commissionRate || '0') / 100, // API returns as percent, convert to decimal
-    commissionAmount: detail.commission || 0,
+    divisor,
+    quantity,
+    unitPrice,
+    extendedPrice,
+    commissionRate, // Keep as whole percentage (e.g., 8 for 8%)
+    commissionAmount,
     quantityShipped: detail.shippingBalance || 0,
     quantityInvoiced: 0, // API doesn't provide this directly
     quantityCredited: detail.cancelledBalance || 0,
     isCancelled: detail.status === 'CANCELLED',
     isConsignment: false,
-    status: detail.status === 'CANCELLED' ? 'cancelled' : detail.status === 'SHIPPED' ? 'shipped' : 'open',
+    status: detail.status?.toLowerCase() as ('open' | 'shipped' | 'partial_shipped' | 'cancelled' | 'invoiced') || 'open',
     // Store additional fields for line item
     endUserId: detail.endUserId,
     endUserName: '', // Will be fetched separately
@@ -98,7 +137,18 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     lineDiscountAmount: detail.discount || 0,
     leadTime: detail.leadTime || '',
     note: detail.note || '',
-  }));
+    // Invoice linked to this line item
+    invoice: detail.invoice ? {
+      id: detail.invoice.id,
+      invoiceNumber: detail.invoice.invoiceNumber,
+      status: detail.invoice.status,
+      entityDate: detail.invoice.entityDate,
+      dueDate: detail.invoice.dueDate,
+      creationType: detail.invoice.creationType,
+      locked: detail.invoice.locked,
+    } : undefined,
+  };
+  });
 
   // Extract inside rep from the first line item's insideSplitRates
   const firstDetailWithInsideReps = apiOrder.details?.find(d => d.insideSplitRates && d.insideSplitRates.length > 0);
@@ -119,7 +169,7 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     customerName: apiOrder.soldToCustomer?.companyName || '',
     jobId: apiOrder.job?.id,
     jobName: apiOrder.job?.jobName,
-    status: mapApiStatusToUiStatus(apiOrder.headerStatus),
+    status: mapApiStatusToOrderStatus(apiOrder.status),
     fulfillmentStatus: 'not_started', // API doesn't provide this directly
     billingStatus: 'not_invoiced', // API doesn't provide this directly
     commissionStatus: 'pending', // API doesn't provide this directly
@@ -199,25 +249,28 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
 }
 
 /**
- * Map API status/headerStatus to UI status
+ * Map API status to OrderStatus type
+ * Valid statuses: OPEN, PARTIAL_SHIPPED, SHIPPED_COMPLETE, CANCELLED, OVER_SHIPPED, PARTIAL_CANCELLED, OVER_CANCELLED
  */
-function mapApiStatusToUiStatus(headerStatus?: string): 'draft' | 'open' | 'partial_shipped' | 'shipped' | 'cancelled' | 'dormant' {
-  const hs = headerStatus?.toUpperCase();
-  switch (hs) {
-    case 'DRAFT':
-      return 'draft';
+function mapApiStatusToOrderStatus(status?: string): 'OPEN' | 'PARTIAL_SHIPPED' | 'SHIPPED_COMPLETE' | 'CANCELLED' | 'OVER_SHIPPED' | 'PARTIAL_CANCELLED' | 'OVER_CANCELLED' {
+  const s = status?.toUpperCase();
+  switch (s) {
     case 'OPEN':
-      return 'open';
+      return 'OPEN';
     case 'PARTIAL_SHIPPED':
-      return 'partial_shipped';
-    case 'SHIPPED':
-      return 'shipped';
+      return 'PARTIAL_SHIPPED';
+    case 'SHIPPED_COMPLETE':
+      return 'SHIPPED_COMPLETE';
     case 'CANCELLED':
-      return 'cancelled';
-    case 'DORMANT':
-      return 'dormant';
+      return 'CANCELLED';
+    case 'OVER_SHIPPED':
+      return 'OVER_SHIPPED';
+    case 'PARTIAL_CANCELLED':
+      return 'PARTIAL_CANCELLED';
+    case 'OVER_CANCELLED':
+      return 'OVER_CANCELLED';
     default:
-      return 'open';
+      return 'OPEN';
   }
 }
 
@@ -229,6 +282,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   const { data: apiOrder, isLoading, error, refetch } = useOrder(isCreateMode ? null : orderId);
   const updateOrderMutation = useUpdateOrder();
   const createOrderMutation = useCreateOrder();
+
+  // User settings hook for applying saved defaults on new orders
+  const { settings: savedOrderSettings, isInitialized: settingsInitialized } = useOrderSettings();
 
   // Local order state for create mode or local edits
   const [localOrder, setLocalOrder] = useState<Order>(() => createEmptyOrder());
@@ -267,9 +323,8 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
 
       // Fetch factory name if we have a factoryId
       if (transformedOrder.manufacturerId) {
-        const factoryPromise = searchFactories('', true)
-          .then((factories) => {
-            const factory = factories.find(f => f.id === transformedOrder.manufacturerId);
+        const factoryPromise = fetchFactoryById(transformedOrder.manufacturerId)
+          .then((factory) => {
             if (factory) {
               setLocalOrder(prev => ({ ...prev, manufacturerName: factory.title }));
             }
@@ -394,7 +449,8 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   // Track previous customerId to detect changes
   const prevCustomerIdRef = React.useRef<string | undefined>(undefined);
 
-  // Re-fetch CPNs when sold-to customer changes
+  // Re-fetch CPNs when sold-to customer changes (ONLY update custPartNumber, NOT pricing)
+  // Pricing is selected by user via dropdown in LineItemsTable
   useEffect(() => {
     // Only re-fetch if customer actually changed (not on initial load) and we have an order with line items
     if (
@@ -405,27 +461,36 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     ) {
       const lineItemsWithProducts = localOrder.lineItems.filter(li => li.productId);
 
-      // Fetch CPNs for each product in parallel
+      // Fetch CPNs for each product in parallel (only to get customer part number)
       (async () => {
         const cpnPromises = lineItemsWithProducts.map(async (li) => {
           try {
-            const cpnResult = await getProductCpnByCustomer(li.productId!, localOrder.customerId);
-            return { itemId: li.id, cpn: cpnResult?.customerPartNumber || '' };
+            const cpnResult = await getProductCpnByCustomer(li.productId!, localOrder.customerId).catch(() => null);
+            return {
+              itemId: li.id,
+              custPartNumber: cpnResult?.customerPartNumber || ''
+            };
           } catch (err) {
-            // CPN not found is not an error
-            return { itemId: li.id, cpn: '' };
+            return { itemId: li.id, custPartNumber: '' };
           }
         });
 
         const cpnResults = await Promise.all(cpnPromises);
-        const cpnMap = new Map(cpnResults.map(r => [r.itemId, r.cpn]));
+        const updateMap = new Map(cpnResults.map(r => [r.itemId, r]));
 
+        // ONLY update custPartNumber - do NOT auto-update pricing
+        // User selects pricing via dropdown in LineItemsTable
         setLocalOrder(prev => ({
           ...prev,
-          lineItems: (prev.lineItems || []).map(li => ({
-            ...li,
-            custPartNumber: cpnMap.has(li.id) ? cpnMap.get(li.id)! : li.custPartNumber,
-          })),
+          lineItems: (prev.lineItems || []).map(li => {
+            const update = updateMap.get(li.id);
+            if (!update) return li;
+
+            return {
+              ...li,
+              custPartNumber: update.custPartNumber,
+            };
+          }),
         }));
       })();
     }
@@ -464,9 +529,10 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     const updatedItems = items.map(item => {
       const quantity = item.quantity || 0;
       const unitPrice = item.unitPrice || 0;
-      const commissionRate = item.commissionRate || 0;
-      const extendedPrice = quantity * unitPrice;
-      const commissionAmount = extendedPrice * commissionRate;
+      const divisor = item.divisor || 1;
+      const commissionRate = item.commissionRate || 0; // Stored as whole percentage (e.g., 8 for 8%)
+      const extendedPrice = quantity * unitPrice / divisor;
+      const commissionAmount = extendedPrice * (commissionRate / 100); // Convert to decimal for calculation
       return {
         ...item,
         extendedPrice,
@@ -500,13 +566,23 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     new Set()
   );
 
-  // Settings state
+  // Settings state - initialized with defaults, will be updated from API or user settings
   const [showEndUserPerLine, setShowEndUserPerLine] = useState(false);
   const [showOutsideRepPerLine, setShowOutsideRepPerLine] = useState(false);
   const [showInsideRepPerLine, setShowInsideRepPerLine] = useState(false);
   const [customerPartNumberSource, setCustomerPartNumberSource] = useState<
     'soldTo' | 'endUser'
   >('soldTo');
+
+  // Apply saved user settings when creating a new order
+  useEffect(() => {
+    if (isCreateMode && settingsInitialized && savedOrderSettings) {
+      // Apply saved settings from user preferences
+      setShowEndUserPerLine(savedOrderSettings.showEndUserPerLine ?? false);
+      setShowOutsideRepPerLine(savedOrderSettings.showOutsideRepPerLine ?? false);
+      setShowInsideRepPerLine(savedOrderSettings.showInsideRepPerLine ?? false);
+    }
+  }, [isCreateMode, settingsInitialized, savedOrderSettings]);
 
   // Sections state
   const [showSections, setShowSections] = useState(false);
@@ -551,6 +627,41 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     );
     updateLineItems(updatedItems);
     closeAdditionalDetails();
+  };
+
+  // Live update additional details for a line item (without closing modal)
+  const liveUpdateAdditionalDetails = (updates: Partial<OrderLineItem>) => {
+    // Update the additionalDetailsLineItem so the modal stays in sync
+    setAdditionalDetailsLineItem((prev) => prev ? { ...prev, ...updates } : prev);
+
+    // Use functional update pattern to avoid stale closure issues
+    // This reads from prev instead of the closure-captured order/additionalDetailsLineItem
+    setLocalOrder((prevOrder) => {
+      if (!prevOrder) return prevOrder;
+
+      // Get the line item ID from the current additionalDetailsLineItem state
+      // We need to find which line item to update
+      const lineItemIdToUpdate = additionalDetailsLineItem?.id;
+      if (!lineItemIdToUpdate) return prevOrder;
+
+      const updatedItems = (prevOrder.lineItems || []).map((li) =>
+        li.id === lineItemIdToUpdate ? { ...li, ...updates } : li
+      );
+
+      // Recalculate totals
+      const subtotal = updatedItems.reduce((sum, item) => sum + (item.extendedPrice || 0), 0);
+      const totalCommission = updatedItems.reduce((sum, item) => sum + (item.commissionAmount || 0), 0);
+
+      return {
+        ...prevOrder,
+        lineItems: updatedItems,
+        subtotal,
+        total: subtotal + (prevOrder.freight || 0),
+        totalCommission,
+      };
+    });
+
+    if (!isCreateMode) setHasLocalEdits(true);
   };
 
   // Mock data for line item acknowledgements
@@ -716,6 +827,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       error,
       refetch,
       isCreateMode: false,
+      // Unsaved changes tracking
+      hasChanges: false,
+      resetChanges: noop,
       order: null,
       orders: [],
       setOrders: noop,
@@ -764,6 +878,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       openAdditionalDetails: noopWithArg,
       closeAdditionalDetails: noop,
       saveAdditionalDetails: noopWithArg,
+      liveUpdateAdditionalDetails: noopWithArg,
       lineItemAcknowledgements: {},
       lineItemCredits: {},
       hasFreightLine: false,
@@ -896,6 +1011,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     refetch,
     // Create mode flag
     isCreateMode,
+    // Unsaved changes tracking
+    hasChanges: isCreateMode || hasLocalEdits,
+    resetChanges: () => setHasLocalEdits(false),
     // Order data
     order,
     orders,
@@ -962,6 +1080,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     openAdditionalDetails,
     closeAdditionalDetails,
     saveAdditionalDetails,
+    liveUpdateAdditionalDetails,
 
     // Mock data
     lineItemAcknowledgements,

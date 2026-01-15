@@ -35,6 +35,8 @@ import {
   listProductCpns,
   getProductCpnByCustomer,
   listProductUoms,
+  listProductPricingTiers,
+  getPriceForQuantity,
   searchJobs,
 } from './quotesApi';
 
@@ -336,10 +338,11 @@ export type {
   FactorySearchResult,
   UserSearchResult,
   ProductCpnResult,
+  ProductPricingTierResult,
   ProductUomResult,
   JobSearchResult,
   QuoteJob,
 } from './quotesApi';
 
 // Re-export API functions for convenience
-export { searchUsers, searchProducts, searchCustomers, searchFactories, listProductCpns, getProductCpnByCustomer, listProductUoms, searchJobs } from './quotesApi';
+export { searchUsers, searchProducts, searchCustomers, searchFactories, listProductCpns, getProductCpnByCustomer, listProductUoms, listProductPricingTiers, getPriceForQuantity, searchJobs } from './quotesApi';

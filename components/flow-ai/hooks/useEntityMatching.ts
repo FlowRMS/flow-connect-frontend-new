@@ -8,6 +8,7 @@ import {
   M_CONFIRM_ENTITY_MATCH,
   M_BULK_CONFIRM_ENTITIES,
   M_CREATE_NEW_ENTITY,
+  M_TRIGGER_PENDING_ENTITIES_BY_FACTORY,
 } from '@/lib/flow-ai/gql';
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import type {
@@ -25,6 +26,7 @@ import {
   isResolved,
   needsAction,
 } from '@/components/flow-ai/types/entity-matching';
+import type { DocumentType } from '@/components/flow-ai/flowrms/entity-matching/EntityStepNavigation';
 
 // Type for pending entities response
 interface PendingEntitiesResponse {
@@ -38,6 +40,10 @@ interface AllPendingEntitiesResponse {
   billToCustomers: PendingEntity[];
   endUsers: PendingEntity[];
   products: PendingEntity[];
+  orders: PendingEntity[];
+  invoices: PendingEntity[];
+  credits: PendingEntity[];
+  adjustments: PendingEntity[];
 }
 
 // Type for search response
@@ -84,20 +90,36 @@ export interface CreateExtraFields {
   factoryId?: string;
 }
 
-export interface UseEntityMatchingOptions {
-  pendingDocumentId: string | null;
+// Type for trigger pending entities by factory response
+interface TriggerPendingEntitiesByFactoryResponse {
+  triggerPendingEntitiesByFactory: PendingEntity[];
 }
 
-export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOptions) {
+export interface UseEntityMatchingOptions {
+  pendingDocumentId: string | null;
+  documentType?: DocumentType;
+}
+
+export function useEntityMatching({ pendingDocumentId, documentType }: UseEntityMatchingOptions) {
   // Entity state by type
   const [factories, setFactories] = useState<PendingEntity[]>([]);
   const [customers, setCustomers] = useState<PendingEntity[]>([]);
   const [billToCustomers, setBillToCustomers] = useState<PendingEntity[]>([]);
   const [endUsers, setEndUsers] = useState<PendingEntity[]>([]);
   const [products, setProducts] = useState<PendingEntity[]>([]);
+  const [orders, setOrders] = useState<PendingEntity[]>([]);
+  const [invoices, setInvoices] = useState<PendingEntity[]>([]);
+  const [credits, setCredits] = useState<PendingEntity[]>([]);
+  const [adjustments, setAdjustments] = useState<PendingEntity[]>([]);
 
   // Track which steps have been loaded
   const [loadedSteps, setLoadedSteps] = useState<Set<EntityStep>>(new Set());
+
+  // Track factory-based entities loading state
+  const [factoryEntitiesLoading, setFactoryEntitiesLoading] = useState(false);
+  const [factoryEntitiesLoaded, setFactoryEntitiesLoaded] = useState(false);
+  // Track the factory ID that was used to load entities (to prevent reloading with same factory)
+  const loadedFactoryIdRef = useRef<string | null>(null);
 
   // UI state
   const [currentStep, setCurrentStep] = useState<EntityStep>('factories');
@@ -176,6 +198,10 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
       const billToCustomersData = addOriginalIndex(result.data?.billToCustomers || []);
       const endUsersData = addOriginalIndex(result.data?.endUsers || []);
       const productsData = addOriginalIndex(result.data?.products || []);
+      const ordersData = addOriginalIndex(result.data?.orders || []);
+      const invoicesData = addOriginalIndex(result.data?.invoices || []);
+      const creditsData = addOriginalIndex(result.data?.credits || []);
+      const adjustmentsData = addOriginalIndex(result.data?.adjustments || []);
 
       console.log('Loaded entities:', {
         factories: factoriesData.length,
@@ -183,6 +209,10 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
         billToCustomers: billToCustomersData.length,
         endUsers: endUsersData.length,
         products: productsData.length,
+        orders: ordersData.length,
+        invoices: invoicesData.length,
+        credits: creditsData.length,
+        adjustments: adjustmentsData.length,
       });
 
       setFactories(factoriesData);
@@ -190,9 +220,13 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
       setBillToCustomers(billToCustomersData);
       setEndUsers(endUsersData);
       setProducts(productsData);
+      setOrders(ordersData);
+      setInvoices(invoicesData);
+      setCredits(creditsData);
+      setAdjustments(adjustmentsData);
 
       // Mark all steps as loaded
-      setLoadedSteps(new Set(['factories', 'customers', 'billtocustomers', 'endusers', 'products']));
+      setLoadedSteps(new Set(['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices', 'credits', 'adjustments']));
       setInitialLoadComplete(true);
     } catch (error) {
       if (!mountedRef.current) return;
@@ -226,8 +260,143 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     setBillToCustomers([]);
     setEndUsers([]);
     setProducts([]);
+    setOrders([]);
+    setInvoices([]);
+    setCredits([]);
+    setAdjustments([]);
     setInitialLoadComplete(false);
+    setFactoryEntitiesLoaded(false);
+    loadedFactoryIdRef.current = null;
   }, [pendingDocumentId]);
+
+  // Compute if factory is matched (any factory entity has CONFIRMED or AUTO_MATCHED status with a bestMatchId)
+  const isFactoryMatched = useMemo(() => {
+    return factories.some(
+      (f) => (f.confirmationStatus === 'CONFIRMED' || f.confirmationStatus === 'AUTO_MATCHED') && f.bestMatchId
+    );
+  }, [factories]);
+
+  // Get the matched factory ID (first confirmed or auto-matched factory with bestMatchId)
+  const matchedFactoryId = useMemo(() => {
+    const matchedFactory = factories.find(
+      (f) => (f.confirmationStatus === 'CONFIRMED' || f.confirmationStatus === 'AUTO_MATCHED') && f.bestMatchId
+    );
+    return matchedFactory?.bestMatchId || null;
+  }, [factories]);
+
+  // Load entities by factory (Orders, Invoices, Credits, Adjustments) when factory is matched
+  // This is only used for CHECKS and INVOICES document types
+  const loadEntitiesByFactory = useCallback(async (factoryId: string) => {
+    if (!pendingDocumentId || !factoryId) return;
+
+    // Prevent reloading with the same factory
+    if (loadedFactoryIdRef.current === factoryId) {
+      console.log('Factory entities already loaded for this factory');
+      return;
+    }
+
+    const normalizedDocType = documentType?.toUpperCase();
+
+    // Only applicable for CHECKS and INVOICES
+    if (normalizedDocType !== 'CHECKS' && normalizedDocType !== 'INVOICES') {
+      return;
+    }
+
+    setFactoryEntitiesLoading(true);
+
+    try {
+      // Determine which entity types to load based on document type
+      const entityTypes: string[] = normalizedDocType === 'CHECKS'
+        ? ['ORDERS', 'INVOICES', 'CREDITS', 'ADJUSTMENTS']
+        : ['ORDERS']; // INVOICES document type only needs Orders
+
+      console.log(`Loading factory-based entities for ${normalizedDocType}:`, entityTypes);
+
+      const result = await flowrmsApolloClient.mutate<TriggerPendingEntitiesByFactoryResponse>({
+        mutation: M_TRIGGER_PENDING_ENTITIES_BY_FACTORY,
+        variables: {
+          input: {
+            pendingDocumentId,
+            entityTypes,
+            factoryId,
+          },
+        },
+      });
+
+      if (!mountedRef.current) return;
+
+      const responseEntities = result.data?.triggerPendingEntitiesByFactory || [];
+
+      // Add originalIndex to each entity for stable sorting
+      const addOriginalIndex = (entities: PendingEntity[]) =>
+        entities.map((entity, index) => ({ ...entity, originalIndex: index }));
+
+      // Group entities by type
+      const ordersData = addOriginalIndex(
+        responseEntities.filter((e) => e.entityType === 'ORDERS')
+      );
+      const invoicesData = addOriginalIndex(
+        responseEntities.filter((e) => e.entityType === 'INVOICES')
+      );
+      const creditsData = addOriginalIndex(
+        responseEntities.filter((e) => e.entityType === 'CREDITS')
+      );
+      const adjustmentsData = addOriginalIndex(
+        responseEntities.filter((e) => e.entityType === 'ADJUSTMENTS')
+      );
+
+      console.log('Factory-based entities loaded:', {
+        orders: ordersData.length,
+        invoices: invoicesData.length,
+        credits: creditsData.length,
+        adjustments: adjustmentsData.length,
+      });
+
+      // Update state with the loaded entities
+      setOrders(ordersData);
+      if (normalizedDocType === 'CHECKS') {
+        setInvoices(invoicesData);
+        setCredits(creditsData);
+        setAdjustments(adjustmentsData);
+      }
+
+      // Mark factory entities as loaded and track which factory was used
+      setFactoryEntitiesLoaded(true);
+      loadedFactoryIdRef.current = factoryId;
+
+      // Update loaded steps
+      setLoadedSteps((prev) => {
+        const newSteps = new Set(prev);
+        newSteps.add('orders');
+        if (normalizedDocType === 'CHECKS') {
+          newSteps.add('invoices');
+          newSteps.add('credits');
+          newSteps.add('adjustments');
+        }
+        return newSteps;
+      });
+
+      toast.success('Factory-related entities loaded');
+    } catch (error) {
+      if (!mountedRef.current) return;
+      console.error('Error loading factory-based entities:', error);
+      toast.error('Failed to load factory-related entities');
+    } finally {
+      if (mountedRef.current) {
+        setFactoryEntitiesLoading(false);
+      }
+    }
+  }, [pendingDocumentId, documentType]);
+
+  // Auto-load factory-based entities when factory becomes matched
+  useEffect(() => {
+    if (isFactoryMatched && matchedFactoryId && !factoryEntitiesLoaded && !factoryEntitiesLoading) {
+      const normalizedDocType = documentType?.toUpperCase();
+      if (normalizedDocType === 'CHECKS' || normalizedDocType === 'INVOICES') {
+        loadEntitiesByFactory(matchedFactoryId);
+      }
+    }
+  }, [isFactoryMatched, matchedFactoryId, factoryEntitiesLoaded, factoryEntitiesLoading, documentType, loadEntitiesByFactory]);
 
   // Get entities for current step
   const getEntitiesByStep = useCallback(
@@ -243,9 +412,17 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
           return endUsers;
         case 'products':
           return products;
+        case 'orders':
+          return orders;
+        case 'invoices':
+          return invoices;
+        case 'credits':
+          return credits;
+        case 'adjustments':
+          return adjustments;
       }
     },
-    [factories, customers, billToCustomers, endUsers, products]
+    [factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments]
   );
 
   // Set entities by step
@@ -266,6 +443,18 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
           break;
         case 'products':
           setProducts(entities as PendingEntity[]);
+          break;
+        case 'orders':
+          setOrders(entities as PendingEntity[]);
+          break;
+        case 'invoices':
+          setInvoices(entities as PendingEntity[]);
+          break;
+        case 'credits':
+          setCredits(entities as PendingEntity[]);
+          break;
+        case 'adjustments':
+          setAdjustments(entities as PendingEntity[]);
           break;
       }
     },
@@ -367,6 +556,18 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
         case 'products':
           setProducts(updateFn);
           break;
+        case 'orders':
+          setOrders(updateFn);
+          break;
+        case 'invoices':
+          setInvoices(updateFn);
+          break;
+        case 'credits':
+          setCredits(updateFn);
+          break;
+        case 'adjustments':
+          setAdjustments(updateFn);
+          break;
       }
     },
     [currentStep]
@@ -376,7 +577,9 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
   const isEntityLocked = useCallback((entity: PendingEntity): boolean => {
     return entity.confirmationStatus === 'CONFIRMED' ||
            entity.confirmationStatus === 'REJECTED' ||
-           entity.confirmationStatus === 'CREATED_NEW';
+           entity.confirmationStatus === 'CREATED_NEW' ||
+           entity.confirmationStatus === 'SKIPPED' ||
+           entity.confirmationStatus === 'SET_FOR_CREATION';
   }, []);
 
   // Select all entities in current view (only selectable ones)
@@ -407,6 +610,18 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
         break;
       case 'products':
         setProducts(updateFn);
+        break;
+      case 'orders':
+        setOrders(updateFn);
+        break;
+      case 'invoices':
+        setInvoices(updateFn);
+        break;
+      case 'credits':
+        setCredits(updateFn);
+        break;
+      case 'adjustments':
+        setAdjustments(updateFn);
         break;
     }
   }, [currentStep, getCurrentEntities, isEntityLocked]);
@@ -447,6 +662,18 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
               break;
             case 'products':
               setProducts(updateFn);
+              break;
+            case 'orders':
+              setOrders(updateFn);
+              break;
+            case 'invoices':
+              setInvoices(updateFn);
+              break;
+            case 'credits':
+              setCredits(updateFn);
+              break;
+            case 'adjustments':
+              setAdjustments(updateFn);
               break;
           }
           toast.success('Match confirmed');
@@ -585,6 +812,18 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
             case 'products':
               setProducts(updateFn);
               break;
+            case 'orders':
+              setOrders(updateFn);
+              break;
+            case 'invoices':
+              setInvoices(updateFn);
+              break;
+            case 'credits':
+              setCredits(updateFn);
+              break;
+            case 'adjustments':
+              setAdjustments(updateFn);
+              break;
           }
 
           const actionLabel =
@@ -592,6 +831,10 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
               ? 'approved'
               : action === 'CREATE_NEW'
               ? 'marked for creation'
+              : action === 'SKIP'
+              ? 'skipped'
+              : action === 'SET_FOR_CREATION'
+              ? 'set for creation'
               : 'rejected';
           toast.success(
             `${selectedEntities.length} ${
@@ -633,6 +876,124 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     [handleBulkAction]
   );
 
+  const handleBulkSkip = useCallback(
+    () => handleBulkAction('SKIP'),
+    [handleBulkAction]
+  );
+
+  const handleBulkSetForCreation = useCallback(
+    () => handleBulkAction('SET_FOR_CREATION'),
+    [handleBulkAction]
+  );
+
+  // Handle single entity action (Skip, Set for Creation) - no checkbox selection needed
+  const handleSingleAction = useCallback(
+    async (entityId: string, action: BulkConfirmAction) => {
+      const currentEntities = getCurrentEntities();
+      const entity = currentEntities.find(e => e.id === entityId);
+
+      if (!entity) {
+        toast.error('Entity not found');
+        return;
+      }
+
+      setLoadingEntities((prev) => new Set(prev).add(entityId));
+
+      try {
+        // Build input for the single entity
+        const input: {
+          pendingEntityId: string;
+          action: BulkConfirmAction;
+          existingEntityId?: string;
+          existingEntityName?: string;
+          flowIndex?: number;
+        } = {
+          pendingEntityId: entity.id,
+          action,
+        };
+
+        // Include match info if available
+        if (entity.bestMatchId) {
+          input.existingEntityId = entity.bestMatchId;
+        }
+        if (entity.bestMatchName) {
+          input.existingEntityName = entity.bestMatchName;
+        }
+
+        // Include flowIndex from flowIndexDetail
+        if (entity.flowIndexDetail !== null && entity.flowIndexDetail !== undefined) {
+          const flowIndexNum = parseInt(String(entity.flowIndexDetail), 10);
+          if (!isNaN(flowIndexNum)) {
+            input.flowIndex = flowIndexNum;
+          }
+        }
+
+        const result = await flowrmsApolloClient.mutate<BulkConfirmResponse>({
+          mutation: M_BULK_CONFIRM_ENTITIES,
+          variables: { inputs: [input] },
+        });
+
+        if (result.data?.bulkConfirmEntities && result.data.bulkConfirmEntities.length > 0) {
+          const updatedEntity = result.data.bulkConfirmEntities[0];
+
+          // Preserve originalIndex when updating entity
+          const updateFn = (entities: PendingEntity[]): PendingEntity[] =>
+            entities.map((e): PendingEntity =>
+              e.id === entityId
+                ? { ...updatedEntity, selected: false, originalIndex: e.originalIndex }
+                : e
+            );
+
+          switch (currentStep) {
+            case 'factories':
+              setFactories(updateFn);
+              break;
+            case 'customers':
+              setCustomers(updateFn);
+              break;
+            case 'billtocustomers':
+              setBillToCustomers(updateFn);
+              break;
+            case 'endusers':
+              setEndUsers(updateFn);
+              break;
+            case 'products':
+              setProducts(updateFn);
+              break;
+            case 'orders':
+              setOrders(updateFn);
+              break;
+            case 'invoices':
+              setInvoices(updateFn);
+              break;
+            case 'credits':
+              setCredits(updateFn);
+              break;
+            case 'adjustments':
+              setAdjustments(updateFn);
+              break;
+          }
+
+          const actionLabel =
+            action === 'SKIP' ? 'skipped' :
+            action === 'SET_FOR_CREATION' ? 'set for creation' :
+            action === 'REJECT' ? 'rejected' : 'updated';
+          toast.success(`Entity ${actionLabel}`);
+        }
+      } catch (error) {
+        console.error('Error performing action:', error);
+        toast.error('Failed to perform action');
+      } finally {
+        setLoadingEntities((prev) => {
+          const next = new Set(prev);
+          next.delete(entityId);
+          return next;
+        });
+      }
+    },
+    [getCurrentEntities, currentStep]
+  );
+
   // Select a match for an entity (local state only - does NOT call API)
   // Use this for dropdown selection - actual confirmation happens via bulk/approve buttons
   const handleSelectMatch = useCallback(
@@ -665,6 +1026,18 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
           break;
         case 'products':
           setProducts(updateFn);
+          break;
+        case 'orders':
+          setOrders(updateFn);
+          break;
+        case 'invoices':
+          setInvoices(updateFn);
+          break;
+        case 'credits':
+          setCredits(updateFn);
+          break;
+        case 'adjustments':
+          setAdjustments(updateFn);
           break;
       }
     },
@@ -719,6 +1092,18 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
           break;
         case 'products':
           setProducts(updateFn);
+          break;
+        case 'orders':
+          setOrders(updateFn);
+          break;
+        case 'invoices':
+          setInvoices(updateFn);
+          break;
+        case 'credits':
+          setCredits(updateFn);
+          break;
+        case 'adjustments':
+          setAdjustments(updateFn);
           break;
       }
     },
@@ -793,6 +1178,18 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
               break;
             case 'products':
               setProducts(updateFn);
+              break;
+            case 'orders':
+              setOrders(updateFn);
+              break;
+            case 'invoices':
+              setInvoices(updateFn);
+              break;
+            case 'credits':
+              setCredits(updateFn);
+              break;
+            case 'adjustments':
+              setAdjustments(updateFn);
               break;
           }
           toast.success('New entity created');
@@ -890,18 +1287,56 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     [getEntitiesByStep, loadedSteps]
   );
 
-  // Check if all entities are validated (only for loaded steps)
-  const allValidated = useMemo(() => {
-    const allSteps: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'endusers', 'products'];
+  // Get visible steps based on document type (matches EntityStepNavigation logic)
+  const visibleSteps = useMemo((): EntityStep[] => {
+    const allSteps: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices', 'credits', 'adjustments'];
+    const factoryDependentTabs: EntityStep[] = ['orders', 'invoices', 'credits', 'adjustments'];
+    const normalizedDocType = documentType?.toUpperCase();
 
-    // Check if all steps are loaded
-    if (!allSteps.every(step => loadedSteps.has(step))) {
+    // For CHECKS: Show all tabs
+    if (normalizedDocType === 'CHECKS') {
+      return allSteps;
+    }
+
+    // For INVOICES: Hide invoices, credits, adjustments - only show orders
+    if (normalizedDocType === 'INVOICES') {
+      return allSteps.filter(step =>
+        !['invoices', 'credits', 'adjustments'].includes(step)
+      );
+    }
+
+    // For other document types: Hide orders, invoices, credits, adjustments
+    return allSteps.filter(step =>
+      !factoryDependentTabs.includes(step)
+    );
+  }, [documentType]);
+
+  // Check if all entities are validated (only for visible/loaded steps based on document type)
+  const allValidated = useMemo(() => {
+    // Check if all visible steps are loaded
+    if (!visibleSteps.every(step => loadedSteps.has(step))) {
       return false;
     }
 
-    const allEntities = [...factories, ...customers, ...billToCustomers, ...endUsers, ...products];
+    // Get entities only for visible steps
+    const getEntitiesForVisibleSteps = (): PendingEntity[] => {
+      const entitiesMap: Record<EntityStep, PendingEntity[]> = {
+        factories,
+        customers,
+        billtocustomers: billToCustomers,
+        endusers: endUsers,
+        products,
+        orders,
+        invoices,
+        credits,
+        adjustments,
+      };
+      return visibleSteps.flatMap(step => entitiesMap[step]);
+    };
+
+    const allEntities = getEntitiesForVisibleSteps();
     return allEntities.length === 0 || allEntities.every((e) => isResolved(e.confirmationStatus));
-  }, [factories, customers, billToCustomers, endUsers, products, loadedSteps]);
+  }, [factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, loadedSteps, visibleSteps]);
 
   // Refresh entities for current step
   const refreshCurrentStep = useCallback(async () => {
@@ -928,6 +1363,10 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     billToCustomers,
     endUsers,
     products,
+    orders,
+    invoices,
+    credits,
+    adjustments,
 
     // UI state
     currentStep,
@@ -942,6 +1381,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     searchLoading,
     loadingEntities,
     loadedSteps,
+
+    // Factory-based entities state (for CHECKS/INVOICES document types)
+    isFactoryMatched,
+    matchedFactoryId,
+    factoryEntitiesLoading,
+    factoryEntitiesLoaded,
 
     // Computed values
     getCurrentEntities,
@@ -959,11 +1404,15 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     handleBulkApprove,
     handleBulkCreateNew,
     handleBulkReject,
+    handleBulkSkip,
+    handleBulkSetForCreation,
     handleBulkAction,
+    handleSingleAction,
     handleSelectAlternative,
     handleSearchEntities,
     handleSearchUsers,
     refreshCurrentStep,
+    loadEntitiesByFactory,
   };
 }
 

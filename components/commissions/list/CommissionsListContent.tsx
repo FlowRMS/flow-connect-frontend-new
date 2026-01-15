@@ -5,16 +5,50 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import { useCommissionsListState } from './hooks/useCommissionsListState';
 import { CommissionsTable } from './components/table/CommissionsTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { CheckDetailPanel } from './components/sidebar/CheckDetailPanel';
+import { BulkDeleteModal } from '@/components/shared/modals/BulkDeleteModal';
 
 export default function CommissionsListContent() {
   const router = useRouter();
   const state = useCommissionsListState();
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'commissions';
+
+  // Handler to open bulk delete modal instead of using confirm dialog
+  const handleBulkDelete = () => {
+    if (state.selectedCount === 0) return;
+    setShowBulkDeleteModal(true);
+  };
+
+  // Handler for successful bulk delete
+  const handleBulkDeleteSuccess = () => {
+    state.clearSelection();
+    state.refetchChecks();
+  };
 
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
@@ -23,32 +57,40 @@ export default function CommissionsListContent() {
         {/* Header */}
         <div className="p-6 pb-0">
           <div className="flex items-center justify-between mb-6">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[var(--muted)] rounded-lg flex items-center justify-center">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="2" y="5" width="20" height="14" rx="2" />
-                    <path d="M6 9h4M6 13h12" />
-                  </svg>
-                </div>
-                <div>
-                  <h1 className="text-xl font-semibold text-[var(--foreground)]">
-                    Commission Check
-                  </h1>
-                  <p className="text-sm text-[var(--muted-foreground)]">
-                    {state.totalCount > 0 ? `${state.checks.length} of ${state.totalCount} checks` : `${state.checks.length} checks`}
-                  </p>
-                </div>
+            <div className="flex items-start gap-4">
+              {/* Morphing Icon Target - Coin Cascade Animation */}
+              <HeaderIconAnimation
+                isReceivingAnimation={isReceivingAnimation}
+                animationStyle="coin-cascade"
+                headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+              >
+                {iconMap['commissions']}
+              </HeaderIconAnimation>
+              <div className="overflow-hidden">
+                <motion.h1
+                  className="text-2xl font-semibold text-[var(--foreground)]"
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+                >
+                  Commission Check
+                </motion.h1>
+                <motion.p
+                  className="text-sm text-[var(--muted-foreground)] mt-1"
+                  initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+                >
+                  {state.totalCount > 0 ? `${state.checks.length} of ${state.totalCount} checks` : `${state.checks.length} checks`}
+                </motion.p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <motion.div
+              className="flex items-center gap-3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+            >
               <div className="relative group">
                 <button
                   disabled
@@ -90,7 +132,7 @@ export default function CommissionsListContent() {
                 </svg>
                 Add new Check
               </button>
-            </div>
+            </motion.div>
           </div>
 
           {/* Quick Date Filter */}
@@ -122,6 +164,11 @@ export default function CommissionsListContent() {
                 selectAllChecks={state.selectAllChecks}
                 clearSelection={state.clearSelection}
                 areAllEligibleSelected={state.areAllEligibleSelected}
+                isItemSelected={state.isItemSelected}
+                isAllSelected={state.isAllSelected}
+                isPartiallySelected={state.isPartiallySelected}
+                handleSelectAll={state.handleSelectAll}
+                handleSelectOne={state.handleSelectOne}
                 sortField={state.sortField}
                 sortDirection={state.sortDirection}
                 handleSort={state.handleSort}
@@ -134,7 +181,7 @@ export default function CommissionsListContent() {
                 showBulkActionsMenu={state.showBulkActionsMenu}
                 setShowBulkActionsMenu={state.setShowBulkActionsMenu}
                 bulkSetStatus={state.bulkSetStatus}
-                bulkDelete={state.bulkDelete}
+                bulkDelete={handleBulkDelete}
                 setSelectedCheck={state.setSelectedCheck}
                 isBulkUpdating={state.isBulkUpdating}
               />
@@ -166,6 +213,17 @@ export default function CommissionsListContent() {
           isUpdating={state.isUpdatingCheck}
         />
       )}
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="CHECKS"
+        selectedCount={state.selectedCount}
+        getAllSelectedIds={state.getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['checksLandingPage'], ['checksInfinite'], ['checkSearch']]}
+      />
     </main>
   );
 }

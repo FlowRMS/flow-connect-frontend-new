@@ -52,6 +52,33 @@ export function useProcessExtractedDtos(pendingDocumentId: string | null) {
     onData: ({ data }) => {
       console.log('🔄 API Response [processExtractedDtos]:', data);
 
+      // Check for errors in the subscription data (comes as { data: null, errors: [...] })
+      // Apollo's useSubscription doesn't always route these to onError
+      const subscriptionErrors = (data as unknown as { errors?: Array<{ message: string }> })?.errors;
+      if (subscriptionErrors && subscriptionErrors.length > 0) {
+        const errorMessage = subscriptionErrors.map(e => e.message).join('; ');
+        console.error('❌ API Error in subscription data [processExtractedDtos]:', errorMessage);
+        setState(prev => ({
+          ...prev,
+          isProcessing: false,
+          error: errorMessage,
+        }));
+        setShouldSubscribe(false);
+
+        // Clear timeout
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+
+        // Still call completion callback - we want to continue to entity matching even on error
+        if (onCompleteCallbackRef.current) {
+          onCompleteCallbackRef.current();
+          onCompleteCallbackRef.current = null;
+        }
+        return;
+      }
+
       const progress = data.data?.processExtractedDtos;
 
       // Handle null data gracefully

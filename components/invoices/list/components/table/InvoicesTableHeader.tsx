@@ -14,7 +14,8 @@ interface InvoicesTableHeaderProps {
   // Selection
   filteredInvoices: Invoice[];
   areAllEligibleSelected: boolean;
-  onSelectAll: () => void;
+  isPartiallySelected?: boolean;
+  onSelectAll: (checked: boolean) => void;
   // Sorting
   sortField: SortField;
   sortDirection: SortDirection;
@@ -37,6 +38,7 @@ interface InvoicesTableHeaderProps {
 export function InvoicesTableHeader({
   filteredInvoices,
   areAllEligibleSelected,
+  isPartiallySelected,
   onSelectAll,
   sortField,
   sortDirection,
@@ -62,7 +64,10 @@ export function InvoicesTableHeader({
         <input
           type="checkbox"
           checked={areAllEligibleSelected}
-          onChange={onSelectAll}
+          ref={(el) => {
+            if (el) el.indeterminate = isPartiallySelected ?? false;
+          }}
+          onChange={(e) => onSelectAll(e.target.checked)}
           className="w-4 h-4 accent-[var(--primary)]"
         />
       </div>
@@ -280,6 +285,13 @@ export function InvoicesTableHeader({
       <div className="flex items-center justify-center">
         <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
           Paid
+        </span>
+      </div>
+
+      {/* Locked */}
+      <div className="flex items-center justify-center">
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+          Locked
         </span>
       </div>
     </div>

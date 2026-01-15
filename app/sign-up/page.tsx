@@ -4,11 +4,16 @@ import Link from "next/link";
 import Image from "next/image";
 
 export default async function SignUpPage() {
-  const { user } = await withAuth();
+  const { user, accessToken } = await withAuth();
 
-  if (user) {
+  // If user exists and has a valid access token, redirect to dashboard
+  if (user && accessToken) {
     redirect("/");
   }
+
+  // If user exists but no valid token, the session needs refresh
+  // Let them proceed to sign-up which will re-authenticate with WorkOS
+  // Don't redirect to auth-error as that's for truly unauthorized users
 
   const signUpUrl = await getSignUpUrl();
 

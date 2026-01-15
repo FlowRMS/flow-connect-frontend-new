@@ -506,6 +506,54 @@ export const orderToasts = {
     showErrorToast('Failed to Create Invoice', {
       description: error || 'Please try again or contact support',
     }),
+
+  duplicateSuccess: (orderNumber: string) =>
+    showSuccessToast('Order Duplicated', {
+      description: `${orderNumber} has been created successfully`,
+    }),
+
+  duplicateError: (error?: string) =>
+    showErrorToast('Failed to Duplicate Order', {
+      description: error || 'Please try again or contact support',
+    }),
+};
+
+// Team Member Toasts
+export const teamMemberToasts = {
+  createSuccess: (name: string) =>
+    showSuccessToast('User Created', {
+      description: `${name} has been added to your team`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create User', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  updateSuccess: (name: string) =>
+    showSuccessToast('User Updated', {
+      description: `${name}'s information has been updated`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update User', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  deleteSuccess: (name: string) =>
+    showSuccessToast('User Deleted', {
+      description: `${name} has been removed from your team`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete User', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  statusChanged: (name: string, enabled: boolean) =>
+    showSuccessToast(enabled ? 'User Activated' : 'User Deactivated', {
+      description: `${name} has been ${enabled ? 'activated' : 'deactivated'}`,
+    }),
 };
 
 // Quote Toasts
@@ -558,5 +606,43 @@ export const quoteToasts = {
   stageChangeError: (error?: string) =>
     showErrorToast('Failed to Update Stage', {
       description: error || 'Please try again or contact support',
+    }),
+};
+
+// Invoice Toasts
+export const invoiceToasts = {
+  createSuccess: (invoiceNumber: string) =>
+    showSuccessToast('Invoice Created', {
+      description: `${invoiceNumber} has been created successfully`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Invoice', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  updateSuccess: (invoiceNumber: string) =>
+    showSuccessToast('Invoice Saved', {
+      description: `${invoiceNumber} has been updated successfully`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Save Invoice', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  deleteSuccess: (invoiceNumber: string) =>
+    showSuccessToast('Invoice Deleted', {
+      description: `${invoiceNumber} has been removed`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Invoice', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  statusChanged: (invoiceNumber: string, newStatus: string) =>
+    showSuccessToast('Status Updated', {
+      description: `${invoiceNumber} status changed to ${newStatus}`,
     }),
 };

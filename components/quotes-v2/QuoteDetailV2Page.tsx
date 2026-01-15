@@ -6,7 +6,6 @@ import {
   transformQuoteToQuoteV2,
   transformQuoteDetailToLineItemV2,
   createEmptyQuoteV2,
-  mapUIStageToAPIFields,
   transformLineItemV2ToDetailInput,
 } from './types';
 import { QuoteDetailHeaderV2 } from './components/QuoteDetailHeaderV2';
@@ -21,6 +20,7 @@ import { FilesTab } from '@/components/shared/FilesTab';
 import { ColumnsConfigModalV2 } from './modals/ColumnsConfigModalV2';
 import { AdditionalDetailsModalV2 } from './modals/AdditionalDetailsModalV2';
 import { DuplicateQuoteModal } from './modals/DuplicateQuoteModal';
+import { DeleteConfirmModal } from './modals/DeleteConfirmModal';
 import { ConnectedEntitiesSection } from '@/components/shared/ConnectedEntitiesSection';
 import {
   defaultQuoteSettingsV2,
@@ -35,43 +35,12 @@ import {
   useDeleteQuoteV2,
   useDuplicateQuoteV2,
 } from './api/quotesV2Api';
-import { searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer } from '../quotes/api/quotesApi';
+import { searchUsers, searchCustomers } from '../quotes/api/quotesApi';
+import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { quoteToasts } from '../lib/toast';
-
-// Helper function to fetch CPNs for line items with products
-async function fetchCpnsForLineItems(
-  items: LineItemV2[],
-  customerId: string,
-  setLineItems: React.Dispatch<React.SetStateAction<LineItemV2[]>>
-) {
-  if (!customerId || items.length === 0) return;
-
-  // Get line items that have a productId
-  const itemsWithProducts = items.filter(li => li.productId);
-  if (itemsWithProducts.length === 0) return;
-
-  // Fetch CPNs for each product in parallel
-  const cpnPromises = itemsWithProducts.map(async (li) => {
-    try {
-      const cpnResult = await getProductCpnByCustomer(li.productId!, customerId);
-      return { itemId: li.id, cpn: cpnResult?.customerPartNumber || '' };
-    } catch (err) {
-      console.log('No CPN found for product:', li.productId);
-      return { itemId: li.id, cpn: '' };
-    }
-  });
-
-  const cpnResults = await Promise.all(cpnPromises);
-
-  // Update line items with fetched CPNs
-  const cpnMap = new Map(cpnResults.map(r => [r.itemId, r.cpn]));
-  setLineItems((prev) =>
-    prev.map((li) => ({
-      ...li,
-      customerPartNumber: cpnMap.has(li.id) ? cpnMap.get(li.id)! : li.customerPartNumber,
-    }))
-  );
-}
+import { useFlowChat } from '@/contexts/FlowChatContext';
+import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
+import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 
 type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings' | 'files';
 
@@ -84,10 +53,14 @@ interface QuoteDetailV2PageProps {
 export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetailV2PageProps) {
   // API hooks
   const { data: apiQuote, isLoading, error } = useQuoteV2(quoteId);
+  const { setFullEntityContext } = useFlowChat();
   const createQuoteMutation = useCreateQuoteV2();
   const updateQuoteMutation = useUpdateQuoteV2();
   const deleteQuoteMutation = useDeleteQuoteV2();
   const duplicateQuoteMutation = useDuplicateQuoteV2();
+
+  // User settings hook for applying saved defaults on new quotes
+  const { settings: savedQuoteSettings, isInitialized: settingsInitialized } = useQuoteSettings();
 
   // Quote state
   const [quote, setQuote] = useState<QuoteV2>(createEmptyQuoteV2());
@@ -99,21 +72,53 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   // Line items state
   const [lineItems, setLineItems] = useState<LineItemV2[]>([]);
 
-  // Settings state
+  // Line item selection state (lifted from LineItemsTabV2 for sharing with header modal)
+  const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<string>>(new Set());
+
+  // Current reps with names (for passing to line items when adding new ones)
+  const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
+  const [currentInsideReps, setCurrentInsideReps] = useState<RepSplitRate[]>([]);
+
+  // Settings state - initialize with defaults, will be updated from API or user settings
   const [settings, setSettings] = useState<QuoteSettingsV2>(defaultQuoteSettingsV2);
 
-  // Column configuration
+  // Column configuration - initialize with defaults, will be updated from API or user settings
   const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(defaultColumnConfigV2);
+
+  // Apply saved user settings when creating a new quote
+  useEffect(() => {
+    if (isNew && settingsInitialized && savedQuoteSettings) {
+      // Apply saved settings from user preferences
+      setSettings(prev => ({
+        ...prev,
+        specifyEndUserPerLine: savedQuoteSettings.specifyEndUserPerLine ?? prev.specifyEndUserPerLine,
+        outsideRepAtLineLevel: savedQuoteSettings.outsideRepAtLineLevel ?? prev.outsideRepAtLineLevel,
+        insideRepAtLineLevel: savedQuoteSettings.insideRepAtLineLevel ?? prev.insideRepAtLineLevel,
+        factoryPerLineItem: savedQuoteSettings.factoryPerLineItem ?? prev.factoryPerLineItem,
+        customerPartNumberSource: savedQuoteSettings.customerPartNumberSource ?? prev.customerPartNumberSource,
+      }));
+
+      // Apply saved column configuration
+      if (savedQuoteSettings.columnConfig && savedQuoteSettings.columnConfig.length > 0) {
+        setColumnConfig(savedQuoteSettings.columnConfig);
+      }
+    }
+  }, [isNew, settingsInitialized, savedQuoteSettings]);
 
   // Modal states
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showAdditionalDetailsModal, setShowAdditionalDetailsModal] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedLineItem, setSelectedLineItem] = useState<LineItemV2 | null>(null);
 
   // Saving state
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Counter to trigger linked entities refresh after save
+  const [linkedEntitiesRefreshKey, setLinkedEntitiesRefreshKey] = useState(0);
 
   // Transform API data to UI format when it loads
   useEffect(() => {
@@ -121,35 +126,35 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       const transformedQuote = transformQuoteToQuoteV2(apiQuote);
       setQuote(transformedQuote);
 
-      // Transform line items
+      // Store the original job ID for link management
+      originalJobIdRef.current = transformedQuote.jobId;
+      prevJobIdRef.current = transformedQuote.jobId;
+
+      // Transform line items - factory names now come directly from detail.factory object
       if (apiQuote.details) {
         const transformedLineItems = apiQuote.details.map((detail) =>
           transformQuoteDetailToLineItemV2(detail, apiQuote.id)
         );
         setLineItems(transformedLineItems);
 
-        // Collect unique factory and end user IDs to fetch their names
-        const factoryIds = new Set<string>();
+        // When factoryPerLineItem is false, populate header-level factory from first detail's factory
+        // (all details should have the same factory when this setting is off)
+        if (apiQuote.factoryPerLineItem === false && apiQuote.details.length > 0) {
+          const firstDetailWithFactory = apiQuote.details.find(d => d.factory);
+          if (firstDetailWithFactory?.factory) {
+            setQuote(prev => ({
+              ...prev,
+              factoryId: firstDetailWithFactory.factory!.id,
+              factoryName: firstDetailWithFactory.factory!.title || '',
+            }));
+          }
+        }
+
+        // Collect unique end user IDs to fetch their names (factory names come from detail.factory now)
         const endUserIds = new Set<string>();
         transformedLineItems.forEach((li) => {
-          if (li.manufacturerId) factoryIds.add(li.manufacturerId);
           if (li.endUserId) endUserIds.add(li.endUserId);
         });
-
-        // Fetch factory names
-        if (factoryIds.size > 0) {
-          searchFactories('', true)
-            .then((factories) => {
-              const factoryMap = new Map(factories.map((f) => [f.id, f.title]));
-              setLineItems((prev) =>
-                prev.map((li) => ({
-                  ...li,
-                  manufacturerName: li.manufacturerId ? factoryMap.get(li.manufacturerId) || '' : '',
-                }))
-              );
-            })
-            .catch((err) => console.error('Failed to fetch factory names:', err));
-        }
 
         // Fetch end user names
         if (endUserIds.size > 0) {
@@ -162,14 +167,27 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                   endUserName: li.endUserId ? customerMap.get(li.endUserId) || '' : '',
                 }))
               );
+
+              // When endUserPerLineItem is false, populate header-level end user from first line item
+              // (all line items should have the same end user when this setting is off)
+              if (apiQuote.endUserPerLineItem === false && transformedLineItems.length > 0) {
+                const firstLineItemWithEndUser = transformedLineItems.find(li => li.endUserId);
+                if (firstLineItemWithEndUser?.endUserId) {
+                  const endUserName = customerMap.get(firstLineItemWithEndUser.endUserId) || '';
+                  setQuote(prev => ({
+                    ...prev,
+                    endUserId: firstLineItemWithEndUser.endUserId,
+                    endUserName: endUserName,
+                  }));
+                }
+              }
             })
             .catch((err) => console.error('Failed to fetch end user names:', err));
         }
 
-        // Fetch CPNs for line items that have products
-        if (apiQuote.soldToCustomerId && transformedLineItems.some(li => li.productId)) {
-          fetchCpnsForLineItems(transformedLineItems, apiQuote.soldToCustomerId, setLineItems);
-        }
+        // DO NOT fetch CPN/tier pricing on initial load
+        // The API already sends the correct prices - just use them as-is
+        // The child component will determine pricing source tags for display only
       }
       setHasChanges(false);
 
@@ -264,22 +282,50 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [apiQuote, isNew]);
 
-  // Track previous soldToCustomerId to detect changes
-  const prevSoldToCustomerIdRef = React.useRef<string | undefined>(undefined);
-
-  // Re-fetch CPNs when sold-to customer changes
+  // Set full entity context for global chatbot (type, id, and quote number)
   useEffect(() => {
-    // Only re-fetch if customer actually changed (not on initial load)
-    if (
-      prevSoldToCustomerIdRef.current !== undefined &&
-      quote.soldToCustomerId !== prevSoldToCustomerIdRef.current &&
-      quote.soldToCustomerId &&
-      lineItems.some(li => li.productId)
-    ) {
-      fetchCpnsForLineItems(lineItems, quote.soldToCustomerId, setLineItems);
+    if (quote?.quoteNumber && quoteId) {
+      setFullEntityContext('quote', quoteId, quote.quoteNumber);
     }
-    prevSoldToCustomerIdRef.current = quote.soldToCustomerId;
-  }, [quote.soldToCustomerId, lineItems]);
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [quote?.quoteNumber, quoteId, setFullEntityContext]);
+
+  // Initialize with one empty line item for new quotes
+  useEffect(() => {
+    if (isNew && lineItems.length === 0) {
+      const defaultLineItem: LineItemV2 = {
+        id: `li-${Date.now()}`,
+        quoteId: '',
+        partNumber: '',
+        description: '',
+        manufacturerName: '',
+        manufacturerId: undefined,
+        quantity: 1,
+        uom: null,
+        divisor: 1,
+        unitPrice: 0,
+        sellTotal: 0,
+        total: 0,
+        commissionPercent: 8, // Stored as whole percentage (8 for 8%)
+        commission: 0,
+        commissionTotal: 0,
+        commissionDiscountPercent: 0,
+        commissionDiscountAmount: 0,
+        lineDiscountPercent: 0,
+        lineDiscountAmount: 0,
+      };
+      setLineItems([defaultLineItem]);
+    }
+  }, [isNew]);
+
+  // Track previous jobId to manage quote-job links
+  const prevJobIdRef = React.useRef<string | undefined>(undefined);
+  // Track if job link is being managed to prevent duplicate operations
+  const isManagingJobLinkRef = React.useRef<boolean>(false);
+  // Track the original job ID from API for editing scenarios
+  const originalJobIdRef = React.useRef<string | undefined>(undefined);
 
   const handleQuoteChange = useCallback((updates: Partial<QuoteV2>) => {
     setQuote((prev) => ({ ...prev, ...updates }));
@@ -305,6 +351,19 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [selectedLineItem]);
 
+  // Live update handler - updates both lineItems AND selectedLineItem without closing modal
+  const handleLiveUpdateAdditionalDetails = useCallback((updates: Partial<LineItemV2>) => {
+    if (selectedLineItem) {
+      // Update the selected line item so the modal stays in sync
+      setSelectedLineItem((prev) => prev ? { ...prev, ...updates } : prev);
+      // Update the line items array
+      setLineItems((prev) =>
+        prev.map((li) => (li.id === selectedLineItem.id ? { ...li, ...updates } : li))
+      );
+      setHasChanges(true);
+    }
+  }, [selectedLineItem]);
+
   const handleRevertToVersion = useCallback((versionNumber: number) => {
     // Coming soon - no API endpoint for version revert
     console.log('Reverting to version:', versionNumber);
@@ -318,7 +377,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   // Build API input from current state
   const buildQuoteInput = useCallback(() => {
-    const stageMapping = mapUIStageToAPIFields(quote.stage);
+    // Use direct status and pipelineStage values from quote state
+    // These are set directly via the dropdowns in the header
 
     return {
       id: quote.id || undefined,
@@ -326,8 +386,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       entityDate: quote.quoteDate,
       soldToCustomerId: quote.soldToCustomerId,
       billToCustomerId: quote.billToCustomerId || undefined,
-      status: stageMapping.status || 'OPEN' as const,
-      pipelineStage: stageMapping.pipelineStage,
+      status: quote.status || 'OPEN' as const,
+      pipelineStage: quote.pipelineStage || 'DISCOVERY' as const,
       published: quote.published ?? false,
       creationType: quote.creationType || 'MANUAL' as const,
       blanket: quote.blanket ?? false,
@@ -345,6 +405,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       factoryPerLineItem: settings.factoryPerLineItem,
       // Split rates are now at detail level (insideSplitRates and outsideSplitRates per line item)
       // Pass settings so each line item uses its own split rates when per-line-item is enabled
+      // Pass header-level endUserId for when specifyEndUserPerLine is false
       details: lineItems.map((li, index) => ({
         ...transformLineItemV2ToDetailInput(
           li,
@@ -353,12 +414,60 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
           {
             insideRepAtLineLevel: settings.insideRepAtLineLevel,
             outsideRepAtLineLevel: settings.outsideRepAtLineLevel,
-          }
+            factoryPerLineItem: settings.factoryPerLineItem,
+            specifyEndUserPerLine: settings.specifyEndUserPerLine,
+          },
+          quote.factoryId, // Pass header-level factory for when factoryPerLineItem is false
+          quote.endUserId // Pass header-level endUserId for when specifyEndUserPerLine is false
         ),
         itemNumber: li.itemNumber ?? index + 1,
       })),
     };
   }, [quote, lineItems, settings]);
+
+  // Manage quote-job links when job selection changes
+  const manageJobLink = useCallback(async (quoteId: string, oldJobId: string | undefined, newJobId: string | undefined) => {
+    // Skip if already managing or if there's no change
+    if (isManagingJobLinkRef.current) return;
+    if (oldJobId === newJobId) return;
+
+    isManagingJobLinkRef.current = true;
+
+    try {
+      // Delete old link if there was a previous job
+      if (oldJobId) {
+        try {
+          await deleteLinkByEntities({
+            sourceEntityType: 'QUOTE',
+            sourceEntityId: quoteId,
+            targetEntityType: 'JOB',
+            targetEntityId: oldJobId,
+          });
+          console.log('Deleted quote-job link:', quoteId, '->', oldJobId);
+        } catch (err) {
+          // Link might not exist, which is fine
+          console.log('No existing link to delete or error:', err);
+        }
+      }
+
+      // Create new link if there's a new job
+      if (newJobId) {
+        try {
+          await createLink({
+            sourceEntityType: 'QUOTE',
+            sourceEntityId: quoteId,
+            targetEntityType: 'JOB',
+            targetEntityId: newJobId,
+          });
+          console.log('Created quote-job link:', quoteId, '->', newJobId);
+        } catch (err) {
+          console.error('Failed to create quote-job link:', err);
+        }
+      }
+    } finally {
+      isManagingJobLinkRef.current = false;
+    }
+  }, []);
 
   const handleSave = useCallback(async () => {
     if (!quote.quoteNumber || !quote.soldToCustomerId) {
@@ -366,6 +475,55 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       quoteToasts.updateError('Quote Number and Sold To Customer are required');
       return;
     }
+
+    // Validate End User based on settings (REQUIRED field)
+    console.log('🔍 END USER VALIDATION CHECK:', {
+      specifyEndUserPerLine: settings.specifyEndUserPerLine,
+      quoteEndUserId: quote.endUserId,
+      lineItemsCount: lineItems?.length,
+      lineItems: lineItems?.map(li => ({
+        id: li.id,
+        itemNumber: li.itemNumber,
+        partNumber: li.partNumber,
+        endUserId: li.endUserId,
+        endUserName: li.endUserName,
+      }))
+    });
+
+    if (!settings.specifyEndUserPerLine) {
+      // When toggle is OFF, header End User is REQUIRED
+      if (!quote.endUserId || quote.endUserId.trim() === '') {
+        console.error('❌ VALIDATION FAILED: Header End User is missing');
+        setSaveError('End User is required. Please select an End User at the header level.');
+        quoteToasts.updateError('End User is required. Please select an End User at the header level.');
+        return;
+      }
+    } else {
+      // When toggle is ON, EACH line item MUST have End User
+      if (!lineItems || lineItems.length === 0) {
+        console.error('❌ VALIDATION FAILED: No line items');
+        setSaveError('Please add at least one line item.');
+        quoteToasts.updateError('Please add at least one line item.');
+        return;
+      }
+
+      const lineItemsWithoutEndUser = lineItems.filter(li => !li.endUserId || li.endUserId.trim() === '');
+
+      console.log('🔍 Line items without end user:', lineItemsWithoutEndUser.length, lineItemsWithoutEndUser.map(li => ({
+        id: li.id,
+        itemNumber: li.itemNumber,
+        partNumber: li.partNumber,
+      })));
+
+      if (lineItemsWithoutEndUser.length > 0) {
+        console.error('❌ VALIDATION FAILED: Line items missing End User');
+        setSaveError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
+        quoteToasts.updateError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
+        return;
+      }
+    }
+
+    console.log('✅ END USER VALIDATION PASSED');
 
     setIsSaving(true);
     setSaveError(null);
@@ -376,11 +534,29 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       if (isNew || !quote.id) {
         const result = await createQuoteMutation.mutateAsync(input);
         quoteToasts.createSuccess(quote.quoteNumber);
+
+        // Create job link if a job was selected for the new quote
+        if (quote.jobId && result.id) {
+          await manageJobLink(result.id, undefined, quote.jobId);
+        }
+
         // Navigate to the new quote
         window.location.href = `/quotes-v2/${result.id}`;
       } else {
         await updateQuoteMutation.mutateAsync(input);
+
+        // Manage job link if job selection changed during edit
+        const currentJobId = quote.jobId;
+        const previousJobId = originalJobIdRef.current;
+        if (currentJobId !== previousJobId) {
+          await manageJobLink(quote.id, previousJobId, currentJobId);
+          // Update the original job ID ref to the new value
+          originalJobIdRef.current = currentJobId;
+        }
+
         setHasChanges(false);
+        // Trigger refresh of linked entities section
+        setLinkedEntitiesRefreshKey(prev => prev + 1);
         quoteToasts.updateSuccess(quote.quoteNumber);
       }
     } catch (err) {
@@ -394,13 +570,17 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     } finally {
       setIsSaving(false);
     }
-  }, [quote, isNew, buildQuoteInput, createQuoteMutation, updateQuoteMutation]);
+  }, [quote, isNew, buildQuoteInput, createQuoteMutation, updateQuoteMutation, manageJobLink]);
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
+    if (!quote.id) return;
+    setShowDeleteModal(true);
+  }, [quote.id]);
+
+  const handleConfirmDelete = useCallback(async () => {
     if (!quote.id) return;
 
-    if (!confirm('Are you sure you want to delete this quote?')) return;
-
+    setIsDeleting(true);
     try {
       await deleteQuoteMutation.mutateAsync(quote.id);
       quoteToasts.deleteSuccess(quote.quoteNumber);
@@ -409,6 +589,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete quote';
       setSaveError(errorMessage);
       quoteToasts.deleteError(errorMessage);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
     }
   }, [quote.id, quote.quoteNumber, deleteQuoteMutation, onBack]);
 
@@ -455,16 +638,236 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [quote.id, duplicateQuoteMutation]);
 
-  const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean }[] = useMemo(() => [
+  // Get the hook for fetching factory reps (used for per-line-item factory mode)
+  const { fetchInsideRepsFromFactory } = useAutoPopulateReps();
+
+  // Handler to auto-populate outside reps for all line items
+  const handleAutoPopulateOutsideRepsToLineItems = useCallback((reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentOutsideReps(reps);
+
+    if (lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    // Include userName so the modal can display the name without looking it up
+    const outsideSplitRates = reps.map((rep, idx) => ({
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same outside reps
+    setLineItems(prev => prev.map(item => ({
+      ...item,
+      outsideSplitRates,
+    })));
+    setHasChanges(true);
+  }, [lineItems.length]);
+
+  // Handler to auto-populate inside reps for all line items (when factory is at header level)
+  const handleAutoPopulateInsideRepsToLineItems = useCallback((reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentInsideReps(reps);
+
+    if (lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    // Include userName so the modal can display the name without looking it up
+    const insideSplitRates = reps.map((rep, idx) => ({
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same inside reps
+    setLineItems(prev => prev.map(item => ({
+      ...item,
+      insideSplitRates,
+    })));
+    setHasChanges(true);
+  }, [lineItems.length]);
+
+  // Handler to auto-populate inside reps per line item based on each line's manufacturer
+  // This is for when factoryPerLineItem is enabled - each line item gets reps from its own manufacturer
+  const handleAutoPopulateInsideRepsPerLineItemFactory = useCallback(async () => {
+    if (lineItems.length === 0) return;
+
+    // Process each line item that has a manufacturer
+    const updatedLineItems = await Promise.all(
+      lineItems.map(async (item) => {
+        if (!item.manufacturerId) {
+          return item; // No manufacturer, keep as is
+        }
+
+        try {
+          const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
+          if (reps.length === 0) {
+            return item; // No reps found, keep as is
+          }
+
+          // Convert to line item format - include userName
+          const insideSplitRates = reps.map((rep, idx) => ({
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+            userId: rep.userId,
+            userName: rep.userName,
+            splitRate: rep.splitRate,
+            position: idx + 1,
+          }));
+
+          return {
+            ...item,
+            insideSplitRates,
+          };
+        } catch (error) {
+          console.error(`Failed to fetch reps for manufacturer ${item.manufacturerId}:`, error);
+          return item; // On error, keep as is
+        }
+      })
+    );
+
+    setLineItems(updatedLineItems);
+    setHasChanges(true);
+  }, [lineItems, fetchInsideRepsFromFactory]);
+
+  // Get the hook for fetching customer reps (for settings toggle)
+  const { fetchOutsideRepsFromCustomer } = useAutoPopulateReps();
+
+  // Handler for settings changes with rep redistribution
+  const handleSettingsChange = useCallback(async (newSettings: QuoteSettingsV2) => {
+    const oldSettings = settings;
+    setSettings(newSettings);
+    setHasChanges(true);
+
+    // Handle outsideRepAtLineLevel toggle
+    if (oldSettings.outsideRepAtLineLevel !== newSettings.outsideRepAtLineLevel) {
+      if (newSettings.outsideRepAtLineLevel) {
+        // Switching to per-line-item mode: ALWAYS fetch from END USER to get proper names
+        if (quote.endUserId) {
+          const reps = await fetchOutsideRepsFromCustomer(quote.endUserId);
+          if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentOutsideReps(reps);
+            const outsideSplitRates = reps.map((rep, idx) => ({
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            setLineItems(prev => prev.map(item => ({ ...item, outsideSplitRates })));
+          }
+        }
+      } else {
+        // Switching to header mode: clear line item reps (header will be populated from end user when selected)
+        setLineItems(prev => prev.map(item => ({ ...item, outsideSplitRates: [] })));
+      }
+    }
+
+    // Handle insideRepAtLineLevel toggle
+    if (oldSettings.insideRepAtLineLevel !== newSettings.insideRepAtLineLevel) {
+      if (newSettings.insideRepAtLineLevel) {
+        // Switching to per-line-item mode
+        if (newSettings.factoryPerLineItem) {
+          // Factory is per line item - each line item gets its own manufacturer's reps
+          const updatedLineItems = await Promise.all(
+            lineItems.map(async (item) => {
+              if (!item.manufacturerId) return item;
+              try {
+                const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
+                if (reps.length === 0) return item;
+                const insideSplitRates = reps.map((rep, idx) => ({
+                  id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+                  userId: rep.userId,
+                  userName: rep.userName,
+                  splitRate: rep.splitRate,
+                  position: idx + 1,
+                }));
+                return { ...item, insideSplitRates };
+              } catch {
+                return item;
+              }
+            })
+          );
+          setLineItems(updatedLineItems);
+        } else if (quote.factoryId) {
+          // Factory is at header level - ALWAYS fetch from factory to get proper names
+          const reps = await fetchInsideRepsFromFactory(quote.factoryId);
+          if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentInsideReps(reps);
+            const insideSplitRates = reps.map((rep, idx) => ({
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            setLineItems(prev => prev.map(item => ({ ...item, insideSplitRates })));
+          }
+        }
+      } else {
+        // Switching to header mode: clear line item reps
+        setLineItems(prev => prev.map(item => ({ ...item, insideSplitRates: [] })));
+      }
+    }
+
+    // Handle factoryPerLineItem toggle when insideRepAtLineLevel is already on
+    if (oldSettings.factoryPerLineItem !== newSettings.factoryPerLineItem && newSettings.insideRepAtLineLevel) {
+      if (newSettings.factoryPerLineItem) {
+        // Switching to per-line-item factory mode - repopulate each line item from its manufacturer
+        const updatedLineItems = await Promise.all(
+          lineItems.map(async (item) => {
+            if (!item.manufacturerId) return item;
+            try {
+              const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
+              if (reps.length === 0) return item;
+              const insideSplitRates = reps.map((rep, idx) => ({
+                id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+                userId: rep.userId,
+                userName: rep.userName,
+                splitRate: rep.splitRate,
+                position: idx + 1,
+              }));
+              return { ...item, insideSplitRates };
+            } catch {
+              return item;
+            }
+          })
+        );
+        setLineItems(updatedLineItems);
+      } else if (quote.factoryId) {
+        // Switching to header-level factory - populate all line items with header factory's reps
+        const reps = await fetchInsideRepsFromFactory(quote.factoryId);
+        if (reps.length > 0) {
+          // Store for new line items to inherit
+          setCurrentInsideReps(reps);
+          const insideSplitRates = reps.map((rep, idx) => ({
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+            userId: rep.userId,
+            userName: rep.userName,
+            splitRate: rep.splitRate,
+            position: idx + 1,
+          }));
+          setLineItems(prev => prev.map(item => ({ ...item, insideSplitRates })));
+        }
+      }
+    }
+  }, [settings, quote.endUserId, quote.factoryId, lineItems, fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory]);
+
+  const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean; disabled?: boolean; disabledReason?: string }[] = useMemo(() => [
     { key: 'lineItems', label: 'Line Items', count: lineItems.length },
-    { key: 'files', label: 'Files' },
-    { key: 'notes', label: 'Notes', comingSoon: true },
-    { key: 'tasks', label: 'Tasks', comingSoon: true },
-    { key: 'activity', label: 'Activity', comingSoon: true },
-    { key: 'linkedObjects', label: 'Linked Objects', comingSoon: true },
-    { key: 'versions', label: 'Versions', comingSoon: true },
-    { key: 'settings', label: 'Settings', comingSoon: true },
-  ], [lineItems.length]);
+    { key: 'files', label: 'Files', disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'notes', label: 'Notes', disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'tasks', label: 'Tasks', disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'activity', label: 'Activity', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'linkedObjects', label: 'Linked Objects', disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'versions', label: 'Versions', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'settings', label: 'Settings' },
+  ], [lineItems.length, isNew]);
 
   // Loading state
   if (isLoading && !isNew) {
@@ -496,7 +899,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   }
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full overflow-auto bg-white">
       {/* Save Error Banner */}
       {saveError && (
         <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between">
@@ -521,39 +924,52 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         hasChanges={hasChanges}
         isNew={isNew}
         lineItems={lineItems}
+        selectedLineItemIds={selectedLineItemIds}
         settings={settings}
         onClearLineItemProducts={handleClearLineItemProducts}
+        onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
+        onAutoPopulateInsideRepsToLineItems={handleAutoPopulateInsideRepsToLineItems}
+        onAutoPopulateInsideRepsPerLineItemFactory={handleAutoPopulateInsideRepsPerLineItemFactory}
       />
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 px-6 border-b border-gray-200 flex-shrink-0">
+      <div className="flex items-center gap-1 px-6 border-b border-gray-200">
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => !tab.disabled && !tab.comingSoon && setActiveTab(tab.key)}
+            disabled={tab.disabled || tab.comingSoon}
+            title={tab.disabled ? tab.disabledReason : tab.comingSoon ? 'Coming soon' : undefined}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.key
+              tab.disabled || tab.comingSoon
+                ? 'border-transparent text-gray-300 cursor-not-allowed'
+                : activeTab === tab.key
                 ? 'border-indigo-600 text-indigo-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
             {tab.label}
             {tab.count !== undefined && (
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+              <span className={`px-2 py-0.5 rounded text-xs ${tab.disabled ? 'bg-gray-50 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                 {tab.count}
               </span>
             )}
             {tab.comingSoon && (
-              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-400 rounded text-[10px] uppercase">
-                Soon
+              <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs font-medium">
+                SOON
               </span>
             )}
           </button>
         ))}
+        {isNew && (
+          <span className="ml-auto text-xs text-gray-400 italic pr-2">
+            Some tabs will unlock after saving
+          </span>
+        )}
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
+      <div>
         {activeTab === 'lineItems' && (
           <LineItemsTabV2
             lineItems={lineItems}
@@ -566,6 +982,10 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             soldToCustomerId={quote.soldToCustomerId}
             headerFactoryId={quote.factoryId}
             headerFactoryName={quote.factoryName}
+            currentOutsideReps={currentOutsideReps}
+            currentInsideReps={currentInsideReps}
+            selectedItems={selectedLineItemIds}
+            onSelectedItemsChange={setSelectedLineItemIds}
           />
         )}
 
@@ -577,25 +997,11 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         )}
 
         {activeTab === 'notes' && (
-          <div className="p-6">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <p className="text-amber-700 text-sm">
-                <span className="font-medium">Coming Soon:</span> Notes functionality is not yet available via API.
-              </p>
-            </div>
-            <NotesTabV2 quoteId={quote.id} />
-          </div>
+          <NotesTabV2 quoteId={quote.id} />
         )}
 
         {activeTab === 'tasks' && (
-          <div className="p-6">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <p className="text-amber-700 text-sm">
-                <span className="font-medium">Coming Soon:</span> Tasks functionality is not yet available via API.
-              </p>
-            </div>
-            <TasksTabV2 quoteId={quote.id} />
-          </div>
+          <TasksTabV2 quoteId={quote.id} />
         )}
 
         {activeTab === 'activity' && (
@@ -618,6 +1024,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                   sourceEntityType="QUOTE"
                   title="Linked Objects"
                   showAddLinkButton={true}
+                  refreshKey={linkedEntitiesRefreshKey}
                 />
               ) : (
                 <div className="text-center py-8 text-[var(--muted-foreground)]">
@@ -645,12 +1052,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
         {activeTab === 'settings' && (
           <div className="h-full overflow-auto p-6">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <p className="text-amber-700 text-sm">
-                <span className="font-medium">Coming Soon:</span> Quote settings are not yet available via API.
-              </p>
-            </div>
-            <SettingsTabV2 settings={settings} onSettingsChange={setSettings} />
+            <SettingsTabV2 settings={settings} onSettingsChange={handleSettingsChange} />
           </div>
         )}
       </div>
@@ -668,6 +1070,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         onClose={() => setShowAdditionalDetailsModal(false)}
         lineItem={selectedLineItem}
         onSave={handleSaveAdditionalDetails}
+        onLiveUpdate={handleLiveUpdateAdditionalDetails}
         settings={settings}
       />
 
@@ -677,6 +1080,16 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         isPending={duplicateQuoteMutation.isPending}
         onClose={() => setShowDuplicateModal(false)}
         onDuplicate={handleDuplicateConfirm}
+      />
+
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        title="Delete Quote?"
+        message="Are you sure you want to delete quote"
+        itemName={quote.quoteNumber}
+        isPending={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteModal(false)}
       />
     </div>
   );

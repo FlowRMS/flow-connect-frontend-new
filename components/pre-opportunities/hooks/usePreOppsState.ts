@@ -4,7 +4,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import type { ViewMode, PreOpportunityStatus, PreOpportunityLandingPage } from '../types';
-import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
 import { sortPreOpps, getUniqueValues } from '../utils';
 import { DEFAULT_STAGES } from '../constants';

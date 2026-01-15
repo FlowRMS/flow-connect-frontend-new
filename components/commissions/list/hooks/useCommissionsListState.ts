@@ -17,11 +17,13 @@ import {
   useCreateCheck,
   useUpdateCheck,
   useDeleteCheck,
+  usePostCheck,
   fetchCheckById,
 } from '@/components/orders/api/checksApi';
 import { unpostCheck } from '@/components/lib/graphql/checks';
 import { useCommissionFilters } from './useCommissionFilters';
-import { useCommissionSelection } from './useCommissionSelection';
+import { useBulkSelection } from '../../../shared';
+import { fetchAllCheckIds } from '@/components/orders/api/checksApi';
 
 export function useCommissionsListState() {
   // Fetch checks from real API with infinite scroll
@@ -90,6 +92,7 @@ export function useCommissionsListState() {
   const createCheckMutation = useCreateCheck();
   const updateCheckMutation = useUpdateCheck();
   const deleteCheckMutation = useDeleteCheck();
+  const postCheckMutation = usePostCheck();
 
   // Selected check for detail panel
   const [selectedCheck, setSelectedCheck] = useState<CommissionCheck | null>(null);
@@ -212,31 +215,8 @@ export function useCommissionsListState() {
   const handlePostCheck = useCallback(async (checkId: string) => {
     setIsUpdatingCheck(true);
     try {
-      // Fetch full check details first
-      const fullCheck = await fetchCheckById(checkId);
-      if (!fullCheck) {
-        throw new Error('Check not found');
-      }
-
-      // Update status to POSTED
-      await updateCheckMutation.mutateAsync({
-        id: fullCheck.id,
-        checkNumber: fullCheck.checkNumber,
-        entityDate: fullCheck.entityDate || new Date().toISOString().split('T')[0],
-        enteredCommissionAmount: fullCheck.enteredCommissionAmount || '0',
-        factoryId: fullCheck.factoryId || '',
-        commissionMonth: fullCheck.commissionMonth,
-        postDate: fullCheck.postDate,
-        status: 'POSTED',
-        creationType: fullCheck.creationType || 'MANUAL',
-        details: fullCheck.details?.map(d => ({
-          id: d.id,
-          invoiceId: d.invoiceId,
-          creditId: d.creditId,
-          adjustmentId: d.adjustmentId,
-          appliedAmount: d.appliedAmount || '0',
-        })) || [],
-      });
+      // Use the postCheck mutation endpoint
+      await postCheckMutation.mutateAsync(checkId);
       toast.success('Check posted successfully');
       setSelectedCheck(null);
       refetchChecks();
@@ -246,7 +226,7 @@ export function useCommissionsListState() {
     } finally {
       setIsUpdatingCheck(false);
     }
-  }, [updateCheckMutation, refetchChecks]);
+  }, [postCheckMutation, refetchChecks]);
 
   // Handle unpost check from sidebar panel
   const handleUnpostCheck = useCallback(async (checkId: string) => {
@@ -267,12 +247,28 @@ export function useCommissionsListState() {
   // Integrate filter hook
   const filterState = useCommissionFilters(checks);
 
-  // Integrate selection hook
-  const selectionState = useCommissionSelection();
+  // Integrate bulk selection hook
+  const bulkSelection = useBulkSelection({
+    items: checks,
+    totalCount,
+    fetchAllIds: fetchAllCheckIds,
+  });
+
+  // Compatibility layer for existing code
+  const selectedCheckIds = bulkSelection.selectedIds;
+  const toggleCheckSelection = useCallback((checkId: string) => {
+    bulkSelection.handleSelectOne(checkId, !bulkSelection.isItemSelected(checkId));
+  }, [bulkSelection]);
+  const selectAllChecks = useCallback(() => {
+    bulkSelection.handleSelectAll(true);
+  }, [bulkSelection]);
+  const clearSelection = bulkSelection.clearSelection;
+  const isCheckSelected = bulkSelection.isItemSelected;
+  const areAllEligibleSelected = bulkSelection.isAllSelected;
 
   // Bulk set status - update each check one by one via API
   const bulkSetStatus = useCallback(async (status: CheckStatus) => {
-    const selectedIds = Array.from(selectionState.selectedCheckIds);
+    const selectedIds = Array.from(bulkSelection.selectedIds);
     if (selectedIds.length === 0) return;
 
     setIsBulkUpdating(true);
@@ -284,31 +280,8 @@ export function useCommissionsListState() {
     for (const checkId of selectedIds) {
       try {
         if (status === 'POSTED') {
-          // Fetch full check details first
-          const fullCheck = await fetchCheckById(checkId);
-          if (!fullCheck) {
-            errorCount++;
-            continue;
-          }
-
-          await updateCheckMutation.mutateAsync({
-            id: fullCheck.id,
-            checkNumber: fullCheck.checkNumber,
-            entityDate: fullCheck.entityDate || new Date().toISOString().split('T')[0],
-            enteredCommissionAmount: fullCheck.enteredCommissionAmount || '0',
-            factoryId: fullCheck.factoryId || '',
-            commissionMonth: fullCheck.commissionMonth,
-            postDate: fullCheck.postDate,
-            status: 'POSTED',
-            creationType: fullCheck.creationType || 'MANUAL',
-            details: fullCheck.details?.map(d => ({
-              id: d.id,
-              invoiceId: d.invoiceId,
-              creditId: d.creditId,
-              adjustmentId: d.adjustmentId,
-              appliedAmount: d.appliedAmount || '0',
-            })) || [],
-          });
+          // Use the postCheck mutation endpoint
+          await postCheckMutation.mutateAsync(checkId);
           successCount++;
         } else if (status === 'OPEN') {
           // Use unpost mutation
@@ -322,7 +295,7 @@ export function useCommissionsListState() {
     }
 
     setIsBulkUpdating(false);
-    selectionState.clearSelection();
+    bulkSelection.clearSelection();
 
     if (successCount > 0) {
       toast.success(`${successCount} check(s) updated successfully`);
@@ -332,11 +305,11 @@ export function useCommissionsListState() {
     }
 
     refetchChecks();
-  }, [selectionState, updateCheckMutation, refetchChecks]);
+  }, [bulkSelection, postCheckMutation, refetchChecks]);
 
   // Bulk delete - delete each check one by one via API
   const bulkDelete = useCallback(async () => {
-    const selectedIds = Array.from(selectionState.selectedCheckIds);
+    const selectedIds = Array.from(bulkSelection.selectedIds);
     if (selectedIds.length === 0) return;
 
     if (!confirm(`Are you sure you want to delete ${selectedIds.length} check(s)? This action cannot be undone.`)) {
@@ -360,7 +333,7 @@ export function useCommissionsListState() {
     }
 
     setIsBulkUpdating(false);
-    selectionState.clearSelection();
+    bulkSelection.clearSelection();
 
     if (successCount > 0) {
       toast.success(`${successCount} check(s) deleted successfully`);
@@ -370,7 +343,7 @@ export function useCommissionsListState() {
     }
 
     refetchChecks();
-  }, [selectionState, deleteCheckMutation, refetchChecks]);
+  }, [bulkSelection, deleteCheckMutation, refetchChecks]);
 
   return {
     // Checks data
@@ -420,8 +393,22 @@ export function useCommissionsListState() {
     // Filter state and actions
     ...filterState,
 
-    // Selection state and actions
-    ...selectionState,
+    // Selection state and actions (compatibility layer)
+    selectedCheckIds,
+    toggleCheckSelection,
+    selectAllChecks,
+    clearSelection,
+    isCheckSelected,
+    areAllEligibleSelected,
+    // New bulk selection values
+    isItemSelected: bulkSelection.isItemSelected,
+    isAllSelected: bulkSelection.isAllSelected,
+    isPartiallySelected: bulkSelection.isPartiallySelected,
+    handleSelectAll: bulkSelection.handleSelectAll,
+    handleSelectOne: bulkSelection.handleSelectOne,
+    selectAllMode: bulkSelection.selectAllMode,
+    selectedCount: bulkSelection.selectedCount,
+    getAllSelectedIds: bulkSelection.getAllSelectedIds,
 
     // Bulk actions
     showBulkActionsMenu,

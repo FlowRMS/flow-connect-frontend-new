@@ -37,6 +37,7 @@ import {
   type TaskSearchResult,
   type PaginatedResult,
 } from './campaignsApi';
+import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/graphql/types';
 
 // ============================================================================
 // Query Keys
@@ -69,10 +70,14 @@ const DEFAULT_PAGE_SIZE = 50;
  * Fetch all campaigns (simple list)
  * @param pollInterval - Optional interval in ms to refetch (for background updates)
  */
-export function useCampaigns(pollInterval?: number) {
+export function useCampaigns(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[],
+  pollInterval?: number
+) {
   return useQuery<PaginatedResult<CampaignLandingPage>, Error>({
-    queryKey: campaignsQueryKeys.list(),
-    queryFn: () => fetchCampaigns(),
+    queryKey: [...campaignsQueryKeys.list(), filters, orderBy],
+    queryFn: () => fetchCampaigns(filters, orderBy),
     enabled: true,
     staleTime: 10 * 1000, // Consider data stale after 10 seconds
     refetchInterval: pollInterval, // Background polling
@@ -82,12 +87,18 @@ export function useCampaigns(pollInterval?: number) {
 
 /**
  * Fetch campaigns with infinite scroll pagination
+ * @param pollInterval - Optional interval in ms to refetch (for background updates)
  */
-export function useCampaignsInfinite(pageSize: number = DEFAULT_PAGE_SIZE) {
+export function useCampaignsInfinite(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[],
+  pageSize: number = DEFAULT_PAGE_SIZE,
+  pollInterval?: number
+) {
   return useInfiniteQuery<PaginatedResult<CampaignLandingPage>, Error>({
-    queryKey: campaignsQueryKeys.listInfinite(),
+    queryKey: [...campaignsQueryKeys.listInfinite(), filters, orderBy],
     queryFn: async ({ pageParam = 0 }) => {
-      return fetchCampaigns({ limit: pageSize, offset: pageParam as number });
+      return fetchCampaigns(filters, orderBy, { limit: pageSize, offset: pageParam as number });
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
@@ -97,6 +108,8 @@ export function useCampaignsInfinite(pageSize: number = DEFAULT_PAGE_SIZE) {
     },
     enabled: true,
     staleTime: 30 * 1000,
+    refetchInterval: pollInterval, // Background polling
+    refetchIntervalInBackground: false, // Don't poll when tab is not focused
   });
 }
 

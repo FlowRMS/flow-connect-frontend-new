@@ -119,6 +119,7 @@ const GET_PRE_OPPORTUNITY = `
         preOpportunityId
         itemNumber
         productId
+        factoryId
         product {
           id
           factoryPartNumber
@@ -136,6 +137,10 @@ const GET_PRE_OPPORTUNITY = `
           tags
           unitPriceDiscountRate
           upc
+        }
+        factory {
+          id
+          title
         }
         quantity
         unitPrice
@@ -224,6 +229,7 @@ const GET_PRE_OPPORTUNITIES_BY_JOB = `
         preOpportunityId
         itemNumber
         productId
+        factoryId
         product {
           id
           factoryPartNumber
@@ -232,6 +238,10 @@ const GET_PRE_OPPORTUNITIES_BY_JOB = `
           defaultCommissionRate
           approvalNeeded
           published
+        }
+        factory {
+          id
+          title
         }
         quantity
         unitPrice
@@ -279,6 +289,7 @@ const GET_PRE_OPPORTUNITIES_BY_CUSTOMER = `
         preOpportunityId
         itemNumber
         productId
+        factoryId
         product {
           id
           factoryPartNumber
@@ -287,6 +298,10 @@ const GET_PRE_OPPORTUNITIES_BY_CUSTOMER = `
           defaultCommissionRate
           approvalNeeded
           published
+        }
+        factory {
+          id
+          title
         }
         quantity
         unitPrice
@@ -332,7 +347,8 @@ const SEARCH_CUSTOMERS = `
       id
       companyName
       parentId
-
+      isParent
+      buyingGroupId
     }
   }
 `;
@@ -412,6 +428,7 @@ const CREATE_PRE_OPPORTUNITY = `
         preOpportunityId
         itemNumber
         productId
+        factoryId
         product {
           id
           factoryPartNumber
@@ -429,6 +446,10 @@ const CREATE_PRE_OPPORTUNITY = `
           tags
           unitPriceDiscountRate
           upc
+        }
+        factory {
+          id
+          title
         }
         quantity
         unitPrice
@@ -531,6 +552,7 @@ const UPDATE_PRE_OPPORTUNITY = `
         preOpportunityId
         itemNumber
         productId
+        factoryId
         product {
           id
           factoryPartNumber
@@ -548,6 +570,10 @@ const UPDATE_PRE_OPPORTUNITY = `
           tags
           unitPriceDiscountRate
           upc
+        }
+        factory {
+          id
+          title
         }
         quantity
         unitPrice

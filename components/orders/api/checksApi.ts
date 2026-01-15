@@ -12,6 +12,8 @@ import {
   createCheck as _createCheck,
   updateCheck as _updateCheck,
   deleteCheck as _deleteCheck,
+  fetchPostedStatement as _fetchPostedStatement,
+  postCheck as _postCheck,
   type CreateCheckInput,
   type UpdateCheckInput,
 } from '../../lib/graphql/checks';
@@ -25,11 +27,16 @@ export {
   createCheck,
   updateCheck,
   deleteCheck,
+  fetchPostedStatement,
+  postCheck,
   type Check,
   type CheckLandingPage,
   type CheckFactory,
   type CheckInvoice,
   type CheckInvoiceOrder,
+  type CheckInvoiceOrderCustomer,
+  type CheckInvoiceSalesRep,
+  type CheckInvoiceBalance,
   type CheckCredit,
   type CheckCreditOrder,
   type CheckAdjustment,
@@ -43,6 +50,10 @@ export {
   type UpdateCheckInput,
   type CheckDetailInput,
   type FindChecksLandingPagesResponse,
+  type PostedStatement,
+  type PostedStatementHeader,
+  type PostedStatementDetail,
+  type PostedStatementRepSummary,
 } from '../../lib/graphql/checks';
 
 // ============================================================================
@@ -122,6 +133,31 @@ export function useChecksByFactory(factoryId: string | null) {
 }
 
 /**
+ * Fetch all check IDs for bulk operations
+ * Used when user selects all including unloaded items
+ */
+export async function fetchAllCheckIds(
+  filters?: Array<{ columnName: string; operator: string; value: string }>
+): Promise<string[]> {
+  // First get the total count
+  const initialResult = await _fetchChecksLandingPage(filters, 1, 0);
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all IDs in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await _fetchChecksLandingPage(filters, batchSize, offset);
+    allIds.push(...result.records.map(r => r.id));
+  }
+
+  return allIds;
+}
+
+/**
  * Hook to create a check
  */
 export function useCreateCheck() {
@@ -172,6 +208,39 @@ export function useDeleteCheck() {
       queryClient.invalidateQueries({ queryKey: ['checksInfinite'] });
       queryClient.invalidateQueries({ queryKey: ['checkSearch'] });
       queryClient.invalidateQueries({ queryKey: ['checksByFactory'] });
+    },
+  });
+}
+
+/**
+ * Hook to fetch posted statement data for a check
+ * Returns summary, header, and detail information for a posted check
+ */
+export function usePostedStatement(checkId: string | null, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['postedStatement', checkId],
+    queryFn: () => (checkId ? _fetchPostedStatement(checkId) : null),
+    enabled: !!checkId && enabled,
+  });
+}
+
+/**
+ * Hook to post a check
+ * Changes status from OPEN to POSTED, finalizing the check
+ */
+export function usePostCheck() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (checkId: string) => _postCheck(checkId),
+    onSuccess: (data) => {
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ['check', data.id] });
+      queryClient.invalidateQueries({ queryKey: ['checksLandingPage'] });
+      queryClient.invalidateQueries({ queryKey: ['checksInfinite'] });
+      queryClient.invalidateQueries({ queryKey: ['checkSearch'] });
+      queryClient.invalidateQueries({ queryKey: ['checksByFactory'] });
+      queryClient.invalidateQueries({ queryKey: ['postedStatement', data.id] });
     },
   });
 }

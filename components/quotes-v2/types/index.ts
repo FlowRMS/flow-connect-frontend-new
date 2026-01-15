@@ -17,6 +17,7 @@ import type {
 export type {
   Quote,
   QuoteLandingPage,
+  QuoteLandingPageSalesRep,
   QuoteDetail,
   QuoteBalance,
   QuoteCustomer,
@@ -138,6 +139,13 @@ export interface QuoteV2 {
   // Header-level manufacturer (used when factoryPerLineItem is false)
   factoryId?: string;
   factoryName?: string;
+
+  // New landing page fields
+  partNumbers?: string[];
+  salesReps?: { avgSplitRate?: number; fullName?: string; total?: number }[];
+  factories?: string[];
+  endUsers?: string[];
+  categories?: string[];
 }
 
 export interface LineItemV2 {
@@ -194,9 +202,14 @@ export interface LineItemV2 {
   // Status
   status?: QuoteDetailStatus;
 
+  // Pricing source tracking - marks if price was manually set vs auto-calculated
+  isManualPrice?: boolean;
+  // Pricing source for UI display: 'product' | 'cpn' | 'manual' | 'tier:X-Y'
+  pricingSource?: string;
+
   // Split rates - inside and outside reps at line item level
-  insideSplitRates?: { id: string; userId?: string; splitRate?: string; position?: number }[];
-  outsideSplitRates?: { id: string; userId?: string; splitRate?: string; position?: number }[];
+  insideSplitRates?: { id: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
+  outsideSplitRates?: { id: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
 }
 
 export interface NoteV2 {
@@ -381,9 +394,9 @@ export function transformLandingPageToQuoteV2(quote: QuoteLandingPage): QuoteV2 
     apiStatus: quote.status,
     published: quote.published,
 
-    // Customer info - not available in landing page, will be empty
+    // Customer info - now available from landing page
     soldToCustomerId: '',
-    soldToCustomerName: '',
+    soldToCustomerName: quote.soldToCustomerName || '',
     billToCustomerId: '',
     billToCustomerName: '',
 
@@ -418,12 +431,19 @@ export function transformLandingPageToQuoteV2(quote: QuoteLandingPage): QuoteV2 
     // Tags - Coming soon
     tags: [],
 
-    // Counts - Coming soon
-    factoriesCount: 0,
-    endUsersCount: 0,
+    // Counts - derive from new fields
+    factoriesCount: quote.factories?.length || 0,
+    endUsersCount: quote.endUsers?.length || 0,
 
     // Created by
     createdById: quote.createdBy,
+
+    // New landing page fields
+    partNumbers: quote.partNumbers,
+    salesReps: quote.salesReps,
+    factories: quote.factories,
+    endUsers: quote.endUsers,
+    categories: quote.categories,
   };
 }
 
@@ -523,8 +543,8 @@ export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: s
     partNumber: detail.productNameAdhoc || detail.product?.factoryPartNumber || '',
     customerPartNumber: '', // CPN is fetched separately via product CPNs API
     description: detail.productDescriptionAdhoc || detail.product?.description || '',
-    manufacturerId: detail.factoryId,
-    manufacturerName: '', // Factory name not available in response - selected via dropdown
+    manufacturerId: detail.factoryId || detail.factory?.id,
+    manufacturerName: detail.factory?.title || '', // Factory name now comes from factory object in response
 
     // Quantity
     quantity,
@@ -579,19 +599,23 @@ function isValidUUID(id: string): boolean {
 /**
  * Transform LineItemV2 back to QuoteDetailInput for API
  *
- * When per-line-item settings are enabled, each line item uses its own split rates.
- * When disabled, all line items use the header-level split rates.
+ * When per-line-item settings are enabled, each line item uses its own split rates/factory/endUser.
+ * When disabled, all line items use the header-level split rates/factory/endUser.
  *
  * @param lineItem - The line item to transform
  * @param headerInsideReps - Header-level inside reps (only used when insideRepAtLineLevel is false)
  * @param headerOutsideReps - Header-level outside reps (only used when outsideRepAtLineLevel is false)
- * @param settings - Quote settings to determine whether to use header or line-item level reps
+ * @param settings - Quote settings to determine whether to use header or line-item level reps/factory/endUser
+ * @param headerFactoryId - Header-level factory ID (used when factoryPerLineItem is false)
+ * @param headerEndUserId - Header-level end user ID (used when specifyEndUserPerLine is false)
  */
 export function transformLineItemV2ToDetailInput(
   lineItem: LineItemV2,
   headerInsideReps?: { id: string; userId?: string; splitRate?: string; position?: number }[],
   headerOutsideReps?: { id: string; userId?: string; splitRate?: string; position?: number }[],
-  settings?: { insideRepAtLineLevel?: boolean; outsideRepAtLineLevel?: boolean }
+  settings?: { insideRepAtLineLevel?: boolean; outsideRepAtLineLevel?: boolean; factoryPerLineItem?: boolean; specifyEndUserPerLine?: boolean },
+  headerFactoryId?: string,
+  headerEndUserId?: string
 ): {
   id?: string;
   itemNumber?: number;
@@ -616,6 +640,10 @@ export function transformLineItemV2ToDetailInput(
   // New items with IDs like "li-123456" should not send ID
   const id = lineItem.id && isValidUUID(lineItem.id) ? lineItem.id : undefined;
 
+  // CRITICAL: If the line item is NEW (no valid UUID), its split rates should also NOT have IDs
+  // This prevents sending randomly generated UUIDs that don't exist in the database
+  const isNewLineItem = !id;
+
   // Determine which split rates to use based on settings:
   // - If per-line-item is enabled (insideRepAtLineLevel/outsideRepAtLineLevel = true), use lineItem's split rates
   // - If per-line-item is disabled (false), use header-level reps for all line items
@@ -624,22 +652,37 @@ export function transformLineItemV2ToDetailInput(
   const useLineItemOutsideReps = settings?.outsideRepAtLineLevel !== false;
 
   // Build insideSplitRates - use line item's rates or header rates based on setting
+  // Only include split rate ID if the parent line item is NOT new (existing in DB)
   const insideRepsSource = useLineItemInsideReps ? lineItem.insideSplitRates : headerInsideReps;
   const insideSplitRates = insideRepsSource?.map((rep) => ({
-    ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
+    ...(!isNewLineItem && rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
     userId: rep.userId || '',
     splitRate: Number(rep.splitRate) || 100,
     position: rep.position,
   }));
 
   // Build outsideSplitRates - use line item's rates or header rates based on setting
+  // Only include split rate ID if the parent line item is NOT new (existing in DB)
   const outsideRepsSource = useLineItemOutsideReps ? lineItem.outsideSplitRates : headerOutsideReps;
   const outsideSplitRates = outsideRepsSource?.map((rep) => ({
-    ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
+    ...(!isNewLineItem && rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
     userId: rep.userId || '',
     splitRate: Number(rep.splitRate) || 100,
     position: rep.position,
   }));
+
+  // Determine which factoryId to use:
+  // - If factoryPerLineItem is true (or undefined for backwards compatibility), use line item's manufacturerId
+  // - If factoryPerLineItem is false, use header-level factoryId for all line items
+  const useLineItemFactory = settings?.factoryPerLineItem !== false;
+  const factoryId = useLineItemFactory ? lineItem.manufacturerId : headerFactoryId;
+
+  // Determine which endUserId to use:
+  // - If specifyEndUserPerLine is true, use line item's endUserId
+  // - If specifyEndUserPerLine is false, use header-level endUserId for all line items
+  const useLineItemEndUser = settings?.specifyEndUserPerLine === true;
+  const endUserIdSource = useLineItemEndUser ? lineItem.endUserId : headerEndUserId;
+  const endUserId = endUserIdSource && isValidUUID(endUserIdSource) ? endUserIdSource : undefined;
 
   return {
     id,
@@ -649,9 +692,8 @@ export function transformLineItemV2ToDetailInput(
     commissionDiscountRate: lineItem.commissionDiscountPercent?.toString(),
     commissionRate: lineItem.commissionPercent?.toString(),
     discountRate: lineItem.lineDiscountPercent?.toString(),
-    // Only include endUserId if it's a valid UUID (not empty string)
-    endUserId: lineItem.endUserId && isValidUUID(lineItem.endUserId) ? lineItem.endUserId : undefined,
-    factoryId: lineItem.manufacturerId,
+    endUserId,
+    factoryId,
     leadTime: lineItem.leadTime,
     note: lineItem.note,
     productDescriptionAdhoc: lineItem.description,

@@ -13,9 +13,21 @@ interface GridViewProps {
   onCustomerClick: (customer: CustomerLandingPage) => void;
   onEditClick: (customer: CustomerLandingPage) => void;
   onDeleteClick: (customer: CustomerLandingPage) => void;
+  selectedIds: Set<string>;
+  excludedIds: Set<string>;
+  selectAllMode: boolean;
+  isItemSelected: (id: string) => boolean;
+  onSelectOne: (id: string, checked: boolean) => void;
 }
 
-export function GridView({ customers, onCustomerClick, onEditClick, onDeleteClick }: GridViewProps) {
+export function GridView({
+  customers,
+  onCustomerClick,
+  onEditClick,
+  onDeleteClick,
+  isItemSelected,
+  onSelectOne,
+}: GridViewProps) {
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
     try {
@@ -46,28 +58,50 @@ export function GridView({ customers, onCustomerClick, onEditClick, onDeleteClic
       {customers.map((customer) => (
         <div
           key={customer.id}
-          className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4 hover:shadow-md transition-all cursor-pointer group"
+          className={`bg-[var(--card)] border rounded-lg p-4 hover:shadow-md transition-all cursor-pointer group ${
+            isItemSelected(customer.id)
+              ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20'
+              : 'border-[var(--border)]'
+          }`}
           onClick={() => onCustomerClick(customer)}
         >
           {/* Header */}
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-lg font-semibold text-blue-600">
-                  {customer.companyName?.charAt(0).toUpperCase() || '?'}
-                </span>
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={isItemSelected(customer.id)}
+                  onChange={(e) => onSelectOne(customer.id, e.target.checked)}
+                  className="absolute top-0 left-0 w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ opacity: isItemSelected(customer.id) ? 1 : undefined }}
+                />
+                <div className={`w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  isItemSelected(customer.id) ? 'ring-2 ring-[var(--primary)]' : ''
+                }`}>
+                  <span className="text-lg font-semibold text-blue-600">
+                    {customer.companyName?.charAt(0).toUpperCase() || '?'}
+                  </span>
+                </div>
               </div>
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-[var(--foreground)] truncate">
                   {customer.companyName || 'Unnamed Customer'}
                 </h3>
-                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                  customer.isParent
-                    ? 'bg-purple-100 text-purple-700'
-                    : 'bg-gray-100 text-gray-700'
-                }`}>
-                  {customer.isParent ? 'Parent' : 'Child'}
-                </span>
+                {/* Hierarchy: Buying Group (top) -> Parent Customer -> Customer */}
+                {customer.isParent && !customer.parent && !customer.buyingGroup ? (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                    Buying Group
+                  </span>
+                ) : customer.isParent ? (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                    Parent
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                    Child
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
