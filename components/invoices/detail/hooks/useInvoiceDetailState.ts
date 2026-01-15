@@ -5,13 +5,14 @@
  * Uses real API data and supports order population
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import type { Invoice, OrderSplitRate, InvoiceStatus, InvoiceLineItem as RmsInvoiceLineItem } from '@/lib/types/rms';
 import type { TabType, ViewMode, LineItemCredit, OrderTooltipState, VersionInfo, RepSplit, ProductToConvert, ColumnKey, InvoiceLineItem, EditableInvoice } from '../types';
 import { mockSalesReps } from '@/lib/data/rms-mock';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import { calculateInvoiceTotals } from '../utils';
+import { useInvoiceSettings } from '@/contexts/UserSettingsContext';
 import {
   useInvoice,
   useCreateInvoice,
@@ -295,6 +296,12 @@ function createEmptyInvoice(): EditableInvoice {
 
 export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceDetailStateProps) {
   const isCreateMode = invoiceId === 'new';
+
+  // Get saved invoice settings from context (already cached, no extra API calls)
+  const { settings: savedInvoiceSettings, isInitialized: settingsInitialized } = useInvoiceSettings();
+
+  // Track if we've applied column settings to avoid re-applying on every render
+  const hasAppliedColumnSettings = useRef(false);
 
   // Fetch invoice from API
   const {
@@ -744,6 +751,21 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     new Set(DEFAULT_VISIBLE_COLUMNS)
   );
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
+
+  // Apply saved column configuration when settings are loaded
+  // This runs once when settings are initialized and applies to ALL invoices (new and existing)
+  useEffect(() => {
+    if (settingsInitialized && !hasAppliedColumnSettings.current) {
+      if (savedInvoiceSettings?.columnConfig && savedInvoiceSettings.columnConfig.length > 0) {
+        // Use saved settings - only include columns marked as visible
+        const visibleKeys = savedInvoiceSettings.columnConfig
+          .filter(col => col.visible)
+          .map(col => col.key as ColumnKey);
+        setVisibleColumns(new Set(visibleKeys));
+      }
+      hasAppliedColumnSettings.current = true;
+    }
+  }, [settingsInitialized, savedInvoiceSettings?.columnConfig]);
 
   // Header dropdowns
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);

@@ -36,6 +36,25 @@ const ALL_ORDER_COLUMNS: ColumnKey[] = [
   'ovgAmount',
   'earnPercent',
   'earnAmount',
+  'iconAcknowledgement',
+  'iconDocumentSpecific',
+  'iconWarehouse',
+  'iconCredit',
+];
+
+// Columns that are coming soon (not yet implemented)
+const COMING_SOON_COLUMNS: string[] = [
+  'invoiced',
+  'percentOver',
+  'commissionAmount',
+  'ovgPercent',
+  'ovgAmount',
+  'earnPercent',
+  'earnAmount',
+  'iconAcknowledgement',
+  'iconDocumentSpecific',
+  'iconWarehouse',
+  'iconCredit',
 ];
 
 // Create default column config from constants
@@ -203,6 +222,7 @@ export function OrderSettingsTab() {
           onChange={(columns) => handleSettingChange('columnConfig', columns as OrderColumnConfig[])}
           title="Order Line Item Columns"
           groupBy={false}
+          comingSoonKeys={COMING_SOON_COLUMNS}
         />
       </div>
 
