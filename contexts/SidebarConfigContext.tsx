@@ -78,6 +78,8 @@ const defaultConfig: SidebarConfig = {
         // { id: 'product-crosses', name: 'Product Crosses', href: '/product-crosses', enabled: true },
         { id: 'quotes', name: 'Quotes', href: '/quotes-v2', enabled: true },
         // { id: 'quotes-v2', name: 'Quotes V2', href: '/quotes-v2', enabled: true },
+        { id: 'submittals', name: 'Submittals', href: '/submittals', enabled: true },
+        { id: 'spec-sheets', name: 'Spec Sheets', href: '/spec-sheets', enabled: true },
       ]
     },
     {

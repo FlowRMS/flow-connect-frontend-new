@@ -9,6 +9,8 @@ import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/use
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import CreateSubmittalModal from '@/components/submittals/CreateSubmittalModal';
+import type { QuoteLineItem } from '@/components/submittals/CreateSubmittalModal';
 
 // Quote status options using API enum values
 const quoteStatusOptions: QuoteV2Status[] = [
@@ -175,6 +177,7 @@ export function QuoteDetailHeaderV2({
     }
   };
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
+  const [showCreateSubmittalModal, setShowCreateSubmittalModal] = useState(false);
   const [showQuoteDetails, setShowQuoteDetails] = useState(true);
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
 
@@ -732,6 +735,25 @@ export function QuoteDetailHeaderV2({
                       <path d="M3 5h14M3 10h14M3 15h7" strokeLinecap="round" />
                     </svg>
                     Create Order
+                  </button>
+
+                  {/* Create Submittal */}
+                  <button
+                    onClick={() => {
+                      setShowActionsMenu(false);
+                      setShowCreateSubmittalModal(true);
+                    }}
+                    disabled={isNew || !quote.id}
+                    className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
+                      isNew || !quote.id ? 'text-gray-400 cursor-not-allowed' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M14 2v6h6" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M9 15l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Create Submittal
                   </button>
 
                   {/* Duplicate Quote */}
@@ -1821,6 +1843,26 @@ export function QuoteDetailHeaderV2({
         lineItems={lineItems}
         onClose={() => setShowCreateOrderModal(false)}
       />
+
+      {/* Create Submittal Modal */}
+      {showCreateSubmittalModal && (
+        <CreateSubmittalModal
+          onClose={() => setShowCreateSubmittalModal(false)}
+          onCreate={(submittal) => {
+            console.log('Created submittal:', submittal);
+            setShowCreateSubmittalModal(false);
+          }}
+          preselectedQuoteId={quote.id}
+          preselectedQuoteName={quote.quoteNumber}
+          quoteLineItems={lineItems.map((item): QuoteLineItem => ({
+            id: item.id,
+            catalogNumber: item.partNumber,
+            manufacturer: item.manufacturerName,
+            description: item.description,
+            quantity: item.quantity,
+          }))}
+        />
+      )}
 
       {/* PDF Builder */}
       <PDFBuilder
