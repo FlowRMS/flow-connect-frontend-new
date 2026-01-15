@@ -70,8 +70,8 @@ export default function OrdersListContent() {
       }
     : undefined;
 
-  // Determine if we're loading (initial load or refetch)
-  const isLoading = state.isLoading || state.isFetching;
+  // Determine if we're loading (only initial load, not when fetching more pages)
+  const isLoading = state.isLoading;
 
   // Check if there are any filters applied (advanced filters, quick date filter, column filters, or search)
   const hasFilters = state.activeFilters.length > 0 || 
@@ -231,7 +231,7 @@ export default function OrdersListContent() {
         </div>
 
         {/* Orders Table */}
-        <div className="flex-1 overflow-hidden p-6 pt-4 min-h-0 flex flex-col" onScroll={state.handleScroll}>
+        <div className="flex-1 overflow-hidden p-6 pt-4 min-h-0 flex flex-col">
           <OrdersTable
             filteredOrders={state.filteredOrders}
             isLoading={isLoading}
@@ -249,6 +249,10 @@ export default function OrdersListContent() {
             onColumnFiltersChange={state.handleColumnFiltersChange}
             filterOptions={state.orderFilterOptionsWithValues}
             columnFilters={state.columnFilters}
+            hasNextPage={state.hasNextPage}
+            isFetchingNextPage={state.isFetchingNextPage}
+            fetchNextPage={state.fetchNextPage}
+            searchQuery={state.searchQuery}
           />
 
           {/* Empty State - shown outside table when no data */}

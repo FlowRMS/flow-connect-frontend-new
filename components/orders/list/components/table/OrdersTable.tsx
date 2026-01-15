@@ -3,6 +3,7 @@
  * Main table component that assembles header, rows, bulk actions, etc.
  */
 
+import { useRef } from 'react';
 import type { Order } from '@/lib/types/rms';
 import { isOrderLinked, getOrderLinkedReason } from '../../utils';
 import { BulkActionsBar } from './BulkActionsBar';
@@ -12,6 +13,7 @@ import { OrdersEmptyState } from './OrdersEmptyState';
 import { OrdersTableSkeleton } from './OrdersTableSkeleton';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { getOrderFilterOptions } from '../../config/filterConfig';
+import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
 
 interface OrdersTableProps {
   // Data
@@ -37,6 +39,11 @@ interface OrdersTableProps {
   onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
   filterOptions?: ReturnType<typeof getOrderFilterOptions>;
   columnFilters?: Record<string, ActiveFilter[]>;
+  // Pagination props for infinite scroll
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
+  searchQuery?: string;
 }
 
 export function OrdersTable({
@@ -56,7 +63,24 @@ export function OrdersTable({
   onColumnFiltersChange,
   filterOptions,
   columnFilters,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+  searchQuery = '',
 }: OrdersTableProps) {
+  // Ref for the scrollable container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Use scroll pagination hook to detect when scrolling near bottom of table
+  // Only enable pagination when not searching (search results are handled differently)
+  const shouldPaginate = (hasNextPage ?? false) && !searchQuery;
+  useScrollPagination(scrollContainerRef, {
+    hasNextPage: shouldPaginate,
+    isFetchingNextPage: isFetchingNextPage ?? false,
+    fetchNextPage: fetchNextPage ?? (() => {}),
+    threshold: 200, // Trigger when within 200px of bottom
+  });
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
       {/* Bulk Actions Bar */}
@@ -76,7 +100,10 @@ export function OrdersTable({
         null
       ) : (
         <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 240px)' }}>
-          <div className="overflow-auto scrollbar-always-visible flex-1">
+          <div 
+            ref={scrollContainerRef}
+            className="overflow-auto scrollbar-always-visible flex-1"
+          >
             <table className="w-full min-w-[1800px]">
               <OrdersTableHeader
                 filteredOrders={filteredOrders}

@@ -3,6 +3,7 @@
  * Main table component that assembles header, rows, bulk actions, etc.
  */
 
+import { useRef } from 'react';
 import type { Invoice } from '@/lib/types/rms';
 import { isInvoiceLinked, getInvoiceLinkedReason } from '../../utils';
 import { InvoicesTableHeader } from './InvoicesTableHeader';
@@ -11,6 +12,7 @@ import { InvoicesEmptyState } from './InvoicesEmptyState';
 import { InvoicesTableSkeleton } from './InvoicesTableSkeleton';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { getInvoiceFilterOptions } from '../../config/filterConfig';
+import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
 
 interface InvoicesTableProps {
   // Data
@@ -40,6 +42,11 @@ interface InvoicesTableProps {
   bulkDelete: () => void;
   // Selected invoice for preview
   setSelectedInvoice: (invoice: Invoice) => void;
+  // Pagination props for infinite scroll
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
+  searchQuery?: string;
 }
 
 export function InvoicesTable({
@@ -63,7 +70,24 @@ export function InvoicesTable({
   bulkSetStatus,
   bulkDelete,
   setSelectedInvoice,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+  searchQuery = '',
 }: InvoicesTableProps) {
+  // Ref for the scrollable container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Use scroll pagination hook to detect when scrolling near bottom of table
+  // Only enable pagination when not searching (search results are handled differently)
+  const shouldPaginate = (hasNextPage ?? false) && !searchQuery;
+  useScrollPagination(scrollContainerRef, {
+    hasNextPage: shouldPaginate,
+    isFetchingNextPage: isFetchingNextPage ?? false,
+    fetchNextPage: fetchNextPage ?? (() => {}),
+    threshold: 200, // Trigger when within 200px of bottom
+  });
+
   // Compatibility layer: use new API if available, fall back to legacy
   const checkIsSelected = (id: string) =>
     isItemSelected ? isItemSelected(id) : selectedInvoiceIds.has(id);
@@ -81,7 +105,10 @@ export function InvoicesTable({
         null
       ) : (
         <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 240px)' }}>
-          <div className="overflow-auto scrollbar-always-visible flex-1">
+          <div 
+            ref={scrollContainerRef}
+            className="overflow-auto scrollbar-always-visible flex-1"
+          >
             <table className="w-full min-w-[1640px]">
               <InvoicesTableHeader
                 filteredInvoices={filteredInvoices}

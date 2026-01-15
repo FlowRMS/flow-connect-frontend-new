@@ -196,7 +196,7 @@ export default function CommissionsListContent() {
         </div>
 
         {/* Commissions Table */}
-        <div className="flex-1 overflow-auto p-6 pt-4" onScroll={state.handleScroll}>
+        <div className="flex-1 overflow-auto p-6 pt-4">
           <CommissionsTable
             filteredChecks={state.checks}
             isLoading={state.isLoadingChecks}
@@ -222,6 +222,9 @@ export default function CommissionsListContent() {
             bulkDelete={handleBulkDelete}
             setSelectedCheck={state.setSelectedCheck}
             isBulkUpdating={state.isBulkUpdating}
+            hasNextPage={state.hasNextPage}
+            isFetchingNextPage={state.isFetchingNextPage}
+            fetchNextPage={state.fetchNextPage}
           />
           {/* Infinite Scroll Loading Indicator */}
           {state.isFetchingNextPage && (

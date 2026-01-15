@@ -202,10 +202,17 @@ export function useCommissionsListState() {
     isFetchingNextPage,
   } = useChecksInfinite(filters, DEFAULT_PAGE_SIZE, orderBy);
 
-  // Flatten paginated data
+  // Flatten paginated data with deduplication
   const allChecksData = useMemo(() => {
     if (!checksData?.pages) return [];
-    return checksData.pages.flatMap(page => page.records);
+    const allRecords = checksData.pages.flatMap(page => page.records);
+    // Deduplicate by ID to prevent duplicate keys in React
+    const seen = new Set<string>();
+    return allRecords.filter(record => {
+      if (seen.has(record.id)) return false;
+      seen.add(record.id);
+      return true;
+    });
   }, [checksData]);
 
   // Get total count

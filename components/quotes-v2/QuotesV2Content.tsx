@@ -25,6 +25,7 @@ import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
 import { useSortState } from '@/components/shared/sorting/hooks/useSortState';
 import { SortMenu } from '@/components/shared/sorting/components/SortMenu';
 import { QUOTE_SORT_CONFIGS, DEFAULT_QUOTE_SORT } from './config/sortConfig';
+import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
@@ -292,10 +293,17 @@ export function QuotesV2Content() {
   // Search quotes
   const { data: searchResults, isLoading: isSearching } = useQuoteSearchV2(searchQuery, 100);
 
-  // Flatten paginated data
+  // Flatten paginated data with deduplication
   const allQuotesData = useMemo(() => {
     if (!quotesData?.pages) return [];
-    return quotesData.pages.flatMap(page => page.records);
+    const allRecords = quotesData.pages.flatMap(page => page.records);
+    // Deduplicate by ID to prevent duplicate keys in React
+    const seen = new Set<string>();
+    return allRecords.filter(record => {
+      if (seen.has(record.id)) return false;
+      seen.add(record.id);
+      return true;
+    });
   }, [quotesData]);
 
   
@@ -363,7 +371,15 @@ export function QuotesV2Content() {
   const quotes = useMemo<QuoteV2[]>(() => {
     // If searching and we have results, transform search results
     if (searchQuery.length >= 2 && searchResults) {
-      return searchResults.map((result: QuoteSearchResult) => ({
+      // Deduplicate search results as well to prevent duplicate keys
+      const seen = new Set<string>();
+      const uniqueSearchResults = searchResults.filter((result: QuoteSearchResult) => {
+        if (seen.has(result.id)) return false;
+        seen.add(result.id);
+        return true;
+      });
+      
+      return uniqueSearchResults.map((result: QuoteSearchResult) => ({
         id: result.id,
         quoteNumber: result.quoteNumber,
         stage: 'Draft' as const,
@@ -403,23 +419,14 @@ export function QuotesV2Content() {
   }, [allQuotesData, searchQuery, searchResults]);
 
   // Scroll-based pagination - load more when scrolling near bottom
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
-
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-      // Load more when within 200px of bottom
-      if (scrollHeight - scrollTop - clientHeight < 200) {
-        if (hasNextPage && !isFetchingNextPage && !searchQuery) {
-          fetchNextPage();
-        }
-      }
-    };
-
-    scrollContainer.addEventListener('scroll', handleScroll);
-    return () => scrollContainer.removeEventListener('scroll', handleScroll);
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, searchQuery]);
+  // Only enable pagination when not searching (search results are handled differently)
+  const shouldPaginate = (hasNextPage ?? false) && !searchQuery;
+  useScrollPagination(scrollContainerRef, {
+    hasNextPage: shouldPaginate,
+    isFetchingNextPage: isFetchingNextPage ?? false,
+    fetchNextPage: fetchNextPage ?? (() => {}),
+    threshold: 200, // Trigger when within 200px of bottom
+  });
 
   // Get total count from first page
   const totalCount = useMemo(() => {
@@ -774,7 +781,7 @@ export function QuotesV2Content() {
                   filterOptions={quoteFilterOptionsWithValues}
                   columnFilters={columnFilters}
                   isLoading={isLoading}
-                  isFetching={isFetching}
+                  isFetching={false}
                   hasActiveFilters={hasActiveFilters}
                   activeSort={sortState.activeSort}
                   onSortChange={sortState.toggleSort}

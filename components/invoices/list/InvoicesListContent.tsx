@@ -100,11 +100,10 @@ export default function InvoicesListContent() {
                   transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
                 >
                   Manage invoices and track payments
-                  {state.totalCount > 0 && (
-                    <span className="ml-2 text-[var(--muted-foreground)]">
-                      ({state.totalCount} total)
-                    </span>
-                  )}
+                  {' • '}
+                  {state.searchQuery.length >= 2
+                    ? `${state.filteredInvoices.length} results for "${state.searchQuery}"`
+                    : `Showing ${state.filteredInvoices.length} of ${state.totalCount} invoices`}
                 </motion.p>
               </div>
             </div>
@@ -217,10 +216,7 @@ export default function InvoicesListContent() {
         )}
 
         {/* Invoices Table with infinite scroll */}
-        <div
-          className="flex-1 overflow-auto p-6 pt-4"
-          onScroll={state.handleScroll}
-        >
+        <div className="flex-1 overflow-auto p-6 pt-4">
           <InvoicesTable
             filteredInvoices={state.filteredInvoices}
             isLoading={state.isLoading}
@@ -242,6 +238,10 @@ export default function InvoicesListContent() {
             bulkSetStatus={state.bulkSetStatus}
             bulkDelete={state.bulkDelete}
             setSelectedInvoice={state.setSelectedInvoice}
+            hasNextPage={state.hasNextPage}
+            isFetchingNextPage={state.isFetchingNextPage}
+            fetchNextPage={state.fetchNextPage}
+            searchQuery={state.searchQuery}
           />
 
           {/* Empty State - shown outside table when no data */}

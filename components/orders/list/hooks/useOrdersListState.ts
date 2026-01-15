@@ -419,7 +419,15 @@ export function useOrdersListState() {
   const orders = useMemo(() => {
     // If searching and we have results, transform search results
     if (searchQuery.length >= 2 && searchResults) {
-      return searchResults.map((result: OrderSearchResult) => transformSearchResultToOrder(result));
+      // Deduplicate search results as well to prevent duplicate keys
+      const seen = new Set<string>();
+      const uniqueSearchResults = searchResults.filter((result: OrderSearchResult) => {
+        if (seen.has(result.id)) return false;
+        seen.add(result.id);
+        return true;
+      });
+      
+      return uniqueSearchResults.map((result: OrderSearchResult) => transformSearchResultToOrder(result));
     }
 
     if (!allOrdersData.length) return [];

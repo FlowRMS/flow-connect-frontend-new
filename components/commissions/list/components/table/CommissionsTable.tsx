@@ -3,6 +3,7 @@
  * Main table component that assembles header, rows, bulk actions, etc.
  */
 
+import { useRef } from 'react';
 import type { CommissionCheck } from '@/lib/types/rms';
 import type { CheckStatus } from '@/components/lib/graphql/checks';
 import type { SortField, SortDirection } from '../../types';
@@ -14,6 +15,7 @@ import { CommissionsTableHeader } from './CommissionsTableHeader';
 import { CommissionRow } from './CommissionRow';
 import { CommissionsEmptyState } from './CommissionsEmptyState';
 import { CommissionsTableSkeleton } from './CommissionsTableSkeleton';
+import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
 
 interface CommissionsTableProps {
   // Data
@@ -48,6 +50,10 @@ interface CommissionsTableProps {
   isBulkUpdating?: boolean;
   // Selected check for preview
   setSelectedCheck: (check: CommissionCheck) => void;
+  // Pagination props for infinite scroll
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
 }
 
 export function CommissionsTable({
@@ -75,7 +81,21 @@ export function CommissionsTable({
   bulkDelete,
   isBulkUpdating = false,
   setSelectedCheck,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
 }: CommissionsTableProps) {
+  // Ref for the scrollable container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Use scroll pagination hook to detect when scrolling near bottom of table
+  useScrollPagination(scrollContainerRef, {
+    hasNextPage: hasNextPage ?? false,
+    isFetchingNextPage: isFetchingNextPage ?? false,
+    fetchNextPage: fetchNextPage ?? (() => {}),
+    threshold: 200, // Trigger when within 200px of bottom
+  });
+
   // Compatibility layer: use new API if available, fall back to legacy
   const checkIsSelected = (id: string) =>
     isItemSelected ? isItemSelected(id) : selectedCheckIds.has(id);
@@ -92,7 +112,10 @@ export function CommissionsTable({
         <CommissionsEmptyState />
       ) : (
         <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 240px)' }}>
-          <div className="overflow-auto scrollbar-always-visible flex-1">
+          <div 
+            ref={scrollContainerRef}
+            className="overflow-auto scrollbar-always-visible flex-1"
+          >
             <table className="w-full min-w-[1200px]">
               <CommissionsTableHeader
                 filteredChecks={filteredChecks}

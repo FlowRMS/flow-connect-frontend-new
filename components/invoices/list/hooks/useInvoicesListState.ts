@@ -332,10 +332,17 @@ export function useInvoicesListState() {
   // Search invoices
   const { data: searchResults, isLoading: isSearching } = useInvoiceSearch(searchQuery, searchQuery.length >= 2);
 
-  // Flatten paginated data
+  // Flatten paginated data with deduplication
   const allInvoicesData = useMemo(() => {
     if (!invoicesData?.pages) return [];
-    return invoicesData.pages.flatMap(page => page.records);
+    const allRecords = invoicesData.pages.flatMap(page => page.records);
+    // Deduplicate by ID to prevent duplicate keys in React
+    const seen = new Set<string>();
+    return allRecords.filter(record => {
+      if (seen.has(record.id)) return false;
+      seen.add(record.id);
+      return true;
+    });
   }, [invoicesData]);
 
   // Get total count
@@ -348,7 +355,15 @@ export function useInvoicesListState() {
   const invoices: Invoice[] = useMemo(() => {
     // If searching and we have results, transform search results
     if (searchQuery.length >= 2 && searchResults) {
-      return searchResults.map((result: any): Invoice => ({
+      // Deduplicate search results as well
+      const seen = new Set<string>();
+      const uniqueSearchResults = searchResults.filter((result: any) => {
+        if (seen.has(result.id)) return false;
+        seen.add(result.id);
+        return true;
+      });
+      
+      return uniqueSearchResults.map((result: any): Invoice => ({
         id: result.id,
         invoiceNumber: result.invoiceNumber || '',
         orderId: result.orderId || '',
