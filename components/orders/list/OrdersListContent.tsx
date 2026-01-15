@@ -1,5 +1,5 @@
 /**
- * 
+ *
  * OrdersListContent Component
  * Main container for the orders list
  *
@@ -7,8 +7,13 @@
 
 'use client';
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
 import { useOrdersListState } from './hooks/useOrdersListState';
 import { getOrderFilterOptions } from './config/filterConfig';
@@ -24,6 +29,22 @@ import {
 export default function OrdersListContent() {
   const router = useRouter();
   const state = useOrdersListState();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  // Register header target on mount
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'orders';
 
   const filterOptions = getOrderFilterOptions();
 
@@ -71,17 +92,42 @@ export default function OrdersListContent() {
         {/* Header */}
         <div className="p-6 pb-0">
           <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-semibold text-[var(--foreground)]">
-                Orders
-              </h1>
-              <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                {state.searchQuery.length >= 2
-                  ? `${state.filteredOrders.length} results for "${state.searchQuery}"`
-                  : `Showing ${state.filteredOrders.length} of ${state.totalCount} orders`}
-              </p>
+            <div className="flex items-start gap-4">
+              {/* Morphing Icon Target - Package Reveal Animation */}
+              <HeaderIconAnimation
+                isReceivingAnimation={isReceivingAnimation}
+                animationStyle="package-reveal"
+                headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+              >
+                {iconMap['orders']}
+              </HeaderIconAnimation>
+              <div className="overflow-hidden">
+                <motion.h1
+                  className="text-2xl font-semibold text-[var(--foreground)]"
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+                >
+                  Orders
+                </motion.h1>
+                <motion.p
+                  className="text-sm text-[var(--muted-foreground)] mt-1"
+                  initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+                >
+                  {state.searchQuery.length >= 2
+                    ? `${state.filteredOrders.length} results for "${state.searchQuery}"`
+                    : `Showing ${state.filteredOrders.length} of ${state.totalCount} orders`}
+                </motion.p>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
+            <motion.div
+              className="flex items-center gap-3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+            >
               {/* Search Bar */}
               <div className="relative">
                 <svg
@@ -138,7 +184,7 @@ export default function OrdersListContent() {
                 </svg>
                 New Order
               </button>
-            </div>
+            </motion.div>
           </div>
 
           {/* Quick Date Filter */}
