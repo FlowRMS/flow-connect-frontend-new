@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import type { WarehouseLayoutModalProps, ViewMode, AvailableProduct } from './types';
 import { useLocationManagement, useCanvasInteractions, useVisualElements } from './hooks';
 import { LocationTreeView } from './tree-view';
 import { VisualWarehouseBuilder } from './visual-builder';
 import { ModalHeader, ModalFooter } from './shared';
 import { filterLocations, findLocationById } from './utils';
-import { mockInventory } from '@/lib/data/warehouse-mock';
+import { searchProducts } from '@/components/lib/graphql/pre-opportunities';
 
 export default function WarehouseLayoutModal({
   isOpen,
@@ -15,7 +15,7 @@ export default function WarehouseLayoutModal({
   locationLevels,
   onSave,
   warehouseName,
-  warehouseId = 'WH-001',
+  warehouseId,
 }: WarehouseLayoutModalProps) {
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
@@ -40,23 +40,42 @@ export default function WarehouseLayoutModal({
     ? filterLocations(locationManagement.locations, locationManagement.searchQuery)
     : locationManagement.locations;
 
-  // Available products for assignment
-  const availableProducts: AvailableProduct[] = mockInventory.map((inv) => ({
-    id: inv.productId,
-    name: inv.productName,
-    partNumber: inv.partNumber,
-    factoryName: inv.factoryName,
-  }));
+  // Product search state
+  const [availableProducts, setAvailableProducts] = useState<AvailableProduct[]>([]);
+  const [isSearchingProducts, setIsSearchingProducts] = useState(false);
 
-  // Filter products
-  const filteredProducts = locationManagement.productSearchQuery
-    ? availableProducts.filter(
-        (p) =>
-          p.name.toLowerCase().includes(locationManagement.productSearchQuery.toLowerCase()) ||
-          p.partNumber.toLowerCase().includes(locationManagement.productSearchQuery.toLowerCase()) ||
-          p.factoryName?.toLowerCase().includes(locationManagement.productSearchQuery.toLowerCase())
-      )
-    : availableProducts;
+  // Fetch products when search query changes (with debounce)
+  useEffect(() => {
+    const query = locationManagement.productSearchQuery?.trim();
+    if (!query || query.length < 1) {
+      setAvailableProducts([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setIsSearchingProducts(true);
+      try {
+        const results = await searchProducts(query);
+        const mapped: AvailableProduct[] = results.map((p) => ({
+          id: p.id,
+          name: p.factoryPartNumber,
+          partNumber: p.factoryPartNumber,
+          factoryName: p.description || undefined,
+        }));
+        setAvailableProducts(mapped);
+      } catch (error) {
+        console.error('Failed to search products:', error);
+        setAvailableProducts([]);
+      } finally {
+        setIsSearchingProducts(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [locationManagement.productSearchQuery]);
+
+  // Products are already filtered by backend search, no need for client-side filtering
+  const filteredProducts = availableProducts;
 
   // Drag handlers for tree view
   const handleDragStart = useCallback(
@@ -102,13 +121,51 @@ export default function WarehouseLayoutModal({
     [locationManagement]
   );
 
-  // Save handler
-  const handleSave = useCallback(() => {
-    onSave(locationLevels);
-    onClose();
-  }, [locationLevels, onSave, onClose]);
+  // Save handler - saves locations to backend
+  const handleSave = useCallback(async () => {
+    try {
+      await locationManagement.saveLocations();
+      onSave(locationLevels);
+      onClose();
+    } catch (error) {
+      console.error('Failed to save locations:', error);
+      // TODO: Show error toast
+    }
+  }, [locationManagement, locationLevels, onSave, onClose]);
 
   if (!isOpen) return null;
+
+  // Show loading state
+  if (locationManagement.isLoading) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-[var(--card)] rounded-lg p-8 flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]"></div>
+          <p className="text-[var(--muted-foreground)]">Loading warehouse locations...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (locationManagement.error) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-[var(--card)] rounded-lg p-8 flex flex-col items-center gap-4 max-w-md">
+          <div className="text-red-500 text-lg font-medium">Failed to load locations</div>
+          <p className="text-[var(--muted-foreground)] text-center">
+            {locationManagement.error.message}
+          </p>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-[var(--muted)] rounded-md hover:bg-[var(--muted)]/80"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -133,6 +190,7 @@ export default function WarehouseLayoutModal({
             showProductSearch={locationManagement.showProductSearch}
             productSearchQuery={locationManagement.productSearchQuery}
             filteredProducts={filteredProducts}
+            isSearchingProducts={isSearchingProducts}
             enabledLevels={enabledLevels}
             onToggle={locationManagement.toggleNode}
             onStartEdit={locationManagement.setEditingId}
@@ -172,6 +230,7 @@ export default function WarehouseLayoutModal({
             onDelete={locationManagement.deleteLocation}
             onSave={handleSave}
             onClose={onClose}
+            isSaving={locationManagement.isSaving}
             onWheel={canvasInteractions.handleCanvasWheel}
             onMouseDown={canvasInteractions.handleCanvasMouseDown}
             onMouseMove={canvasInteractions.handleCanvasMouseMove}
@@ -187,7 +246,14 @@ export default function WarehouseLayoutModal({
         )}
 
         {/* Footer - only for tree view */}
-        {viewMode === 'tree' && <ModalFooter onSave={handleSave} onCancel={onClose} />}
+        {viewMode === 'tree' && (
+          <ModalFooter
+            onSave={handleSave}
+            onCancel={onClose}
+            isSaving={locationManagement.isSaving}
+            hasUnsavedChanges={locationManagement.hasUnsavedChanges}
+          />
+        )}
       </div>
     </div>
   );

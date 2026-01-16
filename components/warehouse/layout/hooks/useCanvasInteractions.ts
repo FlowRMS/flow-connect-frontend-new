@@ -27,11 +27,30 @@ export function useCanvasInteractions() {
     setPanOffset({ x: 0, y: 0 });
   }, []);
 
-  // Handle mouse wheel for zoom
+  // Handle mouse wheel for zoom (cursor-centered)
   const handleCanvasWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom((prev) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * delta)));
+
+    // Get cursor position relative to the canvas container
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Calculate new zoom
+    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+
+    setZoom((prevZoom) => {
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prevZoom * zoomFactor));
+      const actualZoomFactor = newZoom / prevZoom;
+
+      // Adjust pan offset to keep cursor position stationary
+      setPanOffset((prevPan) => ({
+        x: mouseX - (mouseX - prevPan.x) * actualZoomFactor,
+        y: mouseY - (mouseY - prevPan.y) * actualZoomFactor,
+      }));
+
+      return newZoom;
+    });
   }, []);
 
   // Start panning (middle mouse button or Alt + left click)

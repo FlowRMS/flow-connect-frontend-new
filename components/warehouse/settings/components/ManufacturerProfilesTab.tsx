@@ -93,11 +93,11 @@ export default function ManufacturerProfilesContent() {
       );
     }
     return sortDirection === 'asc' ? (
-      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className="w-4 h-4 text-[var(--primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
       </svg>
     ) : (
-      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className="w-4 h-4 text-[var(--primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
       </svg>
     );
@@ -127,7 +127,7 @@ export default function ManufacturerProfilesContent() {
         </div>
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
           <div className="text-sm text-[var(--muted-foreground)]">Buy/Sell</div>
-          <div className="text-2xl font-semibold text-blue-600 mt-1">
+          <div className="text-2xl font-semibold text-[var(--primary)] mt-1">
             {mockManufacturerProfiles.filter((p) => p.isBuySell).length}
           </div>
         </div>
@@ -254,7 +254,7 @@ export default function ManufacturerProfilesContent() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-5 h-5 text-[var(--primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
