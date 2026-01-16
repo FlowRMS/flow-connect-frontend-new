@@ -349,7 +349,10 @@ export interface ProductUomResult {
 const COMPANY_SEARCH = `
   query CompanySearch($searchTerm: String!, $limit: Int) {
     companySearch(searchTerm: $searchTerm, limit: $limit) {
-      companySourceType
+      companyType {
+        id
+        name
+      }
       createdAt
       createdBy {
         email
