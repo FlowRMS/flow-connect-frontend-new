@@ -8,7 +8,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Order } from '@/lib/types/rms';
 import type { OrderAcknowledgement, CreateAcknowledgementInput } from '../../../../api/acknowledgementsApi';
-import { SearchableDropdownV2 } from '@/components/quotes-v2/components/SearchableDropdownV2';
 import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
 
 interface AcknowledgementModalProps {
@@ -37,28 +36,47 @@ export function AcknowledgementModal({
   const [ackDate, setAckDate] = useState<Date | null>(new Date());
   const [shipDate, setShipDate] = useState<Date | null>(null);
   const [quantity, setQuantity] = useState('');
-  const [selectedLineItemId, setSelectedLineItemId] = useState<string | null>(null);
-  const [selectedLineItemLabel, setSelectedLineItemLabel] = useState('');
+  const [selectedLineItemIds, setSelectedLineItemIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
-  // Build line item dropdown options
-  const lineItemOptions = useMemo(() => {
-    const items = (order.lineItems || [])
+  // Build line item list for multi-select
+  const lineItems = useMemo(() => {
+    return (order.lineItems || [])
       .filter(li => li.partNumber !== 'FREIGHT')
       .map(li => ({
         id: li.id,
-        label: `#${li.lineNumber} - ${li.partNumber}`,
-        sublabel: `${li.description?.substring(0, 40) || ''} | Qty: ${li.quantity}`,
+        lineNumber: li.lineNumber,
+        partNumber: li.partNumber,
+        description: li.description || '',
+        quantity: li.quantity,
+        quantityShipped: li.quantityShipped || 0,
       }));
-    return items;
   }, [order.lineItems]);
 
-  // Get selected line item details
-  const selectedLineItem = useMemo(() => {
-    if (!selectedLineItemId) return null;
-    return (order.lineItems || []).find(li => li.id === selectedLineItemId);
-  }, [order.lineItems, selectedLineItemId]);
+  // Get selected line items details
+  const selectedLineItems = useMemo(() => {
+    return lineItems.filter(li => selectedLineItemIds.includes(li.id));
+  }, [lineItems, selectedLineItemIds]);
+
+  // Toggle line item selection
+  const toggleLineItemSelection = (id: string) => {
+    setSelectedLineItemIds(prev =>
+      prev.includes(id)
+        ? prev.filter(itemId => itemId !== id)
+        : [...prev, id]
+    );
+  };
+
+  // Select all line items
+  const selectAllLineItems = () => {
+    setSelectedLineItemIds(lineItems.map(li => li.id));
+  };
+
+  // Clear all selections
+  const clearAllSelections = () => {
+    setSelectedLineItemIds([]);
+  };
 
   // Initialize form when modal opens or acknowledgement changes
   useEffect(() => {
@@ -69,14 +87,13 @@ export function AcknowledgementModal({
         setAckDate(parseDateString(acknowledgement.entityDate) || new Date());
         setShipDate(parseDateString(acknowledgement.shipDate) || null);
         setQuantity(acknowledgement.quantity || '');
-        setSelectedLineItemId(acknowledgement.orderDetailId || null);
 
-        // Find the line item label
-        if (acknowledgement.orderDetailId) {
-          const lineItem = (order.lineItems || []).find(li => li.id === acknowledgement.orderDetailId);
-          if (lineItem) {
-            setSelectedLineItemLabel(`#${lineItem.lineNumber} - ${lineItem.partNumber}`);
-          }
+        // Populate selected line items from details array
+        if (acknowledgement.details && acknowledgement.details.length > 0) {
+          const detailIds = acknowledgement.details.map(d => d.orderDetailId);
+          setSelectedLineItemIds(detailIds);
+        } else {
+          setSelectedLineItemIds([]);
         }
       } else {
         // Create mode - reset form
@@ -84,8 +101,7 @@ export function AcknowledgementModal({
         setAckDate(new Date());
         setShipDate(null);
         setQuantity('');
-        setSelectedLineItemId(null);
-        setSelectedLineItemLabel('');
+        setSelectedLineItemIds([]);
       }
       setErrors({});
       setTouched({});
@@ -108,8 +124,12 @@ export function AcknowledgementModal({
       newErrors.quantity = 'Quantity must be greater than 0';
     }
 
-    if (selectedLineItem && parseFloat(quantity) > selectedLineItem.quantity) {
-      newErrors.quantity = `Quantity cannot exceed ordered quantity (${selectedLineItem.quantity})`;
+    // If single line item selected, validate quantity against it
+    if (selectedLineItems.length === 1) {
+      const singleItem = selectedLineItems[0];
+      if (parseFloat(quantity) > singleItem.quantity) {
+        newErrors.quantity = `Quantity cannot exceed ordered quantity (${singleItem.quantity})`;
+      }
     }
 
     setErrors(newErrors);
@@ -126,10 +146,15 @@ export function AcknowledgementModal({
 
     if (!validate()) return;
 
+    // Build details array from selected line items
+    const details = selectedLineItemIds.length > 0
+      ? selectedLineItemIds.map(orderDetailId => ({ orderDetailId }))
+      : undefined;
+
     const input: CreateAcknowledgementInput = {
       ...(acknowledgement?.id ? { id: acknowledgement.id } : {}),
       orderId: order.id,
-      orderDetailId: selectedLineItemId || undefined,
+      details,
       orderAcknowledgementNumber: ackNumber.trim(),
       entityDate: formatDateToString(ackDate) || new Date().toISOString().split('T')[0],
       quantity: quantity,
@@ -246,63 +271,135 @@ export function AcknowledgementModal({
                 </div>
               </div>
 
-              {/* Line Item Selection */}
+              {/* Line Item Selection - Multi-select */}
               <div className="bg-[var(--muted)]/20 rounded-lg p-4 space-y-4">
-                <h3 className="text-sm font-semibold text-[var(--foreground)] flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M4 6h12M4 10h12M4 14h8" strokeLinecap="round"/>
-                  </svg>
-                  Line Item (Optional)
-                </h3>
-
-                <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-                    Link to Order Line Item
-                  </label>
-                  <SearchableDropdownV2
-                    value={selectedLineItemId || ''}
-                    displayValue={selectedLineItemLabel}
-                    onChange={(id, label) => {
-                      setSelectedLineItemId(id || null);
-                      setSelectedLineItemLabel(label);
-                    }}
-                    options={lineItemOptions}
-                    placeholder="Select a line item (optional)..."
-                  />
-                  <p className="text-xs text-[var(--muted-foreground)] mt-1">
-                    Leave empty for order-level acknowledgement
-                  </p>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-[var(--foreground)] flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M4 6h12M4 10h12M4 14h8" strokeLinecap="round"/>
+                    </svg>
+                    Line Items (Optional)
+                    {selectedLineItemIds.length > 0 && (
+                      <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
+                        {selectedLineItemIds.length} selected
+                      </span>
+                    )}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={selectAllLineItems}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Select All
+                    </button>
+                    {selectedLineItemIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={clearAllSelections}
+                        className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {/* Selected Line Item Details */}
-                {selectedLineItem && (
-                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mt-4">
-                    <h4 className="text-xs font-semibold text-blue-700 mb-3 flex items-center gap-2">
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="10" cy="10" r="8"/>
-                        <path d="M10 6v4M10 14v.01"/>
-                      </svg>
-                      Line Item Details
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="text-blue-600/70 text-xs block mb-0.5">Part Number</span>
-                        <div className="font-semibold text-blue-900">{selectedLineItem.partNumber}</div>
-                      </div>
-                      <div>
-                        <span className="text-blue-600/70 text-xs block mb-0.5">Description</span>
-                        <div className="font-medium text-blue-900 truncate" title={selectedLineItem.description}>
-                          {selectedLineItem.description || '-'}
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Select one or more line items to link to this acknowledgement. Leave empty for order-level acknowledgement.
+                </p>
+
+                {/* Line Items List */}
+                <div className="max-h-[200px] overflow-y-auto border border-[var(--border)] rounded-lg divide-y divide-[var(--border)]">
+                  {lineItems.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-[var(--muted-foreground)]">
+                      No line items available
+                    </div>
+                  ) : (
+                    lineItems.map((li) => {
+                      const isSelected = selectedLineItemIds.includes(li.id);
+                      return (
+                        <div
+                          key={li.id}
+                          onClick={() => toggleLineItemSelection(li.id)}
+                          className={`flex items-center gap-3 p-3 cursor-pointer transition-colors ${
+                            isSelected
+                              ? 'bg-blue-50 hover:bg-blue-100'
+                              : 'bg-[var(--background)] hover:bg-[var(--muted)]/50'
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <div
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isSelected
+                                ? 'bg-blue-600 border-blue-600'
+                                : 'border-[var(--border)] bg-[var(--background)]'
+                            }`}
+                          >
+                            {isSelected && (
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2">
+                                <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </div>
+
+                          {/* Line Item Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm text-[var(--foreground)]">
+                                #{li.lineNumber} - {li.partNumber}
+                              </span>
+                            </div>
+                            <p className="text-xs text-[var(--muted-foreground)] truncate">
+                              {li.description || 'No description'}
+                            </p>
+                          </div>
+
+                          {/* Quantity Info */}
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-sm font-medium text-[var(--foreground)]">
+                              Qty: {li.quantity}
+                            </div>
+                            <div className="text-xs text-[var(--muted-foreground)]">
+                              Shipped: {li.quantityShipped}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <span className="text-blue-600/70 text-xs block mb-0.5">Qty Ordered</span>
-                        <div className="font-semibold text-blue-900">{selectedLineItem.quantity}</div>
-                      </div>
-                      <div>
-                        <span className="text-blue-600/70 text-xs block mb-0.5">Qty Shipped</span>
-                        <div className="font-semibold text-blue-900">{selectedLineItem.quantityShipped || 0}</div>
-                      </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Selected Items Summary */}
+                {selectedLineItems.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                    <h4 className="text-xs font-semibold text-blue-700 mb-2">
+                      Selected Line Items ({selectedLineItems.length})
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedLineItems.map((li) => (
+                        <span
+                          key={li.id}
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full"
+                        >
+                          #{li.lineNumber} - {li.partNumber}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleLineItemSelection(li.id);
+                            }}
+                            className="hover:text-blue-900"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M3 3l6 6M9 3l-6 6" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-2 text-xs text-blue-600">
+                      Total Ordered Qty: {selectedLineItems.reduce((sum, li) => sum + li.quantity, 0)}
                     </div>
                   </div>
                 )}
@@ -327,14 +424,14 @@ export function AcknowledgementModal({
                     <input
                       type="number"
                       min="1"
-                      max={selectedLineItem?.quantity}
+                      max={selectedLineItems.length === 1 ? selectedLineItems[0].quantity : undefined}
                       value={quantity}
                       onChange={(e) => {
                         setQuantity(e.target.value);
                         setTouched(prev => ({ ...prev, quantity: true }));
                       }}
                       onBlur={() => setTouched(prev => ({ ...prev, quantity: true }))}
-                      placeholder={selectedLineItem ? `Max: ${selectedLineItem.quantity}` : 'Enter quantity'}
+                      placeholder={selectedLineItems.length === 1 ? `Max: ${selectedLineItems[0].quantity}` : 'Enter quantity'}
                       className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 ${
                         touched.quantity && errors.quantity
                           ? 'border-red-500'

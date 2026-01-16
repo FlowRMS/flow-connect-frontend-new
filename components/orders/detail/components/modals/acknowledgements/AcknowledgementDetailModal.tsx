@@ -116,8 +116,14 @@ export function AcknowledgementDetailModal({
                 <span className="font-medium">{formatDate(acknowledgement.createdAt)}</span>
               </div>
               <div>
-                <span className="text-[var(--muted-foreground)] block text-xs mb-0.5">Item Number</span>
-                <span className="font-medium">{acknowledgement.itemNumber || '-'}</span>
+                <span className="text-[var(--muted-foreground)] block text-xs mb-0.5">Line Item(s)</span>
+                <span className="font-medium">
+                  {acknowledgement.itemNumbers && acknowledgement.itemNumbers.length > 0
+                    ? acknowledgement.itemNumbers.map(n => `#${n}`).join(', ')
+                    : acknowledgement.itemNumber
+                      ? `#${acknowledgement.itemNumber}`
+                      : '-'}
+                </span>
               </div>
             </div>
           </div>

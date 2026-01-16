@@ -243,7 +243,7 @@ function transformJob(job: JobLandingPage): Activity {
  * Transform Company to Activity
  */
 function transformCompany(company: CompanyLandingPage): Activity {
-  const sourceTypeLabel = company.companySourceType === 'CUSTOMER' ? 'Customer' : 'Manufacturer';
+  const sourceTypeLabel = company.companySourceType || 'Company';
   const companyTags = parseTags(company.tags);
 
   return {
@@ -259,7 +259,7 @@ function transformCompany(company: CompanyLandingPage): Activity {
     tags: [sourceTypeLabel, ...companyTags],
     assignedTo: company.createdBy || 'System',
     mentions: [],
-    status: company.companySourceType,
+    status: company.companySourceType || 'Company',
     activityStatus: 'completed',
     link: `/companies?id=${company.id}`,
     metadata: {

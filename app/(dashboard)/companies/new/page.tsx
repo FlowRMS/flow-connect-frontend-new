@@ -4,10 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { useCreateCRMCompany } from '../../../../components/hooks/useCRMApi';
+import { useCreateCRMCompany, useCompanyTypes, type CompanyType } from '../../../../components/hooks/useCRMApi';
 import { useCompanySearch } from '../../../../components/notes/api';
-import type { CompanySourceType } from '../../../../components/lib/crm-graphql';
-import { COMPANY_SOURCE_TYPE_LABELS, COMPANY_SOURCE_TYPE_OPTIONS } from '../../../../components/lib/crm-graphql';
 
 // ============================================================================
 // Types
@@ -168,13 +166,15 @@ function CustomSelect({ value, onChange, options, placeholder, disabled }: Custo
   );
 }
 
-// Company Source Type Select (industry-specific types)
-interface CompanySourceTypeSelectProps {
-  value: CompanySourceType | '';
-  onChange: (value: CompanySourceType) => void;
+// Company Type Select (uses dynamic company types from API)
+interface CompanyTypeSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  companyTypes: CompanyType[];
+  isLoading?: boolean;
 }
 
-function CompanySourceTypeSelect({ value, onChange }: CompanySourceTypeSelectProps) {
+function CompanyTypeSelect({ value, onChange, companyTypes, isLoading }: CompanyTypeSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
@@ -183,8 +183,8 @@ function CompanySourceTypeSelect({ value, onChange }: CompanySourceTypeSelectPro
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const filteredOptions = COMPANY_SOURCE_TYPE_OPTIONS.filter(option =>
-    COMPANY_SOURCE_TYPE_LABELS[option].toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredOptions = companyTypes.filter(type =>
+    type.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   useEffect(() => {
@@ -230,7 +230,8 @@ function CompanySourceTypeSelect({ value, onChange }: CompanySourceTypeSelectPro
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedLabel = value ? COMPANY_SOURCE_TYPE_LABELS[value] : 'Select Company Type';
+  const selectedType = companyTypes.find(t => t.id === value);
+  const selectedLabel = selectedType?.name || 'Select Company Type';
 
   const dropdownContent = isOpen && portalTarget && createPortal(
     <div
@@ -249,28 +250,30 @@ function CompanySourceTypeSelect({ value, onChange }: CompanySourceTypeSelectPro
         />
       </div>
       <div className="max-h-60 overflow-y-auto py-1">
-        {filteredOptions.length === 0 ? (
+        {isLoading ? (
+          <div className="px-4 py-3 text-sm text-gray-500 text-center">Loading types...</div>
+        ) : filteredOptions.length === 0 ? (
           <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching types found</div>
         ) : (
-          filteredOptions.map((option) => (
+          filteredOptions.map((type) => (
             <button
-              key={option}
+              key={type.id}
               type="button"
               onClick={() => {
-                onChange(option);
+                onChange(type.id);
                 setIsOpen(false);
               }}
               className={`
                 w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
                 transition-colors hover:bg-gray-50
-                ${value === option ? 'bg-blue-50' : ''}
+                ${value === type.id ? 'bg-blue-50' : ''}
               `}
             >
               <span className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
-              <span className={`flex-1 ${value === option ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-                {COMPANY_SOURCE_TYPE_LABELS[option]}
+              <span className={`flex-1 ${value === type.id ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                {type.name}
               </span>
-              {value === option && (
+              {value === type.id && (
                 <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
@@ -289,10 +292,12 @@ function CompanySourceTypeSelect({ value, onChange }: CompanySourceTypeSelectPro
         ref={triggerRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
+        disabled={isLoading}
         className={`
           w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-white text-left
           flex items-center justify-between gap-2 transition-all
           hover:border-blue-300 hover:shadow-sm cursor-pointer
+          ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
           ${isOpen ? 'ring-2 ring-blue-500 border-transparent shadow-sm' : ''}
         `}
       >
@@ -521,9 +526,13 @@ export default function CreateCompanyPage() {
   const router = useRouter();
   const createCompanyMutation = useCreateCRMCompany();
 
+  // Fetch company types from API
+  const { data: companyTypesData, isLoading: isLoadingCompanyTypes } = useCompanyTypes();
+  const companyTypes: CompanyType[] = companyTypesData ?? [];
+
   // Form state
   const [name, setName] = useState('');
-  const [companySourceType, setCompanySourceType] = useState<CompanySourceType | ''>('');
+  const [companyTypeId, setCompanyTypeId] = useState('');
   const [phone, setPhone] = useState('');
   const [website, setWebsite] = useState('');
   const [tags, setTags] = useState('');
@@ -606,7 +615,7 @@ export default function CreateCompanyPage() {
       return;
     }
 
-    if (!companySourceType) {
+    if (!companyTypeId) {
       toast.error('Please select a company type');
       return;
     }
@@ -614,7 +623,7 @@ export default function CreateCompanyPage() {
     try {
       const newCompany = await createCompanyMutation.mutateAsync({
         name: name.trim(),
-        companySourceType: companySourceType,
+        companyTypeId: companyTypeId,
         phone: phone.trim() || undefined,
         website: website.trim() || undefined,
         tags: tags.trim() || undefined,
@@ -624,7 +633,7 @@ export default function CreateCompanyPage() {
       });
 
       toast.success('Company created successfully');
-      router.push(`/companies/${newCompany.id}/edit`);
+      router.push(`/companies?id=${newCompany.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create company');
       console.error('Create error:', err);
@@ -743,12 +752,14 @@ export default function CreateCompanyPage() {
               <label className={labelClass}>
                 Company Type <span className="text-red-500">*</span>
               </label>
-              <CompanySourceTypeSelect
-                value={companySourceType}
-                onChange={(v) => setCompanySourceType(v)}
+              <CompanyTypeSelect
+                value={companyTypeId}
+                onChange={(v) => setCompanyTypeId(v)}
+                companyTypes={companyTypes}
+                isLoading={isLoadingCompanyTypes}
               />
               <p className="mt-1.5 text-xs text-gray-500">
-                Select the industry type that best describes this company.
+                Select the type that best describes this company.
               </p>
             </div>
 

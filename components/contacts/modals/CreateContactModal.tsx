@@ -146,7 +146,7 @@ function CustomSelect({ value, onChange, options, placeholder, disabled, icon }:
 // Portaled Company Search Select
 interface CompanySelectProps {
   value: string;
-  companies: { id: string; name: string; companySourceType: string }[];
+  companies: { id: string; name: string; companySourceType?: string }[];
   isLoading: boolean;
   onChange: (id: string) => void;
 }

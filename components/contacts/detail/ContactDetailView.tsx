@@ -502,9 +502,9 @@ function CompanySearchSelect({ value, companyId, onChange, disabled }: CompanySe
                   <span className={`block truncate ${companyId === company.id ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
                     {company.name}
                   </span>
-                  {company.companySourceType && (
+                  {company.companyType?.name && (
                     <span className="text-xs text-gray-400">
-                      {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
+                      {company.companyType.name}
                     </span>
                   )}
                 </div>

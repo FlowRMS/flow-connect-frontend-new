@@ -462,3 +462,27 @@ export {
   type BulkDeleteResult,
   type BulkDeleteFailure,
 } from './bulk-operations';
+
+// Company Types module
+export {
+  fetchCompanyTypes,
+  fetchCompanyType,
+  createCompanyType,
+  updateCompanyType,
+  deleteCompanyType,
+  type CompanyType,
+  type CreateCompanyTypeInput,
+  type UpdateCompanyTypeInput,
+} from './company-types';
+
+// Task Categories module
+export {
+  fetchTaskCategories,
+  fetchTaskCategory,
+  createTaskCategory,
+  updateTaskCategory,
+  deleteTaskCategory,
+  type TaskCategory,
+  type CreateTaskCategoryInput,
+  type UpdateTaskCategoryInput,
+} from './task-categories';

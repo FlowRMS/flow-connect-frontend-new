@@ -15,10 +15,19 @@ export type AcknowledgementCreationType = 'MANUAL' | 'IMPORT' | 'API' | 'DUPLICA
 // Types
 // ============================================================================
 
+export interface OrderAcknowledgementDetail {
+  id: string;
+  orderAcknowledgementId: string;
+  orderDetailId: string;
+  orderDetail?: {
+    id: string;
+    itemNumber: number;
+  };
+}
+
 export interface OrderAcknowledgement {
   id: string;
   orderId?: string;
-  orderDetailId?: string;
   orderAcknowledgementNumber?: string;
   entityDate?: string;
   quantity?: string;
@@ -26,6 +35,8 @@ export interface OrderAcknowledgement {
   creationType?: AcknowledgementCreationType;
   createdAt?: string;
   createdById?: string;
+  itemNumbers?: number[];
+  details?: OrderAcknowledgementDetail[];
 }
 
 // Landing Page type for findLandingPages query - includes enriched data
@@ -38,6 +49,7 @@ export interface AcknowledgementLandingPage {
   createdAt?: string;
   createdBy?: string;
   itemNumber?: number;
+  itemNumbers?: number[];
   orderNumber?: string;
   orderEntityDate?: string;
   productName?: string;
@@ -68,10 +80,14 @@ export interface PaginationParams {
   offset?: number;
 }
 
+export interface OrderAcknowledgementDetailInput {
+  orderDetailId: string;
+}
+
 export interface CreateAcknowledgementInput {
   id?: string;
   orderId: string;
-  orderDetailId?: string;
+  details?: OrderAcknowledgementDetailInput[];
   orderAcknowledgementNumber?: string;
   entityDate: string;
   quantity: string;
@@ -89,13 +105,21 @@ export interface UpdateAcknowledgementInput extends CreateAcknowledgementInput {
 const ACKNOWLEDGEMENT_FIELDS = `
   id
   orderId
-  orderDetailId
   orderAcknowledgementNumber
   entityDate
   quantity
   creationType
   createdAt
   createdById
+  details {
+    id
+    orderAcknowledgementId
+    orderDetailId
+    orderDetail {
+      id
+      itemNumber
+    }
+  }
 `;
 
 // ============================================================================

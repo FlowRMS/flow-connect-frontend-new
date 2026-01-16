@@ -16,7 +16,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from './advancedFilters/AdvancedFilters';
 import SortButton from './SortButton';
-import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany } from './hooks/useCRMApi';
+import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany, useCompanyTypes, type CompanyType } from './hooks/useCRMApi';
 
 import { companyToasts } from './lib/toast';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
@@ -30,6 +30,7 @@ import { mapAPICompanyToUICompany } from './companies/types';
 import CompanyDetailView from './companies/detail/CompanyDetailView';
 import GridView from './companies/views/GridView';
 import ListView from './companies/views/ListView';
+import { ManageCompanyTypesModal } from './companies/modals/ManageCompanyTypesModal';
 
 // Company Type Filter Dropdown Component
 function CompanyTypeFilterDropdown({
@@ -210,6 +211,13 @@ export default function CompaniesContent() {
 
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
+
+  // Manage Company Types modal state
+  const [showCompanyTypesModal, setShowCompanyTypesModal] = useState(false);
+
+  // Fetch company types from API for display
+  const { data: companyTypesData } = useCompanyTypes();
+  const companyTypes: CompanyType[] = companyTypesData ?? [];
 
   // Selected company type filter (from dropdown)
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('All');
@@ -458,24 +466,9 @@ export default function CompaniesContent() {
     }
   };
 
-  // Helper to normalize company source type - handles all valid types
-  const normalizeCompanySourceType = (value: string | CompanySourceType | undefined): CompanySourceType => {
-    // Handle legacy numeric values
-    if (value === '2' || value === 2 as unknown as string) return 'MANUFACTURER';
-    if (value === '1' || value === 1 as unknown as string) return 'CUSTOMER';
-    // Return valid enum values as-is
-    if (value && typeof value === 'string') {
-      return value as CompanySourceType;
-    }
-    return 'CUSTOMER';
-  };
-
   // Handle save edit
   const handleSaveEdit = async () => {
     if (!selectedCompany) return;
-
-    // Ensure companySourceType is a valid enum value
-    const normalizedSourceType = normalizeCompanySourceType(editFormData.companySourceType);
 
     // Parse tags - handle both string and array formats
     let tagsToSend: string | undefined;
@@ -490,13 +483,17 @@ export default function CompaniesContent() {
     // Ensure name is always provided (required by GraphQL schema)
     const nameToSend = editFormData.name || selectedCompany.name;
 
+    // Get the company type name for display
+    const companyTypeId = editFormData.companyTypeId || selectedCompany.companyTypeId;
+    const companyTypeName = companyTypes.find(t => t.id === companyTypeId)?.name || editFormData.companyTypeName || selectedCompany.companyTypeName;
+
     try {
       // Build update input - handle parentCompanyId to allow clearing
       const updateInput: Record<string, unknown> = {
         name: nameToSend,
         phone: editFormData.phone,
         website: editFormData.website,
-        companySourceType: normalizedSourceType,
+        companyTypeId: companyTypeId,
         tags: tagsToSend,
       };
 
@@ -520,13 +517,14 @@ export default function CompaniesContent() {
         name: updatedName,
         phone: editFormData.phone || selectedCompany.phone,
         website: editFormData.website || selectedCompany.website,
-        companySourceType: normalizedSourceType,
-        type: [COMPANY_SOURCE_TYPE_LABELS[normalizedSourceType] || 'Customer'],
+        companyTypeId: companyTypeId,
+        companyTypeName: companyTypeName,
+        type: [companyTypeName || 'Unknown Type'],
         tags: updatedTags,
         parentCompanyId: editFormData.parentCompanyId ?? selectedCompany.parentCompanyId,
         parentCompanyName: editFormData.parentCompanyName ?? selectedCompany.parentCompanyName,
       });
-      
+
       setIsEditing(false);
       refetch();
     } catch (err) {
@@ -570,7 +568,8 @@ export default function CompaniesContent() {
   }
 
   // Show error state if company fetch failed or company not found
-  if (companyIdFromUrl && !companyDetailLoading && !selectedCompany && (companyDetailError || !fullCompanyData)) {
+  // Skip if intentional clear (navigating back) to prevent flash of error during URL transition
+  if (companyIdFromUrl && !companyDetailLoading && !selectedCompany && !isIntentionalClearRef.current && (companyDetailError || !fullCompanyData)) {
     return (
       <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
         <div className="mb-6">
@@ -759,6 +758,16 @@ export default function CompaniesContent() {
             />
 
             <button
+              onClick={() => setShowCompanyTypesModal(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+              </svg>
+              <span className="hidden sm:inline">Manage Types</span>
+            </button>
+
+            <button
               onClick={() => router.push('/companies/new')}
               className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
             >
@@ -819,6 +828,12 @@ export default function CompaniesContent() {
           )}
         </>
       )}
+
+      {/* Manage Company Types Modal */}
+      <ManageCompanyTypesModal
+        isOpen={showCompanyTypesModal}
+        onClose={() => setShowCompanyTypesModal(false)}
+      />
     </main>
   );
 }
