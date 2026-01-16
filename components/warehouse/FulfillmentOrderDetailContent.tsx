@@ -274,8 +274,8 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       .map(item => ({
         lineItem: item,
         backorderQty: item.backorderQty,
-        manufacturerId: item.factoryId || '',
-        manufacturerName: item.factoryName || 'Unknown Manufacturer',
+        manufacturerId: item.product?.factory?.id || '',
+        manufacturerName: item.product?.factory?.title || 'Unknown Manufacturer',
         inventoryOnHand: 0,
       }));
   }, [fulfillmentOrder]);
@@ -843,7 +843,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       id: fulfillmentOrder.id,
       input: {
         status: 'BACKORDER_REVIEW',
-        holdReason: `Worker reported shortage: ${expectedQty - actualQty} units short on ${lineItem.partNumber}`,
+        holdReason: `Worker reported shortage: ${expectedQty - actualQty} units short on ${lineItem.product?.factoryPartNumber || 'Unknown'}`,
         backorderReviewData,
       },
     });
@@ -1100,7 +1100,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   // Shipped data for ShippedInterface
   const shippedData = {
     carrierType: (fulfillmentOrder as any)?.carrierType || carrierType,
-    carrier: fulfillmentOrder?.carrierName || selectedCarrier,
+    carrier: fulfillmentOrder?.carrier?.name || selectedCarrier,
     trackingNumbers: fulfillmentOrder?.trackingNumbers?.join(', ') || trackingNumbers,
     shipConfirmedAt: fulfillmentOrder?.shipConfirmedAt ?? undefined,
     pickupSignature: (fulfillmentOrder as any)?.pickupSignature || pickupSignature,

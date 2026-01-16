@@ -116,12 +116,28 @@ export interface PackingBox {
   items: PackingBoxItem[];
 }
 
+export interface ProductUom {
+  id: string;
+  title: string;
+}
+
+export interface Factory {
+  id: string;
+  title: string;
+}
+
+export interface Product {
+  id: string;
+  factoryPartNumber: string;
+  description: string | null;
+  factory: Factory | null;
+  uom: ProductUom | null;
+}
+
 export interface FulfillmentOrderLineItem {
   id: string;
   productId: string;
-  productName: string;
-  partNumber: string;
-  uom: string;
+  product: Product | null;
   orderDetailId: string | null;
   orderedQty: number;
   allocatedQty: number;
@@ -134,21 +150,47 @@ export interface FulfillmentOrderLineItem {
   linkedShipmentRequestId: string | null;
   shortReason: string | null;
   notes: string | null;
-  factoryId: string | null;
-  factoryName: string | null;
   packingBoxItems: PackingBoxItem[];
+}
+
+export interface Warehouse {
+  id: string;
+  name: string;
+  status: string;
+  isActive: boolean | null;
+}
+
+export interface ShippingCarrier {
+  id: string;
+  name: string;
+  carrierType: CarrierType | null;
+  code: string | null;
+  isActive: boolean | null;
+  trackingUrlTemplate: string | null;
+}
+
+export interface Order {
+  id: string;
+  orderNumber: string;
+  status: string;
+  soldToCustomerId: string;
+}
+
+export interface Customer {
+  id: string;
+  companyName: string;
 }
 
 export interface FulfillmentOrder {
   id: string;
   fulfillmentOrderNumber: string;
   orderId: string;
-  orderNumber: string;
-  customerName: string;
+  order: Order | null;
+  customer: Customer | null;
   warehouseId: string;
-  warehouseName: string;
+  warehouse: Warehouse | null;
   carrierId: string | null;
-  carrierName: string | null;
+  carrier: ShippingCarrier | null;
   status: FulfillmentOrderStatus;
   fulfillmentMethod: FulfillmentMethod;
   carrierType: CarrierType | null;
@@ -310,14 +352,22 @@ export interface FulfillmentFilters {
 const FULFILLMENT_ORDER_LIST_FRAGMENT = `
   fragment FulfillmentOrderListFields on FulfillmentOrderResponse {
     id
-    orderNumber
-    customerName
+    order {
+      id
+      orderNumber
+    }
+    customer {
+      id
+      companyName
+    }
     status
     createdAt
     lineItems {
       id
-      productName
-      partNumber
+      product {
+        id
+        factoryPartNumber
+      }
       orderedQty
       allocatedQty
       backorderQty
@@ -335,12 +385,32 @@ const FULFILLMENT_ORDER_FRAGMENT = `
     id
     fulfillmentOrderNumber
     orderId
-    orderNumber
-    customerName
+    order {
+      id
+      orderNumber
+      status
+      soldToCustomerId
+    }
+    customer {
+      id
+      companyName
+    }
     warehouseId
-    warehouseName
+    warehouse {
+      id
+      name
+      status
+      isActive
+    }
     carrierId
-    carrierName
+    carrier {
+      id
+      name
+      carrierType
+      code
+      isActive
+      trackingUrlTemplate
+    }
     status
     fulfillmentMethod
     carrierType
@@ -375,9 +445,19 @@ const FULFILLMENT_ORDER_FRAGMENT = `
     lineItems {
       id
       productId
-      productName
-      partNumber
-      uom
+      product {
+        id
+        factoryPartNumber
+        description
+        factory {
+          id
+          title
+        }
+        uom {
+          id
+          title
+        }
+      }
       orderDetailId
       orderedQty
       allocatedQty
@@ -390,8 +470,6 @@ const FULFILLMENT_ORDER_FRAGMENT = `
       linkedShipmentRequestId
       shortReason
       notes
-      factoryId
-      factoryName
       packingBoxItems {
         id
         fulfillmentLineItemId
@@ -558,9 +636,19 @@ const UPDATE_PICKED_QUANTITY = `
     updatePickedQuantity(input: $input) {
       id
       productId
-      productName
-      partNumber
-      uom
+      product {
+        id
+        factoryPartNumber
+        description
+        factory {
+          id
+          title
+        }
+        uom {
+          id
+          title
+        }
+      }
       orderDetailId
       orderedQty
       allocatedQty
@@ -1275,9 +1363,19 @@ const GET_BACKORDER_ITEMS = `
     backorderItems(fulfillmentOrderId: $fulfillmentOrderId) {
       id
       productId
-      productName
-      partNumber
-      uom
+      product {
+        id
+        factoryPartNumber
+        description
+        factory {
+          id
+          title
+        }
+        uom {
+          id
+          title
+        }
+      }
       orderDetailId
       orderedQty
       allocatedQty
@@ -1308,9 +1406,19 @@ const SPLIT_FULFILLMENT_LINE_ITEM = `
     splitFulfillmentLineItem(input: $input) {
       id
       productId
-      productName
-      partNumber
-      uom
+      product {
+        id
+        factoryPartNumber
+        description
+        factory {
+          id
+          title
+        }
+        uom {
+          id
+          title
+        }
+      }
       orderDetailId
       orderedQty
       allocatedQty

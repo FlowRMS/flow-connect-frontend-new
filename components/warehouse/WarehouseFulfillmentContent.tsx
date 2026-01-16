@@ -108,7 +108,7 @@ export default function WarehouseFulfillmentContent() {
 
   // Get unique values for filter dropdowns
   const uniqueCustomers = useMemo(() => {
-    return [...new Set(fulfillmentOrders.map(fo => fo.customerName))].sort();
+    return [...new Set(fulfillmentOrders.map(fo => fo.customer?.companyName).filter((name): name is string => !!name))].sort();
   }, [fulfillmentOrders]);
 
   const uniqueStatuses = useMemo(() => {
@@ -141,29 +141,29 @@ export default function WarehouseFulfillmentContent() {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(fo =>
-        fo.orderNumber.toLowerCase().includes(query) ||
+        (fo.order?.orderNumber || '').toLowerCase().includes(query) ||
         fo.fulfillmentOrderNumber.toLowerCase().includes(query) ||
-        fo.customerName.toLowerCase().includes(query) ||
-        fo.lineItems.some(li => li.productName.toLowerCase().includes(query) || li.partNumber.toLowerCase().includes(query))
+        (fo.customer?.companyName || '').toLowerCase().includes(query) ||
+        fo.lineItems.some(li => (li.product?.description || '').toLowerCase().includes(query) || (li.product?.factoryPartNumber || '').toLowerCase().includes(query))
       );
     }
 
     // Apply column filters
     if (columnFilters.orderNumber) {
       const query = columnFilters.orderNumber.toLowerCase();
-      result = result.filter(fo => fo.orderNumber.toLowerCase().includes(query));
+      result = result.filter(fo => (fo.order?.orderNumber || '').toLowerCase().includes(query));
     }
 
     if (columnFilters.customerName.length > 0) {
-      result = result.filter(fo => columnFilters.customerName.includes(fo.customerName));
+      result = result.filter(fo => columnFilters.customerName.includes(fo.customer?.companyName || ''));
     }
 
     if (columnFilters.productName) {
       const query = columnFilters.productName.toLowerCase();
       result = result.filter(fo =>
         fo.lineItems.some(li =>
-          li.productName.toLowerCase().includes(query) ||
-          li.partNumber.toLowerCase().includes(query)
+          (li.product?.description || '').toLowerCase().includes(query) ||
+          (li.product?.factoryPartNumber || '').toLowerCase().includes(query)
         )
       );
     }
@@ -191,14 +191,14 @@ export default function WarehouseFulfillmentContent() {
 
       switch (sortField) {
         case 'orderNumber':
-          comparison = a.orderNumber.localeCompare(b.orderNumber);
+          comparison = (a.order?.orderNumber || '').localeCompare(b.order?.orderNumber || '');
           break;
         case 'customerName':
-          comparison = a.customerName.localeCompare(b.customerName);
+          comparison = (a.customer?.companyName || '').localeCompare(b.customer?.companyName || '');
           break;
         case 'productName':
-          const aProductName = a.lineItems.length > 0 ? a.lineItems[0].productName : '';
-          const bProductName = b.lineItems.length > 0 ? b.lineItems[0].productName : '';
+          const aProductName = a.lineItems.length > 0 ? (a.lineItems[0].product?.description || a.lineItems[0].product?.factoryPartNumber || '') : '';
+          const bProductName = b.lineItems.length > 0 ? (b.lineItems[0].product?.description || b.lineItems[0].product?.factoryPartNumber || '') : '';
           comparison = aProductName.localeCompare(bProductName);
           break;
         case 'qty':

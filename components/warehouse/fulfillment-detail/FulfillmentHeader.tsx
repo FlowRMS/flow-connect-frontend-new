@@ -60,10 +60,10 @@ export default function FulfillmentHeader({
             href={`/orders/${fulfillmentOrder.orderId}`}
             className="text-sm text-[var(--primary)] hover:underline font-medium"
           >
-            {fulfillmentOrder.orderNumber}
+            {fulfillmentOrder.order?.orderNumber || '-'}
           </Link>
           <span className="text-sm text-[var(--muted-foreground)]">|</span>
-          <span className="text-sm text-[var(--muted-foreground)]">{fulfillmentOrder.customerName}</span>
+          <span className="text-sm text-[var(--muted-foreground)]">{fulfillmentOrder.customer?.companyName || '-'}</span>
         </div>
       </div>
       <div className="flex items-center gap-3">

@@ -552,7 +552,7 @@ export default function FulfillmentOrdersTable({
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-[var(--foreground)]">
                     <div className="flex items-center gap-2">
-                      {fo.orderNumber}
+                      {fo.order?.orderNumber || '-'}
                       {hasBackorderItems(fo) && (
                         <span
                           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200"
@@ -566,12 +566,12 @@ export default function FulfillmentOrdersTable({
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-[var(--foreground)]">{fo.customerName}</td>
+                  <td className="px-6 py-4 text-sm text-[var(--foreground)]">{fo.customer?.companyName || '-'}</td>
                   <td className="px-6 py-4 relative">
                     {fo.lineItems.length === 1 ? (
                       <>
-                        <div className="text-sm text-[var(--foreground)]">{fo.lineItems[0].productName}</div>
-                        <div className="text-xs text-[var(--muted-foreground)]">{fo.lineItems[0].partNumber}</div>
+                        <div className="text-sm text-[var(--foreground)]">{fo.lineItems[0].product?.description || fo.lineItems[0].product?.factoryPartNumber || '-'}</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">{fo.lineItems[0].product?.factoryPartNumber || '-'}</div>
                       </>
                     ) : (
                       <>
@@ -588,7 +588,7 @@ export default function FulfillmentOrdersTable({
                           }}
                           className="text-xs text-[var(--primary)] hover:underline cursor-pointer"
                         >
-                          {fo.lineItems[0].partNumber} + {fo.lineItems.length - 1} more
+                          {fo.lineItems[0].product?.factoryPartNumber || '-'} + {fo.lineItems.length - 1} more
                         </button>
                       </>
                     )}
@@ -681,7 +681,7 @@ export default function FulfillmentOrdersTable({
               <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
                 <div>
                   <h4 className="text-sm font-semibold text-[var(--foreground)]">Products ({order.lineItems.length})</h4>
-                  <p className="text-xs text-[var(--muted-foreground)]">{order.orderNumber}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">{order.order?.orderNumber || '-'}</p>
                 </div>
                 <button
                   onClick={() => setProductsPopover(null)}
@@ -699,14 +699,14 @@ export default function FulfillmentOrdersTable({
                     className={`px-4 py-3 flex items-center justify-between ${idx !== order.lineItems.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-[var(--foreground)] truncate">{li.productName}</div>
-                      <div className="text-xs text-[var(--muted-foreground)]">{li.partNumber}</div>
+                      <div className="text-sm font-medium text-[var(--foreground)] truncate">{li.product?.description || li.product?.factoryPartNumber || '-'}</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">{li.product?.factoryPartNumber || '-'}</div>
                     </div>
                     <div className="ml-4 text-right flex-shrink-0">
                       <div className="text-sm font-medium text-[var(--foreground)]">
                         {Number.isInteger(Number(li.orderedQty)) ? Number(li.orderedQty) : Number(li.orderedQty).toFixed(2)}
                       </div>
-                      <div className="text-xs text-[var(--muted-foreground)]">{li.uom || 'EA'}</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">{li.product?.uom?.title || 'EA'}</div>
                     </div>
                   </div>
                 ))}
