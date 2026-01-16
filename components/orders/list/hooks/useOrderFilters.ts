@@ -171,41 +171,10 @@ export function useOrderFilters(orders: Order[]) {
       );
     }
 
-    // Apply sorting
-    result = [...result].sort((a, b) => {
-      let comparison = 0;
-      switch (sortField) {
-        case 'orderNumber':
-          comparison = a.orderNumber.localeCompare(b.orderNumber);
-          break;
-        case 'customerName':
-          comparison = a.customerName.localeCompare(b.customerName);
-          break;
-        case 'manufacturerName':
-          comparison = a.manufacturerName.localeCompare(b.manufacturerName);
-          break;
-        case 'orderDate':
-          comparison =
-            new Date(a.orderDate).getTime() - new Date(b.orderDate).getTime();
-          break;
-        case 'total':
-          comparison = a.total - b.total;
-          break;
-        case 'totalCommission':
-          comparison = a.totalCommission - b.totalCommission;
-          break;
-        case 'status':
-          comparison = a.status.localeCompare(b.status);
-          break;
-      }
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
-
+    // Note: Sorting is now done server-side, no need to sort here
     return result;
   }, [
     orders,
-    sortField,
-    sortDirection,
     columnFilters,
     quickDatePreset,
     quickDateField,

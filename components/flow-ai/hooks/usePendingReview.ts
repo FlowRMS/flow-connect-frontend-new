@@ -39,6 +39,10 @@ type PendingDocument = {
   entityType?: string | null;
   fileUploadProcessId?: string | null;
   pages?: Array<{ markdownContent?: string }>;
+  cluster?: {
+    id: string;
+    clusterName: string;
+  } | null;
 };
 
 type CorrectionEntry = {
@@ -84,6 +88,7 @@ export type PendingReviewState = {
   dataSets: Array<{ index: number; label: string; value: string }>;
   // Pages with markdown content
   pages: Array<{ markdownContent?: string }>;
+  activeTemplateName: string | null;
 };
 
 const EMPTY_PRIMARY: PrimaryField[] = buildPrimary({});
@@ -234,6 +239,7 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
     activeDataSetIndex: 0,
     dataSets: [],
     pages: [],
+    activeTemplateName: null,
   });
 
   const [instructionVariables, setInstructionVariables] = useState<{
@@ -558,6 +564,7 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
         activeDataSetIndex,
         dataSets,
         pages: pending.pages ?? [],
+        activeTemplateName: pending.cluster?.clusterName ?? null,
       }));
 
       console.log('✅ State updated:', {
@@ -640,6 +647,7 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
           ...prev,
           convertedDocumentUrl,
           documentLabel: pending.sourceName ?? null,
+          activeTemplateName: pending.cluster?.clusterName ?? null,
           entityType,
           primary,
           other,
@@ -809,6 +817,7 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
           extractedDataSets: extractedArray,
           activeDataSetIndex,
           dataSets,
+          activeTemplateName: pending.cluster?.clusterName ?? null,
         }));
         
         // Then reload corrections

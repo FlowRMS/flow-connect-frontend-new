@@ -4,6 +4,7 @@
  */
 
 import { crmGraphQLRequest } from '../../lib/crm-graphql';
+import { LandingSourceType } from '../../lib/graphql/types';
 
 // ============================================================================
 // Enums
@@ -37,6 +38,7 @@ export interface QuoteCustomer {
   isParent: boolean;
   parentId?: string;
   published: boolean;
+  buyingGroupId?: string;
 }
 
 export interface QuoteCreatedBy {
@@ -88,6 +90,14 @@ export interface QuoteUom {
   title?: string;
 }
 
+// Factory object returned in quote detail
+export interface QuoteDetailFactory {
+  id: string;
+  title?: string;
+  accountNumber?: string;
+  published?: boolean;
+}
+
 export interface QuoteDetail {
   id: string;
   commission?: number;
@@ -98,7 +108,9 @@ export interface QuoteDetail {
   discountRate?: string;
   divisionFactor?: string;
   endUserId?: string;
+  endUser?: QuoteCustomer;
   factoryId?: string;
+  factory?: QuoteDetailFactory;
   itemNumber?: number;
   leadTime?: string;
   note?: string;
@@ -299,9 +311,9 @@ export interface PaginatedQuotesResult {
 // ============================================================================
 
 const QUOTE_LANDING_PAGES = `
-  query QuoteLandingPages($filters: [Filter!], $limit: Int, $offset: Int, $orderBy: [OrderBy!]) {
+  query QuoteLandingPages($sourceType: LandingSourceType!, $filters: [Filter!], $limit: Int, $offset: Int, $orderBy: [OrderBy!]) {
     findLandingPages(
-      sourceType: QUOTES
+      sourceType: $sourceType
       filters: $filters
       limit: $limit
       offset: $offset
@@ -391,7 +403,21 @@ const FIND_QUOTE_BY_ID = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note
@@ -542,7 +568,21 @@ const CREATE_QUOTE = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note
@@ -671,7 +711,21 @@ const UPDATE_QUOTE = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note
@@ -776,7 +830,7 @@ const DELETE_QUOTE = `
 `;
 
 const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
-  mutation CreateQuoteFromPreOpportunity($preOpportunityId: UUID!, $quoteNumber: String!, $preOpportunityDetailIds: String) {
+  mutation CreateQuoteFromPreOpportunity($preOpportunityId: UUID!, $quoteNumber: String!, $preOpportunityDetailIds: [UUID!]) {
     createQuoteFromPreOpportunity(preOpportunityId: $preOpportunityId, quoteNumber: $quoteNumber, preOpportunityDetailIds: $preOpportunityDetailIds) {
       id
       acceptDate
@@ -828,7 +882,21 @@ const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note
@@ -1116,6 +1184,7 @@ export async function fetchQuotesWithPagination(
   }>({
     query: QUOTE_LANDING_PAGES,
     variables: {
+      sourceType: LandingSourceType.QUOTES,
       filters,
       orderBy,
       limit: pagination?.limit ?? 50,
@@ -1237,12 +1306,12 @@ export async function deleteQuote(id: string): Promise<boolean> {
  * Create a quote from a pre-opportunity
  * @param preOpportunityId - The ID of the pre-opportunity
  * @param quoteNumber - The quote number to assign
- * @param preOpportunityDetailIds - Optional comma-separated list of detail IDs to include (if not provided, all details are included)
+ * @param preOpportunityDetailIds - Optional array of detail IDs to include (if not provided, all details are included)
  */
 export async function createQuoteFromPreOpportunity(
   preOpportunityId: string,
   quoteNumber: string,
-  preOpportunityDetailIds?: string
+  preOpportunityDetailIds?: string[]
 ): Promise<Quote> {
   const response = await crmGraphQLRequest<{ createQuoteFromPreOpportunity: Quote }>({
     query: CREATE_QUOTE_FROM_PRE_OPPORTUNITY,

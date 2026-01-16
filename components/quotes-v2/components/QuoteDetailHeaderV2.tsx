@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2, QuoteV2Status } from '../types';
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
+import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
 import { useCustomerSearch, useUserSearch, useJobSearch, useFactorySearch } from '../../quotes/api/useQuotesApi';
 import { searchUsers } from '../../quotes/api/quotesApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
@@ -60,6 +61,7 @@ interface QuoteDetailHeaderV2Props {
   hasChanges?: boolean;
   isNew?: boolean;
   lineItems?: LineItemV2[];
+  selectedLineItemIds?: Set<string>;
   settings?: QuoteSettingsV2;
   onClearLineItemProducts?: () => void;
   // Callbacks for auto-populating reps at line item level
@@ -138,6 +140,7 @@ export function QuoteDetailHeaderV2({
   hasChanges = false,
   isNew = false,
   lineItems = [],
+  selectedLineItemIds,
   settings,
   onClearLineItemProducts,
   onAutoPopulateOutsideRepsToLineItems,
@@ -878,21 +881,26 @@ export function QuoteDetailHeaderV2({
 
           {/* Save Button with Dropdown */}
           <div className="relative">
+            {/* Unsaved changes indicator */}
+            {hasChanges && !isNew && (
+              <span className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" title="You have unsaved changes" />
+            )}
             <div className="flex">
               <button
                 onClick={onSave}
-                disabled={isSaving}
+                disabled={isSaving || (!isNew && !hasChanges)}
                 className={`px-4 py-1.5 text-sm text-white rounded-l-lg transition-colors ${
-                  isSaving ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
+                  isSaving || (!isNew && !hasChanges) ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
                 }`}
+                title={!isNew && !hasChanges ? 'No changes to save' : undefined}
               >
                 {isSaving ? 'Saving...' : isNew ? 'Create' : 'Save'}
               </button>
               <button
                 onClick={() => setShowSaveMenu(!showSaveMenu)}
-                disabled={isSaving}
+                disabled={isSaving || (!isNew && !hasChanges)}
                 className={`px-2 py-1.5 text-sm text-white rounded-r-lg border-l border-green-400 transition-colors ${
-                  isSaving ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
+                  isSaving || (!isNew && !hasChanges) ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
                 }`}
               >
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
@@ -1065,20 +1073,20 @@ export function QuoteDetailHeaderV2({
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Quote Date*</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.quoteDate)}
-              onChange={(e) => handleDateChange('quoteDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.quoteDate)}
+              onChange={(date) => handleDateChange('quoteDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Expiration Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.expirationDate)}
-              onChange={(e) => handleDateChange('expirationDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.expirationDate)}
+              onChange={(date) => handleDateChange('expirationDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>
@@ -1397,20 +1405,20 @@ export function QuoteDetailHeaderV2({
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Revised Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.revisedDate || '')}
-              onChange={(e) => handleDateChange('revisedDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.revisedDate || '')}
+              onChange={(date) => handleDateChange('revisedDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Accept Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.acceptDate || '')}
-              onChange={(e) => handleDateChange('acceptDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.acceptDate || '')}
+              onChange={(date) => handleDateChange('acceptDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>
@@ -1765,6 +1773,7 @@ export function QuoteDetailHeaderV2({
         factoryId={lineItems[0]?.manufacturerId}
         factoryName={lineItems[0]?.manufacturerName}
         lineItems={lineItems}
+        initialSelectedItemIds={selectedLineItemIds}
         onClose={() => setShowCreateOrderModal(false)}
       />
 

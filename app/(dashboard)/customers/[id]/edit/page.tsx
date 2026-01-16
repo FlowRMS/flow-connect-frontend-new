@@ -27,12 +27,13 @@ import {
   useUpdateAddress,
   useDeleteAddress,
 } from '../../../../../components/hooks/useAddressApi';
+import { ConnectedEntitiesSection } from '../../../../../components/shared/ConnectedEntitiesSection';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-type TabId = 'overview' | 'addresses' | 'child-customers' | 'buying-group-members' | 'inside-reps' | 'outside-reps' | 'settings';
+type TabId = 'overview' | 'addresses' | 'connected-entities' | 'child-customers' | 'buying-group-members' | 'inside-reps' | 'outside-reps' | 'settings';
 
 // Generate unique temp ID
 const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -144,6 +145,7 @@ export default function CustomerEditPage() {
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
     'addresses': null,
+    'connected-entities': null,
     'child-customers': null,
     'buying-group-members': null,
     'inside-reps': null,
@@ -151,6 +153,9 @@ export default function CustomerEditPage() {
     'settings': null,
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Flag to disable scroll spy during programmatic scrolling
+  const isScrollingRef = useRef(false);
 
   // Calculate totals for validation (each rep type independently totals 100%)
   const insideTotal = useMemo(() =>
@@ -224,17 +229,21 @@ export default function CustomerEditPage() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'addresses', 'child-customers', 'buying-group-members', 'inside-reps', 'outside-reps', 'settings'];
+    const tabIds: TabId[] = ['overview', 'addresses', 'child-customers', 'buying-group-members', 'inside-reps', 'outside-reps', 'settings', 'connected-entities'];
 
     const handleScroll = () => {
-      const scrollTop = container.scrollTop;
+      // Skip scroll spy updates during programmatic scrolling
+      if (isScrollingRef.current) return;
+
+      const containerRect = container.getBoundingClientRect();
       let currentSection: TabId = 'overview';
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
         if (section) {
-          const sectionTop = section.offsetTop;
-          if (scrollTop >= sectionTop - 100) {
+          const sectionRect = section.getBoundingClientRect();
+          // Check if section top is at or above the container top + offset
+          if (sectionRect.top <= containerRect.top + 100) {
             currentSection = tabId;
           }
         }
@@ -243,19 +252,33 @@ export default function CustomerEditPage() {
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [isLoading]);
+  }, []);
 
   const scrollToSection = useCallback((tabId: TabId) => {
     const section = sectionRefs.current[tabId];
     const container = scrollContainerRef.current;
     if (section && container) {
+      // Disable scroll spy during programmatic scroll
+      isScrollingRef.current = true;
+      setActiveTab(tabId);
+
+      // Calculate the section's position relative to the scroll container
+      const containerRect = container.getBoundingClientRect();
+      const sectionRect = section.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
       const headerOffset = 20;
-      const sectionTop = section.offsetTop - headerOffset;
+
+      // Calculate the target scroll position
+      const sectionTop = sectionRect.top - containerRect.top + scrollTop - headerOffset;
+
       container.scrollTo({ top: sectionTop, behavior: 'smooth' });
+
+      // Re-enable scroll spy after scroll animation completes
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 500);
     }
-    setActiveTab(tabId);
   }, []);
 
   const handleFieldChange = () => {
@@ -480,6 +503,7 @@ export default function CustomerEditPage() {
     { id: 'inside-reps' as TabId, label: 'Inside Reps', count: insideRepEntries.length || null },
     { id: 'outside-reps' as TabId, label: 'Outside Reps', count: outsideRepEntries.length || null },
     { id: 'settings' as TabId, label: 'Settings' },
+    { id: 'connected-entities' as TabId, label: 'Connected Entities' },
   ];
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
@@ -1324,6 +1348,17 @@ export default function CustomerEditPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ============ CONNECTED ENTITIES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['connected-entities'] = el; }} id="section-connected-entities">
+          <ConnectedEntitiesSection
+            entityId={customerId}
+            sourceEntityType="CUSTOMER"
+            title="Connected Entities"
+            showAddLinkButton={true}
+            enabledCategories={['contacts', 'companies', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+          />
         </div>
 
         {/* Required Fields Note */}

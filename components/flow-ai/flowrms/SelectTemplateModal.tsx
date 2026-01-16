@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApolloClient } from '@apollo/client/react';
-import { Search, Sparkles, Loader2, FileText, Hash, Plus } from 'lucide-react';
+import { Search, Sparkles, Loader2, FileText, Hash, AlertTriangle, Plus, Building2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/flow-ai/ui/dialog';
 import { Input } from '@/components/flow-ai/ui/input';
 import { Button } from '@/components/flow-ai/ui/button';
@@ -12,7 +12,6 @@ import { cn } from '@/lib/flow-ai/cn';
 import { Q_GET_CLUSTERS } from '@/lib/flow-ai/gql';
 import { toast } from 'sonner';
 import { EntityType, ENTITY_TYPE_OPTIONS } from '@/components/flow-ai/types/queue';
-import { Building2 } from 'lucide-react';
 
 // Filter entity types to only those relevant for templates
 const TEMPLATE_ENTITY_TYPES: EntityType[] = [
@@ -68,8 +67,10 @@ export function SelectTemplateModal({
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
-  const [entityTypeFilter, setEntityTypeFilter] = useState<EntityType | 'all'>('all');
-
+  const [showNoInstructionsWarning, setShowNoInstructionsWarning] = useState(false);
+  const [entityTypeFilter, setEntityTypeFilter] = useState<EntityType | 'all'>(
+    (entityType as EntityType) || 'all'
+  );
 
   const fetchClusters = useCallback(async () => {
     setLoading(true);
@@ -98,16 +99,17 @@ export function SelectTemplateModal({
     if (!open) {
       setSearchTerm('');
       setSelectedClusterId(null);
-      setEntityTypeFilter('all');
-    } else {
-      // Initialize entity type filter with the prop value when modal opens
-      if (entityType && TEMPLATE_ENTITY_TYPES.includes(entityType as EntityType)) {
-        setEntityTypeFilter(entityType as EntityType);
-      } else {
-        setEntityTypeFilter('all');
-      }
+      setShowNoInstructionsWarning(false);
     }
   }, [open, entityType]);
+
+  const handleSelectCluster = useCallback((cluster: EnrichedCluster) => {
+    if (cluster.additionalInstructions.length === 0) {
+      setShowNoInstructionsWarning(true);
+    } else {
+      setSelectedClusterId(cluster.id);
+    }
+  }, []);
 
   const enrichedClusters = useMemo<EnrichedCluster[]>(() => {
     return clusters.map((cluster) => {
@@ -249,16 +251,19 @@ export function SelectTemplateModal({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
                 {filteredClusters.map((cluster) => {
                   const isSelected = cluster.id === selectedClusterId;
+                  const hasNoInstructions = cluster.additionalInstructions.length === 0;
                   return (
                     <button
                       key={cluster.id}
                       type="button"
-                      onClick={() => setSelectedClusterId(cluster.id)}
+                      onClick={() => handleSelectCluster(cluster)}
                       className={cn(
-                        'text-left border rounded-xl p-4 transition-colors focus:outline-none focus-visible:ring-2 h-full',
+                        'text-left border-2 rounded-xl p-4 transition-colors focus:outline-none focus-visible:ring-2 h-full',
                         isSelected
-                          ? 'border-primary/70 bg-primary/5 ring-primary/40'
-                          : 'border-border hover:border-primary/50'
+                          ? 'border-primary bg-primary/5 ring-2 ring-primary/40'
+                          : hasNoInstructions
+                            ? 'border-border opacity-60 hover:border-amber-400/50'
+                            : 'border-border hover:border-primary/50'
                       )}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -362,6 +367,26 @@ export function SelectTemplateModal({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      {/* No Instructions Warning Modal */}
+      <Dialog open={showNoInstructionsWarning} onOpenChange={setShowNoInstructionsWarning}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Template Has No Instructions
+            </DialogTitle>
+            <DialogDescription>
+              This template does not have any saved instructions, so it cannot be applied to your document. Please select a different template that has instructions configured.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowNoInstructionsWarning(false)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

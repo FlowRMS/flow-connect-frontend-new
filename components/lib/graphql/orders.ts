@@ -40,6 +40,7 @@ export interface OrderCustomer {
   isParent: boolean;
   parentId?: string;
   published: boolean;
+  buyingGroupId?: string;
 }
 
 export interface OrderCreatedBy {
@@ -89,6 +90,23 @@ export interface OrderUom {
   title?: string;
 }
 
+// Invoice attached to an order detail (line item level)
+export interface OrderDetailInvoice {
+  balanceId?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+  dueDate?: string;
+  entityDate?: string;
+  id: string;
+  invoiceNumber?: string;
+  locked?: boolean;
+  orderId?: string;
+  published?: boolean;
+  status?: string;
+  url?: string;
+}
+
 export interface OrderDetail {
   id: string;
   cancelledBalance?: number;
@@ -100,6 +118,7 @@ export interface OrderDetail {
   discountRate?: string;
   divisionFactor?: string;
   endUserId?: string;
+  endUser?: OrderCustomer;
   freightCharge?: string;
   itemNumber?: number;
   leadTime?: string;
@@ -120,6 +139,7 @@ export interface OrderDetail {
   unitPrice?: string;
   uom?: OrderUom;
   uomId?: string;
+  invoice?: OrderDetailInvoice;
 }
 
 export interface OrderInsideRep {
@@ -263,6 +283,7 @@ export interface CreateOrderInput {
   endUserPerLineItem?: boolean;
   insidePerLineItem?: boolean;
   outsidePerLineItem?: boolean;
+  jobId?: string;
 }
 
 export interface UpdateOrderInput extends CreateOrderInput {}
@@ -380,6 +401,14 @@ const FIND_ORDER_BY_ID = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         freightCharge
         id
         itemNumber
@@ -431,6 +460,21 @@ const FIND_ORDER_BY_ID = `
           divisionFactor
           id
           title
+        }
+        invoice {
+          balanceId
+          createdAt
+          createdById
+          creationType
+          dueDate
+          entityDate
+          id
+          invoiceNumber
+          locked
+          orderId
+          published
+          status
+          url
         }
       }
       dueDate
@@ -541,6 +585,14 @@ const CREATE_ORDER = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         freightCharge
         id
         itemNumber
@@ -692,6 +744,14 @@ const UPDATE_ORDER = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         freightCharge
         id
         itemNumber

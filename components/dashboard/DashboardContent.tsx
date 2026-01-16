@@ -6,6 +6,8 @@
 'use client';
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import { MorphingPageHeader } from '../ui/MorphingPageHeader';
+import { iconMap } from '../Sidebar';
 import AdvancedFilters, { type ActiveFilter, type ActiveSort } from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import { useDashboardFilters } from './hooks/useDashboardFilters';
@@ -15,10 +17,14 @@ import { getActivityFilterOptions, getActivitySortOptions } from './config/filte
 import { ActivityCard } from './components/ActivityCard';
 import { ActivityFilterButtons } from './components/ActivityFilterButtons';
 import { StatusFilterButtons } from './components/StatusFilterButtons';
+import { QuickFilters, type QuickFilterType } from './components/QuickFilters';
 import { DashboardActionButtons } from './components/DashboardActionButtons';
 import type { Activity } from './types';
 import type { LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { useUser } from '../providers/user-provider';
+import { getQuickDateRange } from './utils';
+import { formatDateToBackend } from '../advancedFilters/utils';
 
 // Import Create Modals
 import CreateJobModal from '../CreateJobModal';
@@ -77,10 +83,22 @@ export default function DashboardContent() {
     setIsMounted(true);
   }, []);
 
+  // Get current user
+  const user = useUser();
+  const currentUserName = useMemo(() => {
+    if (user?.firstName && user?.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    return user?.firstName || user?.email?.split('@')[0] || '';
+  }, [user]);
+
   // Advanced filters state
   const [advancedFilters, setAdvancedFilters] = useState<ActiveFilter[]>([]);
   const [activeSorts, setActiveSorts] = useState<ActiveSort[]>([]);
   
+  // Quick filters state
+  const [quickFilters, setQuickFilters] = useState<QuickFilterType[]>([]);
+
   // Server-side filter and sort state
   const [serverFilters, setServerFilters] = useState<LandingPageFilter[]>([]);
   const [serverOrderBy, setServerOrderBy] = useState<LandingPageOrderBy[]>([]);
@@ -104,6 +122,84 @@ export default function DashboardContent() {
     });
   }, []);
 
+  // Build server filters including quick filters
+  const buildServerFilters = useCallback((advancedFilters: ActiveFilter[], quickFilters: QuickFilterType[]): LandingPageFilter[] => {
+    const filters: LandingPageFilter[] = [];
+    
+    // Add advanced filters
+    filters.push(...toServerFilters(advancedFilters));
+
+    // Add quick filters
+    if (quickFilters.includes('myTasks') && currentUserName) {
+      // Filter by assignees (only affects Tasks)
+      filters.push({
+        operator: 'IN',
+        columnName: 'assignees',
+        values: [currentUserName],
+      });
+    }
+
+    if (quickFilters.includes('createdByMe') && currentUserName) {
+      // Filter by createdBy
+      filters.push({
+        operator: 'EQ',
+        columnName: 'createdBy',
+        value: currentUserName,
+      });
+    }
+
+    // Handle date filters (today, this_week, last_week)
+    if (quickFilters.includes('today')) {
+      const { start, end } = getQuickDateRange('today');
+      if (start && end) {
+        filters.push({
+          operator: 'GTE',
+          columnName: 'createdAt',
+          value: formatDateToBackend(start),
+        });
+        filters.push({
+          operator: 'LTE',
+          columnName: 'createdAt',
+          value: formatDateToBackend(end),
+        });
+      }
+    }
+
+    if (quickFilters.includes('thisWeek')) {
+      const { start, end } = getQuickDateRange('this_week');
+      if (start && end) {
+        filters.push({
+          operator: 'GTE',
+          columnName: 'createdAt',
+          value: formatDateToBackend(start),
+        });
+        filters.push({
+          operator: 'LTE',
+          columnName: 'createdAt',
+          value: formatDateToBackend(end),
+        });
+      }
+    }
+
+    if (quickFilters.includes('lastWeek')) {
+      const { start, end } = getQuickDateRange('last_week');
+      if (start && end) {
+        filters.push({
+          operator: 'GTE',
+          columnName: 'createdAt',
+          value: formatDateToBackend(start),
+        });
+        filters.push({
+          operator: 'LTE',
+          columnName: 'createdAt',
+          value: formatDateToBackend(end),
+        });
+      }
+    }
+
+    return filters;
+  }, [toServerFilters, currentUserName]);
+
   // Convert ActiveSort to LandingPageOrderBy for server-side sorting
   const toServerOrderBy = useCallback((sorts: ActiveSort[]): LandingPageOrderBy[] => {
     return sorts.map(s => ({
@@ -112,7 +208,7 @@ export default function DashboardContent() {
     }));
   }, []);
 
-  const { data, isLoading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useActivityFeed(serverFilters, serverOrderBy);
+  const { data, totals, isLoading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useActivityFeed(serverFilters, serverOrderBy);
 
   // Infinite scroll
   const { loadMoreRef } = useInfiniteScroll({
@@ -147,8 +243,33 @@ export default function DashboardContent() {
   // Handle advanced filter changes - now with server-side
   const handleAdvancedFiltersChange = useCallback((filters: ActiveFilter[]) => {
     setAdvancedFilters(filters);
-    setServerFilters(toServerFilters(filters));
-  }, [toServerFilters]);
+    // Update server filters with new advanced filters and current quick filters
+    const newServerFilters = buildServerFilters(filters, quickFilters);
+    setServerFilters(newServerFilters);
+  }, [buildServerFilters, quickFilters]);
+
+  // Handle quick filter toggle - only one quick filter can be active at a time
+  const handleQuickFilterToggle = useCallback((filter: QuickFilterType) => {
+    setQuickFilters(prev => {
+      // If clicking the same filter, toggle it off
+      if (prev.includes(filter)) {
+        const newFilters: QuickFilterType[] = [];
+        // Update server filters immediately with new quick filters and current advanced filters
+        const newServerFilters = buildServerFilters(advancedFilters, newFilters);
+        setServerFilters(newServerFilters);
+        return newFilters;
+      }
+      
+      // Otherwise, replace all filters with just this one
+      const newFilters: QuickFilterType[] = [filter];
+      
+      // Update server filters immediately with new quick filters and current advanced filters
+      const newServerFilters = buildServerFilters(advancedFilters, newFilters);
+      setServerFilters(newServerFilters);
+      
+      return newFilters;
+    });
+  }, [advancedFilters, buildServerFilters]);
 
   // Handle multi-sort changes - now with server-side
   const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
@@ -227,10 +348,15 @@ export default function DashboardContent() {
     return transformToActivities(data);
   }, [data]);
 
-  // Filter and sort activities (including advanced filters)
+  // Filter and sort activities (including advanced filters and quick filters)
   const filteredActivities = useMemo(() => {
     let filtered = filterActivities(activities, activeFilters, statusFilters);
     filtered = applyAdvancedFilters(filtered);
+
+    // If "My Tasks" is active, show only tasks
+    if (quickFilters.includes('myTasks')) {
+      filtered = filtered.filter(activity => activity.type === 'task');
+    }
 
     // Apply multi-sort if specified
     if (activeSorts.length > 0) {
@@ -253,52 +379,66 @@ export default function DashboardContent() {
     }
 
     return filtered;
-  }, [activities, activeFilters, statusFilters, applyAdvancedFilters, activeSorts]);
+  }, [activities, activeFilters, statusFilters, applyAdvancedFilters, activeSorts, quickFilters]);
 
-  // Calculate counts for display
-  const activityCounts = useMemo(() => ({
-    total: activities.length,
-    filtered: filteredActivities.length,
-    jobs: data?.jobs.length || 0,
-    companies: data?.companies.length || 0,
-    contacts: data?.contacts.length || 0,
-    preOpportunities: data?.preOpportunities.length || 0,
-    notes: data?.notes.length || 0,
-    tasks: data?.tasks.length || 0,
-  }), [activities, filteredActivities, data]);
+  // Calculate counts for display - use totals from backend
+  const activityCounts = useMemo(() => {
+    // Total is the sum of all entity totals from backend
+    const totalFromBackend = (totals?.jobs || 0) +
+      (totals?.companies || 0) +
+      (totals?.contacts || 0) +
+      (totals?.preOpportunities || 0) +
+      (totals?.notes || 0) +
+      (totals?.tasks || 0) +
+      (totals?.customers || 0) +
+      (totals?.factories || 0);
+
+    return {
+      total: totalFromBackend,
+      filtered: filteredActivities.length,
+      jobs: totals?.jobs || 0,
+      companies: totals?.companies || 0,
+      contacts: totals?.contacts || 0,
+      preOpportunities: totals?.preOpportunities || 0,
+      notes: totals?.notes || 0,
+      tasks: totals?.tasks || 0,
+    };
+  }, [totals, filteredActivities]);
 
   return (
-    <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[var(--background)] p-3 sm:p-6">
-      {/* Header */}
-      <div className="mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)] mb-1 truncate">Activity Feed</h1>
-            <p className="text-xs sm:text-sm text-[var(--muted-foreground)]">
-              Your operational command center for manufacturing sales
-              {activityCounts.total > 0 && (
-                <span className="ml-1 sm:ml-2 text-[var(--primary)]">
-                  ({activityCounts.filtered} of {activityCounts.total})
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0 overflow-x-auto pb-1 sm:pb-0 -mx-1 px-1 sm:mx-0 sm:px-0">
+    <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[var(--background)]">
+      {/* Morphing Header */}
+      <MorphingPageHeader
+        itemId="activity-feed"
+        icon={iconMap['activity-feed']}
+        title="Activity Feed"
+        subtitle={`Your operational command center for manufacturing sales${activityCounts.total > 0 ? ` • ${activityCounts.filtered} of ${activityCounts.total}` : ''}`}
+        actions={
+          <div className="flex items-center gap-2">
             <StatusFilterButtons
               statusFilters={statusFilters}
               onToggleStatusFilter={toggleStatusFilter}
             />
-            <AdvancedFilters 
+            <AdvancedFilters
               filterOptions={activityFilterOptions}
               activeFilters={advancedFilters}
               onFiltersChange={handleAdvancedFiltersChange}
             />
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Action Buttons */}
-      <DashboardActionButtons
+      {/* Main Content */}
+      <div className="px-3 sm:px-6 pb-6">
+        {/* Quick Filters - Below title */}
+        <div className="mb-4">
+          <QuickFilters
+            activeFilters={quickFilters}
+            onToggleFilter={handleQuickFilterToggle}
+          />
+        </div>
+        {/* Action Buttons */}
+        <DashboardActionButtons
         onAddJob={() => setShowCreateJobModal(true)}
         onCreatePreOpportunity={() => setShowCreatePreOpportunityModal(true)}
         onAddTask={() => setShowCreateTaskModal(true)}
@@ -376,6 +516,7 @@ export default function DashboardContent() {
             </>
           )}
         </div>
+      </div>
       </div>
 
       {/* Create Modals */}

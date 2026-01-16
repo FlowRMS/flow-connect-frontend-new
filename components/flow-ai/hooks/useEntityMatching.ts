@@ -1287,18 +1287,63 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
     [getEntitiesByStep, loadedSteps]
   );
 
-  // Check if all entities are validated (only for loaded steps)
-  const allValidated = useMemo(() => {
+  // Get visible steps based on document type (matches EntityStepNavigation logic)
+  const visibleSteps = useMemo((): EntityStep[] => {
     const allSteps: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices', 'credits', 'adjustments'];
+    const factoryDependentTabs: EntityStep[] = ['orders', 'invoices', 'credits', 'adjustments'];
+    const normalizedDocType = documentType?.toUpperCase();
 
-    // Check if all steps are loaded
-    if (!allSteps.every(step => loadedSteps.has(step))) {
+    // For CHECKS: Show all tabs
+    if (normalizedDocType === 'CHECKS') {
+      return allSteps;
+    }
+
+    // For INVOICES: Hide invoices, credits, adjustments - only show orders
+    if (normalizedDocType === 'INVOICES') {
+      return allSteps.filter(step =>
+        !['invoices', 'credits', 'adjustments'].includes(step)
+      );
+    }
+
+    // For other document types: Hide orders, invoices, credits, adjustments
+    return allSteps.filter(step =>
+      !factoryDependentTabs.includes(step)
+    );
+  }, [documentType]);
+
+  // Steps that are optional and don't block validation
+  const optionalSteps: EntityStep[] = ['billtocustomers'];
+
+  // Check if all entities are validated (only for visible/loaded steps based on document type)
+  // Note: Optional steps (like billToCustomers) are excluded from validation requirements
+  const allValidated = useMemo(() => {
+    // Filter out optional steps from required validation
+    const requiredSteps = visibleSteps.filter(step => !optionalSteps.includes(step));
+
+    // Check if all required visible steps are loaded
+    if (!requiredSteps.every(step => loadedSteps.has(step))) {
       return false;
     }
 
-    const allEntities = [...factories, ...customers, ...billToCustomers, ...endUsers, ...products, ...orders, ...invoices, ...credits, ...adjustments];
+    // Get entities only for required visible steps (excluding optional steps)
+    const getEntitiesForRequiredSteps = (): PendingEntity[] => {
+      const entitiesMap: Record<EntityStep, PendingEntity[]> = {
+        factories,
+        customers,
+        billtocustomers: billToCustomers,
+        endusers: endUsers,
+        products,
+        orders,
+        invoices,
+        credits,
+        adjustments,
+      };
+      return requiredSteps.flatMap(step => entitiesMap[step]);
+    };
+
+    const allEntities = getEntitiesForRequiredSteps();
     return allEntities.length === 0 || allEntities.every((e) => isResolved(e.confirmationStatus));
-  }, [factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, loadedSteps]);
+  }, [factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, loadedSteps, visibleSteps]);
 
   // Refresh entities for current step
   const refreshCurrentStep = useCallback(async () => {

@@ -6,8 +6,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import type { Company, CompanyAddress, AddressType, ManufacturerInfo, SalesRepAssignment, CompanyHierarchyRole, ChildCompanyRef } from '../types';
-import type { CompanySourceType } from '../../lib/crm-graphql';
-import { COMPANY_SOURCE_TYPE_OPTIONS, COMPANY_SOURCE_TYPE_LABELS } from '../../lib/crm-graphql';
 import type { RelatedEntityContact, RelatedEntityJob } from '../../lib/crm-graphql';
 import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
@@ -15,6 +13,7 @@ import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
 import AliasesModal, { CompanyAlias } from '../../AliasesModal';
 import { SelectChildCompaniesModal } from '../modals/SelectChildCompaniesModal';
 import { useCompanySearch } from '../../notes/api';
+import { useCompanyTypes, type CompanyType } from '../../hooks/useCRMApi';
 
 type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'emails' | 'meetings' | 'connected-entities';
 
@@ -53,21 +52,25 @@ interface CompanyDetailViewProps {
   onDeleteClick: () => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
-  onFieldChange: (field: string, value: string | number | boolean | string[] | CompanySourceType | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[] | CompanyHierarchyRole | ChildCompanyRef[]) => void;
+  onFieldChange: (field: string, value: string | number | boolean | string[] | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[] | CompanyHierarchyRole | ChildCompanyRef[]) => void;
   onContactClick?: (contact: RelatedEntityContact) => void;
   onJobClick?: (job: RelatedEntityJob) => void;
 }
 
 
-// Company Type Single-Select Dropdown using proper enum values
+// Company Type Single-Select Dropdown using dynamic types from API
 function CompanyTypeSelect({
   value,
   onChange,
   disabled,
+  companyTypes,
+  isLoading,
 }: {
-  value: CompanySourceType | string;
-  onChange: (value: CompanySourceType) => void;
+  value: string | undefined;
+  onChange: (value: string) => void;
   disabled: boolean;
+  companyTypes: CompanyType[];
+  isLoading: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,13 +81,13 @@ function CompanyTypeSelect({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Filter options based on search term
-  const filteredOptions = COMPANY_SOURCE_TYPE_OPTIONS.filter(option =>
-    COMPANY_SOURCE_TYPE_LABELS[option].toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredOptions = companyTypes.filter(type =>
+    type.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const selectedLabel = value && COMPANY_SOURCE_TYPE_LABELS[value as CompanySourceType]
-    ? COMPANY_SOURCE_TYPE_LABELS[value as CompanySourceType]
-    : 'Select Company Type';
+  // Find selected type name
+  const selectedType = companyTypes.find(t => t.id === value);
+  const selectedLabel = selectedType?.name || 'Select Company Type';
 
   useEffect(() => {
     setPortalTarget(document.body);
@@ -158,28 +161,30 @@ function CompanyTypeSelect({
       </div>
       {/* Options list */}
       <div className="max-h-60 overflow-y-auto py-1">
-        {filteredOptions.length === 0 ? (
+        {isLoading ? (
+          <div className="px-4 py-3 text-sm text-gray-500 text-center">Loading types...</div>
+        ) : filteredOptions.length === 0 ? (
           <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching types found</div>
         ) : (
-          filteredOptions.map((option) => (
+          filteredOptions.map((type) => (
             <button
-              key={option}
+              key={type.id}
               type="button"
               onClick={() => {
-                onChange(option);
+                onChange(type.id);
                 setIsOpen(false);
               }}
               className={`
                 w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
                 transition-colors hover:bg-gray-50
-                ${value === option ? 'bg-blue-50' : ''}
+                ${value === type.id ? 'bg-blue-50' : ''}
               `}
             >
               <span className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
-              <span className={`flex-1 ${value === option ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-                {COMPANY_SOURCE_TYPE_LABELS[option]}
+              <span className={`flex-1 ${value === type.id ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                {type.name}
               </span>
-              {value === option && (
+              {value === type.id && (
                 <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
@@ -380,7 +385,7 @@ function ParentCompanySelect({ value, selectedName, onChange, onClear, excludeId
             >
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold ${
-                  company.companySourceType === 'MANUFACTURER' ? 'bg-purple-500' : 'bg-green-500'
+                  company.companySourceType?.toLowerCase() === 'manufacturer' ? 'bg-purple-500' : 'bg-green-500'
                 }`}>
                   {company.name.substring(0, 2).toUpperCase()}
                 </div>
@@ -389,7 +394,7 @@ function ParentCompanySelect({ value, selectedName, onChange, onClear, excludeId
                     {company.name}
                   </div>
                   <div className="text-xs text-gray-500">
-                    {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
+                    {company.companySourceType || 'Company'}
                   </div>
                 </div>
               </div>
@@ -604,6 +609,10 @@ export default function CompanyDetailView({
   onContactClick,
   onJobClick,
 }: CompanyDetailViewProps) {
+  // Fetch company types from API
+  const { data: companyTypesData, isLoading: isLoadingCompanyTypes } = useCompanyTypes();
+  const companyTypes: CompanyType[] = companyTypesData ?? [];
+
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
   const [showAddTagModal, setShowAddTagModal] = useState(false);
@@ -642,9 +651,10 @@ export default function CompanyDetailView({
     setCompanyAliases(prev => prev.filter(a => a.id !== aliasId));
   };
 
-  // Get current company type
-  const currentCompanyType = isEditing ? (editFormData.companySourceType || company.companySourceType) : company.companySourceType;
-  const isManufacturer = currentCompanyType === 'MANUFACTURER';
+  // Get current company type - check if it's a Manufacturer by looking at the type name
+  const currentCompanyTypeId = isEditing ? (editFormData.companyTypeId || company.companyTypeId) : company.companyTypeId;
+  const currentCompanyTypeName = companyTypes.find(t => t.id === currentCompanyTypeId)?.name || company.companyTypeName;
+  const isManufacturer = currentCompanyTypeName?.toLowerCase() === 'manufacturer';
 
   // Section refs for scroll-to functionality
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
@@ -660,19 +670,36 @@ export default function CompanyDetailView({
   // Reference to the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Flag to disable scroll spy during programmatic scrolling
+  const isScrollingRef = useRef(false);
+
   const scrollToSection = useCallback((tabId: TabId) => {
     const section = sectionRefs.current[tabId];
     const container = scrollContainerRef.current;
     if (section && container) {
+      // Disable scroll spy during programmatic scroll
+      isScrollingRef.current = true;
+      setActiveTab(tabId);
+
+      // Calculate the section's position relative to the scroll container
+      const containerRect = container.getBoundingClientRect();
+      const sectionRect = section.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
       const headerOffset = 20;
-      const sectionTop = section.offsetTop - headerOffset;
+
+      // Calculate the target scroll position
+      const sectionTop = sectionRect.top - containerRect.top + scrollTop - headerOffset;
 
       container.scrollTo({
         top: sectionTop,
         behavior: 'smooth'
       });
+
+      // Re-enable scroll spy after scroll animation completes
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 500);
     }
-    setActiveTab(tabId);
   }, []);
 
   // Scroll spy - update active tab based on scroll position
@@ -680,19 +707,23 @@ export default function CompanyDetailView({
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const handleScroll = () => {
-      const scrollTop = container.scrollTop;
-      let currentSection: TabId = 'overview';
+    const tabIds: TabId[] = isManufacturer
+      ? ['overview', 'factory-info', 'sales-reps', 'addresses', 'emails', 'meetings', 'connected-entities']
+      : ['overview', 'sales-reps', 'addresses', 'emails', 'meetings', 'connected-entities'];
 
-      const tabIds: TabId[] = isManufacturer
-        ? ['overview', 'factory-info', 'sales-reps', 'addresses', 'emails', 'meetings', 'connected-entities']
-        : ['overview', 'sales-reps', 'addresses', 'emails', 'meetings', 'connected-entities'];
+    const handleScroll = () => {
+      // Skip scroll spy updates during programmatic scrolling
+      if (isScrollingRef.current) return;
+
+      const containerRect = container.getBoundingClientRect();
+      let currentSection: TabId = 'overview';
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
         if (section) {
-          const sectionTop = section.offsetTop;
-          if (scrollTop >= sectionTop - 100) {
+          const sectionRect = section.getBoundingClientRect();
+          // Check if section top is at or above the container top + offset
+          if (sectionRect.top <= containerRect.top + 100) {
             currentSection = tabId;
           }
         }
@@ -702,7 +733,6 @@ export default function CompanyDetailView({
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
   }, [isManufacturer]);
 
@@ -815,13 +845,13 @@ export default function CompanyDetailView({
   const textareaClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400 resize-y min-h-[80px]";
   const selectClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer";
 
-  const getTypeColor = (type: CompanySourceType) => {
-    return type === 'MANUFACTURER'
+  const getTypeColor = (typeName: string | undefined) => {
+    return typeName?.toLowerCase() === 'manufacturer'
       ? { bg: 'bg-purple-100', text: 'text-purple-700' }
       : { bg: 'bg-green-100', text: 'text-green-700' };
   };
 
-  const typeColors = getTypeColor(company.companySourceType);
+  const typeColors = getTypeColor(company.companyTypeName);
 
   return (
     <main className="flex-1 bg-gray-50 overflow-hidden flex flex-col">
@@ -852,7 +882,7 @@ export default function CompanyDetailView({
                     {company.name}
                   </h1>
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${typeColors.bg} ${typeColors.text}`}>
-                    {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
+                    {company.companyTypeName || 'Unknown Type'}
                   </span>
                 </div>
                 <p className="text-sm text-gray-500">{company.phone || company.website || 'No contact info'}</p>
@@ -1033,9 +1063,11 @@ export default function CompanyDetailView({
                   <div>
                     <label className={labelClass}>Company Type</label>
                     <CompanyTypeSelect
-                      value={isEditing ? (editFormData.companySourceType ?? company.companySourceType ?? 'CUSTOMER') : (company.companySourceType ?? 'CUSTOMER')}
-                      onChange={(value) => onFieldChange('companySourceType', value)}
+                      value={isEditing ? (editFormData.companyTypeId ?? company.companyTypeId) : company.companyTypeId}
+                      onChange={(value) => onFieldChange('companyTypeId', value)}
                       disabled={!isEditing}
+                      companyTypes={companyTypes}
+                      isLoading={isLoadingCompanyTypes}
                     />
                   </div>
                 </div>
@@ -1552,9 +1584,11 @@ export default function CompanyDetailView({
                     <div>
                       <label className={labelClass}>Company Type</label>
                       <CompanyTypeSelect
-                        value={isEditing ? (editFormData.companySourceType ?? company.companySourceType ?? 'MANUFACTURER') : (company.companySourceType ?? 'MANUFACTURER')}
-                        onChange={(value) => onFieldChange('companySourceType', value)}
+                        value={isEditing ? (editFormData.companyTypeId ?? company.companyTypeId) : company.companyTypeId}
+                        onChange={(value) => onFieldChange('companyTypeId', value)}
                         disabled={!isEditing}
+                        companyTypes={companyTypes}
+                        isLoading={isLoadingCompanyTypes}
                       />
                     </div>
 

@@ -97,11 +97,23 @@ export interface InvoiceFactory {
   accountNumber?: string;
 }
 
+export interface InvoiceOrderCustomer {
+  id: string;
+  companyName?: string;
+  published?: boolean;
+  parentId?: string;
+  isParent?: boolean;
+  buyingGroupId?: string;
+}
+
 export interface InvoiceOrder {
   id: string;
   url?: string;
   status?: string;
   soldToCustomerId?: string;
+  soldToCustomer?: InvoiceOrderCustomer;
+  billToCustomerId?: string;
+  // Note: billToCustomer nested object is not available in the API, only billToCustomerId
   shippingTerms?: string;
   shipDate?: string;
   quoteId?: string;
@@ -122,7 +134,6 @@ export interface InvoiceOrder {
   creationType?: string;
   createdById?: string;
   createdAt?: string;
-  billToCustomerId?: string;
   balanceId?: string;
 }
 
@@ -136,6 +147,7 @@ export interface InvoiceDetail {
   discountRate?: string;
   divisionFactor?: string;
   endUserId?: string;
+  endUser?: InvoiceOrderCustomer;
   invoiceId?: string;
   invoicedBalance?: number;
   itemNumber?: number;
@@ -334,6 +346,7 @@ const FIND_INVOICE_BY_ID = `
         outside
         role
         username
+        visible
       }
       createdById
       creationType
@@ -346,6 +359,14 @@ const FIND_INVOICE_BY_ID = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
@@ -370,6 +391,7 @@ const FIND_INVOICE_BY_ID = `
             outside
             role
             username
+            visible
           }
           userId
         }
@@ -416,8 +438,17 @@ const FIND_INVOICE_BY_ID = `
         url
         status
         soldToCustomerId
-        shipDate
+        soldToCustomer {
+          published
+          parentId
+          isParent
+          id
+          companyName
+          buyingGroupId
+        }
+        billToCustomerId
         shippingTerms
+        shipDate
         quoteId
         published
         projectedShipDate
@@ -437,7 +468,6 @@ const FIND_INVOICE_BY_ID = `
         creationType
         createdById
         createdAt
-        billToCustomerId
         balanceId
       }
       locked
@@ -533,6 +563,14 @@ const CREATE_INVOICE = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
@@ -603,6 +641,15 @@ const CREATE_INVOICE = `
         url
         status
         soldToCustomerId
+        soldToCustomer {
+          published
+          parentId
+          isParent
+          id
+          companyName
+          buyingGroupId
+        }
+        billToCustomerId
         shipDate
         shippingTerms
         quoteId
@@ -624,7 +671,6 @@ const CREATE_INVOICE = `
         creationType
         createdById
         createdAt
-        billToCustomerId
         balanceId
       }
       locked
@@ -696,6 +742,14 @@ const UPDATE_INVOICE = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
@@ -766,6 +820,15 @@ const UPDATE_INVOICE = `
         url
         status
         soldToCustomerId
+        soldToCustomer {
+          published
+          parentId
+          isParent
+          id
+          companyName
+          buyingGroupId
+        }
+        billToCustomerId
         shipDate
         shippingTerms
         quoteId
@@ -787,7 +850,6 @@ const UPDATE_INVOICE = `
         creationType
         createdById
         createdAt
-        billToCustomerId
         balanceId
       }
       locked
@@ -827,15 +889,15 @@ const CREATE_INVOICE_FROM_ORDER = `
     $factoryId: UUID!
     $invoiceNumber: String!
     $orderId: UUID!
-    $dueDate: Date!
-    $orderDetailIds: [UUID!]
+    $dueDate: Date
+    $orderDetailsInputs: [OrderDetailToInvoiceDetailInput!] = null
   ) {
     createInvoiceFromOrder(
       factoryId: $factoryId
       invoiceNumber: $invoiceNumber
       orderId: $orderId
       dueDate: $dueDate
-      orderDetailIds: $orderDetailIds
+      orderDetailsInputs: $orderDetailsInputs
     ) {
       id
       invoiceNumber
@@ -885,6 +947,14 @@ const CREATE_INVOICE_FROM_ORDER = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
@@ -1127,21 +1197,27 @@ export async function deleteInvoice(id: string): Promise<boolean> {
 // Create Invoice from Order
 // ============================================================================
 
+export interface OrderDetailInputForInvoice {
+  orderDetailId: string;
+  quantity: string;
+  unitPrice: string;
+}
+
 export interface CreateInvoiceFromOrderInput {
   factoryId: string;
   invoiceNumber: string;
   orderId: string;
   dueDate: string;
-  orderDetailIds?: string[];
+  orderDetailsInputs?: OrderDetailInputForInvoice[];
 }
 
 /**
  * Create an invoice from an order
  */
 export async function createInvoiceFromOrder(input: CreateInvoiceFromOrderInput): Promise<Invoice> {
-  // Pass array of IDs directly (backend expects [UUID!])
-  const orderDetailIds = input.orderDetailIds?.length
-    ? input.orderDetailIds
+  // Pass array of order detail inputs (with quantity and unitPrice overrides)
+  const orderDetailsInputs = input.orderDetailsInputs?.length
+    ? input.orderDetailsInputs
     : undefined;
 
   const response = await crmGraphQLRequest<{ createInvoiceFromOrder: Invoice }>({
@@ -1151,7 +1227,7 @@ export async function createInvoiceFromOrder(input: CreateInvoiceFromOrderInput)
       invoiceNumber: input.invoiceNumber,
       orderId: input.orderId,
       dueDate: input.dueDate,
-      orderDetailIds,
+      orderDetailsInputs,
     },
   });
 

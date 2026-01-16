@@ -5,7 +5,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Company, CompanyHierarchyRole } from '../types';
 import { getCompanyInitials, getLogoColor, formatDate } from '../utils';
-import { COMPANY_SOURCE_TYPE_LABELS, COMPANY_SOURCE_TYPE_OPTIONS } from '../../lib/crm-graphql';
 
 // Sort direction type
 type SortDirection = 'asc' | 'desc' | null;
@@ -192,7 +191,7 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
   // Column filter state
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({
     name: '',
-    companySourceType: '',
+    companyTypeName: '',
     hierarchyRole: '',
     parentCompanyName: '',
     phone: '',
@@ -204,10 +203,10 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
 
   // Get unique values for dropdown filters
   const filterOptions = useMemo(() => {
-    // Get all company type labels for the dropdown
-    const companyTypeLabels = COMPANY_SOURCE_TYPE_OPTIONS.map(type => COMPANY_SOURCE_TYPE_LABELS[type]);
+    // Get unique company type names from the data
+    const companyTypeNames = [...new Set(companies.map(c => c.companyTypeName || c.type?.[0]).filter(Boolean))].sort();
     return {
-      companySourceType: companyTypeLabels,
+      companyTypeName: companyTypeNames as string[],
       hierarchyRole: ['None', 'Parent', 'Grandparent'],
       tags: [...new Set(companies.flatMap(c => c.tags))].sort(),
       isDocumentSpecific: ['Yes', 'No'],
@@ -241,14 +240,10 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
       const query = columnFilters.name.toLowerCase();
       result = result.filter(c => c.name.toLowerCase().includes(query));
     }
-    if (columnFilters.companySourceType) {
-      // Find the matching company source type key from the label
-      const matchingType = COMPANY_SOURCE_TYPE_OPTIONS.find(
-        type => COMPANY_SOURCE_TYPE_LABELS[type] === columnFilters.companySourceType
+    if (columnFilters.companyTypeName) {
+      result = result.filter(c =>
+        (c.companyTypeName || c.type?.[0]) === columnFilters.companyTypeName
       );
-      if (matchingType) {
-        result = result.filter(c => c.companySourceType === matchingType);
-      }
     }
     if (columnFilters.hierarchyRole) {
       const roleMap: Record<string, CompanyHierarchyRole> = { 'None': 'none', 'Parent': 'parent', 'Grandparent': 'grandparent' };
@@ -290,9 +285,9 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
             aVal = a.name;
             bVal = b.name;
             break;
-          case 'companySourceType':
-            aVal = a.companySourceType;
-            bVal = b.companySourceType;
+          case 'companyTypeName':
+            aVal = a.companyTypeName || a.type?.[0] || '';
+            bVal = b.companyTypeName || b.type?.[0] || '';
             break;
           case 'hierarchyRole':
             aVal = a.hierarchyRole ?? 'none';
@@ -353,13 +348,13 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
             />
             <ColumnHeader
               label="Type"
-              columnKey="companySourceType"
+              columnKey="companyTypeName"
               sortState={sortState}
               onSort={handleSort}
               filterType="dropdown"
-              filterValue={columnFilters.companySourceType}
+              filterValue={columnFilters.companyTypeName}
               onFilterChange={handleFilterChange}
-              filterOptions={filterOptions.companySourceType}
+              filterOptions={filterOptions.companyTypeName}
               colSpan={2}
             />
             <ColumnHeader
@@ -457,11 +452,11 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
                 </div>
                 <div className="col-span-2 flex items-center">
                   <span className={`px-1.5 md:px-2 py-0.5 rounded text-[10px] md:text-xs font-medium whitespace-nowrap ${
-                    company.companySourceType === 'MANUFACTURER'
+                    company.companyTypeName?.toLowerCase() === 'manufacturer'
                       ? 'bg-purple-100 text-purple-700'
                       : 'bg-green-100 text-green-700'
                   }`}>
-                    {COMPANY_SOURCE_TYPE_LABELS[company.companySourceType] || 'Customer'}
+                    {company.companyTypeName || company.type?.[0] || 'Customer'}
                   </span>
                 </div>
                 <div className="col-span-2 flex items-center">

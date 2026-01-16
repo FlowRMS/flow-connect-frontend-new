@@ -1,9 +1,16 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import type { QuoteV2, QuotePipelineStage } from '../types';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
+import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { getQuoteFilterOptions } from '../config/filterConfig';
+import { QuotesTableSkeleton } from '../components/QuotesTableSkeleton';
+import { SortIndicator } from '@/components/shared/sorting/components/SortIndicator';
+import type { ActiveSort } from '@/components/shared/sorting/types';
 import { ListPreviewHoverCard } from '@/components/shared/ListPreviewHoverCard';
+import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
 
 interface ListViewV2Props {
   quotes: QuoteV2[];
@@ -14,9 +21,26 @@ interface ListViewV2Props {
   isPartiallySelected?: boolean;
   onSelectAll?: (checked: boolean) => void;
   onSelectOne?: (id: string, checked: boolean) => void;
+  // Column filters - now using ActiveFilter[]
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  // Filter options for column filters
+  filterOptions?: ReturnType<typeof getQuoteFilterOptions>;
+  // Column filters from parent (controlled)
+  columnFilters?: Record<string, ActiveFilter[]>;
+  // Loading state
+  isLoading?: boolean;
+  isFetching?: boolean; // For showing skeleton during refetch (sort/filter)
+  // Whether there are any active filters (for better empty state messaging)
+  hasActiveFilters?: boolean;
+  // Unified sort props (for backend sorting)
+  activeSort?: ActiveSort | null;
+  onSortChange?: (columnId: string) => void;
+  // Pagination props for infinite scroll
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
+  searchQuery?: string;
 }
-
-type SortKey = 'quoteNumber' | 'status' | 'pipelineStage' | 'quoteAmount' | 'commission' | 'entryDate' | 'quoteDate' | 'expirationDate' | 'published' | 'soldToCustomerName';
 
 function getStatusBadgeClass(status: string): string {
   switch (status) {
@@ -71,78 +95,76 @@ export function ListViewV2({
   isPartiallySelected,
   onSelectAll,
   onSelectOne,
+  onColumnFiltersChange,
+  filterOptions = getQuoteFilterOptions([], []),
+  columnFilters: parentColumnFilters,
+  isLoading = false,
+  isFetching = false,
+  hasActiveFilters = false,
+  activeSort = null,
+  onSortChange,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+  searchQuery = '',
 }: ListViewV2Props) {
-  const [sortColumn, setSortColumn] = useState<SortKey | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  // Ref for the scrollable container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Use scroll pagination hook to detect when scrolling near bottom of table
+  // Only enable pagination when not searching (search results are handled differently)
+  const shouldPaginate = (hasNextPage ?? false) && !searchQuery;
+  useScrollPagination(scrollContainerRef, {
+    hasNextPage: shouldPaginate,
+    isFetchingNextPage: isFetchingNextPage ?? false,
+    fetchNextPage: fetchNextPage ?? (() => {}),
+    threshold: 200, // Trigger when within 200px of bottom
+  });
   // Local selection state (fallback if parent props not provided)
   const [localSelectedQuotes, setLocalSelectedQuotes] = useState<Set<string>>(new Set());
-
-  const handleSort = (column: SortKey) => {
-    if (sortColumn === column) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortColumn(column);
-      setSortDirection('asc');
-    }
-  };
-
-  const sortedQuotes = useMemo(() => {
-    if (!sortColumn) return quotes;
-
-    return [...quotes].sort((a, b) => {
-      let aVal: string | number | boolean | undefined = '';
-      let bVal: string | number | boolean | undefined = '';
-
-      switch (sortColumn) {
-        case 'quoteNumber':
-          aVal = a.quoteNumber;
-          bVal = b.quoteNumber;
-          break;
-        case 'status':
-          aVal = a.status;
-          bVal = b.status;
-          break;
-        case 'pipelineStage':
-          aVal = a.pipelineStage || '';
-          bVal = b.pipelineStage || '';
-          break;
-        case 'quoteAmount':
-          aVal = a.quoteAmount;
-          bVal = b.quoteAmount;
-          break;
-        case 'commission':
-          aVal = a.commission;
-          bVal = b.commission;
-          break;
-        case 'entryDate':
-          aVal = a.entryDate;
-          bVal = b.entryDate;
-          break;
-        case 'quoteDate':
-          aVal = a.quoteDate;
-          bVal = b.quoteDate;
-          break;
-        case 'expirationDate':
-          aVal = a.expirationDate;
-          bVal = b.expirationDate;
-          break;
-        case 'published':
-          aVal = a.published ? 1 : 0;
-          bVal = b.published ? 1 : 0;
-          break;
-        case 'soldToCustomerName':
-          aVal = a.soldToCustomerName || '';
-          bVal = b.soldToCustomerName || '';
-          break;
-        default:
-          return 0;
+  
+  // Column filter state - use parent if provided, otherwise local state
+  const [localColumnFilters, setLocalColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+  const columnFilters = parentColumnFilters !== undefined ? parentColumnFilters : localColumnFilters;
+  const setColumnFilters = parentColumnFilters !== undefined 
+    ? (filters: Record<string, ActiveFilter[]>) => {
+        if (onColumnFiltersChange) {
+          onColumnFiltersChange(filters);
+        }
       }
+    : setLocalColumnFilters;
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  
+  // Map from UI column keys to filter option IDs
+  const columnKeyToFilterId: Record<string, string> = {
+    quoteNumber: 'quote-number',
+    status: 'status',
+    pipelineStage: 'pipeline-stage',
+    quoteAmount: 'total-amount',
+    commission: 'commission',
+    entryDate: 'created-date',
+    quoteDate: 'quote-date',
+    expirationDate: 'expiration-date',
+    published: 'published',
+  };
+  
+  // Handle column filter change - now receives ActiveFilter[]
+  const handleColumnFilterChange = useCallback((columnKey: string, filters: ActiveFilter[]) => {
+    const newFilters = { ...columnFilters };
+    // Remove filter if empty array
+    if (filters.length === 0) {
+      delete newFilters[columnKey];
+    } else {
+      newFilters[columnKey] = filters;
+    }
+    
+    setColumnFilters(newFilters);
+    if (onColumnFiltersChange) {
+      onColumnFiltersChange(newFilters);
+    }
+  }, [columnFilters, onColumnFiltersChange, setColumnFilters]);
 
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [quotes, sortColumn, sortDirection]);
+  // SortIndicator component (simple arrows, clickable)
 
   // Use parent props if available, otherwise use local state
   const checkIsSelected = (id: string) =>
@@ -200,34 +222,47 @@ export function ListViewV2({
     return daysUntil <= 14 && daysUntil > 0;
   };
 
-  const renderSortIcon = (column: SortKey) => {
-    if (sortColumn !== column) return null;
+  
+  // Render column filter component
+  const renderColumnFilter = (columnKey: string) => {
+    const filterId = columnKeyToFilterId[columnKey];
+    if (!filterId) return null;
+    
+    const filterOption = filterOptions.find(f => f.id === filterId);
+    if (!filterOption || !filterOption.columnName) return null;
+    
+    // Ensure type is preserved correctly
+    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean';
+    
+    // Get filters for this column (ActiveFilter[])
+    const columnFiltersForThisColumn = columnFilters[columnKey] || [];
+    
     return (
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        className={`ml-1 ${sortDirection === 'desc' ? 'rotate-180' : ''}`}
-      >
-        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <ColumnFilter
+        type={filterType}
+        columnName={filterOption.columnName}
+        value={columnFiltersForThisColumn}
+        onChange={(filters) => handleColumnFilterChange(columnKey, filters)}
+        options={filterOption.options}
+        placeholder={filterOption.type === 'text' || filterOption.type === 'number' 
+          ? `Filter ${filterOption.label.toLowerCase()}...` 
+          : undefined}
+        isOpen={openFilter === columnKey}
+        onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
+        filterOption={filterOption}
+      />
     );
   };
 
-  const renderFilterIcon = () => (
-    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="ml-0.5 text-gray-400">
-      <path d="M3 4h14M5 8h10M7 12h6M9 16h2" strokeLinecap="round" />
-    </svg>
-  );
-
   return (
-    <div className="bg-white rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: 'calc(100vh - 220px)' }}>
-      <div className="overflow-auto scrollbar-always-visible flex-1">
-        <table className="w-full min-w-[1800px]">
-          <thead className="bg-gray-50 border-b border-gray-200">
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
+      <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+        <div 
+          ref={scrollContainerRef}
+          className="overflow-auto scrollbar-always-visible flex-1"
+        >
+          <table className="w-full min-w-[1800px]">
+            <thead className="bg-gray-50 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
             <tr>
               {/* Checkbox */}
               <th className="w-10 px-3 py-3 text-left">
@@ -244,15 +279,48 @@ export function ListViewV2({
               {/* Preview */}
               <th className="w-10 px-3 py-3 text-center"></th>
               {/* Quote Number */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteNumber')}>
-                  Quote Number {renderFilterIcon()} {renderSortIcon('quoteNumber')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('quoteNumber')}
+                  >
+                    Quote Number
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('quoteNumber')}
+                  </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="quoteNumber" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Customer Name */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('soldToCustomerName')}>
-                  Customer {renderFilterIcon()} {renderSortIcon('soldToCustomerName')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('soldToCustomerName')}
+                  >
+                    Customer
+                  </span>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="soldToCustomerName" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Part Numbers - moved after Customer */}
@@ -276,62 +344,237 @@ export function ListViewV2({
                 Categories
               </th>
               {/* Status */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('status')}>
-                  Status {renderFilterIcon()} {renderSortIcon('status')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('status')}
+                  >
+                    Status
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('status')}
+                  </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="status" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Pipeline Stage */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('pipelineStage')}>
-                  Pipeline Stage {renderFilterIcon()} {renderSortIcon('pipelineStage')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('pipelineStage')}
+                  >
+                    Pipeline Stage
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('pipelineStage')}
+                  </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="pipelineStage" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Quote Amount */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteAmount')}>
-                  Total {renderFilterIcon()} {renderSortIcon('quoteAmount')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('quoteAmount')}
+                  >
+                    Total
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('quoteAmount')}
+                  </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="quoteAmount" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Commission */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('commission')}>
-                  Commission {renderFilterIcon()} {renderSortIcon('commission')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('commission')}
+                  >
+                    Commission
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('commission')}
+                  </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="commission" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Entry Date */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('entryDate')}>
-                  Entry Date {renderFilterIcon()} {renderSortIcon('entryDate')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('entryDate')}
+                  >
+                    Entry Date
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('entryDate')}
+                  </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="entryDate" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Quote Date */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteDate')}>
-                  Quote Date {renderFilterIcon()} {renderSortIcon('quoteDate')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('quoteDate')}
+                  >
+                    Quote Date
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('quoteDate')}
+                  </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="quoteDate" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Exp. Date */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('expirationDate')}>
-                  Exp. Date {renderFilterIcon()} {renderSortIcon('expirationDate')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '110px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('expirationDate')}
+                  >
+                    Exp. Date
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('expirationDate')}
+                  </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="expirationDate" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Created By */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Created By
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+                <span className="whitespace-nowrap">Created By</span>
               </th>
               {/* Published */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('published')}>
-                  Published {renderFilterIcon()} {renderSortIcon('published')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '110px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('published')}
+                  >
+                    Published
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('published')}
+                  </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="published" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {sortedQuotes.map((quote) => {
-              return (
+            {(isLoading || isFetching) ? (
+              <QuotesTableSkeleton rowCount={8} />
+            ) : quotes.length === 0 ? (
+              <tr>
+                <td colSpan={14} className="px-4 py-8 text-center">
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <svg
+                      className="w-10 h-10 text-gray-400 mb-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                    <p className="text-lg font-medium text-gray-900 mb-2">
+                      {hasActiveFilters ? 'No quotes found for the applied filters' : 'No quotes found'}
+                    </p>
+                    {hasActiveFilters && (
+                      <p className="text-sm text-gray-500">
+                        Try adjusting your filters to see more results
+                      </p>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              quotes.map((quote) => {
+                return (
                 <tr
                   key={quote.id}
                   className="hover:bg-gray-50 transition-colors cursor-pointer"
@@ -449,18 +692,13 @@ export function ListViewV2({
                     )}
                   </td>
                 </tr>
-              );
-            })}
+                );
+              })
+            )}
           </tbody>
         </table>
-      </div>
-
-      {/* Empty state */}
-      {quotes.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">No quotes found</p>
         </div>
-      )}
+      </div>
     </div>
   );
 }

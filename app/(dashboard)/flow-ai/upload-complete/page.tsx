@@ -679,7 +679,7 @@ function UploadCompleteContent() {
   // Show full-page loading while waiting for params or initial data load
   if (effectiveParams === null || isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-background flex items-center justify-center">
+      <div className="h-full overflow-y-auto bg-slate-50 dark:bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Loading document data...</p>
@@ -689,7 +689,7 @@ function UploadCompleteContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-background">
+    <div className="h-full overflow-y-auto bg-slate-50 dark:bg-background">
       <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
         {/* Breadcrumb */}
         <WorkflowBreadcrumb currentStep="complete" showMapColumns={isFromSpreadsheet} />
@@ -807,10 +807,10 @@ function Header({ onExportExcel, isExporting, hasData, workflowStatus, isRetryin
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Upload Complete</h1>
         <div className="flex items-center gap-2">
-          {/* Retry button - only shown for FAILED workflow status */}
-          {isFailed && onRetry && (
+          {/* Retry button - always shown */}
+          {onRetry && (
             <Button
-              variant="destructive"
+              variant={isFailed ? "destructive" : "outline"}
               onClick={onRetry}
               disabled={isRetrying}
               className="gap-2"

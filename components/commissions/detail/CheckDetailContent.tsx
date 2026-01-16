@@ -5,10 +5,12 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import { useCheckDetailState } from './hooks';
+import { usePostedStatement } from '@/components/orders/api/checksApi';
+import type { PostedStatement } from '@/components/orders/api/checksApi';
 import { HeaderTopBar, PricingSummaryBar, CheckDetailsFields } from './components/header';
 import { LineItemsTable } from './components/line-items';
 import {
@@ -28,7 +30,6 @@ import {
   AddLineItemModal,
   OrderDetailModal,
 } from './components/modals';
-import * as XLSX from 'xlsx';
 import {
   AdjustmentModal,
   AdjustmentDetailModal,
@@ -49,6 +50,22 @@ export default function CheckDetailContent({
   const state = useCheckDetailState({ checkId });
   const { setFullEntityContext } = useFlowChat();
 
+  // Adjustments state management - reuse from orders
+  const adjustmentsState = useAdjustmentsState();
+
+  // Fetch posted statement data when modal is shown and check is posted
+  // Note: we call this unconditionally to respect React hooks rules
+  const showPostedModal = state?.showPostedStatementModal ?? false;
+  const isPostedStatus = state?.status === 'posted';
+  const {
+    data: postedStatement,
+    isLoading: isLoadingPostedStatement,
+    error: postedStatementError,
+  } = usePostedStatement(
+    checkId !== 'new' ? checkId : null,
+    showPostedModal && isPostedStatus
+  );
+
   // Set full entity context for global chatbot (type, id, and check number)
   useEffect(() => {
     if (state?.checkNumber && checkId) {
@@ -59,8 +76,25 @@ export default function CheckDetailContent({
     };
   }, [state?.checkNumber, checkId, setFullEntityContext]);
 
-  // Adjustments state management - reuse from orders
-  const adjustmentsState = useAdjustmentsState();
+  // Excel export using posted statement data from API
+  // This useCallback must be defined before any early returns to respect React hooks rules
+  const handleDownloadExcel = useCallback(() => {
+    if (!state) return;
+
+    // If postedStatement has a presigned URL, download from there
+    if (postedStatement?.presignedUrl) {
+      const link = document.createElement('a');
+      link.href = postedStatement.presignedUrl;
+      link.download = `Posted_Statement_${postedStatement.header?.checkNumber || state.checkNumber || 'Check'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    // Fallback: If no presigned URL, show a message (backend should always provide URL)
+    console.warn('No presigned URL available from backend for posted statement');
+  }, [postedStatement, state]);
 
   // Loading state
   if (state?.isLoading) {
@@ -108,79 +142,18 @@ export default function CheckDetailContent({
     state.setShowPostedStatementModal(true);
   };
 
-  const handleDownloadExcel = () => {
-    // Prepare data for Excel export
-    const paidLineItems = state.lineItems.filter((item) => item.paid);
-
-    // Create worksheet data
-    const worksheetData = [
-      // Header row
-      ['Type', 'Entity Number', 'Order Number', 'Expected Commission', 'Commission Received', 'Sales Amount', 'Outside Sales Rep'],
-      // Data rows
-      ...paidLineItems.map((item) => [
-        item.type.toUpperCase(),
-        item.number,
-        item.orderNumber || '-',
-        item.expectedCommission,
-        item.paidCommission,
-        item.commissionRateActual > 0
-          ? (item.paidCommission / (item.commissionRateActual / 100))
-          : 0,
-        item.salesRep || '-',
-      ]),
-    ];
-
-    // Create summary data
-    const summaryData = [
-      ['Posted Statement Summary'],
-      [''],
-      ['Check Summary'],
-      ['Check Number', state.checkNumber || '-'],
-      ['Factory', state.check?.manufacturerName || '-'],
-      ['Check Date', state.checkDate ? new Date(state.checkDate).toLocaleDateString() : '-'],
-      ['Check Amount', state.isTotalStatedCommission ? state.summary.paidTotal : state.commissionAmount],
-      ['Commission Month', state.commissionMonth || '-'],
-      ['Post Date', state.postedDate ? new Date(state.postedDate).toLocaleDateString() : '-'],
-      [''],
-      ['Commission Summary'],
-      ['Paid Commissions', state.summary.paidTotal],
-      ['Expected Commission', state.summary.expectedTotal],
-      ['Balance', state.summary.paidTotal - state.summary.expectedTotal],
-    ];
-
-    // Create workbook
-    const workbook = XLSX.utils.book_new();
-
-    // Add summary sheet
-    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-
-    // Add details sheet
-    const detailsSheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    XLSX.utils.book_append_sheet(workbook, detailsSheet, 'Details');
-
-    // Generate filename
-    const filename = `Posted_Statement_${state.checkNumber || 'Check'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-    // Download
-    XLSX.writeFile(workbook, filename);
-  };
-
   const handleSaveAsNewVersion = () => {
     alert('Save as New Version');
   };
 
   return (
-    <main className="flex-1 overflow-auto bg-[var(--background)] flex flex-col">
+    <main className="h-full overflow-auto bg-[var(--background)]">
       {/* Header Top Bar */}
       <HeaderTopBar
         check={state.check}
         status={state.status}
-        setStatus={state.setStatus}
         showActionsDropdown={state.showActionsDropdown}
         setShowActionsDropdown={state.setShowActionsDropdown}
-        showStatusDropdown={state.showStatusDropdown}
-        setShowStatusDropdown={state.setShowStatusDropdown}
         showVersionDropdown={state.showVersionDropdown}
         setShowVersionDropdown={state.setShowVersionDropdown}
         showSaveDropdown={state.showSaveDropdown}
@@ -188,7 +161,6 @@ export default function CheckDetailContent({
         showPostedStatementDropdown={state.showPostedStatementDropdown}
         setShowPostedStatementDropdown={state.setShowPostedStatementDropdown}
         currentVersion={state.currentVersion}
-        setCurrentVersion={state.setCurrentVersion}
         availableVersions={state.availableVersions}
         onExportCheckDetails={handleExportCheckDetails}
         onReconcileCheck={handleReconcileCheck}
@@ -197,13 +169,16 @@ export default function CheckDetailContent({
         onSave={state.handleSave}
         onSaveAndClose={state.handleSaveAndClose}
         onSaveAsNewVersion={handleSaveAsNewVersion}
+        onPost={state.handlePost}
         onUnpost={state.handleUnpost}
         onDelete={state.openDeleteConfirmModal}
         isCreateMode={state.isCreateMode}
         isSaving={state.isSaving}
+        isPosting={state.isPosting}
         isUnposting={state.isUnposting}
         isDeleting={state.isDeleting}
         isOriginallyPosted={state.isOriginallyPosted}
+        hasChanges={state.hasChanges}
       />
 
       {/* Pricing Summary Bar */}
@@ -269,10 +244,10 @@ export default function CheckDetailContent({
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex flex-1 overflow-hidden min-h-0">
-        <div className="flex-1 flex flex-col p-6 min-w-0 overflow-hidden">
+      <div>
+        <div className="p-6">
           {/* Tabs */}
-          <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
+          <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] bg-white -mx-6 px-6 pt-4 -mt-6">
             <div className="flex gap-1">
               {getTabsConfig(state.lineItems.length, state.adjustments.length, state.isCreateMode).map(
                 (tab) => (
@@ -426,7 +401,7 @@ export default function CheckDetailContent({
 
           {/* Tab Content */}
           {state.activeTab === 'line-items' && (
-            <div className="flex-1 min-h-0">
+            <div>
               <LineItemsTable
                 lineItems={state.lineItems}
                 visibleColumns={state.visibleColumns}
@@ -482,16 +457,10 @@ export default function CheckDetailContent({
       {/* Modals */}
       {state.showPostedStatementModal && (
         <PostedStatementModal
-          check={state.check}
-          checkNumber={state.checkNumber}
-          checkDate={state.checkDate}
-          commissionMonth={state.commissionMonth}
-          postedDate={state.postedDate}
-          commissionAmount={state.commissionAmount}
-          isTotalStatedCommission={state.isTotalStatedCommission}
-          summary={state.summary}
-          lineItems={state.lineItems}
-          adjustments={state.adjustments}
+          checkId={checkId}
+          postedStatement={postedStatement}
+          isLoading={isLoadingPostedStatement}
+          error={postedStatementError}
           onClose={() => state.setShowPostedStatementModal(false)}
           onDownloadExcel={handleDownloadExcel}
         />

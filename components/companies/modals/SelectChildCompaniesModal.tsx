@@ -7,27 +7,26 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import type { ChildCompanyRef, CompanyHierarchyRole } from '../types';
-import type { CompanySourceType } from '../../lib/crm-graphql';
 
 // Mock companies data for selection
 const mockAvailableCompanies: ChildCompanyRef[] = [
-  { id: 'cust-1', name: 'Acme Electric Supply', companySourceType: 'CUSTOMER' },
-  { id: 'cust-2', name: 'Metro Lighting Co', companySourceType: 'CUSTOMER' },
-  { id: 'cust-3', name: 'Pacific Electrical', companySourceType: 'CUSTOMER' },
-  { id: 'cust-4', name: 'Sunrise Electric', companySourceType: 'CUSTOMER' },
-  { id: 'cust-5', name: 'Valley Power Systems', companySourceType: 'CUSTOMER' },
-  { id: 'cust-6', name: 'Coastal Lighting Solutions', companySourceType: 'CUSTOMER' },
-  { id: 'cust-7', name: 'Mountain Electric', companySourceType: 'CUSTOMER' },
-  { id: 'cust-8', name: 'Delta Power Corp', companySourceType: 'CUSTOMER' },
+  { id: 'cust-1', name: 'Acme Electric Supply', companyTypeName: 'Customer' },
+  { id: 'cust-2', name: 'Metro Lighting Co', companyTypeName: 'Customer' },
+  { id: 'cust-3', name: 'Pacific Electrical', companyTypeName: 'Customer' },
+  { id: 'cust-4', name: 'Sunrise Electric', companyTypeName: 'Customer' },
+  { id: 'cust-5', name: 'Valley Power Systems', companyTypeName: 'Customer' },
+  { id: 'cust-6', name: 'Coastal Lighting Solutions', companyTypeName: 'Customer' },
+  { id: 'cust-7', name: 'Mountain Electric', companyTypeName: 'Customer' },
+  { id: 'cust-8', name: 'Delta Power Corp', companyTypeName: 'Customer' },
 ];
 
 // Mock parent companies (companies that are designated as parents)
 const mockAvailableParentCompanies: ChildCompanyRef[] = [
-  { id: 'parent-1', name: 'Eastern Regional Holdings', companySourceType: 'CUSTOMER' },
-  { id: 'parent-2', name: 'Western Distribution Group', companySourceType: 'CUSTOMER' },
-  { id: 'parent-3', name: 'Central Power Partners', companySourceType: 'CUSTOMER' },
-  { id: 'parent-4', name: 'Northern Electrical Corp', companySourceType: 'CUSTOMER' },
-  { id: 'parent-5', name: 'Southern Supply Chain', companySourceType: 'CUSTOMER' },
+  { id: 'parent-1', name: 'Eastern Regional Holdings', companyTypeName: 'Customer' },
+  { id: 'parent-2', name: 'Western Distribution Group', companyTypeName: 'Customer' },
+  { id: 'parent-3', name: 'Central Power Partners', companyTypeName: 'Customer' },
+  { id: 'parent-4', name: 'Northern Electrical Corp', companyTypeName: 'Customer' },
+  { id: 'parent-5', name: 'Southern Supply Chain', companyTypeName: 'Customer' },
 ];
 
 interface SelectChildCompaniesModalProps {

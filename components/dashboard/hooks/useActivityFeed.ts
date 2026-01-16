@@ -153,8 +153,21 @@ export function useActivityFeed(
     factories: deduplicateById(query.data.pages.flatMap(page => page.data.factories)),
   } : undefined;
 
+  // Get totals from the first page (totals don't change between pages)
+  const totals = query.data?.pages[0]?.totals || {
+    jobs: 0,
+    companies: 0,
+    contacts: 0,
+    preOpportunities: 0,
+    notes: 0,
+    tasks: 0,
+    customers: 0,
+    factories: 0,
+  };
+
   return {
     data: combinedData,
+    totals,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
