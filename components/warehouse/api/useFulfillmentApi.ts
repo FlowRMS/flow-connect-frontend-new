@@ -138,7 +138,8 @@ export function useUpdateFulfillmentOrder() {
   >({
     mutationFn: ({ id, input }) => updateFulfillmentOrder(id, input),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.order(data.id) });
+      // Update cache with server data - this triggers the UI update
+      queryClient.setQueryData(fulfillmentQueryKeys.order(data.id), data);
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.orders() });
     },
   });
@@ -153,7 +154,8 @@ export function useReleaseToWarehouse() {
   return useMutation<FulfillmentOrder, Error, string>({
     mutationFn: releaseToWarehouse,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.order(data.id) });
+      // Update cache with server data - this triggers the UI update
+      queryClient.setQueryData(fulfillmentQueryKeys.order(data.id), data);
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.orders() });
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.stats() });
     },
@@ -203,7 +205,7 @@ export function useStartPicking() {
   return useMutation<FulfillmentOrder, Error, string>({
     mutationFn: startPicking,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.order(data.id) });
+      queryClient.setQueryData(fulfillmentQueryKeys.order(data.id), data);
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.orders() });
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.stats() });
     },
@@ -235,7 +237,7 @@ export function useCompletePicking() {
   return useMutation<FulfillmentOrder, Error, string>({
     mutationFn: completePicking,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.order(data.id) });
+      queryClient.setQueryData(fulfillmentQueryKeys.order(data.id), data);
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.orders() });
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.stats() });
     },
@@ -353,7 +355,7 @@ export function useCompletePacking() {
   return useMutation<FulfillmentOrder, Error, string>({
     mutationFn: completePacking,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.order(data.id) });
+      queryClient.setQueryData(fulfillmentQueryKeys.order(data.id), data);
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.orders() });
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.stats() });
     },
@@ -373,7 +375,7 @@ export function useCompleteShipping() {
   return useMutation<FulfillmentOrder, Error, { id: string; input: CompleteShippingInput }>({
     mutationFn: ({ id, input }) => completeShipping(id, input),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.order(data.id) });
+      queryClient.setQueryData(fulfillmentQueryKeys.order(data.id), data);
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.orders() });
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.stats() });
     },

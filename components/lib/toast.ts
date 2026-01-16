@@ -556,6 +556,79 @@ export const teamMemberToasts = {
     }),
 };
 
+// Fulfillment Order Toasts
+export const fulfillmentToasts = {
+  saveSuccess: (foNumber: string) =>
+    showSuccessToast('Fulfillment Order Saved', {
+      description: `${foNumber} has been updated successfully`,
+    }),
+
+  saveError: (error?: string) =>
+    showErrorToast('Failed to Save', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  releaseSuccess: (foNumber: string) =>
+    showSuccessToast('Released to Warehouse', {
+      description: `${foNumber} is now ready for picking`,
+    }),
+
+  releaseError: (error?: string) =>
+    showErrorToast('Failed to Release', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  startPickingSuccess: (foNumber: string) =>
+    showSuccessToast('Picking Started', {
+      description: `${foNumber} is now in picking`,
+    }),
+
+  startPickingError: (error?: string) =>
+    showErrorToast('Failed to Start Picking', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  completePickingSuccess: (foNumber: string) =>
+    showSuccessToast('Picking Complete', {
+      description: `${foNumber} is ready for packing`,
+    }),
+
+  completePickingError: (error?: string) =>
+    showErrorToast('Failed to Complete Picking', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  completePackingSuccess: (foNumber: string) =>
+    showSuccessToast('Packing Complete', {
+      description: `${foNumber} is ready for shipping`,
+    }),
+
+  completePackingError: (error?: string) =>
+    showErrorToast('Failed to Complete Packing', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  shipmentConfirmed: (foNumber: string) =>
+    showSuccessToast('Shipment Confirmed', {
+      description: `${foNumber} has been shipped`,
+    }),
+
+  shipmentError: (error?: string) =>
+    showErrorToast('Failed to Confirm Shipment', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  backorderReported: () =>
+    showSuccessToast('Backorder Reported', {
+      description: 'Items have been marked as backordered',
+    }),
+
+  backorderError: (error?: string) =>
+    showErrorToast('Failed to Report Backorder', {
+      description: error || 'Please try again or contact support',
+    }),
+};
+
 // Quote Toasts
 export const quoteToasts = {
   createSuccess: (quoteNumber: string) =>

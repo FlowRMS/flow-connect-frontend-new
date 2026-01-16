@@ -14,6 +14,8 @@ interface FulfillmentHeaderProps {
   continueButtonText: string;
   continueButtonColor: string;
   blockedReason?: string;
+  isSaving?: boolean;
+  isContinuing?: boolean;
 }
 
 export default function FulfillmentHeader({
@@ -24,6 +26,8 @@ export default function FulfillmentHeader({
   continueButtonText,
   continueButtonColor,
   blockedReason,
+  isSaving = false,
+  isContinuing = false,
 }: FulfillmentHeaderProps) {
   const router = useRouter();
 
@@ -70,21 +74,42 @@ export default function FulfillmentHeader({
         {/* Save Button - Always visible */}
         <button
           onClick={onSave}
-          className="px-5 py-2.5 border-2 border-[var(--border)] rounded-lg font-semibold text-sm hover:bg-[var(--muted)] transition-colors"
+          disabled={isSaving}
+          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
         >
-          Save
+          {isSaving ? (
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" strokeLinecap="round" strokeLinejoin="round"/>
+              <polyline points="17 21 17 13 7 13 7 21" strokeLinecap="round" strokeLinejoin="round"/>
+              <polyline points="7 3 7 8 15 8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+          {isSaving ? 'Saving...' : 'Save'}
         </button>
 
         {/* Dynamic Continue Button based on status */}
         {canContinue ? (
           <button
             onClick={onContinue}
-            className={`px-5 py-2.5 ${continueButtonColor} text-white rounded-lg font-semibold text-sm transition-colors flex items-center gap-2`}
+            disabled={isContinuing}
+            className={`px-5 py-2.5 ${continueButtonColor} text-white rounded-lg font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            {continueButtonText}
+            {isContinuing ? (
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+            {isContinuing ? 'Processing...' : continueButtonText}
           </button>
         ) : blockedReason ? (
           <button

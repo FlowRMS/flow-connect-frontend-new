@@ -50,6 +50,8 @@ import type { Warehouse } from './settings/api/warehousesApi';
 // Users API
 import { useUsersQuery } from './settings/api/useUsersApi';
 import type { User } from './settings/api/usersApi';
+// Toast notifications
+import { fulfillmentToasts } from '@/components/lib/toast';
 
 // Local type for backorder items compatible with API types
 interface BackorderItem {
@@ -380,6 +382,56 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     });
     return map;
   }, [inventoryList]);
+
+  // Track unsaved changes - compare current form state with original fulfillment order data
+  const hasUnsavedChanges = useMemo(() => {
+    if (!fulfillmentOrder) return false;
+
+    const originalWarehouseId = fulfillmentOrder.warehouseId || '';
+    const originalShippingMethod = fulfillmentOrder.fulfillmentMethod || 'SHIP';
+    const originalCarrierId = fulfillmentOrder.carrierId || '';
+    const originalCarrierType = fulfillmentOrder.carrierType?.toLowerCase() || 'parcel';
+    const originalFreightClass = fulfillmentOrder.freightClass || '';
+    const originalNeedByDate = fulfillmentOrder.needByDate || '';
+    const originalShipToName = fulfillmentOrder.shipToAddress?.name || '';
+    const originalShipToLine1 = fulfillmentOrder.shipToAddress?.street || '';
+    const originalShipToLine2 = fulfillmentOrder.shipToAddress?.streetLine2 || '';
+    const originalShipToCity = fulfillmentOrder.shipToAddress?.city || '';
+    const originalShipToState = fulfillmentOrder.shipToAddress?.state || '';
+    const originalShipToPostalCode = fulfillmentOrder.shipToAddress?.postalCode || '';
+    const originalShipToPhone = fulfillmentOrder.shipToAddress?.phone || '';
+
+    return (
+      warehouseId !== originalWarehouseId ||
+      shippingMethod !== originalShippingMethod ||
+      selectedCarrier !== originalCarrierId ||
+      carrierType !== originalCarrierType ||
+      freightClass !== originalFreightClass ||
+      needByDate !== originalNeedByDate ||
+      shipToName !== originalShipToName ||
+      shipToAddressLine1 !== originalShipToLine1 ||
+      shipToAddressLine2 !== originalShipToLine2 ||
+      shipToCity !== originalShipToCity ||
+      shipToState !== originalShipToState ||
+      shipToPostalCode !== originalShipToPostalCode ||
+      shipToPhone !== originalShipToPhone
+    );
+  }, [
+    fulfillmentOrder,
+    warehouseId,
+    shippingMethod,
+    selectedCarrier,
+    carrierType,
+    freightClass,
+    needByDate,
+    shipToName,
+    shipToAddressLine1,
+    shipToAddressLine2,
+    shipToCity,
+    shipToState,
+    shipToPostalCode,
+    shipToPhone,
+  ]);
 
   // Loading state
   if (isLoading) {
@@ -762,8 +814,10 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     if (fulfillmentOrder.status !== 'PENDING') return;
     try {
       await releaseToWarehouseMutation.mutateAsync(fulfillmentOrder.id);
+      fulfillmentToasts.releaseSuccess(fulfillmentOrder.fulfillmentOrderNumber);
     } catch (error) {
       console.error('Failed to release to warehouse:', error);
+      fulfillmentToasts.releaseError(error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -771,8 +825,10 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     if (fulfillmentOrder.status !== 'RELEASED') return;
     try {
       await startPickingMutation.mutateAsync(fulfillmentOrder.id);
+      fulfillmentToasts.startPickingSuccess(fulfillmentOrder.fulfillmentOrderNumber);
     } catch (error) {
       console.error('Failed to start picking:', error);
+      fulfillmentToasts.startPickingError(error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -780,8 +836,10 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     if (fulfillmentOrder.status !== 'PICKING') return;
     try {
       await completePickingMutation.mutateAsync(fulfillmentOrder.id);
+      fulfillmentToasts.completePickingSuccess(fulfillmentOrder.fulfillmentOrderNumber);
     } catch (error) {
       console.error('Failed to complete picking:', error);
+      fulfillmentToasts.completePickingError(error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -789,8 +847,10 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     if (fulfillmentOrder.status !== 'PACKING') return;
     try {
       await completePackingMutation.mutateAsync(fulfillmentOrder.id);
+      fulfillmentToasts.completePackingSuccess(fulfillmentOrder.fulfillmentOrderNumber);
     } catch (error) {
       console.error('Failed to complete packing:', error);
+      fulfillmentToasts.completePackingError(error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -813,8 +873,10 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           }),
         },
       });
+      fulfillmentToasts.shipmentConfirmed(fulfillmentOrder.fulfillmentOrderNumber);
     } catch (error) {
       console.error('Failed to complete shipping:', error);
+      fulfillmentToasts.shipmentError(error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -903,8 +965,10 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           },
         },
       });
+      fulfillmentToasts.saveSuccess(fulfillmentOrder.fulfillmentOrderNumber);
     } catch (error) {
       console.error('Failed to save fulfillment order:', error);
+      fulfillmentToasts.saveError(error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -1125,6 +1189,14 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           continueButtonText={continueButtonText}
           continueButtonColor={continueButtonColor}
           blockedReason={blockedReason}
+          isSaving={updateOrderMutation.isPending}
+          isContinuing={
+            releaseToWarehouseMutation.isPending ||
+            startPickingMutation.isPending ||
+            completePickingMutation.isPending ||
+            completePackingMutation.isPending ||
+            completeShippingMutation.isPending
+          }
         />
 
         {/* Status Progress */}
@@ -1500,6 +1572,67 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
         onClose={() => setShowShipmentConfirmationModal(false)}
         onSend={handleSendShipmentConfirmation}
       />
+
+      {/* Floating Save Bar - appears when there are unsaved changes */}
+      {hasUnsavedChanges && (
+        <div className="fixed bottom-0 left-0 right-0 bg-amber-50 border-t-2 border-amber-400 shadow-lg z-50 animate-in slide-in-from-bottom duration-300">
+          <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+              <span className="text-amber-800 font-medium text-sm">You have unsaved changes</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  // Reset form to original values
+                  if (fulfillmentOrder) {
+                    setWarehouseId(fulfillmentOrder.warehouseId || '');
+                    setShippingMethod(fulfillmentOrder.fulfillmentMethod || 'SHIP');
+                    setSelectedCarrier(fulfillmentOrder.carrierId || '');
+                    setCarrierType((fulfillmentOrder.carrierType?.toLowerCase() as 'parcel' | 'freight') || 'parcel');
+                    setFreightClass(fulfillmentOrder.freightClass || '');
+                    setNeedByDate(fulfillmentOrder.needByDate || '');
+                    setShipToName(fulfillmentOrder.shipToAddress?.name || '');
+                    setShipToAddressLine1(fulfillmentOrder.shipToAddress?.street || '');
+                    setShipToAddressLine2(fulfillmentOrder.shipToAddress?.streetLine2 || '');
+                    setShipToCity(fulfillmentOrder.shipToAddress?.city || '');
+                    setShipToState(fulfillmentOrder.shipToAddress?.state || '');
+                    setShipToPostalCode(fulfillmentOrder.shipToAddress?.postalCode || '');
+                    setShipToPhone(fulfillmentOrder.shipToAddress?.phone || '');
+                  }
+                }}
+                className="px-4 py-2 text-amber-700 hover:text-amber-900 font-medium text-sm transition-colors"
+              >
+                Discard
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={updateOrderMutation.isPending}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+              >
+                {updateOrderMutation.isPending ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" strokeLinecap="round" strokeLinejoin="round"/>
+                      <polyline points="17 21 17 13 7 13 7 21" strokeLinecap="round" strokeLinejoin="round"/>
+                      <polyline points="7 3 7 8 15 8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Save Changes
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
