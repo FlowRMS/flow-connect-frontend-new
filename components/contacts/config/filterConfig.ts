@@ -1,121 +1,74 @@
 /**
  * Contact Filter Configuration
- * Note: columnName should match the UI Contact type field names
+ * Note: columnName should match the API ContactLandingPage field names
  */
 
-import type { Contact } from '../types';
-import type { FilterOption, SortOption } from '../../lib/filter-utils';
+import type { FilterOption } from '../../advancedFilters/types';
+import { CONTACT_ROLES } from '../constants';
 
 /**
- * Generate filter options with dynamic unique values
+ * Get filter options for the AdvancedFilters component
+ * Note: columnName should match the API ContactLandingPage field names
  */
-export function getContactFilterOptions(contacts: Contact[]): FilterOption[] {
-  const uniqueFirstNames = Array.from(new Set(contacts.map(c => c.firstName).filter(Boolean))).sort();
-  const uniqueLastNames = Array.from(new Set(contacts.map(c => c.lastName).filter(Boolean))).sort();
-  const uniqueEmails = Array.from(new Set(contacts.map(c => c.email).filter(Boolean))).sort();
-  const uniqueCompanies = Array.from(new Set(contacts.map(c => c.company).filter(Boolean))).sort();
-  const uniqueRoles = Array.from(new Set(contacts.map(c => c.role).filter(Boolean))).sort();
-  const uniqueCreators = Array.from(new Set(contacts.map(c => c.createdBy).filter(Boolean))).sort();
-
+export function getContactFilterOptions(): FilterOption[] {
   return [
     { 
       id: 'first-name', 
       label: 'First Name', 
-      type: 'dropdown', 
+      type: 'text' as const, 
       columnName: 'firstName', 
-      available: true, 
-      options: uniqueFirstNames 
+      available: true 
     },
     { 
       id: 'last-name', 
       label: 'Last Name', 
-      type: 'dropdown', 
+      type: 'text' as const, 
       columnName: 'lastName', 
-      available: true,
-      options: uniqueLastNames 
-    },
-    { 
-      id: 'email', 
-      label: 'Email', 
-      type: 'dropdown', 
-      columnName: 'email', 
-      available: true, 
-      options: uniqueEmails 
-    },
-    { 
-      id: 'phone', 
-      label: 'Phone', 
-      type: 'text', 
-      columnName: 'phone', 
       available: true 
     },
     { 
       id: 'company', 
       label: 'Company', 
-      type: 'dropdown', 
-      columnName: 'company', 
-      available: true, 
-      options: uniqueCompanies 
+      type: 'text' as const, 
+      columnName: 'companyName', 
+      available: true 
     },
     { 
       id: 'role', 
       label: 'Role', 
-      type: 'dropdown', 
+      type: 'dropdown' as const, 
       columnName: 'role', 
       available: true, 
-      options: uniqueRoles 
+      options: [...CONTACT_ROLES] 
     },
     { 
       id: 'created-by', 
       label: 'Created By', 
-      type: 'dropdown', 
+      type: 'text' as const, 
       columnName: 'createdBy', 
-      available: true, 
-      options: uniqueCreators 
+      available: true 
     },
     { 
-      id: 'contact-id', 
-      label: 'Contact ID', 
-      type: 'text', 
-      available: false 
-    },
-    { 
-      id: 'contact-type', 
-      label: 'Contact Type', 
-      type: 'dropdown', 
-      available: false 
-    },
-    { 
-      id: 'territory', 
-      label: 'Territory', 
-      type: 'dropdown', 
-      available: false 
-    },
-    { 
-      id: 'tags', 
-      label: 'Tags', 
-      type: 'dropdown', 
-      available: false 
-    },
-    {
-      id: 'last-activity',
-      label: 'Last Activity',
-      type: 'date',
-      available: false
+      id: 'created-at', 
+      label: 'Created At', 
+      type: 'date' as const, 
+      columnName: 'createdAt', 
+      available: true 
     },
   ];
 }
 
 /**
- * Get sort options for contacts
+ * Get sort options for the SortButton component
+ * Note: columnName should match the API ContactLandingPage field names
  */
-export function getContactSortOptions(): SortOption[] {
+export function getContactSortOptions() {
   return [
     { columnName: 'firstName', label: 'First Name' },
     { columnName: 'lastName', label: 'Last Name' },
-    { columnName: 'email', label: 'Email' },
-    { columnName: 'company', label: 'Company' },
+    { columnName: 'companyName', label: 'Company' },
     { columnName: 'role', label: 'Role' },
     { columnName: 'createdAt', label: 'Created Date' },
+    { columnName: 'createdBy', label: 'Created By' },
   ];
 }

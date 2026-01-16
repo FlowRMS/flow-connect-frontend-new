@@ -117,12 +117,8 @@ export default function ContactsContent() {
     router.push(`/companies?id=${company.id}`);
   };
 
-  // Generate filter and sort options with current data
-  const contactFilterOptions = useMemo(
-    () => getContactFilterOptions(state.contacts),
-    [state.contacts]
-  );
-
+  // Generate filter and sort options (static, no dependencies on data)
+  const contactFilterOptions = useMemo(() => getContactFilterOptions(), []);
   const contactSortOptions = useMemo(() => getContactSortOptions(), []);
 
   // Mock duplicate groups (would come from API in the future)

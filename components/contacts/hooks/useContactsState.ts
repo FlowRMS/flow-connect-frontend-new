@@ -14,8 +14,10 @@ import {
 import { mapLandingPageToUIContact } from '../types';
 import { contactToasts } from '../../lib/toast';
 import type { Contact, ViewMode } from '../types';
-import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
+import type { ActiveFilter, ActiveSort } from '../../advancedFilters/types';
 import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
+import { useFilterSync } from '../../advancedFilters/hooks/useFilterSync';
+import { getContactFilterOptions } from '../config/filterConfig';
 
 export function useContactsState() {
   // Hydration-safe mounted state
@@ -162,12 +164,50 @@ export function useContactsState() {
     }
   }, [toServerFilters]);
 
-  // Handle multi-filter change
+  // Filter options for sync (static, no dependencies)
+  const contactFilterOptionsForSync = useMemo(() => {
+    return getContactFilterOptions();
+  }, []);
+
+  // Map from UI column keys to filter option IDs (for sync - if needed in future)
+  const columnKeyToFilterId: Record<string, string> = useMemo(() => ({
+    firstName: 'first-name',
+    lastName: 'last-name',
+    companyName: 'company',
+    role: 'role',
+    createdBy: 'created-by',
+    createdAt: 'created-at',
+  }), []);
+
+  // Hook for synchronizing filters between AdvancedFilters and ColumnFilters (if needed in future)
+  // For now, we only use AdvancedFilters, but this prepares for future column filter sync
+  const { syncAdvancedToColumn, syncColumnToAdvanced } = useFilterSync({
+    filterOptions: contactFilterOptionsForSync,
+    columnKeyToFilterId,
+  });
+
+  // Handle multi-filter change (from AdvancedFilters)
   const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
     setActiveFilters(filters);
     setActiveFilter(filters.length > 0 ? filters[0] : undefined);
-    setServerFilters(toServerFilters(filters)); // Server-side filters
-  }, [toServerFilters]);
+    
+    // Convert ActiveFilter to LandingPageFilter for server-side filtering
+    const apiFilters: LandingPageFilter[] = filters.map(f => {
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
+    setServerFilters(apiFilters);
+  }, []);
 
   // Handle sort change (single - backward compatibility)
   const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
