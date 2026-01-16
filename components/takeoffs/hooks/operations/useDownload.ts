@@ -80,7 +80,6 @@ export function useDownload({ documents, selectedTakeoff }: UseDownloadProps) {
 
         try {
           const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(urlToDownload)}`;
-          console.log(`[ZIP] Fetching ${doc.name} from ${proxyUrl}`);
           const response = await fetch(proxyUrl);
 
           if (response.ok) {
@@ -88,7 +87,6 @@ export function useDownload({ documents, selectedTakeoff }: UseDownloadProps) {
             if (blob.size > 0) {
               folder.file(doc.name, blob);
               addedCount++;
-              console.log(`[ZIP] Added ${doc.name} (${blob.size} bytes)`);
             } else {
               console.warn(`[ZIP] Empty blob for ${doc.name}`);
             }

@@ -3,7 +3,7 @@
  * Handles document abridgement state and operations
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Takeoff, TakeoffDocument } from '../../types';
 import { statusApiMap } from '../../types';
 import {
@@ -37,6 +37,13 @@ export function useAbridgement({
   setSelectedTakeoff,
   setTakeoffsData,
 }: UseAbridgementProps) {
+  // Use ref to always have the latest selectedTakeoff value in callbacks
+  // This avoids stale closure issues when retrying after partial failures
+  const selectedTakeoffRef = useRef<Takeoff | null>(selectedTakeoff);
+  useEffect(() => {
+    selectedTakeoffRef.current = selectedTakeoff;
+  }, [selectedTakeoff]);
+
   const [abridgementState, setAbridgementState] = useState<ProcessingState>({
     isProcessing: false,
     progress: 0,
@@ -68,19 +75,20 @@ export function useAbridgement({
     }));
   }, []);
 
-  // Update takeoff status helper
+  // Update takeoff status helper - uses ref to always get latest takeoff
   const updateTakeoffStatus = useCallback(async (status: TakeoffStatusEnum, displayStatus: Takeoff['status']) => {
-    if (!selectedTakeoff) return;
+    const currentTakeoff = selectedTakeoffRef.current;
+    if (!currentTakeoff) return;
     try {
-      await apiUpdateTakeoff(selectedTakeoff.id, { status });
+      await apiUpdateTakeoff(currentTakeoff.id, { status });
       setTakeoffsData(prev =>
-        prev.map(t => t.id === selectedTakeoff.id ? { ...t, status: displayStatus } : t)
+        prev.map(t => t.id === currentTakeoff.id ? { ...t, status: displayStatus } : t)
       );
       setSelectedTakeoff(prev => prev ? { ...prev, status: displayStatus } : null);
     } catch (error) {
       console.error('[Abridgement] Failed to update takeoff status:', error);
     }
-  }, [selectedTakeoff, setTakeoffsData, setSelectedTakeoff]);
+  }, [setTakeoffsData, setSelectedTakeoff]);
 
   // Abridge a single document using AI with retry logic
   const handleAbridgeDocument = useCallback(async (docId: string) => {
@@ -89,6 +97,13 @@ export function useAbridgement({
       console.error('Document not found or has no URL');
       return;
     }
+
+    // Check BEFORE processing if this is the last doc that needs abridging
+    // (documents state is accurate here, before async operations)
+    const otherDocsNeedingAbridge = documents.filter(d =>
+      d.id !== docId && d.documentUrl && !d.abridged
+    );
+    const willBeLastDoc = otherDocsNeedingAbridge.length === 0;
 
     // Set per-document state (clears any previous error)
     setDocumentAbridgeState(prev => ({
@@ -155,6 +170,13 @@ export function useAbridgement({
         ...prev,
         [docId]: { isProcessing: false, error: undefined },
       }));
+
+      // Update takeoff status if this was the last document needing abridging
+      // Use ref to get latest takeoff state (avoids stale closure after partial failures)
+      const currentTakeoff = selectedTakeoffRef.current;
+      if (willBeLastDoc && currentTakeoff && currentTakeoff.status !== 'Complete') {
+        await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
+      }
     } else {
       // Set error for Retry button
       const errorMsg = result?.error || lastError || 'Abridgement failed after retries';
@@ -166,20 +188,13 @@ export function useAbridgement({
     }
 
     setAbridgementState({ isProcessing: false, progress: 100 });
-
-    // Check if all abridgeable documents are now abridged
-    const docsToAbridge = documents.filter(d => d.documentUrl && (!d.abridged || !d.abridgedUrl));
-    const allAbridged = docsToAbridge.length === 0 || docsToAbridge.every(d => d.id === docId);
-
-    if (allAbridged && selectedTakeoff && selectedTakeoff.status !== 'Complete') {
-      await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
-    }
-  }, [documents, selectedTakeoff, setDocuments, updateTakeoffStatus]);
+  }, [documents, setDocuments, updateTakeoffStatus]);
 
   // Abridge all documents
   const handleAbridgeAll = useCallback(async () => {
+    // Only check d.abridged, not abridgedUrl (docs with 0% reduction have no URL but are still processed)
     const docsToAbridge = documents.filter(d =>
-      d.documentUrl && (!d.abridged || !d.abridgedUrl)
+      d.documentUrl && !d.abridged
     );
 
     if (docsToAbridge.length === 0) return;
