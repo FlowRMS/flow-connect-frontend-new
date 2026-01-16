@@ -7,6 +7,8 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { getInitials, getAvatarColor, formatDate } from '../utils';
 import type { Contact } from '../types';
 import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
+import { ContactsTableSkeleton } from './ContactsTableSkeleton';
+import { ContactsEmptyState } from './ContactsEmptyState';
 
 // Sort direction type
 type SortDirection = 'asc' | 'desc' | null;
@@ -188,6 +190,8 @@ interface ListViewProps {
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
   isLoading?: boolean;
+  // For empty state
+  hasFilters?: boolean;
 }
 
 export default function ListView({ 
@@ -197,6 +201,7 @@ export default function ListView({
   isFetchingNextPage,
   fetchNextPage,
   isLoading = false,
+  hasFilters = false,
 }: ListViewProps) {
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -321,11 +326,14 @@ export default function ListView({
     threshold: 200, // Trigger when within 200px of bottom
   });
 
+  // Check if there are column filters applied
+  const hasColumnFilters = Object.values(columnFilters).some(value => value !== '');
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
       {!isLoading && filteredAndSortedContacts.length === 0 ? (
-        // Empty state - don't show table structure
-        null
+        // Empty state - show message
+        <ContactsEmptyState hasFilters={hasFilters || hasColumnFilters} />
       ) : (
         <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           <div 
@@ -397,12 +405,7 @@ export default function ListView({
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {isLoading ? (
-                  // Skeleton will be added in next step
-                  <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-gray-500">
-                      Loading contacts...
-                    </td>
-                  </tr>
+                  <ContactsTableSkeleton rowCount={8} />
                 ) : (
                   filteredAndSortedContacts.map((contact) => (
                     <tr
