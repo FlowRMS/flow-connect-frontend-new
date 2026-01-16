@@ -97,12 +97,6 @@ export function getContactFilterOptions(contacts: Contact[]): FilterOption[] {
       type: 'dropdown', 
       available: false 
     },
-    { 
-      id: 'lists', 
-      label: 'Lists', 
-      type: 'dropdown', 
-      available: false 
-    },
     {
       id: 'last-activity',
       label: 'Last Activity',
