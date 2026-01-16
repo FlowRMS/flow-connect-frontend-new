@@ -9,11 +9,29 @@ import CreateContactModal from '@/components/contacts/modals/CreateContactModal'
 interface CarrierContactInfoProps {
   carrier: ShippingCarrier;
   onUpdate: (updates: Partial<ShippingCarrier>) => void;
+  isLoading?: boolean;
+}
+
+// Skeleton component for loading state
+function ContactInfoSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <div className="h-3 w-24 bg-[var(--muted)] rounded mb-2" />
+          <div className="h-10 bg-[var(--muted)] rounded-lg" />
+        </div>
+        <div className="h-10 w-16 bg-[var(--muted)] rounded-md" />
+      </div>
+      <p className="mt-3 h-3 w-48 bg-[var(--muted)] rounded" />
+    </div>
+  );
 }
 
 export default function CarrierContactInfo({
   carrier,
   onUpdate,
+  isLoading = false,
 }: CarrierContactInfoProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
@@ -94,8 +112,15 @@ export default function CarrierContactInfo({
           />
         </svg>
         Contact Information
+        {isLoading && (
+          <span className="text-xs text-[var(--muted-foreground)]">Loading...</span>
+        )}
       </h3>
       <div className="bg-[var(--background)] rounded-lg border border-[var(--border)] p-3 space-y-3">
+        {isLoading ? (
+          <ContactInfoSkeleton />
+        ) : (
+          <>
         {/* Contact Search Dropdown with Create Button */}
         <div className="flex gap-2 items-end">
           <div className="flex-1">
@@ -153,6 +178,8 @@ export default function CarrierContactInfo({
           <p className="text-xs text-[var(--muted-foreground)]">
             Search and select an existing contact, or create a new one.
           </p>
+        )}
+          </>
         )}
       </div>
 
