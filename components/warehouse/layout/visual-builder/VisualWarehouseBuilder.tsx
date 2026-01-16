@@ -27,10 +27,14 @@ interface VisualWarehouseBuilderProps {
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
   onMouseUp: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+  isPanning?: boolean;
+  isSpacePressed?: boolean;
   onZoomChange: (zoom: number) => void;
   onResetView: () => void;
   onSave: () => void;
   onClose: () => void;
+  isSaving?: boolean;
   onRename: (id: string, name: string) => void;
   getNextLevelType: (type: string) => WarehouseLocationLevel | null;
   handleZoomIn: () => void;
@@ -58,9 +62,13 @@ export default function VisualWarehouseBuilder({
   onMouseDown,
   onMouseMove,
   onMouseUp,
+  onContextMenu,
+  isPanning = false,
+  isSpacePressed = false,
   onResetView,
   onSave,
   onClose,
+  isSaving = false,
   onRename,
   getNextLevelType,
   handleZoomIn,
@@ -270,7 +278,7 @@ export default function VisualWarehouseBuilder({
               ? 'bg-blue-100 dark:bg-blue-900/30 ring-1 ring-blue-400'
               : isInPath
                 ? 'bg-blue-50 dark:bg-blue-900/10'
-                : 'hover:bg-[var(--accent)]'
+                : 'hover:bg-[var(--muted)]/50'
           }`}
           style={{ paddingLeft: `${depth * 12 + 6}px` }}
           onClick={() => onElementSelect(location.id)}
@@ -359,15 +367,23 @@ export default function VisualWarehouseBuilder({
         <div className="flex items-center gap-2 ml-2">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--accent)] rounded-lg transition-colors"
+            disabled={isSaving}
+            className="px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--accent)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             onClick={onSave}
-            className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={isSaving}
+            className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Save Layout
+            {isSaving && (
+              <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
+            {isSaving ? 'Saving...' : 'Save Layout'}
           </button>
         </div>
       </div>
@@ -383,10 +399,13 @@ export default function VisualWarehouseBuilder({
           selectedElementId={selectedElementId}
           editingName={editingName}
           draggingFromLibrary={draggingFromLibrary}
+          isPanning={isPanning}
+          isSpacePressed={isSpacePressed}
           onWheel={onWheel}
           onMouseDown={onMouseDown}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
+          onContextMenu={onContextMenu}
           onCanvasClick={handleCanvasClick}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
@@ -482,7 +501,7 @@ export default function VisualWarehouseBuilder({
                       <input
                         type="number"
                         value={pixelsToFeet(selectedElement.x)}
-                        onChange={(e) => onElementMove(selectedElement.id, feetToPixels(parseInt(e.target.value) || 0), selectedElement.y)}
+                        onChange={(e) => onElementMove(selectedElement.id, feetToPixels(parseInt(e.target.value) || 0), selectedElement.y ?? 0)}
                         className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
                       />
                     </div>
@@ -491,7 +510,7 @@ export default function VisualWarehouseBuilder({
                       <input
                         type="number"
                         value={pixelsToFeet(selectedElement.y)}
-                        onChange={(e) => onElementMove(selectedElement.id, selectedElement.x, feetToPixels(parseInt(e.target.value) || 0))}
+                        onChange={(e) => onElementMove(selectedElement.id, selectedElement.x ?? 0, feetToPixels(parseInt(e.target.value) || 0))}
                         className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
                       />
                     </div>
@@ -500,7 +519,7 @@ export default function VisualWarehouseBuilder({
                       <input
                         type="number"
                         value={pixelsToFeet(selectedElement.width)}
-                        onChange={(e) => onElementResize(selectedElement.id, feetToPixels(parseInt(e.target.value) || 10), selectedElement.height)}
+                        onChange={(e) => onElementResize(selectedElement.id, feetToPixels(parseInt(e.target.value) || 10), selectedElement.height ?? 100)}
                         className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
                       />
                     </div>
@@ -509,7 +528,7 @@ export default function VisualWarehouseBuilder({
                       <input
                         type="number"
                         value={pixelsToFeet(selectedElement.height)}
-                        onChange={(e) => onElementResize(selectedElement.id, selectedElement.width, feetToPixels(parseInt(e.target.value) || 10))}
+                        onChange={(e) => onElementResize(selectedElement.id, selectedElement.width ?? 100, feetToPixels(parseInt(e.target.value) || 10))}
                         className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
                       />
                     </div>
@@ -573,9 +592,11 @@ export default function VisualWarehouseBuilder({
           <div className="flex items-center gap-3 text-[10px] text-[var(--muted-foreground)]">
             <span>Double-click to edit</span>
             <span className="w-px h-3 bg-[var(--border)]" />
-            <span>Alt+Drag pan</span>
+            <span>Right-click drag to pan</span>
             <span className="w-px h-3 bg-[var(--border)]" />
-            <span>Scroll zoom</span>
+            <span>Scroll to zoom</span>
+            <span className="w-px h-3 bg-[var(--border)]" />
+            <span>Space+drag to pan</span>
           </div>
         </div>
       </div>
