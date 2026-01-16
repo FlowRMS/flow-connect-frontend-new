@@ -13,7 +13,6 @@ import {
 
 import { mapLandingPageToUIContact } from '../types';
 import { contactToasts } from '../../lib/toast';
-import { applyFilter } from '../../lib/filter-utils';
 import type { Contact, ViewMode } from '../types';
 import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
@@ -28,7 +27,6 @@ export function useContactsState() {
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [selectedType, setSelectedType] = useState<string>('All');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
 
@@ -108,57 +106,16 @@ export function useContactsState() {
     setSelectedContactId(contact?.id || null);
   }, []);
 
-  // Map and filter contacts
+  // Map contacts from API (filtering and sorting now done server-side)
   const contacts = useMemo(() => {
     if (!landingPageContacts) return [];
-    let filtered = landingPageContacts.map(mapLandingPageToUIContact);
+    return landingPageContacts.map(mapLandingPageToUIContact);
+  }, [landingPageContacts]);
 
-    // Apply advanced filters (multi-select)
-    if (activeFilters.length > 0) {
-      filtered = filtered.filter((contact) =>
-        activeFilters.every((filter) => applyFilter(contact as unknown as Record<string, unknown>, filter))
-      );
-    } else if (activeFilter) {
-      // Backward compatibility for single filter
-      filtered = filtered.filter((contact) => applyFilter(contact as unknown as Record<string, unknown>, activeFilter));
-    }
-
-    // Apply advanced sorting (multi-sort)
-    if (clientSortColumns.length > 0) {
-      filtered = [...filtered].sort((a, b) => {
-        for (const sort of clientSortColumns) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const aVal = String((a as any)[sort.columnName] || '');
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const bVal = String((b as any)[sort.columnName] || '');
-          const comparison = aVal.localeCompare(bVal);
-          if (comparison !== 0) {
-            return sort.direction === 'ASC' ? comparison : -comparison;
-          }
-        }
-        return 0;
-      });
-    } else if (clientSortColumn) {
-      // Single sort fallback
-      filtered = [...filtered].sort((a, b) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const aVal = String((a as any)[clientSortColumn] || '');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const bVal = String((b as any)[clientSortColumn] || '');
-        const comparison = aVal.localeCompare(bVal);
-        return clientSortDirection === 'ASC' ? comparison : -comparison;
-      });
-    }
-
-    return filtered;
-  }, [landingPageContacts, activeFilter, activeFilters, clientSortColumn, clientSortDirection, clientSortColumns]);
-
-  // Filtered contacts by type
+  // Filtered contacts (same as contacts since filtering is done server-side)
   const filteredContacts = useMemo(() => {
-    return selectedType === 'All'
-      ? contacts
-      : contacts.filter(contact => contact.contactType.includes(selectedType));
-  }, [contacts, selectedType]);
+    return contacts;
+  }, [contacts]);
 
   // Get total count from first page
   const totalCount = useMemo(() => {
@@ -330,8 +287,6 @@ export function useContactsState() {
     // State
     viewMode,
     setViewMode,
-    selectedType,
-    setSelectedType,
     selectedContact,
     setSelectedContact: handleSelectContact,
     showCreateModal,

@@ -358,24 +358,62 @@ export default function ContactsContent() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Quick Filters */}
       <div className="mb-4 sm:mb-6 flex items-center justify-between border-b border-[var(--border)] pb-2">
         <div className="flex items-center gap-3">
           <span className="text-sm text-[var(--muted-foreground)] leading-none">Quick filters:</span>
           <div className="flex gap-1 sm:gap-2 overflow-x-auto -mx-1 px-1 items-center">
-            {CONTACT_TYPES.map((type) => (
-              <button
-                key={type}
-                onClick={() => state.setSelectedType(type)}
-                className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
-                  state.selectedType === type
-                    ? 'bg-[var(--primary)] text-white'
-                    : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
+            {CONTACT_TYPES.map((type) => {
+              // Determine if this role filter is active
+              const roleFilter = state.activeFilters.find(f => f.columnName === 'role');
+              let isActive = false;
+              
+              if (type === 'All') {
+                // "All" is active if there's no role filter in activeFilters
+                isActive = !roleFilter;
+              } else {
+                // Check if this specific role is in the active filters
+                if (roleFilter?.operator === 'IN' && roleFilter.values) {
+                  isActive = roleFilter.values.includes(type);
+                } else if (roleFilter?.operator === 'EQ' && roleFilter.value) {
+                  isActive = roleFilter.value === type;
+                }
+              }
+
+              const handleQuickFilterClick = () => {
+                // Remove any existing role filters
+                const otherFilters = state.activeFilters.filter(f => f.columnName !== 'role');
+                
+                if (type === 'All') {
+                  // Clear role filter
+                  state.handleFiltersChange(otherFilters);
+                } else {
+                  // Add role filter with IN operator
+                  state.handleFiltersChange([
+                    ...otherFilters,
+                    {
+                      columnName: 'role',
+                      operator: 'IN',
+                      values: [type],
+                    },
+                  ]);
+                }
+              };
+
+              return (
+                <button
+                  key={type}
+                  onClick={handleQuickFilterClick}
+                  className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
+                  }`}
+                >
+                  {type}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
