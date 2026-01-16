@@ -268,8 +268,8 @@ describe('Takeoff Flow Consistency', () => {
     describe('Status Update After Abridgment', () => {
       it('should update status to Abridgment when all docs are abridged', () => {
         const allAbridged = true;
-        const currentStatus = 'Classification';
-        const shouldUpdateStatus = allAbridged && currentStatus !== 'Complete';
+        const currentStatus = 'Classification' as TakeoffStatus;
+        const shouldUpdateStatus = allAbridged && (currentStatus as TakeoffStatus) !== 'Complete';
         expect(shouldUpdateStatus).toBe(true);
       });
 
@@ -416,8 +416,8 @@ describe('Takeoff Flow Consistency', () => {
         // Both handleAbridgeDocument should check if all docs are now abridged
         // and update status to ABRIDGMENT if so (and status !== Complete)
         const allDocsAbridged = true;
-        const currentStatus = 'Classification';
-        const expectedStatus = allDocsAbridged && currentStatus !== 'Complete' ? 'ABRIDGMENT' : currentStatus;
+        const currentStatus = 'Classification' as TakeoffStatus;
+        const expectedStatus = allDocsAbridged && (currentStatus as TakeoffStatus) !== 'Complete' ? 'ABRIDGMENT' : currentStatus;
         expect(expectedStatus).toBe('ABRIDGMENT');
       });
     });
