@@ -33,34 +33,9 @@ export function PricingSummaryBar({ viewMode, totals }: PricingSummaryBarProps) 
         </span>
         <span className="text-[var(--muted-foreground)]">|</span>
         <span className="text-[var(--muted-foreground)]">
-          Freight:{' '}
-          <span className="font-medium text-[var(--foreground)]">
-            {formatCurrency(totals.freight)}
-          </span>
-        </span>
-        <span className="text-[var(--muted-foreground)]">|</span>
-        <span className="text-[var(--muted-foreground)]">
           Total:{' '}
           <span className="font-semibold text-[var(--foreground)]">
             {formatCurrency(totals.total)}
-          </span>
-        </span>
-        <span className="text-[var(--muted-foreground)]">|</span>
-        <span className="text-[var(--muted-foreground)]">
-          Paid:{' '}
-          <span className="font-medium text-green-600">
-            {formatCurrency(totals.amountPaid)}
-          </span>
-        </span>
-        <span className="text-[var(--muted-foreground)]">|</span>
-        <span className="text-[var(--muted-foreground)]">
-          Balance:{' '}
-          <span
-            className={`font-semibold ${
-              totals.balance > 0 ? 'text-[var(--foreground)]' : 'text-green-600'
-            }`}
-          >
-            {formatCurrency(totals.balance)}
           </span>
         </span>
         <span className="text-[var(--muted-foreground)]">|</span>
