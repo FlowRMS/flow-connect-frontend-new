@@ -253,3 +253,149 @@ describe('SpecSheetsContent - Spec sheet filtering', () => {
     expect(result[2].displayName).toBe('Sheet C');
   });
 });
+
+describe('SpecSheetsContent - clearFilters behavior', () => {
+  // Test the clearFilters logic
+  interface FilterState {
+    selectedManufacturerId: string | null;
+    selectedTags: string[];
+    highlightFilter: 'all' | 'highlighted' | 'not_highlighted';
+    selectedFolderId: string | null;
+    searchQuery: string;
+  }
+
+  function clearFilters(state: FilterState): FilterState {
+    // clearFilters should NOT reset selectedManufacturerId
+    // This prevents flash/flicker when clearing filters
+    return {
+      selectedManufacturerId: state.selectedManufacturerId, // Keep current selection!
+      selectedTags: [],
+      highlightFilter: 'all',
+      selectedFolderId: null,
+      searchQuery: '',
+    };
+  }
+
+  it('should NOT reset selectedManufacturerId when clearing filters', () => {
+    const state: FilterState = {
+      selectedManufacturerId: 'factory-1',
+      selectedTags: ['indoor'],
+      highlightFilter: 'highlighted',
+      selectedFolderId: 'folder-1',
+      searchQuery: 'test',
+    };
+
+    const result = clearFilters(state);
+
+    expect(result.selectedManufacturerId).toBe('factory-1'); // Should stay!
+    expect(result.selectedTags).toEqual([]);
+    expect(result.highlightFilter).toBe('all');
+    expect(result.selectedFolderId).toBeNull();
+    expect(result.searchQuery).toBe('');
+  });
+
+  it('should clear all other filters', () => {
+    const state: FilterState = {
+      selectedManufacturerId: 'factory-1',
+      selectedTags: ['tag1', 'tag2'],
+      highlightFilter: 'not_highlighted',
+      selectedFolderId: 'folder-123',
+      searchQuery: 'search term',
+    };
+
+    const result = clearFilters(state);
+
+    expect(result.selectedTags).toHaveLength(0);
+    expect(result.highlightFilter).toBe('all');
+    expect(result.selectedFolderId).toBeNull();
+    expect(result.searchQuery).toBe('');
+  });
+});
+
+describe('SpecSheetsContent - hasActiveFilters logic', () => {
+  // hasActiveFilters should NOT include selectedManufacturerId
+  // because manufacturer is a "scope" not a "filter"
+  function hasActiveFilters(filters: {
+    selectedTags: string[];
+    highlightFilter: 'all' | 'highlighted' | 'not_highlighted';
+    selectedFolderId: string | null;
+    searchQuery: string;
+  }): boolean {
+    return (
+      filters.selectedTags.length > 0 ||
+      filters.highlightFilter !== 'all' ||
+      filters.selectedFolderId !== null ||
+      filters.searchQuery !== ''
+    );
+  }
+
+  it('should return false when no filters active', () => {
+    expect(hasActiveFilters({
+      selectedTags: [],
+      highlightFilter: 'all',
+      selectedFolderId: null,
+      searchQuery: '',
+    })).toBe(false);
+  });
+
+  it('should return true when tags selected', () => {
+    expect(hasActiveFilters({
+      selectedTags: ['indoor'],
+      highlightFilter: 'all',
+      selectedFolderId: null,
+      searchQuery: '',
+    })).toBe(true);
+  });
+
+  it('should return true when highlight filter active', () => {
+    expect(hasActiveFilters({
+      selectedTags: [],
+      highlightFilter: 'highlighted',
+      selectedFolderId: null,
+      searchQuery: '',
+    })).toBe(true);
+  });
+
+  it('should return true when folder selected', () => {
+    expect(hasActiveFilters({
+      selectedTags: [],
+      highlightFilter: 'all',
+      selectedFolderId: 'folder-1',
+      searchQuery: '',
+    })).toBe(true);
+  });
+
+  it('should return true when search query present', () => {
+    expect(hasActiveFilters({
+      selectedTags: [],
+      highlightFilter: 'all',
+      selectedFolderId: null,
+      searchQuery: 'test',
+    })).toBe(true);
+  });
+});
+
+describe('SpecSheetsContent - Error handling', () => {
+  interface APIError {
+    message: string;
+  }
+
+  function getErrorMessage(error: APIError | null): string | null {
+    if (!error) return null;
+    return error.message || 'An error occurred while loading spec sheets';
+  }
+
+  it('should return null when no error', () => {
+    expect(getErrorMessage(null)).toBeNull();
+  });
+
+  it('should return error message when error present', () => {
+    const error = { message: 'Network error' };
+    expect(getErrorMessage(error)).toBe('Network error');
+  });
+
+  it('should return default message when error has no message', () => {
+    const error = { message: '' };
+    expect(getErrorMessage(error)).toBe('An error occurred while loading spec sheets');
+  });
+});

@@ -327,8 +327,8 @@ const GET_FOLDERS_BY_FACTORY = `
 // ============================================================================
 
 const CREATE_FOLDER = `
-  mutation CreateFolder($input: CreateFolderInput!) {
-    createFolder(input: $input) {
+  mutation CreateSpecSheetFolder($input: CreateSpecSheetFolderInput!) {
+    createSpecSheetFolder(input: $input) {
       id
       factoryId
       folderPath
@@ -339,8 +339,8 @@ const CREATE_FOLDER = `
 `;
 
 const RENAME_FOLDER = `
-  mutation RenameFolder($input: RenameFolderInput!) {
-    renameFolder(input: $input) {
+  mutation RenameSpecSheetFolder($input: RenameSpecSheetFolderInput!) {
+    renameSpecSheetFolder(input: $input) {
       folder {
         id
         factoryId
@@ -354,8 +354,8 @@ const RENAME_FOLDER = `
 `;
 
 const DELETE_FOLDER = `
-  mutation DeleteFolder($input: DeleteFolderInput!) {
-    deleteFolder(input: $input)
+  mutation DeleteSpecSheetFolder($input: DeleteSpecSheetFolderInput!) {
+    deleteSpecSheetFolder(input: $input)
   }
 `;
 
@@ -735,7 +735,7 @@ export async function fetchFoldersByFactory(factoryId: string): Promise<FolderRe
 }
 
 export async function createFolder(input: CreateFolderInput): Promise<FolderResponse> {
-  const response = await crmGraphQLRequest<{ createFolder: FolderResponse }>({
+  const response = await crmGraphQLRequest<{ createSpecSheetFolder: FolderResponse }>({
     query: CREATE_FOLDER,
     variables: { input },
   });
@@ -744,15 +744,15 @@ export async function createFolder(input: CreateFolderInput): Promise<FolderResp
     throw new Error(response.errors[0]?.message || 'Failed to create folder');
   }
 
-  if (!response.data?.createFolder) {
+  if (!response.data?.createSpecSheetFolder) {
     throw new Error('No folder returned from create mutation');
   }
 
-  return response.data.createFolder;
+  return response.data.createSpecSheetFolder;
 }
 
 export async function renameFolder(input: RenameFolderInput): Promise<RenameFolderResult> {
-  const response = await crmGraphQLRequest<{ renameFolder: RenameFolderResult }>({
+  const response = await crmGraphQLRequest<{ renameSpecSheetFolder: RenameFolderResult }>({
     query: RENAME_FOLDER,
     variables: { input },
   });
@@ -761,15 +761,15 @@ export async function renameFolder(input: RenameFolderInput): Promise<RenameFold
     throw new Error(response.errors[0]?.message || 'Failed to rename folder');
   }
 
-  if (!response.data?.renameFolder) {
+  if (!response.data?.renameSpecSheetFolder) {
     throw new Error('No result returned from rename mutation');
   }
 
-  return response.data.renameFolder;
+  return response.data.renameSpecSheetFolder;
 }
 
 export async function deleteFolder(input: DeleteFolderInput): Promise<boolean> {
-  const response = await crmGraphQLRequest<{ deleteFolder: boolean }>({
+  const response = await crmGraphQLRequest<{ deleteSpecSheetFolder: boolean }>({
     query: DELETE_FOLDER,
     variables: { input },
   });
@@ -778,5 +778,5 @@ export async function deleteFolder(input: DeleteFolderInput): Promise<boolean> {
     throw new Error(response.errors[0]?.message || 'Failed to delete folder');
   }
 
-  return response.data?.deleteFolder || false;
+  return response.data?.deleteSpecSheetFolder || false;
 }

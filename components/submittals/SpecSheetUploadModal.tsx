@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { specSheetCategoryLabels } from '../../lib/data/submittals-mock';
 import type { SpecSheetCategory, UploadSource } from '../../lib/types/submittals';
-import { useManufacturersWithSpecSheets, useCreateSpecSheet } from './api/useSpecSheetsApi';
+import { useManufacturersWithSpecSheets, useCreateSpecSheet, useFoldersByFactory } from './api/useSpecSheetsApi';
 
 interface SpecSheetUploadModalProps {
   onClose: () => void;
@@ -20,12 +20,23 @@ export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufa
   const [selectedCategories, setSelectedCategories] = useState<SpecSheetCategory[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [folders, setFolders] = useState<string[]>([]);
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string>('');
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
 
   const { data: manufacturers = [], isLoading: loadingManufacturers } = useManufacturersWithSpecSheets();
   const createSpecSheetMutation = useCreateSpecSheet();
+
+  // Fetch existing folders for the selected manufacturer
+  const { data: existingFolders = [], isLoading: loadingFolders } = useFoldersByFactory(manufacturerId || null);
+
+  // Build folder options for dropdown
+  const folderOptions = useMemo(() => {
+    if (!existingFolders || existingFolders.length === 0) return [];
+    return existingFolders
+      .map(f => f.folderPath)
+      .sort((a, b) => a.localeCompare(b));
+  }, [existingFolders]);
 
   const allCategories: SpecSheetCategory[] = [
     'indoor', 'outdoor', 'sports_lighting', 'controls', 'emergency',
@@ -74,13 +85,18 @@ export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufa
 
   const handleAddFolder = () => {
     if (!newFolderName.trim()) return;
-    setFolders(prev => [...prev, newFolderName.trim()]);
+    // If there's already a folder path, append the new folder
+    const currentPath = selectedFolderPath;
+    const newPath = currentPath
+      ? `${currentPath}/${newFolderName.trim()}`
+      : newFolderName.trim();
+    setSelectedFolderPath(newPath);
     setNewFolderName('');
     setShowNewFolder(false);
   };
 
-  const handleRemoveFolder = (index: number) => {
-    setFolders(prev => prev.filter((_, i) => i !== index));
+  const handleClearFolder = () => {
+    setSelectedFolderPath('');
   };
 
   const getFileName = () => {
@@ -100,7 +116,6 @@ export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufa
     setError(null);
 
     try {
-      const folderPath = folders.length > 0 ? folders.join('/') : undefined;
       const input = {
         factoryId: manufacturerId,
         fileName: getFileName(),
@@ -109,7 +124,7 @@ export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufa
         sourceUrl: uploadSource === 'url' ? url : undefined,
         pageCount: 1, // Backend will determine actual page count when processing
         categories: selectedCategories,
-        folderPath,
+        folderPath: selectedFolderPath || undefined,
         file: uploadSource === 'file' ? file ?? undefined : undefined,
         published: true,
         needsReview: false,
@@ -288,7 +303,7 @@ export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufa
               value={manufacturerId}
               onChange={(e) => {
                 setManufacturerId(e.target.value);
-                setFolders([]); // Reset folders when manufacturer changes
+                setSelectedFolderPath(''); // Reset folder when manufacturer changes
               }}
               disabled={loadingManufacturers}
               className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)] disabled:opacity-50"
@@ -298,85 +313,108 @@ export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufa
                 <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>
+          </div>
 
-            {/* Nested Folders */}
-            {manufacturerId && (
-              <div className="mt-3 ml-4 border-l-2 border-[var(--border)] pl-3">
-                {/* Existing folders */}
-                {folders.map((folder, index) => (
-                  <div key={index} className="flex items-center gap-2 py-1">
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
-                      <path d="M3 4h5l2 2h7a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1z" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    <span className="text-sm text-[var(--foreground)]">{folder}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFolder(index)}
-                      className="p-0.5 text-[var(--muted-foreground)] hover:text-red-500 transition-colors"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+          {/* Folder Selection */}
+          {manufacturerId && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                Folder <span className="text-[var(--muted-foreground)] font-normal">(optional)</span>
+              </label>
+              {loadingFolders ? (
+                <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
+                  <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                  Loading folders...
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {/* Folder dropdown or selected folder display */}
+                  {selectedFolderPath ? (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--muted)] rounded-lg">
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-yellow-500 flex-shrink-0">
+                        <path d="M3 4h5l2 2h7a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1z"/>
                       </svg>
-                    </button>
-                  </div>
-                ))}
+                      <span className="flex-1 text-sm text-[var(--foreground)]">{selectedFolderPath}</span>
+                      <button
+                        type="button"
+                        onClick={handleClearFolder}
+                        className="p-0.5 text-[var(--muted-foreground)] hover:text-red-500 transition-colors"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                        </svg>
+                      </button>
+                    </div>
+                  ) : folderOptions.length > 0 ? (
+                    <select
+                      value={selectedFolderPath}
+                      onChange={(e) => setSelectedFolderPath(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                    >
+                      <option value="">No folder (root level)</option>
+                      {folderOptions.map(path => (
+                        <option key={path} value={path}>{path}</option>
+                      ))}
+                    </select>
+                  ) : null}
 
-                {/* Add new folder form */}
-                {showNewFolder ? (
-                  <div className="flex items-center gap-2 py-1">
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
-                      <path d="M3 4h5l2 2h7a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1z" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    <input
-                      type="text"
-                      value={newFolderName}
-                      onChange={(e) => setNewFolderName(e.target.value)}
-                      placeholder="Folder name"
-                      className="flex-1 px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddFolder();
-                        } else if (e.key === 'Escape') {
+                  {/* Add new folder form */}
+                  {showNewFolder ? (
+                    <div className="flex items-center gap-2">
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-yellow-500 flex-shrink-0">
+                        <path d="M3 4h5l2 2h7a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1z"/>
+                      </svg>
+                      <input
+                        type="text"
+                        value={newFolderName}
+                        onChange={(e) => setNewFolderName(e.target.value)}
+                        placeholder="New folder name"
+                        className="flex-1 px-2 py-1.5 text-sm border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddFolder();
+                          } else if (e.key === 'Escape') {
+                            setShowNewFolder(false);
+                            setNewFolderName('');
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddFolder}
+                        disabled={!newFolderName.trim()}
+                        className="px-2 py-1 text-xs font-medium bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Add
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
                           setShowNewFolder(false);
                           setNewFolderName('');
-                        }
-                      }}
-                    />
+                        }}
+                        className="p-1 text-[var(--muted-foreground)] hover:bg-[var(--muted)] rounded transition-colors"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={handleAddFolder}
-                      disabled={!newFolderName.trim()}
-                      className="px-2 py-1 text-xs font-medium bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => setShowNewFolder(true)}
+                      className="text-xs text-[var(--primary)] hover:underline"
                     >
-                      Add
+                      + Create new folder
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowNewFolder(false);
-                        setNewFolderName('');
-                      }}
-                      className="p-1 text-[var(--muted-foreground)] hover:bg-[var(--muted)] rounded transition-colors"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                      </svg>
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowNewFolder(true)}
-                    className="text-xs text-[var(--primary)] hover:underline py-1"
-                  >
-                    + Add folder
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Display Name */}
           <div>

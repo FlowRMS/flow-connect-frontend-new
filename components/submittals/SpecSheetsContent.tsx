@@ -4,15 +4,16 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 // API Hooks
 import {
   useManufacturersWithSpecSheets,
-  useSpecSheetsByFactory,
+  useSpecSheetSearch,
   useHighlightVersions,
   useFoldersByFactory,
   useCreateFolder,
   useRenameFolder,
   useDeleteFolder,
 } from './api/useSpecSheetsApi';
-import type { SpecSheet, SpecSheetFolder } from '../../lib/types/submittals';
-import type { FolderResponse } from '../lib/graphql/spec-sheets';
+import type { SpecSheet, SpecSheetFolder, SpecSheetCategory } from '../../lib/types/submittals';
+import { specSheetCategoryLabels } from '../../lib/data/submittals-mock';
+import { fetchFoldersByFactory as fetchFoldersApi, type FolderResponse } from '../lib/graphql/spec-sheets';
 
 /**
  * Derive folders from spec sheets' folder paths.
@@ -165,6 +166,11 @@ export default function SpecSheetsContent() {
   const [draggedManufacturerIndex, setDraggedManufacturerIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
+  // State for folders of all manufacturers (for the Manage Manufacturers modal)
+  const [allManufacturerFolders, setAllManufacturerFolders] = useState<Record<string, FolderResponse[]>>({});
+  const [isLoadingAllFolders, setIsLoadingAllFolders] = useState(false);
+  const hasLoadedFoldersRef = useRef(false);
+
   // ============================================================================
   // API Hooks
   // ============================================================================
@@ -172,14 +178,35 @@ export default function SpecSheetsContent() {
   // Fetch manufacturers (factories)
   const {
     data: manufacturers = [],
-    isLoading: isLoadingManufacturers
+    isLoading: isLoadingManufacturers,
+    error: manufacturersError
   } = useManufacturersWithSpecSheets();
 
-  // Fetch spec sheets for selected manufacturer
+  // When searching, don't filter by manufacturer to show all results
+  // Only filter by manufacturer when not searching and a manufacturer is selected
+  const searchManufacturerId = searchQuery ? undefined : selectedManufacturerId;
+
+  // Fetch spec sheets - supports "All Manufacturers" (null) and search
   const {
     data: specSheetsData,
-    isLoading: isLoadingSpecSheets
-  } = useSpecSheetsByFactory(selectedManufacturerId, false);
+    isLoading: isLoadingSpecSheets,
+    error: specSheetsError
+  } = useSpecSheetSearch({
+    searchTerm: searchQuery || undefined,
+    factoryId: searchManufacturerId || undefined,
+    publishedOnly: false,
+    limit: 500,
+  });
+
+  // Separate query for ALL spec sheets (for Tags, Highlights, and Manufacturers counts)
+  // This query has no filters so counts reflect the full dataset
+  // Note: Use empty string '' instead of undefined for searchTerm to ensure query returns results
+  const { data: allSpecSheetsData } = useSpecSheetSearch({
+    searchTerm: '',
+    factoryId: undefined,
+    publishedOnly: false,
+    limit: 1000,
+  });
 
   // Fetch folders for selected manufacturer
   const {
@@ -199,35 +226,106 @@ export default function SpecSheetsContent() {
   // Error state for folder operations
   const [folderError, setFolderError] = useState<string | null>(null);
 
+  // Combined error state for display
+  const apiError = manufacturersError || specSheetsError;
+
+  // Function to load folders for all manufacturers (for Manage Manufacturers modal)
+  const loadAllManufacturerFolders = async (force = false) => {
+    if (!manufacturers || manufacturers.length === 0) return;
+    if (isLoadingAllFolders) return; // Prevent concurrent loads
+    if (hasLoadedFoldersRef.current && !force) return; // Already loaded, skip unless forced
+
+    setIsLoadingAllFolders(true);
+    try {
+      const foldersMap: Record<string, FolderResponse[]> = {};
+      await Promise.all(
+        manufacturers.map(async (m) => {
+          try {
+            const folders = await fetchFoldersApi(m.id);
+            foldersMap[m.id] = folders;
+          } catch (error) {
+            console.error(`Failed to fetch folders for manufacturer ${m.id}:`, error);
+            foldersMap[m.id] = [];
+          }
+        })
+      );
+      setAllManufacturerFolders(foldersMap);
+      hasLoadedFoldersRef.current = true;
+    } finally {
+      setIsLoadingAllFolders(false);
+    }
+  };
+
+  // Load folders for all manufacturers when manufacturers data is available (only once)
+  useEffect(() => {
+    if (manufacturers && manufacturers.length > 0 && !hasLoadedFoldersRef.current) {
+      loadAllManufacturerFolders();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manufacturers]);
+
   // Transform API response to frontend SpecSheet type
   const specSheets: SpecSheet[] = useMemo(() => {
     if (!specSheetsData) return [];
 
-    // Find the manufacturer name for the selected ID
-    const manufacturer = manufacturers.find(m => m.id === selectedManufacturerId);
-    const manufacturerName = manufacturer?.name || 'Unknown';
+    return specSheetsData.map(sheet => {
+      // Find the manufacturer name from the sheet's factoryId
+      const manufacturer = manufacturers.find(m => m.id === sheet.factoryId);
+      const manufacturerName = manufacturer?.name || 'Unknown';
 
-    return specSheetsData.map(sheet => ({
-      id: sheet.id,
-      manufacturer: manufacturerName,
-      fileName: sheet.fileName,
-      displayName: sheet.displayName,
-      categories: sheet.categories as SpecSheet['categories'],
-      tags: sheet.tags || [],
-      folderId: undefined,
-      folderPath: sheet.folderPath || undefined,
-      uploadSource: sheet.uploadSource as SpecSheet['uploadSource'],
-      sourceUrl: sheet.sourceUrl || undefined,
-      fileUrl: sheet.fileUrl,
-      fileSize: sheet.fileSize,
-      pageCount: sheet.pageCount,
-      uploadedAt: sheet.createdAt,
-      uploadedBy: sheet.createdBy.fullName,
-      needsReview: sheet.needsReview,
-      usageCount: sheet.usageCount,
-      highlightCount: sheet.highlightCount,
-    }));
-  }, [specSheetsData, selectedManufacturerId, manufacturers]);
+      return {
+        id: sheet.id,
+        manufacturer: manufacturerName,
+        fileName: sheet.fileName,
+        displayName: sheet.displayName,
+        categories: sheet.categories as SpecSheet['categories'],
+        tags: sheet.tags || [],
+        folderId: undefined,
+        folderPath: sheet.folderPath || undefined,
+        uploadSource: sheet.uploadSource as SpecSheet['uploadSource'],
+        sourceUrl: sheet.sourceUrl || undefined,
+        fileUrl: sheet.fileUrl,
+        fileSize: sheet.fileSize,
+        pageCount: sheet.pageCount,
+        uploadedAt: sheet.createdAt,
+        uploadedBy: sheet.createdBy.fullName,
+        needsReview: sheet.needsReview,
+        usageCount: sheet.usageCount,
+        highlightCount: sheet.highlightCount,
+      };
+    });
+  }, [specSheetsData, manufacturers]);
+
+  // Transform ALL spec sheets for sidebar counts (categories, manufacturers, highlights)
+  const allSpecSheets: SpecSheet[] = useMemo(() => {
+    if (!allSpecSheetsData) return [];
+
+    return allSpecSheetsData.map(sheet => {
+      const manufacturer = manufacturers.find(m => m.id === sheet.factoryId);
+      const manufacturerName = manufacturer?.name || 'Unknown';
+
+      return {
+        id: sheet.id,
+        manufacturer: manufacturerName,
+        fileName: sheet.fileName,
+        displayName: sheet.displayName,
+        categories: sheet.categories as SpecSheet['categories'],
+        tags: sheet.tags || [],
+        folderId: undefined,
+        folderPath: sheet.folderPath || undefined,
+        uploadSource: sheet.uploadSource as SpecSheet['uploadSource'],
+        sourceUrl: sheet.sourceUrl || undefined,
+        fileUrl: sheet.fileUrl,
+        fileSize: sheet.fileSize,
+        pageCount: sheet.pageCount,
+        uploadedAt: sheet.createdAt,
+        uploadedBy: sheet.createdBy.fullName,
+        needsReview: sheet.needsReview,
+        usageCount: sheet.usageCount,
+        highlightCount: sheet.highlightCount,
+      };
+    });
+  }, [allSpecSheetsData, manufacturers]);
 
   // Get the selected manufacturer name for display
   const selectedManufacturer = useMemo(() => {
@@ -239,13 +337,6 @@ export default function SpecSheetsContent() {
   const manufacturerList = useMemo(() => {
     return manufacturers.map(m => m.name);
   }, [manufacturers]);
-
-  // Auto-select first manufacturer when data loads (if none selected)
-  useEffect(() => {
-    if (!selectedManufacturerId && manufacturers.length > 0 && !isLoadingManufacturers) {
-      setSelectedManufacturerId(manufacturers[0].id);
-    }
-  }, [manufacturers, selectedManufacturerId, isLoadingManufacturers]);
 
   // Helper to find factory ID by name (for compatibility with folder data)
   const findManufacturerIdByName = (name: string): string | null => {
@@ -311,6 +402,7 @@ export default function SpecSheetsContent() {
   const [showAddFolderModal, setShowAddFolderModal] = useState(false);
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
   const [newFolderManufacturer, setNewFolderManufacturer] = useState<string>('');
+  const [newFolderManufacturerId, setNewFolderManufacturerId] = useState<string>('');
   const [newFolderName, setNewFolderName] = useState('');
 
   // Folder drag-and-drop state
@@ -407,6 +499,8 @@ export default function SpecSheetsContent() {
         folderPath,
         newName: editingFolderName.trim(),
       });
+      // Refresh folders for all manufacturers (force reload)
+      loadAllManufacturerFolders(true);
     } catch (error) {
       setFolderError(error instanceof Error ? error.message : 'Failed to rename folder');
     } finally {
@@ -431,6 +525,8 @@ export default function SpecSheetsContent() {
         if (selectedFolderId === folder.id) {
           setSelectedFolderId(null);
         }
+        // Refresh folders for all manufacturers
+        loadAllManufacturerFolders();
       } catch (error) {
         setFolderError(error instanceof Error ? error.message : 'Failed to delete folder');
       }
@@ -444,15 +540,18 @@ export default function SpecSheetsContent() {
     setShowAddFolderModal(true);
   };
 
-  const handleAddRootFolder = (manufacturer: string) => {
+  const handleAddRootFolder = (manufacturer: string, manufacturerId?: string) => {
     setNewFolderParentId(null);
     setNewFolderManufacturer(manufacturer);
+    // Use provided ID or look it up by name
+    const id = manufacturerId || findManufacturerIdByName(manufacturer);
+    setNewFolderManufacturerId(id || '');
     setNewFolderName('');
     setShowAddFolderModal(true);
   };
 
   const handleCreateFolder = async () => {
-    if (!newFolderName.trim() || !selectedManufacturerId) return;
+    if (!newFolderName.trim() || !newFolderManufacturerId) return;
 
     // Get parent path for the new folder
     let parentPath = '';
@@ -464,7 +563,7 @@ export default function SpecSheetsContent() {
     setFolderError(null);
     try {
       await createFolderMutation.mutateAsync({
-        factoryId: selectedManufacturerId,
+        factoryId: newFolderManufacturerId,
         parentPath,
         folderName: newFolderName.trim(),
       });
@@ -480,6 +579,8 @@ export default function SpecSheetsContent() {
       if (newFolderManufacturer) {
         setExpandedManufacturers(prev => new Set([...prev, newFolderManufacturer]));
       }
+      // Refresh folders for all manufacturers (force reload)
+      loadAllManufacturerFolders(true);
     } catch (error) {
       setFolderError(error instanceof Error ? error.message : 'Failed to create folder');
     }
@@ -529,9 +630,113 @@ export default function SpecSheetsContent() {
     setDragOverFolderId(null);
   };
 
-  // Get folders for manufacturer using local state
+  // Get folders for manufacturer using local state (for selected manufacturer only)
   const getFoldersForManufacturer = (manufacturer: string) => {
     return folders.filter(f => f.manufacturer === manufacturer && f.parentId === null);
+  };
+
+  // Get ALL folders for a manufacturer (for Manage Manufacturers modal)
+  // This uses allManufacturerFolders which has data for all manufacturers
+  const getAllFoldersForManufacturer = (manufacturerName: string): SpecSheetFolder[] => {
+    const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
+    if (!manufacturerData) return [];
+
+    const apiFolders = allManufacturerFolders[manufacturerData.id] || [];
+    if (apiFolders.length === 0) return [];
+
+    // Build folder hierarchy from flat API data
+    const folderMap = new Map<string, SpecSheetFolder>();
+
+    // First pass: create all folders
+    for (const apiFolder of apiFolders) {
+      const parts = apiFolder.folderPath.split('/').filter(Boolean);
+      const folderName = parts[parts.length - 1] || apiFolder.folderPath;
+      const parentPath = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
+
+      folderMap.set(apiFolder.folderPath, {
+        id: apiFolder.id,
+        name: folderName,
+        parentId: null, // Will be set in second pass
+        manufacturer: manufacturerName,
+        isAutoGenerated: false,
+        createdAt: apiFolder.createdAt || '',
+        createdBy: 'System',
+        specSheetCount: apiFolder.specSheetCount,
+        folderPath: apiFolder.folderPath,
+      });
+    }
+
+    // Second pass: set parent IDs
+    for (const apiFolder of apiFolders) {
+      const parts = apiFolder.folderPath.split('/').filter(Boolean);
+      if (parts.length > 1) {
+        const parentPath = parts.slice(0, -1).join('/');
+        const parentFolder = apiFolders.find(f => f.folderPath === parentPath);
+        if (parentFolder) {
+          const folder = folderMap.get(apiFolder.folderPath);
+          if (folder) {
+            folder.parentId = parentFolder.id;
+          }
+        }
+      }
+    }
+
+    // Return only root-level folders
+    return Array.from(folderMap.values()).filter(f => f.parentId === null);
+  };
+
+  // Get child folders from allManufacturerFolders (for modal)
+  const getChildFoldersFromAll = (parentId: string, manufacturerName: string): SpecSheetFolder[] => {
+    const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
+    if (!manufacturerData) return [];
+
+    const apiFolders = allManufacturerFolders[manufacturerData.id] || [];
+    if (apiFolders.length === 0) return [];
+
+    // Find parent folder path
+    const parentFolder = apiFolders.find(f => f.id === parentId);
+    if (!parentFolder) return [];
+
+    // Find direct children
+    const children: SpecSheetFolder[] = [];
+    for (const apiFolder of apiFolders) {
+      const parts = apiFolder.folderPath.split('/').filter(Boolean);
+      if (parts.length > 1) {
+        const folderParentPath = parts.slice(0, -1).join('/');
+        if (folderParentPath === parentFolder.folderPath) {
+          children.push({
+            id: apiFolder.id,
+            name: parts[parts.length - 1],
+            parentId: parentId,
+            manufacturer: manufacturerName,
+            isAutoGenerated: false,
+            createdAt: apiFolder.createdAt || '',
+            createdBy: 'System',
+            specSheetCount: apiFolder.specSheetCount,
+            folderPath: apiFolder.folderPath,
+          });
+        }
+      }
+    }
+
+    return children;
+  };
+
+  // Get folder count for a manufacturer (from allManufacturerFolders)
+  const getFolderCountForManufacturer = (manufacturerName: string): number => {
+    const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
+    if (!manufacturerData) return 0;
+    return (allManufacturerFolders[manufacturerData.id] || []).length;
+  };
+
+  // Get spec sheet count in a folder (from allManufacturerFolders)
+  // Note: The API returns recursive counts (includes all spec sheets in folder AND subfolders)
+  const getFolderSpecSheetCount = (folderId: string, manufacturerName: string): number => {
+    const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
+    if (!manufacturerData) return 0;
+    const apiFolders = allManufacturerFolders[manufacturerData.id] || [];
+    const folder = apiFolders.find(f => f.id === folderId);
+    return folder?.specSheetCount || 0;
   };
 
   // Get child folders using local state
@@ -539,14 +744,16 @@ export default function SpecSheetsContent() {
     return folders.filter(f => f.parentId === parentId);
   };
 
-  // Derive all unique tags from loaded spec sheets
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    specSheets.forEach(sheet => {
-      sheet.tags?.forEach(tag => tagSet.add(tag));
+  // Derive all unique categories from ALL spec sheets (not filtered)
+  const allCategories = useMemo(() => {
+    const cats = new Set<SpecSheetCategory>();
+    allSpecSheets.forEach(sheet => {
+      if (sheet.categories && Array.isArray(sheet.categories)) {
+        sheet.categories.forEach(cat => cats.add(cat));
+      }
     });
-    return Array.from(tagSet).sort();
-  }, [specSheets]);
+    return Array.from(cats).sort();
+  }, [allSpecSheets]);
 
   // Filter spec sheets (already filtered by manufacturer via API)
   const filteredSpecSheets = useMemo(() => {
@@ -565,10 +772,10 @@ export default function SpecSheetsContent() {
       }
     }
 
-    // Tags filter (match any selected tag)
+    // Categories filter (match any selected category)
     if (selectedTags.length > 0) {
       result = result.filter(s =>
-        selectedTags.some(tag => s.tags.includes(tag))
+        s.categories && selectedTags.some(cat => s.categories.includes(cat as SpecSheetCategory))
       );
     }
 
@@ -579,19 +786,10 @@ export default function SpecSheetsContent() {
       result = result.filter(s => (s.highlightCount || 0) === 0);
     }
 
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(s =>
-        s.displayName.toLowerCase().includes(query) ||
-        s.fileName.toLowerCase().includes(query) ||
-        s.manufacturer.toLowerCase().includes(query) ||
-        s.tags.some(tag => tag.toLowerCase().includes(query))
-      );
-    }
+    // Note: Search is now handled server-side by useSpecSheetSearch
 
     return result.sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [specSheets, selectedFolderId, folders, selectedTags, highlightFilter, searchQuery]);
+  }, [specSheets, selectedFolderId, folders, selectedTags, highlightFilter]);
 
   // Get highlight count for a spec sheet (from API data)
   const getHighlightCount = (specSheetId: string) => {
@@ -625,38 +823,34 @@ export default function SpecSheetsContent() {
     });
   };
 
-  // Clear all filters
+  // Clear all filters (but keep manufacturer selection to avoid flash)
   const clearFilters = () => {
-    setSelectedManufacturerId(null);
+    // Note: We intentionally do NOT reset selectedManufacturerId
+    // Manufacturer is more of a "scope" than a "filter"
+    // Resetting it would cause a flash as auto-select re-triggers
     setSelectedTags([]);
     setHighlightFilter('all');
     setSelectedFolderId(null);
     setSearchQuery('');
   };
 
-  const hasActiveFilters = selectedManufacturerId || selectedTags.length > 0 || highlightFilter !== 'all' || selectedFolderId;
+  // hasActiveFilters does NOT include selectedManufacturerId (it's always set)
+  const hasActiveFilters = selectedTags.length > 0 || highlightFilter !== 'all' || selectedFolderId || searchQuery;
 
-  // Count spec sheets per manufacturer (from loaded data)
+  // Count spec sheets per manufacturer (from ALL spec sheets, not filtered)
   const manufacturerCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    specSheets.forEach(s => {
+    allSpecSheets.forEach(s => {
       counts[s.manufacturer] = (counts[s.manufacturer] || 0) + 1;
     });
     return counts;
-  }, [specSheets]);
+  }, [allSpecSheets]);
 
-  // Count spec sheets in folder (uses API-provided count)
+  // Count spec sheets in folder (uses API-provided count which is already recursive)
+  // The backend returns counts that include all spec sheets in the folder AND subfolders
   const getFolderCount = (folderId: string): number => {
     const folder = folders.find(f => f.id === folderId);
     return folder?.specSheetCount || 0;
-  };
-
-  // Get recursive count (folder + all descendants)
-  const getRecursiveFolderCount = (folderId: string): number => {
-    const directCount = getFolderCount(folderId);
-    const children = getChildFoldersLocal(folderId);
-    const childrenCount = children.reduce((sum, child) => sum + getRecursiveFolderCount(child.id), 0);
-    return directCount + childrenCount;
   };
 
   // Render folder tree recursively
@@ -667,11 +861,9 @@ export default function SpecSheetsContent() {
       const isExpanded = expandedFolders.has(folder.id);
       const isSelected = selectedFolderId === folder.id;
       const isEditing = editingFolderId === folder.id;
-      // Show recursive count when collapsed, no count when expanded (children show their own counts)
-      // For leaf folders (no children), always show direct count
-      const count = hasChildren
-        ? (isExpanded ? null : getRecursiveFolderCount(folder.id))
-        : getFolderCount(folder.id);
+      // API returns recursive counts (includes all spec sheets in folder and subfolders)
+      // Show count when collapsed, hide when expanded (children show their own counts)
+      const count = hasChildren && isExpanded ? null : getFolderCount(folder.id);
 
       return (
         <div key={folder.id}>
@@ -805,41 +997,40 @@ export default function SpecSheetsContent() {
             </button>
             {sectionsExpanded.tags && (
               <div className="px-4 pb-3">
-                <div className="flex flex-wrap gap-1.5">
-                  {allTags.map(tag => {
-                    const isSelected = selectedTags.includes(tag);
-                    const count = specSheets.filter(s => s.tags.includes(tag)).length;
-                    return (
-                      <button
-                        key={tag}
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedTags(selectedTags.filter(t => t !== tag));
-                          } else {
-                            setSelectedTags([...selectedTags, tag]);
-                          }
-                        }}
-                        className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full transition-colors ${
-                          isSelected
-                            ? 'bg-[var(--primary)] text-white'
-                            : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--muted)]/80'
-                        }`}
-                      >
-                        {tag}
-                        <span className={`${isSelected ? 'text-white/70' : 'text-[var(--muted-foreground)]/70'}`}>
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {selectedTags.length > 0 && (
-                  <button
-                    onClick={() => setSelectedTags([])}
-                    className="mt-2 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] underline"
-                  >
-                    Clear tags
-                  </button>
+                {allCategories.length === 0 ? (
+                  <p className="text-xs text-[var(--muted-foreground)] py-2">No categories available</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {allCategories.map(cat => {
+                      const isSelected = selectedTags.includes(cat);
+                      const count = allSpecSheets.filter(s => s.categories?.includes(cat)).length;
+                      return (
+                        <button
+                          key={cat}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedTags(selectedTags.filter(t => t !== cat));
+                            } else {
+                              setSelectedTags([...selectedTags, cat]);
+                              // Reset manufacturer and folder filters to show all matching sheets
+                              setSelectedManufacturerId(null);
+                              setSelectedFolderId(null);
+                            }
+                          }}
+                          className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full transition-colors ${
+                            isSelected
+                              ? 'bg-[var(--primary)] text-white'
+                              : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--muted)]/80'
+                          }`}
+                        >
+                          {specSheetCategoryLabels[cat] || cat}
+                          <span className={`${isSelected ? 'text-white/70' : 'text-[var(--muted-foreground)]/70'}`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             )}
@@ -877,10 +1068,15 @@ export default function SpecSheetsContent() {
                     <path d="M7 7h6M7 10h6M7 13h4"/>
                   </svg>
                   <span className="flex-1 text-left">All Sheets</span>
-                  <span className="text-xs text-[var(--muted-foreground)]">{specSheets.length}</span>
+                  <span className="text-xs text-[var(--muted-foreground)]">{allSpecSheets.length}</span>
                 </button>
                 <button
-                  onClick={() => setHighlightFilter('highlighted')}
+                  onClick={() => {
+                    setHighlightFilter('highlighted');
+                    // Reset manufacturer and folder filters to show all matching sheets
+                    setSelectedManufacturerId(null);
+                    setSelectedFolderId(null);
+                  }}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
                     highlightFilter === 'highlighted' ? 'bg-green-100 text-green-700 font-medium' : 'hover:bg-[var(--muted)]/50'
                   }`}
@@ -891,11 +1087,16 @@ export default function SpecSheetsContent() {
                   </svg>
                   <span className="flex-1 text-left">With Highlights</span>
                   <span className={`text-xs ${highlightFilter === 'highlighted' ? 'text-green-600' : 'text-[var(--muted-foreground)]'}`}>
-                    {specSheets.filter(s => (s.highlightCount || 0) > 0).length}
+                    {allSpecSheets.filter(s => (s.highlightCount || 0) > 0).length}
                   </span>
                 </button>
                 <button
-                  onClick={() => setHighlightFilter('not_highlighted')}
+                  onClick={() => {
+                    setHighlightFilter('not_highlighted');
+                    // Reset manufacturer and folder filters to show all matching sheets
+                    setSelectedManufacturerId(null);
+                    setSelectedFolderId(null);
+                  }}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
                     highlightFilter === 'not_highlighted' ? 'bg-orange-100 text-orange-700 font-medium' : 'hover:bg-[var(--muted)]/50'
                   }`}
@@ -906,7 +1107,7 @@ export default function SpecSheetsContent() {
                   </svg>
                   <span className="flex-1 text-left">Without Highlights</span>
                   <span className={`text-xs ${highlightFilter === 'not_highlighted' ? 'text-orange-600' : 'text-[var(--muted-foreground)]'}`}>
-                    {specSheets.filter(s => (s.highlightCount || 0) === 0).length}
+                    {allSpecSheets.filter(s => (s.highlightCount || 0) === 0).length}
                   </span>
                 </button>
               </div>
@@ -962,7 +1163,7 @@ export default function SpecSheetsContent() {
                   <span className="w-3" />
                   <span className="flex-1 text-left">All Manufacturers</span>
                   <span className="text-xs text-[var(--muted-foreground)] bg-[var(--muted)] px-2 py-0.5 rounded-full">
-                    {isLoadingManufacturers ? '...' : manufacturers.length}
+                    {isLoadingManufacturers ? '...' : allSpecSheets.length}
                   </span>
                 </button>
 
@@ -1001,7 +1202,7 @@ export default function SpecSheetsContent() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleAddRootFolder(mfr.name);
+                            handleAddRootFolder(mfr.name, mfr.id);
                           }}
                           className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[var(--muted)] rounded transition-all mr-1"
                           title="Add folder"
@@ -1020,7 +1221,7 @@ export default function SpecSheetsContent() {
                           {/* Add folder button for empty manufacturers */}
                           {manufacturerFolders.length === 0 && (
                             <button
-                              onClick={() => handleAddRootFolder(mfr.name)}
+                              onClick={() => handleAddRootFolder(mfr.name, mfr.id)}
                               className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/50 transition-colors"
                               style={{ paddingLeft: '28px' }}
                             >
@@ -1065,8 +1266,7 @@ export default function SpecSheetsContent() {
               </h1>
               <p className="text-sm text-[var(--muted-foreground)]">
                 {filteredSpecSheets.length} spec sheet{filteredSpecSheets.length !== 1 ? 's' : ''}
-                {selectedManufacturer && ` from ${selectedManufacturer}`}
-                {selectedTags.length > 0 && ` · ${selectedTags.length} tag${selectedTags.length !== 1 ? 's' : ''} selected`}
+                {selectedManufacturer ? ` from ${selectedManufacturer}` : ' from all manufacturers'}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -1074,9 +1274,9 @@ export default function SpecSheetsContent() {
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
-                  className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] flex items-center gap-1"
+                  className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] flex items-center gap-1 whitespace-nowrap"
                 >
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
                     <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
                   </svg>
                   Clear filters
@@ -1135,7 +1335,37 @@ export default function SpecSheetsContent() {
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-6">
-          {filteredSpecSheets.length === 0 ? (
+          {isLoadingSpecSheets ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="w-12 h-12 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="text-sm text-[var(--muted-foreground)]">
+                {searchQuery ? 'Searching...' : 'Loading spec sheets...'}
+              </p>
+            </div>
+          ) : apiError ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 8v4M12 16h.01"/>
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">Failed to load data</h3>
+              <p className="text-sm text-[var(--muted-foreground)] mb-4">
+                {apiError.message || 'An error occurred while loading spec sheets'}
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-[var(--primary)] border border-[var(--primary)] rounded-lg hover:bg-[var(--primary)]/5 transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 4v5h5M16 16v-5h-5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M5.938 14.062A7.5 7.5 0 1017.5 10" strokeLinecap="round"/>
+                </svg>
+                Retry
+              </button>
+            </div>
+          ) : filteredSpecSheets.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="w-16 h-16 rounded-full bg-[var(--muted)] flex items-center justify-center mb-4">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
@@ -1397,7 +1627,7 @@ export default function SpecSheetsContent() {
             )}
 
             {/* Loading overlay */}
-            {(isSavingFolder || isLoadingFolders) && (
+            {(isSavingFolder || isLoadingFolders || isLoadingAllFolders) && (
               <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10 rounded-xl">
                 <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-lg">
                   <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
@@ -1415,21 +1645,20 @@ export default function SpecSheetsContent() {
                   const isDragging = draggedManufacturerIndex === index;
                   const isDragOver = dragOverIndex === index;
                   const count = manufacturerCounts[manufacturer] || 0;
-                  const manufacturerFolders = getFoldersForManufacturer(manufacturer);
+                  const folderCount = getFolderCountForManufacturer(manufacturer);
+                  const manufacturerFolders = getAllFoldersForManufacturer(manufacturer);
                   const isExpanded = expandedManufacturers.has(manufacturer);
 
                   // Recursive function to render folder tree in modal with drag-drop
                   const renderModalFolderTree = (folderList: SpecSheetFolder[], depth: number = 0): React.ReactNode => {
                     return folderList.map(folder => {
-                      const childFolders = getChildFoldersLocal(folder.id);
+                      const childFolders = getChildFoldersFromAll(folder.id, manufacturer);
                       const hasChildren = childFolders.length > 0;
                       const isFolderExpanded = expandedFolders.has(folder.id);
                       const isFolderEditing = editingFolderId === folder.id;
-                      // Show recursive count when collapsed, no count when expanded (children show their own counts)
-                      // For leaf folders (no children), always show direct count
-                      const folderCount = hasChildren
-                        ? (isFolderExpanded ? null : getRecursiveFolderCount(folder.id))
-                        : getFolderCount(folder.id);
+                      // API returns recursive counts (includes all spec sheets in folder and subfolders)
+                      // Show count when collapsed, hide when expanded (children show their own counts)
+                      const specSheetCount = hasChildren && isFolderExpanded ? null : getFolderSpecSheetCount(folder.id, manufacturer);
                       const isFolderDragging = draggedFolderId === folder.id;
                       const isFolderDragOver = dragOverFolderId === folder.id;
 
@@ -1515,8 +1744,8 @@ export default function SpecSheetsContent() {
                             )}
 
                             {/* Folder spec sheet count */}
-                            {folderCount !== null && folderCount > 0 && !isFolderEditing && (
-                              <span className="text-xs text-[var(--muted-foreground)]">{folderCount}</span>
+                            {specSheetCount !== null && specSheetCount > 0 && !isFolderEditing && (
+                              <span className="text-xs text-[var(--muted-foreground)]">{specSheetCount}</span>
                             )}
 
                             {/* Folder actions */}
@@ -1659,7 +1888,7 @@ export default function SpecSheetsContent() {
                             {count} sheet{count !== 1 ? 's' : ''}
                           </span>
                           <span className="text-xs text-[var(--muted-foreground)] bg-[var(--muted)] px-2.5 py-1 rounded-full">
-                            {manufacturerFolders.length} folder{manufacturerFolders.length !== 1 ? 's' : ''}
+                            {folderCount} folder{folderCount !== 1 ? 's' : ''}
                           </span>
                         </div>
 
