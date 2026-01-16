@@ -34,6 +34,7 @@ export {
   updateAcknowledgement,
   deleteAcknowledgement,
   type OrderAcknowledgement,
+  type OrderAcknowledgementDetail,
   type AcknowledgementLandingPage,
   type AcknowledgementCreationType,
   type CreateAcknowledgementInput,

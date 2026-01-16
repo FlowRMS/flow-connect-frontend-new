@@ -22,6 +22,28 @@ export interface OrderAcknowledgementDetail {
   orderDetail?: {
     id: string;
     itemNumber: number;
+    cancelledBalance?: number;
+    commission?: number;
+    commissionDiscount?: number;
+    unitPrice?: string;
+    totalLineCommission?: number;
+    total?: number;
+    subtotal?: number;
+    status?: string;
+    productNameAdhoc?: string;
+    shippingBalance?: number;
+    quantity?: string;
+    productId?: string;
+    productDescriptionAdhoc?: string;
+    orderId?: string;
+    note?: string;
+    leadTime?: string;
+    freightCharge?: number;
+    endUserId?: string;
+    discount?: number;
+    discountRate?: string;
+    commissionRate?: string;
+    commissionDiscountRate?: string;
   };
 }
 
@@ -31,7 +53,6 @@ export interface OrderAcknowledgement {
   orderAcknowledgementNumber?: string;
   entityDate?: string;
   quantity?: string;
-  shipDate?: string;
   creationType?: AcknowledgementCreationType;
   createdAt?: string;
   createdById?: string;
@@ -44,12 +65,10 @@ export interface AcknowledgementLandingPage {
   id: string;
   orderAcknowledgementNumber?: string;
   quantity?: string;
-  shipDate?: string;
   creationType?: AcknowledgementCreationType;
   createdAt?: string;
   createdBy?: string;
   itemNumber?: number;
-  itemNumbers?: number[];
   orderNumber?: string;
   orderEntityDate?: string;
   productName?: string;
@@ -81,6 +100,7 @@ export interface PaginationParams {
 }
 
 export interface OrderAcknowledgementDetailInput {
+  id?: string; // Include for updates to prevent duplicate key errors
   orderDetailId: string;
 }
 
@@ -118,6 +138,28 @@ const ACKNOWLEDGEMENT_FIELDS = `
     orderDetail {
       id
       itemNumber
+      cancelledBalance
+      commission
+      commissionDiscount
+      unitPrice
+      totalLineCommission
+      total
+      subtotal
+      status
+      productNameAdhoc
+      shippingBalance
+      quantity
+      productId
+      productDescriptionAdhoc
+      orderId
+      note
+      leadTime
+      freightCharge
+      endUserId
+      discount
+      discountRate
+      commissionRate
+      commissionDiscountRate
     }
   }
 `;
@@ -165,7 +207,6 @@ const FIND_ACKNOWLEDGEMENTS_LANDING_PAGE = `
           id
           orderAcknowledgementNumber
           quantity
-          shipDate
           creationType
           createdAt
           createdBy
@@ -243,7 +284,17 @@ export async function fetchAcknowledgementsByOrder(orderId: string): Promise<Ord
       return [];
     }
 
-    return response.data?.orderAcknowledgementsByOrder || [];
+    const acknowledgements = response.data?.orderAcknowledgementsByOrder || [];
+
+    // Deduplicate by ID to prevent React key errors when same acknowledgement is linked to multiple line items
+    const uniqueAcknowledgements = acknowledgements.reduce((acc, ack) => {
+      if (!acc.some(existing => existing.id === ack.id)) {
+        acc.push(ack);
+      }
+      return acc;
+    }, [] as OrderAcknowledgement[]);
+
+    return uniqueAcknowledgements;
   } catch (error) {
     console.warn('Error fetching acknowledgements by order:', error);
     return [];
@@ -408,8 +459,18 @@ export async function fetchAcknowledgementsWithPagination(
     throw new Error(response.errors[0]?.message || 'Failed to fetch acknowledgements');
   }
 
+  const records = response.data?.findLandingPages?.records || [];
+
+  // Deduplicate by ID to prevent React key errors when same acknowledgement appears multiple times
+  const uniqueRecords = records.reduce((acc, ack) => {
+    if (!acc.some(existing => existing.id === ack.id)) {
+      acc.push(ack);
+    }
+    return acc;
+  }, [] as AcknowledgementLandingPage[]);
+
   return {
-    records: response.data?.findLandingPages?.records || [],
+    records: uniqueRecords,
     total: response.data?.findLandingPages?.total || 0,
   };
 }
@@ -448,5 +509,15 @@ export async function searchAcknowledgements(
     return [];
   }
 
-  return response.data?.findLandingPages?.records || [];
+  const records = response.data?.findLandingPages?.records || [];
+
+  // Deduplicate by ID to prevent React key errors
+  const uniqueRecords = records.reduce((acc, ack) => {
+    if (!acc.some(existing => existing.id === ack.id)) {
+      acc.push(ack);
+    }
+    return acc;
+  }, [] as AcknowledgementLandingPage[]);
+
+  return uniqueRecords;
 }

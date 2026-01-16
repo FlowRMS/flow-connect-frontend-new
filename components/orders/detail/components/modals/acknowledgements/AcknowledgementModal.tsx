@@ -34,7 +34,6 @@ export function AcknowledgementModal({
   // Form state
   const [ackNumber, setAckNumber] = useState('');
   const [ackDate, setAckDate] = useState<Date | null>(new Date());
-  const [shipDate, setShipDate] = useState<Date | null>(null);
   const [quantity, setQuantity] = useState('');
   const [selectedLineItemIds, setSelectedLineItemIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -85,21 +84,24 @@ export function AcknowledgementModal({
         // Edit mode - populate from existing acknowledgement
         setAckNumber(acknowledgement.orderAcknowledgementNumber || '');
         setAckDate(parseDateString(acknowledgement.entityDate) || new Date());
-        setShipDate(parseDateString(acknowledgement.shipDate) || null);
         setQuantity(acknowledgement.quantity || '');
 
         // Populate selected line items from details array
         if (acknowledgement.details && acknowledgement.details.length > 0) {
           const detailIds = acknowledgement.details.map(d => d.orderDetailId);
+          // Debug: Log to verify the IDs match
+          console.log('Acknowledgement details:', acknowledgement.details);
+          console.log('Detail IDs to select:', detailIds);
+          console.log('Available line item IDs:', order.lineItems?.map(li => li.id));
           setSelectedLineItemIds(detailIds);
         } else {
+          console.log('No details found in acknowledgement:', acknowledgement);
           setSelectedLineItemIds([]);
         }
       } else {
         // Create mode - reset form
         setAckNumber('');
         setAckDate(new Date());
-        setShipDate(null);
         setQuantity('');
         setSelectedLineItemIds([]);
       }
@@ -147,8 +149,15 @@ export function AcknowledgementModal({
     if (!validate()) return;
 
     // Build details array from selected line items
+    // For edit mode, include existing detail IDs to prevent duplicate key errors
     const details = selectedLineItemIds.length > 0
-      ? selectedLineItemIds.map(orderDetailId => ({ orderDetailId }))
+      ? selectedLineItemIds.map(orderDetailId => {
+          // Find existing detail record if editing
+          const existingDetail = acknowledgement?.details?.find(d => d.orderDetailId === orderDetailId);
+          return existingDetail
+            ? { id: existingDetail.id, orderDetailId }
+            : { orderDetailId };
+        })
       : undefined;
 
     const input: CreateAcknowledgementInput = {
@@ -405,7 +414,7 @@ export function AcknowledgementModal({
                 )}
               </div>
 
-              {/* Quantity & Ship Date */}
+              {/* Quantity */}
               <div className="bg-[var(--muted)]/20 rounded-lg p-4 space-y-4">
                 <h3 className="text-sm font-semibold text-[var(--foreground)] flex items-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -415,48 +424,30 @@ export function AcknowledgementModal({
                   Acknowledgement Details
                 </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Quantity */}
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-                      Acknowledged Quantity <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max={selectedLineItems.length === 1 ? selectedLineItems[0].quantity : undefined}
-                      value={quantity}
-                      onChange={(e) => {
-                        setQuantity(e.target.value);
-                        setTouched(prev => ({ ...prev, quantity: true }));
-                      }}
-                      onBlur={() => setTouched(prev => ({ ...prev, quantity: true }))}
-                      placeholder={selectedLineItems.length === 1 ? `Max: ${selectedLineItems[0].quantity}` : 'Enter quantity'}
-                      className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 ${
-                        touched.quantity && errors.quantity
-                          ? 'border-red-500'
-                          : 'border-[var(--border)]'
-                      }`}
-                    />
-                    {touched.quantity && errors.quantity && (
-                      <p className="text-xs text-red-500 mt-1">{errors.quantity}</p>
-                    )}
-                  </div>
-
-                  {/* Ship Date */}
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-                      Expected Ship Date
-                    </label>
-                    <StyledDatePicker
-                      selected={shipDate}
-                      onChange={(date) => setShipDate(date)}
-                      placeholder="Select ship date..."
-                    />
-                    <p className="text-xs text-[var(--muted-foreground)] mt-1">
-                      When the factory expects to ship
-                    </p>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
+                    Acknowledged Quantity <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={selectedLineItems.length === 1 ? selectedLineItems[0].quantity : undefined}
+                    value={quantity}
+                    onChange={(e) => {
+                      setQuantity(e.target.value);
+                      setTouched(prev => ({ ...prev, quantity: true }));
+                    }}
+                    onBlur={() => setTouched(prev => ({ ...prev, quantity: true }))}
+                    placeholder={selectedLineItems.length === 1 ? `Max: ${selectedLineItems[0].quantity}` : 'Enter quantity'}
+                    className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 ${
+                      touched.quantity && errors.quantity
+                        ? 'border-red-500'
+                        : 'border-[var(--border)]'
+                    }`}
+                  />
+                  {touched.quantity && errors.quantity && (
+                    <p className="text-xs text-red-500 mt-1">{errors.quantity}</p>
+                  )}
                 </div>
               </div>
             </>
