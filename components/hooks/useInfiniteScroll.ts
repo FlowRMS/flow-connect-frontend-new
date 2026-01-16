@@ -4,7 +4,7 @@
  * Uses callback ref pattern to properly handle conditionally rendered elements
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 
 interface UseInfiniteScrollOptions {
   hasNextPage: boolean | undefined;
@@ -104,7 +104,7 @@ export function useInfiniteScroll({
  * Uses stable refs to prevent scroll handler recreation and flickering
  */
 export function useScrollPagination(
-  containerRef: React.RefObject<HTMLElement>,
+  containerRef: React.RefObject<HTMLElement | null>,
   options: UseInfiniteScrollOptions
 ) {
   const { hasNextPage, isFetchingNextPage, fetchNextPage, threshold = 200 } = options;

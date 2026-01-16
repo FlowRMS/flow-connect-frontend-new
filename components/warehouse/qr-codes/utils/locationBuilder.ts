@@ -1,99 +1,66 @@
 // Location hierarchy builder utilities
 
 import type { LocationWithPath } from '../types';
-import {
-  mockSections,
-  mockAisles,
-  mockShelves,
-  mockBays,
-  mockRows,
-  mockBins,
-} from '@/lib/data/warehouse-mock';
+import type { WarehouseLocation as ApiWarehouseLocation } from '../../settings/api/warehouseLocationsApi';
+
+/** Map API level to local type */
+const API_LEVEL_TO_TYPE: Record<string, string> = {
+  SECTION: 'section',
+  AISLE: 'aisle',
+  SHELF: 'shelf',
+  BAY: 'bay',
+  ROW: 'row',
+  BIN: 'bin',
+};
 
 /**
- * Build flat list of all locations with their full paths
+ * Build flat list of all locations with their full paths from API data
  */
-export function buildLocationList(warehouseId: string, enabledLevels: string[]): LocationWithPath[] {
+export function buildLocationListFromApi(
+  apiLocations: ApiWarehouseLocation[],
+  enabledLevels: string[]
+): LocationWithPath[] {
   const locations: LocationWithPath[] = [];
 
-  const sections = mockSections.filter((s) => s.warehouseId === warehouseId);
+  function processLocation(
+    location: ApiWarehouseLocation,
+    parentPath: string[],
+    parentPathString: string
+  ) {
+    const locationType = API_LEVEL_TO_TYPE[location.level] || location.level.toLowerCase();
+    const currentPath = [...parentPath, location.name];
+    const currentPathString = parentPathString ? `${parentPathString} > ${location.name}` : location.name;
 
-  for (const section of sections) {
-    if (enabledLevels.includes('section')) {
+    // Only include if this level is enabled
+    if (enabledLevels.includes(locationType)) {
       locations.push({
-        id: section.id,
-        name: section.name,
-        type: 'section',
-        path: section.name,
-        fullPath: [section.name],
+        id: location.id,
+        name: location.name,
+        type: locationType,
+        path: currentPathString,
+        fullPath: currentPath,
       });
     }
 
-    const aisles = mockAisles.filter((a) => a.sectionId === section.id);
-    for (const aisle of aisles) {
-      if (enabledLevels.includes('aisle')) {
-        locations.push({
-          id: aisle.id,
-          name: aisle.name,
-          type: 'aisle',
-          path: `${section.name} > ${aisle.name}`,
-          fullPath: [section.name, aisle.name],
-        });
-      }
-
-      const shelves = mockShelves.filter((s) => s.aisleId === aisle.id);
-      for (const shelf of shelves) {
-        if (enabledLevels.includes('shelf')) {
-          locations.push({
-            id: shelf.id,
-            name: shelf.name,
-            type: 'shelf',
-            path: `${section.name} > ${aisle.name} > ${shelf.name}`,
-            fullPath: [section.name, aisle.name, shelf.name],
-          });
-        }
-
-        const bays = mockBays.filter((b) => b.shelfId === shelf.id);
-        for (const bay of bays) {
-          if (enabledLevels.includes('bay')) {
-            locations.push({
-              id: bay.id,
-              name: bay.code,
-              type: 'bay',
-              path: `${section.name} > ${aisle.name} > ${shelf.name} > ${bay.code}`,
-              fullPath: [section.name, aisle.name, shelf.name, bay.code],
-            });
-          }
-
-          const rows = mockRows.filter((r) => r.bayId === bay.id);
-          for (const row of rows) {
-            if (enabledLevels.includes('row')) {
-              locations.push({
-                id: row.id,
-                name: `Row ${row.rowNumber}`,
-                type: 'row',
-                path: `${section.name} > ${aisle.name} > ${shelf.name} > ${bay.code} > Row ${row.rowNumber}`,
-                fullPath: [section.name, aisle.name, shelf.name, bay.code, `Row ${row.rowNumber}`],
-              });
-            }
-
-            const bins = mockBins.filter((b) => b.rowId === row.id);
-            for (const bin of bins) {
-              if (enabledLevels.includes('bin')) {
-                locations.push({
-                  id: bin.id,
-                  name: `Bin ${bin.letterCode}`,
-                  type: 'bin',
-                  path: `${section.name} > ${aisle.name} > ${shelf.name} > ${bay.code} > Row ${row.rowNumber} > Bin ${bin.letterCode}`,
-                  fullPath: [section.name, aisle.name, shelf.name, bay.code, `Row ${row.rowNumber}`, `Bin ${bin.letterCode}`],
-                });
-              }
-            }
-          }
-        }
+    // Process children recursively
+    if (location.children && location.children.length > 0) {
+      for (const child of location.children) {
+        processLocation(child, currentPath, currentPathString);
       }
     }
   }
 
+  // Process all root locations (sections)
+  for (const location of apiLocations) {
+    processLocation(location, [], '');
+  }
+
   return locations;
+}
+
+/**
+ * Build an empty location list (for when no data is available)
+ */
+export function buildEmptyLocationList(): LocationWithPath[] {
+  return [];
 }

@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import type { WarehouseQRCodesModalProps } from './types';
 import { printFormats } from './constants';
-import { buildLocationList } from './utils';
+import { buildLocationListFromApi, buildEmptyLocationList } from './utils';
 import { useLocationFiltering, usePrintQRCodes } from './hooks';
 import { QRCodeToolbar, QRCodeGrid } from './components';
+import { useWarehouseLocationTreeQuery } from '../settings/api/useWarehouseLocationsApi';
 
 export default function WarehouseQRCodesModal({
   isOpen,
@@ -18,8 +19,16 @@ export default function WarehouseQRCodesModal({
 
   const enabledLevels = locationLevels.filter((l) => l.enabled).map((l) => l.level);
 
-  // Build flat list of all locations with paths
-  const locations = buildLocationList(warehouseId, enabledLevels);
+  // Fetch locations from API
+  const { data: apiLocations, isLoading, error } = useWarehouseLocationTreeQuery(warehouseId);
+
+  // Build flat list of all locations with paths from API data
+  const locations = useMemo(() => {
+    if (apiLocations && apiLocations.length > 0) {
+      return buildLocationListFromApi(apiLocations, enabledLevels);
+    }
+    return buildEmptyLocationList();
+  }, [apiLocations, enabledLevels]);
 
   // Filtering hook
   const {
@@ -40,6 +49,36 @@ export default function WarehouseQRCodesModal({
   });
 
   if (!isOpen) return null;
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-8 flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]"></div>
+          <p className="text-[var(--muted-foreground)]">Loading locations...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-8 flex flex-col items-center gap-4 max-w-md">
+          <div className="text-red-500 text-lg font-medium">Failed to load locations</div>
+          <p className="text-[var(--muted-foreground)] text-center">{error.message}</p>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-[var(--muted)] rounded-md hover:bg-[var(--muted)]/80"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -78,7 +117,12 @@ export default function WarehouseQRCodesModal({
         </div>
 
         {/* QR Code Grid */}
-        <QRCodeGrid locations={filteredLocations} format={selectedFormat} printRef={printRef} />
+        <QRCodeGrid
+          locations={filteredLocations}
+          format={selectedFormat}
+          printRef={printRef}
+          warehouseName={warehouseName}
+        />
 
         {/* Footer */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--border)] bg-[var(--card)] flex-shrink-0">
