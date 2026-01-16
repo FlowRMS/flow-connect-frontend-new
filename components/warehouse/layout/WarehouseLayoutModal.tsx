@@ -235,6 +235,9 @@ export default function WarehouseLayoutModal({
             onMouseDown={canvasInteractions.handleCanvasMouseDown}
             onMouseMove={canvasInteractions.handleCanvasMouseMove}
             onMouseUp={canvasInteractions.handleCanvasMouseUp}
+            onContextMenu={canvasInteractions.handleContextMenu}
+            isPanning={canvasInteractions.isPanning}
+            isSpacePressed={canvasInteractions.isSpacePressed}
             onZoomChange={canvasInteractions.setZoom}
             onResetView={canvasInteractions.handleResetView}
             onRename={locationManagement.renameLocation}
