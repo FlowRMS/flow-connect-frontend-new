@@ -27,6 +27,9 @@ interface VisualWarehouseBuilderProps {
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
   onMouseUp: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+  isPanning?: boolean;
+  isSpacePressed?: boolean;
   onZoomChange: (zoom: number) => void;
   onResetView: () => void;
   onSave: () => void;
@@ -59,6 +62,9 @@ export default function VisualWarehouseBuilder({
   onMouseDown,
   onMouseMove,
   onMouseUp,
+  onContextMenu,
+  isPanning = false,
+  isSpacePressed = false,
   onResetView,
   onSave,
   onClose,
@@ -393,10 +399,13 @@ export default function VisualWarehouseBuilder({
           selectedElementId={selectedElementId}
           editingName={editingName}
           draggingFromLibrary={draggingFromLibrary}
+          isPanning={isPanning}
+          isSpacePressed={isSpacePressed}
           onWheel={onWheel}
           onMouseDown={onMouseDown}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
+          onContextMenu={onContextMenu}
           onCanvasClick={handleCanvasClick}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
@@ -583,9 +592,11 @@ export default function VisualWarehouseBuilder({
           <div className="flex items-center gap-3 text-[10px] text-[var(--muted-foreground)]">
             <span>Double-click to edit</span>
             <span className="w-px h-3 bg-[var(--border)]" />
-            <span>Alt+Drag pan</span>
+            <span>Right-click drag to pan</span>
             <span className="w-px h-3 bg-[var(--border)]" />
-            <span>Scroll zoom</span>
+            <span>Scroll to zoom</span>
+            <span className="w-px h-3 bg-[var(--border)]" />
+            <span>Space+drag to pan</span>
           </div>
         </div>
       </div>

@@ -14,10 +14,13 @@ interface CanvasViewProps {
   selectedElementId: string | null;
   editingName: string | null;
   draggingFromLibrary: { type: string; id?: string } | null;
+  isPanning?: boolean;
+  isSpacePressed?: boolean;
   onWheel: (e: React.WheelEvent) => void;
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
   onMouseUp: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
   onCanvasClick: (e: React.MouseEvent) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
@@ -40,10 +43,13 @@ export default function CanvasView({
   selectedElementId,
   editingName,
   draggingFromLibrary,
+  isPanning = false,
+  isSpacePressed = false,
   onWheel,
   onMouseDown,
   onMouseMove,
   onMouseUp,
+  onContextMenu,
   onCanvasClick,
   onDragOver,
   onDrop,
@@ -58,6 +64,13 @@ export default function CanvasView({
 }: CanvasViewProps) {
   const canvasWidth = feetToPixels(warehouseDimensions.width) + 100;
   const canvasHeight = feetToPixels(warehouseDimensions.height) + 100;
+
+  // Get cursor style based on panning state
+  const getCursor = () => {
+    if (isPanning) return 'grabbing';
+    if (isSpacePressed) return 'grab';
+    return 'default';
+  };
 
   // Recursive render for nested elements
   const renderElement = (element: VisualElement, depth: number = 0, parentId?: string): React.ReactNode => {
@@ -84,22 +97,24 @@ export default function CanvasView({
   return (
     <div
       ref={canvasRef}
-      className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-900 relative"
+      className="flex-1 overflow-hidden bg-gray-100 dark:bg-gray-900 relative select-none"
+      style={{ cursor: getCursor() }}
       onWheel={onWheel}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
+      onMouseLeave={onMouseUp}
+      onContextMenu={onContextMenu}
       onClick={onCanvasClick}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      {/* Canvas Container */}
+      {/* Canvas Container - infinite canvas with transform */}
       <div
-        className="relative"
+        className="absolute"
         style={{
-          width: canvasWidth * zoom,
-          height: canvasHeight * zoom,
           transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
+          transformOrigin: '0 0',
         }}
       >
         {/* Grid Background */}
