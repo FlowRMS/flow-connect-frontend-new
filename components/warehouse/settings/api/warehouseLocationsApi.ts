@@ -38,6 +38,8 @@ export interface LocationProductAssignment {
   productId: string;
   quantity: number;
   createdAt: string;
+  productName: string;
+  partNumber: string;
 }
 
 export interface WarehouseLocation {
@@ -96,6 +98,17 @@ export interface BulkWarehouseLocationInput {
   rotation?: number | null;
 }
 
+export interface BulkProductAssignmentInput {
+  locationId: string;
+  productId: string;
+  quantity: number;
+}
+
+export interface BulkProductRemovalInput {
+  locationId: string;
+  productId: string;
+}
+
 // ============================================================================
 // GraphQL Fragments
 // ============================================================================
@@ -124,6 +137,8 @@ const PRODUCT_ASSIGNMENT_FIELDS = `
   productId
   quantity
   createdAt
+  productName
+  partNumber
 `;
 
 // ============================================================================
@@ -236,7 +251,7 @@ const BULK_SAVE_WAREHOUSE_LOCATIONS = `
 `;
 
 const ASSIGN_PRODUCT_TO_LOCATION = `
-  mutation AssignProductToLocation($locationId: UUID!, $productId: UUID!, $quantity: Int!) {
+  mutation AssignProductToLocation($locationId: UUID!, $productId: UUID!, $quantity: Decimal!) {
     assignProductToLocation(locationId: $locationId, productId: $productId, quantity: $quantity) {
       ${PRODUCT_ASSIGNMENT_FIELDS}
     }
@@ -244,7 +259,7 @@ const ASSIGN_PRODUCT_TO_LOCATION = `
 `;
 
 const UPDATE_PRODUCT_QUANTITY_AT_LOCATION = `
-  mutation UpdateProductQuantityAtLocation($locationId: UUID!, $productId: UUID!, $quantity: Int!) {
+  mutation UpdateProductQuantityAtLocation($locationId: UUID!, $productId: UUID!, $quantity: Decimal!) {
     updateProductQuantityAtLocation(locationId: $locationId, productId: $productId, quantity: $quantity) {
       ${PRODUCT_ASSIGNMENT_FIELDS}
     }
@@ -254,6 +269,20 @@ const UPDATE_PRODUCT_QUANTITY_AT_LOCATION = `
 const REMOVE_PRODUCT_FROM_LOCATION = `
   mutation RemoveProductFromLocation($locationId: UUID!, $productId: UUID!) {
     removeProductFromLocation(locationId: $locationId, productId: $productId)
+  }
+`;
+
+const BULK_ASSIGN_PRODUCTS_TO_LOCATIONS = `
+  mutation BulkAssignProductsToLocations($assignments: [BulkProductAssignmentInput!]!) {
+    bulkAssignProductsToLocations(assignments: $assignments) {
+      ${PRODUCT_ASSIGNMENT_FIELDS}
+    }
+  }
+`;
+
+const BULK_REMOVE_PRODUCTS_FROM_LOCATIONS = `
+  mutation BulkRemoveProductsFromLocations($removals: [BulkProductRemovalInput!]!) {
+    bulkRemoveProductsFromLocations(removals: $removals)
   }
 `;
 
@@ -481,4 +510,48 @@ export async function removeProductFromLocation(
   }
 
   return true;
+}
+
+/**
+ * Bulk assign products to locations in a single request
+ * More efficient than calling assignProductToLocation multiple times
+ */
+export async function bulkAssignProductsToLocations(
+  assignments: BulkProductAssignmentInput[]
+): Promise<LocationProductAssignment[]> {
+  if (assignments.length === 0) return [];
+
+  const response = await crmGraphQLRequest<{
+    bulkAssignProductsToLocations: LocationProductAssignment[];
+  }>({
+    query: BULK_ASSIGN_PRODUCTS_TO_LOCATIONS,
+    variables: { assignments },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to bulk assign products');
+  }
+
+  return response.data?.bulkAssignProductsToLocations || [];
+}
+
+/**
+ * Bulk remove products from locations in a single request
+ * More efficient than calling removeProductFromLocation multiple times
+ */
+export async function bulkRemoveProductsFromLocations(
+  removals: BulkProductRemovalInput[]
+): Promise<number> {
+  if (removals.length === 0) return 0;
+
+  const response = await crmGraphQLRequest<{ bulkRemoveProductsFromLocations: number }>({
+    query: BULK_REMOVE_PRODUCTS_FROM_LOCATIONS,
+    variables: { removals },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to bulk remove products');
+  }
+
+  return response.data?.bulkRemoveProductsFromLocations || 0;
 }

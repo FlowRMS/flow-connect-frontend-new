@@ -34,8 +34,8 @@ function convertApiLocationToLocal(apiLocation: ApiWarehouseLocation): Warehouse
   const products: ProductAssignment[] = (apiLocation.productAssignments || []).map((assignment) => ({
     id: assignment.id,
     productId: assignment.productId,
-    productName: '', // Product details would need separate fetch
-    partNumber: '',
+    productName: assignment.productName || '',
+    partNumber: assignment.partNumber || '',
     quantity: assignment.quantity,
   }));
 

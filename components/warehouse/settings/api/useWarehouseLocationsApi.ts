@@ -17,11 +17,15 @@ import {
   assignProductToLocation,
   updateProductQuantityAtLocation,
   removeProductFromLocation,
+  bulkAssignProductsToLocations,
+  bulkRemoveProductsFromLocations,
   type WarehouseLocation,
   type LocationProductAssignment,
   type CreateWarehouseLocationInput,
   type UpdateWarehouseLocationInput,
   type BulkWarehouseLocationInput,
+  type BulkProductAssignmentInput,
+  type BulkProductRemovalInput,
 } from './warehouseLocationsApi';
 
 // ============================================================================
@@ -279,6 +283,54 @@ export function useRemoveProductFromLocation() {
   });
 }
 
+/**
+ * Bulk assign products to locations in a single request
+ * More efficient than calling useAssignProductToLocation multiple times
+ */
+export function useBulkAssignProductsToLocations() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    LocationProductAssignment[],
+    Error,
+    { assignments: BulkProductAssignmentInput[]; warehouseId?: string }
+  >({
+    mutationFn: ({ assignments }) => bulkAssignProductsToLocations(assignments),
+    onSuccess: (_data, variables) => {
+      // Invalidate tree if warehouseId is provided
+      if (variables.warehouseId) {
+        queryClient.invalidateQueries({
+          queryKey: warehouseLocationsQueryKeys.tree(variables.warehouseId),
+        });
+      }
+    },
+  });
+}
+
+/**
+ * Bulk remove products from locations in a single request
+ * More efficient than calling useRemoveProductFromLocation multiple times
+ */
+export function useBulkRemoveProductsFromLocations() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    number,
+    Error,
+    { removals: BulkProductRemovalInput[]; warehouseId?: string }
+  >({
+    mutationFn: ({ removals }) => bulkRemoveProductsFromLocations(removals),
+    onSuccess: (_data, variables) => {
+      // Invalidate tree if warehouseId is provided
+      if (variables.warehouseId) {
+        queryClient.invalidateQueries({
+          queryKey: warehouseLocationsQueryKeys.tree(variables.warehouseId),
+        });
+      }
+    },
+  });
+}
+
 // Re-export types
 export type {
   WarehouseLocation,
@@ -286,6 +338,8 @@ export type {
   CreateWarehouseLocationInput,
   UpdateWarehouseLocationInput,
   BulkWarehouseLocationInput,
+  BulkProductAssignmentInput,
+  BulkProductRemovalInput,
 };
 
 // Re-export constants
