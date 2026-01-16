@@ -80,18 +80,17 @@ export function useAbridgement({
   // Update takeoff status helper - uses ref to always get latest takeoff
   const updateTakeoffStatus = useCallback(async (status: TakeoffStatusEnum, displayStatus: Takeoff['status']) => {
     const currentTakeoff = selectedTakeoffRef.current;
-    if (!currentTakeoff) {
-      console.warn('[Abridgement] Cannot update status: no takeoff selected');
-      return;
-    }
+    if (!currentTakeoff) return;
+
+    // Normalize status comparison (API returns uppercase, display uses Title case)
+    const normalizedCurrentStatus = currentTakeoff.status?.toUpperCase();
+    const normalizedTargetStatus = status; // Already uppercase
+
     // Skip if already at target status or Complete
-    if (currentTakeoff.status === displayStatus) {
-      return; // Already at this status
-    }
-    if (currentTakeoff.status === 'Complete') {
-      console.warn('[Abridgement] Cannot update status: takeoff is Complete');
+    if (normalizedCurrentStatus === normalizedTargetStatus || normalizedCurrentStatus === 'COMPLETE') {
       return;
     }
+
     try {
       await apiUpdateTakeoff(currentTakeoff.id, { status });
       setTakeoffsData(prev =>
@@ -189,7 +188,6 @@ export function useAbridgement({
       );
 
       // Update takeoff status to Abridgment when document is successfully processed
-      // This ensures status reflects actual work done (shown in UI as abridgement results)
       await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
     } else {
       // Set error for Retry button
