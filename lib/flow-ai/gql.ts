@@ -440,6 +440,54 @@ export const Q_GET_USER_CHATS = gql`
       status
       title
       userId
+      folderId
+    }
+  }
+`;
+
+// Chat Folder Operations
+export const Q_GET_CHAT_FOLDERS = gql`
+  query GetChatFolders {
+    getChatFolders {
+      id
+      name
+      userId
+      createdAt
+    }
+  }
+`;
+
+export const M_CREATE_CHAT_FOLDER = gql`
+  mutation CreateChatFolder($input: CreateChatFolderInput!) {
+    createChatFolder(input: $input) {
+      id
+      name
+      userId
+      createdAt
+    }
+  }
+`;
+
+export const M_DELETE_CHAT_FOLDER = gql`
+  mutation DeleteChatFolder($folderId: UUID!) {
+    deleteChatFolder(folderId: $folderId)
+  }
+`;
+
+export const M_MOVE_CHAT_TO_FOLDER = gql`
+  mutation MoveChatToFolder($input: MoveChatToFolderInput!) {
+    moveChatToFolder(input: $input) {
+      id
+      folderId
+    }
+  }
+`;
+
+export const M_BULK_MOVE_CHATS_TO_FOLDER = gql`
+  mutation BulkMoveChatsToFolder($input: BulkMoveChatToFolderInput!) {
+    bulkMoveChatsToFolder(input: $input) {
+      id
+      folderId
     }
   }
 `;
