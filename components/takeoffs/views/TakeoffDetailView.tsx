@@ -147,16 +147,10 @@ export function TakeoffDetailView({
   const runAutoClassification = useCallback(async (isAutoTriggered = false) => {
     // Prevent duplicate calls using ref (synchronous check)
     if (isClassifyingRef.current) {
-      console.log('[Classification] Classification already in progress, skipping duplicate call');
       return;
     }
     isClassifyingRef.current = true;
-
-    console.log('[Classification] Starting AI classification...', isAutoTriggered ? '(auto-triggered)' : '(manual)');
-    console.log('[Classification] Total documents:', documents.length);
-
     if (documents.length === 0) {
-      console.log('[Classification] No documents to classify');
       if (!isAutoTriggered) takeoffToasts.classificationError('No documents to classify. Please upload documents first.');
       isClassifyingRef.current = false;
       onAutoClassifyComplete?.();
@@ -164,10 +158,7 @@ export function TakeoffDetailView({
     }
 
     const unclassifiedDocs = documents.filter(d => !d.classification);
-    console.log('[Classification] Unclassified documents:', unclassifiedDocs.length);
-
     if (unclassifiedDocs.length === 0) {
-      console.log('[Classification] All documents are already classified');
       if (!isAutoTriggered) {
         // Show summary of already classified documents
         const fixtures = documents.filter(d => d.classification === 'Fixture Schedules').length;
@@ -183,10 +174,7 @@ export function TakeoffDetailView({
     }
 
     const docsWithUrls = unclassifiedDocs.filter(d => d.documentUrl);
-    console.log('[Classification] Documents with URLs:', docsWithUrls.length);
-
     if (docsWithUrls.length === 0) {
-      console.log('[Classification] No documents have URLs for classification');
       if (!isAutoTriggered) takeoffToasts.classificationError('No documents have URLs for classification. This may be a loading issue.');
       isClassifyingRef.current = false;
       onAutoClassifyComplete?.();
@@ -206,7 +194,6 @@ export function TakeoffDetailView({
     for (let i = 0; i < docsWithUrls.length; i++) {
       // Check if component is still mounted
       if (!isMountedRef.current) {
-        console.log('[Classification] Component unmounted, stopping classification');
         isClassifyingRef.current = false;
         return;
       }
@@ -215,18 +202,13 @@ export function TakeoffDetailView({
       // Mark this document as being classified
       setClassifyingDocIds(prev => new Set(prev).add(doc.id));
       try {
-        console.log(`[Classification] Classifying ${doc.name}...`);
         const result = await classifyDocumentAPI(doc.documentUrl!, doc.name);
 
         // Check again after async call
         if (!isMountedRef.current) {
-          console.log('[Classification] Component unmounted after API call, stopping');
           isClassifyingRef.current = false;
           return;
         }
-
-        console.log(`[Classification] Result for ${doc.name}:`, result);
-
         if (result.success && result.category) {
           // Map API category to our classification type
           // API may return either snake_case or Title Case format
@@ -279,7 +261,6 @@ export function TakeoffDetailView({
 
     // Apply all classifications in a single bulk update
     if (isMountedRef.current && Object.keys(classifications).length > 0) {
-      console.log('[Classification] Applying bulk update for', Object.keys(classifications).length, 'documents');
       if (onBulkClassify) {
         await onBulkClassify(classifications);
       } else {
@@ -293,8 +274,6 @@ export function TakeoffDetailView({
     // Only update state if still mounted
     if (isMountedRef.current) {
       setIsClassifying(false);
-      console.log('[Classification] Classification complete');
-
       // Show completion toast with results
       takeoffToasts.classificationComplete({
         total: docsWithUrls.length,
@@ -316,11 +295,9 @@ export function TakeoffDetailView({
         documents.length > 0) {
       // Prevent double-triggering due to React StrictMode or race conditions
       if (autoClassifyTriggeredRef.current) {
-        console.log('[Classification] Auto-classification already triggered, skipping...');
         return;
       }
       autoClassifyTriggeredRef.current = true;
-      console.log('[Classification] Auto-starting classification for', unclassifiedCount, 'unclassified documents...');
       runAutoClassification(true); // true = auto-triggered, don't show alerts
     }
   }, [currentStep, documents, isClassifying, runAutoClassification]);

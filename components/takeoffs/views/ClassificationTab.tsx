@@ -79,8 +79,6 @@ export function ClassificationTab({
   const classifiedCount = documents.filter(d => d.classification).length;
 
   // Debug: log when documents change
-  console.log('[ClassificationTab] documents updated:', documents.map(d => ({ id: d.id.slice(0,8), name: d.name.slice(0,20), classification: d.classification })));
-
   // Count documents by category
   const categoryCounts = useMemo(() => {
     const counts: Record<CategoryTab, number> = {
@@ -97,8 +95,6 @@ export function ClassificationTab({
         counts[classification]++;
       }
     });
-
-    console.log('[ClassificationTab] categoryCounts:', counts);
     return counts;
   }, [documents]);
 
