@@ -651,6 +651,14 @@ export default function SpecSheetsContent() {
     return folder?.specSheetCount || 0;
   };
 
+  // Get recursive count (folder + all descendants)
+  const getRecursiveFolderCount = (folderId: string): number => {
+    const directCount = getFolderCount(folderId);
+    const children = getChildFoldersLocal(folderId);
+    const childrenCount = children.reduce((sum, child) => sum + getRecursiveFolderCount(child.id), 0);
+    return directCount + childrenCount;
+  };
+
   // Render folder tree recursively
   const renderFolderTree = (folderList: SpecSheetFolder[], depth: number = 0) => {
     return folderList.map(folder => {
@@ -659,7 +667,11 @@ export default function SpecSheetsContent() {
       const isExpanded = expandedFolders.has(folder.id);
       const isSelected = selectedFolderId === folder.id;
       const isEditing = editingFolderId === folder.id;
-      const count = getFolderCount(folder.id);
+      // Show recursive count when collapsed, no count when expanded (children show their own counts)
+      // For leaf folders (no children), always show direct count
+      const count = hasChildren
+        ? (isExpanded ? null : getRecursiveFolderCount(folder.id))
+        : getFolderCount(folder.id);
 
       return (
         <div key={folder.id}>
@@ -715,7 +727,7 @@ export default function SpecSheetsContent() {
             ) : (
               <span className="flex-1 truncate text-left">{folder.name}</span>
             )}
-            {count > 0 && !isEditing && (
+            {count !== null && count > 0 && !isEditing && (
               <span className="text-xs text-[var(--muted-foreground)]">{count}</span>
             )}
             {!isEditing && (
@@ -1219,14 +1231,21 @@ export default function SpecSheetsContent() {
             </button>
 
             <div className="flex flex-col items-center text-center py-8">
-              {/* Loading Spinner */}
-              <div className="w-12 h-12 border-3 border-[var(--muted)] border-t-[var(--primary)] rounded-full animate-spin mb-6" />
+              {/* Coming Soon Icon */}
+              <div className="w-16 h-16 rounded-full bg-[var(--primary)]/10 flex items-center justify-center mb-6">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[var(--primary)]">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round"/>
+                </svg>
+              </div>
 
               <h2 className="text-lg font-semibold text-[var(--foreground)] mb-2">
-                Loading Spec Sheets
+                Coming Soon
               </h2>
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Loading spec sheets from Flow Connect Open Catalog...
+              <p className="text-sm text-[var(--muted-foreground)] mb-4">
+                Integration with Flow Connect Open Catalog is coming soon.
+              </p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                You&apos;ll be able to import spec sheets directly from the catalog.
               </p>
             </div>
           </div>
@@ -1406,7 +1425,11 @@ export default function SpecSheetsContent() {
                       const hasChildren = childFolders.length > 0;
                       const isFolderExpanded = expandedFolders.has(folder.id);
                       const isFolderEditing = editingFolderId === folder.id;
-                      const folderCount = getFolderCount(folder.id);
+                      // Show recursive count when collapsed, no count when expanded (children show their own counts)
+                      // For leaf folders (no children), always show direct count
+                      const folderCount = hasChildren
+                        ? (isFolderExpanded ? null : getRecursiveFolderCount(folder.id))
+                        : getFolderCount(folder.id);
                       const isFolderDragging = draggedFolderId === folder.id;
                       const isFolderDragOver = dragOverFolderId === folder.id;
 
@@ -1492,7 +1515,7 @@ export default function SpecSheetsContent() {
                             )}
 
                             {/* Folder spec sheet count */}
-                            {folderCount > 0 && !isFolderEditing && (
+                            {folderCount !== null && folderCount > 0 && !isFolderEditing && (
                               <span className="text-xs text-[var(--muted-foreground)]">{folderCount}</span>
                             )}
 
