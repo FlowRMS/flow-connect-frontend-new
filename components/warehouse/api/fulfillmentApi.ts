@@ -191,15 +191,19 @@ export interface FulfillmentStats {
 }
 
 // Input Types
-export interface ShipToAddressInput {
-  name?: string | null;
-  street?: string | null;
-  streetLine2?: string | null;
-  city?: string | null;
+// AddressInput matches the backend's AddressInput schema for creating/updating addresses
+export interface AddressInput {
+  sourceId: string;
+  sourceType: 'CUSTOMER' | 'VENDOR' | 'WAREHOUSE' | 'SHIPPING_CARRIER' | 'FULFILLMENT_ORDER';
+  addressTypes: ('BILLING' | 'SHIPPING' | 'PHYSICAL' | 'MAILING')[];
+  line1: string;
+  city: string;
+  country: string;
+  line2?: string | null;
   state?: string | null;
-  postalCode?: string | null;
-  country?: string | null;
-  phone?: string | null;
+  zipCode?: string | null;
+  notes?: string | null;
+  isPrimary?: boolean;
 }
 
 export interface CreateFulfillmentOrderInput {
@@ -208,7 +212,9 @@ export interface CreateFulfillmentOrderInput {
   fulfillmentMethod?: FulfillmentMethod;
   carrierId?: string | null;
   carrierType?: CarrierType | null;
-  shipToAddress?: ShipToAddressInput | null;
+  shipToAddress?: AddressInput | null;
+  shipToName?: string | null;
+  shipToPhone?: string | null;
   needByDate?: string | null;
 }
 
@@ -235,7 +241,9 @@ export interface UpdateFulfillmentOrderInput {
   carrierId?: string | null;
   carrierType?: CarrierType | null;
   freightClass?: string | null;
-  shipToAddress?: ShipToAddressInput | null;
+  shipToAddress?: AddressInput | null;
+  shipToName?: string | null;
+  shipToPhone?: string | null;
   needByDate?: string | null;
   holdReason?: string | null;
   status?: FulfillmentOrderStatus | null;
@@ -298,6 +306,30 @@ export interface FulfillmentFilters {
 // GraphQL Fragments
 // ============================================================================
 
+// Lightweight fragment for table listing - only fields needed for the table view
+const FULFILLMENT_ORDER_LIST_FRAGMENT = `
+  fragment FulfillmentOrderListFields on FulfillmentOrderResponse {
+    id
+    orderNumber
+    customerName
+    status
+    createdAt
+    lineItems {
+      id
+      productName
+      partNumber
+      orderedQty
+      allocatedQty
+      backorderQty
+    }
+    assignments {
+      role
+      userName
+    }
+  }
+`;
+
+// Full fragment for detail view - all fields needed when viewing/editing a single order
 const FULFILLMENT_ORDER_FRAGMENT = `
   fragment FulfillmentOrderFields on FulfillmentOrderResponse {
     id
@@ -421,9 +453,10 @@ const FULFILLMENT_ORDER_FRAGMENT = `
 // GraphQL Queries
 // ============================================================================
 
-const GET_FULFILLMENT_ORDERS = `
-  ${FULFILLMENT_ORDER_FRAGMENT}
-  query GetFulfillmentOrders(
+// Lightweight query for table listing
+const GET_FULFILLMENT_ORDERS_LIST = `
+  ${FULFILLMENT_ORDER_LIST_FRAGMENT}
+  query GetFulfillmentOrdersList(
     $warehouseId: UUID
     $status: [FulfillmentOrderStatus!]
     $search: String
@@ -437,7 +470,7 @@ const GET_FULFILLMENT_ORDERS = `
       limit: $limit
       offset: $offset
     ) {
-      ...FulfillmentOrderFields
+      ...FulfillmentOrderListFields
     }
   }
 `;
@@ -723,7 +756,7 @@ const ADD_FULFILLMENT_NOTE = `
 // ============================================================================
 
 /**
- * Fetch fulfillment orders with optional filters
+ * Fetch fulfillment orders for table listing (lightweight query)
  */
 export async function fetchFulfillmentOrders(
   filters?: FulfillmentFilters
@@ -731,7 +764,7 @@ export async function fetchFulfillmentOrders(
   const response = await crmGraphQLRequest<{
     fulfillmentOrders: FulfillmentOrder[];
   }>({
-    query: GET_FULFILLMENT_ORDERS,
+    query: GET_FULFILLMENT_ORDERS_LIST,
     variables: {
       warehouseId: filters?.warehouseId,
       status: filters?.status,

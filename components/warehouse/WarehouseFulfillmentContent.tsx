@@ -51,10 +51,11 @@ export default function WarehouseFulfillmentContent() {
   const router = useRouter();
   const urlFilter = searchParams.get('filter') as StatFilter | null;
 
-  // Fetch fulfillment orders from API
+  // // Fetch fulfillment orders from API
   const { data: fulfillmentOrders = [], isLoading, error } = useFulfillmentOrders({
     warehouseId: selectedWarehouse?.id,
   });
+
 
   // Fetch stats from API
   const { data: stats } = useFulfillmentStats(selectedWarehouse?.id);
