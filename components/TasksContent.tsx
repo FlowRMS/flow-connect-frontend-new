@@ -66,6 +66,7 @@ export default function TasksContent() {
     // Task data
     tasks,
     filteredTasks,
+    totalCount,
 
     // Search and category
     selectedCategory,
@@ -267,7 +268,7 @@ export default function TasksContent() {
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
               >
-                {isLoading ? 'Loading...' : `${filteredTasks.length} tasks • Organize and track your work`}
+                {isLoading ? 'Loading...' : `Showing ${filteredTasks.length} of ${totalCount} tasks • Organize and track your work`}
               </motion.p>
             </div>
           </div>
@@ -518,29 +519,24 @@ export default function TasksContent() {
       </div>
 
       {/* Category Filters and Bulk Select */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 flex-1 -mx-1 px-1">
-          {TASK_CATEGORIES.map((category) => (
-            <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
-                selectedCategory === category
-                  ? 'bg-[var(--primary)] text-white'
-                  : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
-              }`}
-            >
-              {category}
-              {category !== 'All' && (
-                <span className="ml-1 sm:ml-2 text-xs opacity-75">
-                  ({getTasksByStatus(category)})
-                </span>
-              )}
-              {category === 'All' && (
-                <span className="ml-1 sm:ml-2 text-xs opacity-75">({tasks.length})</span>
-              )}
-            </button>
-          ))}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6 pb-2">
+        <div className="flex items-center gap-3 flex-1">
+          <span className="text-sm text-[var(--muted-foreground)] leading-none">Quick filters:</span>
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto -mx-1 px-1 items-center">
+            {TASK_CATEGORIES.map((category) => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
+                  selectedCategory === category
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="hidden sm:flex items-center gap-2">
           <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
