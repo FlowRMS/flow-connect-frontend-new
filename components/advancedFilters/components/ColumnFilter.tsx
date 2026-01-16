@@ -404,9 +404,9 @@ export function ColumnFilter({
           sideOffset={4}
           className="z-[100] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden"
           style={{ 
-            width: (type === 'date' || type === 'month') ? '240px' : 'var(--radix-popover-trigger-width)',
-            minWidth: '200px',
-            maxWidth: type === 'month' ? '240px' : '320px'
+            width: (type === 'date' || type === 'month') ? '300px' : 'var(--radix-popover-trigger-width)',
+            minWidth: type === 'date' ? '300px' : '200px',
+            maxWidth: type === 'month' ? '300px' : (type === 'date' ? '300px' : '320px')
           }}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >

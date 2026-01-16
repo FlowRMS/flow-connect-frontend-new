@@ -54,17 +54,6 @@ export default function ContactDetailHeader({
             <div className="flex-1 min-w-0">
               <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 mb-1">
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{contact.name}</h1>
-                {/* Contact Types */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {contact.contactType.map((type, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700"
-                    >
-                      {type}
-                    </span>
-                  ))}
-                </div>
               </div>
 
               {/* Quick Info Row */}

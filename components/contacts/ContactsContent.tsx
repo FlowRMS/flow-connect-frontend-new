@@ -19,7 +19,6 @@ import ListView from './views/ListView';
 import GridView from './views/GridView';
 import CreateContactModal from './modals/CreateContactModal';
 import { useContactsState } from './hooks/useContactsState';
-import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { useCRMContact } from '../hooks/useCRMApi';
 import { getContactFilterOptions, getContactSortOptions } from './config/filterConfig';
 import { CONTACT_TYPES } from './constants';
@@ -60,12 +59,6 @@ export default function ContactsContent() {
     };
   }, [state.selectedContact?.name, state.selectedContact?.id, setFullEntityContext]);
 
-  // Infinite scroll trigger
-  const { loadMoreRef } = useInfiniteScroll({
-    hasNextPage: state.hasNextPage ?? false,
-    isFetchingNextPage: state.isFetchingNextPage,
-    fetchNextPage: state.fetchNextPage,
-  });
 
   // Get contact ID from URL - this is the source of truth for navigation
   const contactIdFromUrl = searchParams.get('id');
@@ -124,35 +117,17 @@ export default function ContactsContent() {
     router.push(`/companies?id=${company.id}`);
   };
 
-  // Generate filter and sort options with current data
-  const contactFilterOptions = useMemo(
-    () => getContactFilterOptions(state.contacts),
-    [state.contacts]
-  );
-
+  // Generate filter and sort options (static, no dependencies on data)
+  const contactFilterOptions = useMemo(() => getContactFilterOptions(), []);
   const contactSortOptions = useMemo(() => getContactSortOptions(), []);
 
   // Mock duplicate groups (would come from API in the future)
   const duplicateGroups: DuplicateGroup[] = [];
 
-  // Show loading state (also check isMounted for hydration safety)
-  if (!state.isMounted || state.isLoading) {
-    return (
-      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Contacts</h1>
-        </div>
-        <div className="flex items-center justify-center py-12">
-          <div className="flex items-center gap-3 text-[var(--muted-foreground)]">
-            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-            </svg>
-            <span>Loading contacts from CRM...</span>
-          </div>
-        </div>
-      </main>
-    );
+  // Don't show loading state - let skeleton show in table instead
+  // Only check isMounted for hydration safety
+  if (!state.isMounted) {
+    return null;
   }
 
   // Show error state
@@ -250,10 +225,10 @@ export default function ContactsContent() {
 
   // Main List View
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
+    <main className="flex-1 overflow-hidden bg-[var(--background)] flex flex-col">
       {/* Header */}
-      <div className="mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
+      <div className="p-3 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
           <div className="flex items-start gap-4">
             {/* Morphing Icon Target - Contact Ripple Animation */}
             <HeaderIconAnimation
@@ -356,50 +331,87 @@ export default function ContactsContent() {
             </button>
           </motion.div>
         </div>
-      </div>
 
-      {/* Filters */}
-      <div className="mb-4 sm:mb-6 flex items-center justify-between border-b border-[var(--border)] pb-2">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-[var(--muted-foreground)] leading-none">Quick filters:</span>
+        {/* Quick Filters */}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-[var(--muted-foreground)] leading-none">Quick filters:</span>
           <div className="flex gap-1 sm:gap-2 overflow-x-auto -mx-1 px-1 items-center">
-            {CONTACT_TYPES.map((type) => (
-              <button
-                key={type}
-                onClick={() => state.setSelectedType(type)}
-                className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
-                  state.selectedType === type
-                    ? 'bg-[var(--primary)] text-white'
-                    : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
+            {CONTACT_TYPES.map((type) => {
+              // Determine if this role filter is active
+              const roleFilter = state.activeFilters.find(f => f.columnName === 'role');
+              let isActive = false;
+              
+              if (type === 'All') {
+                // "All" is active if there's no role filter in activeFilters
+                isActive = !roleFilter;
+              } else {
+                // Check if this specific role is in the active filters
+                if (roleFilter?.operator === 'IN' && roleFilter.values) {
+                  isActive = roleFilter.values.includes(type);
+                } else if (roleFilter?.operator === 'EQ' && roleFilter.value) {
+                  isActive = roleFilter.value === type;
+                }
+              }
+
+              const handleQuickFilterClick = () => {
+                // Remove any existing role filters
+                const otherFilters = state.activeFilters.filter(f => f.columnName !== 'role');
+                
+                if (type === 'All') {
+                  // Clear role filter
+                  state.handleFiltersChange(otherFilters);
+                } else {
+                  // Add role filter with IN operator
+                  state.handleFiltersChange([
+                    ...otherFilters,
+                    {
+                      columnName: 'role',
+                      operator: 'IN',
+                      values: [type],
+                    },
+                  ]);
+                }
+              };
+
+              return (
+                <button
+                  key={type}
+                  onClick={handleQuickFilterClick}
+                  className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
+                  }`}
+                >
+                  {type}
+                </button>
+              );
+            })}
           </div>
         </div>
+      </div>
       </div>
 
       {/* View Content */}
-      {state.viewMode === 'list' ? (
-        <ListView contacts={state.filteredContacts} onContactClick={state.setSelectedContact} />
-      ) : (
-        <GridView contacts={state.filteredContacts} onContactClick={state.setSelectedContact} />
-      )}
-
-      {/* Infinite scroll trigger */}
-      <div ref={loadMoreRef} className="h-4" />
-      {state.isFetchingNextPage && (
-        <div className="flex items-center justify-center py-4">
-          <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
-            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-            </svg>
-            <span>Loading more contacts...</span>
-          </div>
-        </div>
-      )}
+      <div className="flex-1 overflow-hidden p-6 pt-4">
+        {state.viewMode === 'list' ? (
+          <ListView 
+            contacts={state.filteredContacts} 
+            onContactClick={state.setSelectedContact}
+            hasNextPage={state.hasNextPage}
+            isFetchingNextPage={state.isFetchingNextPage}
+            fetchNextPage={state.fetchNextPage}
+            isLoading={state.isLoading}
+            hasFilters={state.activeFilters.length > 0}
+            onColumnFiltersChange={state.handleColumnFiltersChange}
+            filterOptions={contactFilterOptions}
+            columnFilters={state.columnFilters}
+          />
+        ) : (
+          <GridView contacts={state.filteredContacts} onContactClick={state.setSelectedContact} />
+        )}
+      </div>
 
       {/* Create Contact Modal */}
       <CreateContactModal
