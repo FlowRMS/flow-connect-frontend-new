@@ -563,9 +563,6 @@ export async function crossProducts(
   crossTypes: ProductCrossType[] = ['SIMPLE'],
   samplePrompts?: string[]
 ): Promise<ParsedProductCross[]> {
-  console.log('🟣 [takeoffs.crossProducts] Called with products:', JSON.stringify(products, null, 2));
-  console.log('🟣 [takeoffs.crossProducts] Stack trace:', new Error().stack);
-
   const response = await flowAIGraphQLRequest<{ crossProducts: ParsedProductCross[] }>({
     query: CROSS_PRODUCTS,
     variables: { products, crossTypes, samplePrompts },
@@ -611,15 +608,10 @@ export async function parseScheduleDocument(
   filename: string,
   documentId?: string
 ): Promise<ParsedItem[]> {
-  console.log('[parseScheduleDocument] Starting for:', filename);
-
   // Use the product cross API to parse the document
   // We pass minimal cross types since we only want the parsed items
   const results = await productCrossFromParsedDocument(documentUrl, filename, ['SIMPLE']);
-
-  console.log('[parseScheduleDocument] Raw results count:', results?.length || 0);
   if (results?.length > 0) {
-    console.log('[parseScheduleDocument] First result:', JSON.stringify(results[0], null, 2));
   }
 
   // Extract parsed items from the results
@@ -669,8 +661,6 @@ export async function parseScheduleDocument(
       isCrossed: false,
     };
   });
-
-  console.log('[parseScheduleDocument] Parsed items count:', parsedItems.length);
   return parsedItems;
 }
 
@@ -764,16 +754,10 @@ export async function fetchTakeoff(takeoffId: string): Promise<TakeoffResponse |
  * Create a new takeoff
  */
 export async function createTakeoff(input: CreateTakeoffInput): Promise<TakeoffResponse> {
-  console.log('[createTakeoff] Sending mutation with input:', input);
-  console.log('[createTakeoff] Documents count:', input.documents?.length || 0);
-
   const response = await flowAIGraphQLRequest<{ createTakeoff: TakeoffResponse }>({
     query: CREATE_TAKEOFF,
     variables: { input },
   });
-
-  console.log('[createTakeoff] GraphQL response:', JSON.stringify(response, null, 2));
-
   if (response.errors) {
     console.error('[createTakeoff] GraphQL errors:', response.errors);
     throw new Error(response.errors[0]?.message || 'Failed to create takeoff');
@@ -783,10 +767,6 @@ export async function createTakeoff(input: CreateTakeoffInput): Promise<TakeoffR
     console.error('[createTakeoff] No takeoff in response');
     throw new Error('No takeoff returned from create mutation');
   }
-
-  console.log('[createTakeoff] Created takeoff:', response.data.createTakeoff);
-  console.log('[createTakeoff] Documents in response:', response.data.createTakeoff.documents);
-
   return response.data.createTakeoff;
 }
 
@@ -998,7 +978,7 @@ async function getPdfPageCount(file: File): Promise<number> {
     }
 
     // Dynamically import pdf.js to avoid SSR issues
-    const pdfjsLib = await import('pdfjs-dist');
+    const pdfjsLib = await import('pdfjs-dist/build/pdf.mjs');
 
     // Set worker source - using unpkg CDN for better compatibility
     pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -1027,21 +1007,14 @@ export async function createTakeoffWithFiles(
   input: CreateTakeoffWithFilesInput,
   onProgress?: UploadProgressCallback
 ): Promise<TakeoffResponse> {
-  console.log('[createTakeoffWithFiles] Starting with', input.files.length, 'files');
-  console.log('[createTakeoffWithFiles] Input:', { title: input.title, metadata: input.metadata });
-
   // Step 1: Get page counts from PDFs (in parallel for performance)
-  console.log('[createTakeoffWithFiles] Step 1: Getting page counts...');
   const pageCountPromises = input.files.map(async (file) => {
     const pages = await getPdfPageCount(file);
     return { name: file.name, pages };
   });
   const pageCounts = await Promise.all(pageCountPromises);
   const pageCountMap = new Map(pageCounts.map(({ name, pages }) => [name, pages]));
-  console.log('[createTakeoffWithFiles] Page counts:', pageCounts);
-
   // Step 2: Upload files and get presigned URLs
-  console.log('[createTakeoffWithFiles] Step 2: Uploading files to S3...');
   let uploadedFiles;
   try {
     uploadedFiles = await uploadFilesToStorage(
@@ -1049,23 +1022,17 @@ export async function createTakeoffWithFiles(
       input.title.replace(/[^a-zA-Z0-9]/g, '_'),
       onProgress
     );
-    console.log('[createTakeoffWithFiles] Uploaded files:', uploadedFiles.length);
   } catch (uploadError) {
     console.error('[createTakeoffWithFiles] S3 Upload failed:', uploadError);
     throw new Error(`S3 Upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
   }
-  console.log('[createTakeoffWithFiles] Presigned URLs:', uploadedFiles.map(f => ({ name: f.file.name, url: f.presignedUrl?.substring(0, 50) + '...' })));
-
   // Step 3: Create takeoff with document file IDs and page counts
   // NOTE: crmFile.id is the file_id from the files.files table (created by uploadTakeoffDocument)
-  console.log('[createTakeoffWithFiles] Step 3: Creating takeoff with documents...');
   const documents: TakeoffDocumentInput[] = uploadedFiles.map(({ file, crmFile }) => ({
     fileId: crmFile.id,
     pages: pageCountMap.get(file.name) || 0,
     abridged: false,
   }));
-  console.log('[createTakeoffWithFiles] Documents to create:', documents);
-
   const takeoffInput: CreateTakeoffInput = {
     title: input.title,
     source: input.source || 'Manual Upload',
@@ -1073,18 +1040,11 @@ export async function createTakeoffWithFiles(
     metadata: input.metadata || null,
     documents,
   };
-  console.log('[createTakeoffWithFiles] Takeoff input:', takeoffInput);
-
   let result = await createTakeoff(takeoffInput);
-  console.log('[createTakeoffWithFiles] Created takeoff result:', result);
-  console.log('[createTakeoffWithFiles] Result documents:', result.documents);
-
   // Temporary: If documents weren't returned, fetch the takeoff again to get documents
   if (!result.documents || result.documents.length === 0) {
-    console.log('[createTakeoffWithFiles] No documents in response, fetching takeoff again...');
     const refetchedTakeoff = await fetchTakeoff(result.id);
     if (refetchedTakeoff?.documents && refetchedTakeoff.documents.length > 0) {
-      console.log('[createTakeoffWithFiles] Got documents from refetch:', refetchedTakeoff.documents.length);
       result = refetchedTakeoff;
     } else {
       console.warn('[createTakeoffWithFiles] Still no documents after refetch, constructing from input');

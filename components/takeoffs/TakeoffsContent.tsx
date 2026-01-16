@@ -118,40 +118,24 @@ export function TakeoffsContent() {
 
   // Extract unique client names from existing takeoffs for autocomplete
   const existingClients = useMemo(() => {
-    console.log('[Takeoffs] Extracting clients from takeoffs:', takeoffs.length);
-    console.log('[Takeoffs] Takeoffs with metadata:', takeoffs.filter(t => t.metadata).length);
-    console.log('[Takeoffs] Sample metadata:', takeoffs[0]?.metadata);
-
     const clientNames = takeoffs
       .map(t => t.metadata?.clientName)
       .filter((name): name is string => Boolean(name && typeof name === 'string'));
-
-    console.log('[Takeoffs] Found client names:', clientNames);
-
     return [...new Set(clientNames)].sort();
   }, [takeoffs]);
 
   // Handle proceed to parsing - validates that there are documents with URLs and triggers parsing
   const handleProceedToParsing = useCallback(() => {
-    console.log('🔵 [handleProceedToParsing] Called!');
-    console.log('🔵 [handleProceedToParsing] Documents:', documents.length);
-
     const docsWithUrls = documents.filter(d => d.abridgedUrl || d.documentUrl);
-    console.log('🔵 [handleProceedToParsing] Documents with URLs:', docsWithUrls.length);
-
     if (docsWithUrls.length === 0) {
-      console.log('🔵 [handleProceedToParsing] No documents with URLs - showing toast');
       showWarningToast('No Documents Available', {
         description: 'Please upload documents before proceeding to parsing.'
       });
       return;
     }
-
-    console.log('🔵 [handleProceedToParsing] Proceeding to parsing step');
     handleStepChange('parsing');
 
     // Trigger parsing automatically after changing to parsing step
-    console.log('🔵 [handleProceedToParsing] Triggering handleParseSchedules');
     handleParseSchedules();
   }, [documents, handleStepChange, handleParseSchedules]);
 
@@ -357,7 +341,6 @@ export function TakeoffsContent() {
         crossedItems={parsedItems.filter(item => item.isCrossed)}
         onClose={() => setShowCreateQuoteModal(false)}
         onSuccess={(quote) => {
-          console.log('Quote created:', quote);
           // Don't close modal here - let the user see the success step
           // Modal has its own "Stay Here" and "View Quote" buttons
         }}

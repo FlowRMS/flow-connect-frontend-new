@@ -585,16 +585,11 @@ export async function getKnownProductCrossesPaginated(
 export async function createKnownProductCross(
   input: CreateKnownProductCrossInput
 ): Promise<KnownProductCross> {
-  console.log('🔵 [createKnownProductCross] Function called with input:', input);
-
   try {
-    console.log('🔵 [createKnownProductCross] Calling flowAIGraphQLRequest...');
     const response = await flowAIGraphQLRequest<{ createProductCross: KnownProductCross }>({
       query: CREATE_KNOWN_PRODUCT_CROSS,
       variables: { input },
     });
-    console.log('🔵 [createKnownProductCross] Response received:', JSON.stringify(response, null, 2));
-
     if (response.errors) {
       console.error('🔵 [createKnownProductCross] GraphQL errors:', response.errors);
       throw new Error(response.errors[0]?.message || 'Failed to create product cross');
@@ -604,8 +599,6 @@ export async function createKnownProductCross(
       console.error('🔵 [createKnownProductCross] No data returned');
       throw new Error('Failed to create product cross');
     }
-
-    console.log('🔵 [createKnownProductCross] SUCCESS! Returning:', response.data.createProductCross);
     return response.data.createProductCross;
   } catch (error) {
     console.error('🔵 [createKnownProductCross] EXCEPTION caught:', error);
@@ -620,15 +613,10 @@ export async function updateKnownProductCross(
   productCrossId: string,
   input: UpdateKnownProductCrossInput
 ): Promise<KnownProductCross> {
-  console.log('🔵 [updateKnownProductCross] Called with:', { productCrossId, input });
-
   const response = await flowAIGraphQLRequest<{ updateProductCross: KnownProductCross }>({
     query: UPDATE_KNOWN_PRODUCT_CROSS,
     variables: { productCrossId, input },
   });
-
-  console.log('🔵 [updateKnownProductCross] Response:', JSON.stringify(response, null, 2));
-
   if (response.errors) {
     console.error('🔴 [updateKnownProductCross] GraphQL errors:', JSON.stringify(response.errors, null, 2));
     throw new Error(response.errors[0]?.message || 'Failed to update product cross');

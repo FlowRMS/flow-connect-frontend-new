@@ -116,24 +116,11 @@ export function ParsingTab({
 
   // Handle "Cross All" button click with toast validation
   const handleCrossAllClick = useCallback(() => {
-    console.log('🟣 [ParsingTab] Cross All button clicked!');
-    console.log('🟣 [ParsingTab] Total items:', items.length);
-    console.log('🟣 [ParsingTab] Selectable items count:', selectableItems.length);
-    console.log('🟣 [ParsingTab] Selectable items:', selectableItems.map(i => ({
-      id: i.id,
-      manufacturer: i.manufacturer,
-      isOurManufacturer: i.isOurManufacturer,
-      isCrossed: i.isCrossed
-    })));
-
     // Check if there are items to cross (only our manufacturers are excluded)
     if (selectableItems.length === 0) {
-      console.log('🟣 [ParsingTab] No selectable items - showing toast');
       showInfoToast('No items to cross', { description: 'All items are from our manufacturers.' });
       return;
     }
-
-    console.log('🟣 [ParsingTab] Calling onCrossAll()...');
     // Start crossing
     onCrossAll();
   }, [items, selectableItems, onCrossAll]);
