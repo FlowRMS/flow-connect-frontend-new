@@ -166,7 +166,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 27; // Increment this to force a reset of cached sidebar config (added Credits page)
+const CONFIG_VERSION = 29; // Increment this to force a reset of cached sidebar config (fix warehouse-settings enabled state)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 
@@ -195,12 +195,15 @@ function mergeConfigWithDefaults(stored: SidebarConfig): SidebarConfig {
       const newItems = defaultGroup.items.filter(i => !group.items.some(gi => gi.id === i.id));
 
       // Filter out items that no longer exist in defaults, and update names/hrefs for existing ones
+      // Also ensure items that are enabled by default get re-enabled if they were somehow disabled
       const updatedItems = group.items
         .filter(item => defaultItemIds.has(item.id))
         .map(item => {
           const defaultItem = defaultGroup.items.find(i => i.id === item.id);
           if (defaultItem) {
-            return { ...item, name: defaultItem.name, href: defaultItem.href };
+            // If the default has it enabled, ensure it stays enabled (user can disable manually after)
+            const enabled = defaultItem.enabled ? true : item.enabled;
+            return { ...item, name: defaultItem.name, href: defaultItem.href, enabled };
           }
           return item;
         });
