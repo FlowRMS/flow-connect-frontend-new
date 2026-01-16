@@ -28,7 +28,7 @@ export function useDownload({ documents, selectedTakeoff }: UseDownloadProps) {
 
     try {
       // Use our proxy to avoid CORS
-      const proxyUrl = `/api/proxy/download?url=${encodeURIComponent(urlToDownload)}`;
+      const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(urlToDownload)}`;
       const response = await fetch(proxyUrl);
 
       if (!response.ok) {
@@ -54,9 +54,13 @@ export function useDownload({ documents, selectedTakeoff }: UseDownloadProps) {
 
   // Download all documents as ZIP
   const handleDownloadAllDocuments = useCallback(async () => {
-    if (documents.length === 0) return;
+    if (documents.length === 0) {
+      showErrorToast('No documents', { description: 'No documents to download.' });
+      return;
+    }
 
     setIsDownloading(true);
+    let addedCount = 0;
 
     try {
       const zip = new JSZip();
@@ -69,19 +73,38 @@ export function useDownload({ documents, selectedTakeoff }: UseDownloadProps) {
       // Download each document and add to ZIP
       for (const doc of documents) {
         const urlToDownload = doc.abridgedUrl || doc.documentUrl;
-        if (!urlToDownload) continue;
+        if (!urlToDownload) {
+          console.warn(`[ZIP] Skipping ${doc.name}: no URL available (abridgedUrl: ${doc.abridgedUrl}, documentUrl: ${doc.documentUrl})`);
+          continue;
+        }
 
         try {
-          const proxyUrl = `/api/proxy/download?url=${encodeURIComponent(urlToDownload)}`;
+          const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(urlToDownload)}`;
+          console.log(`[ZIP] Fetching ${doc.name} from ${proxyUrl}`);
           const response = await fetch(proxyUrl);
 
           if (response.ok) {
             const blob = await response.blob();
-            folder.file(doc.name, blob);
+            if (blob.size > 0) {
+              folder.file(doc.name, blob);
+              addedCount++;
+              console.log(`[ZIP] Added ${doc.name} (${blob.size} bytes)`);
+            } else {
+              console.warn(`[ZIP] Empty blob for ${doc.name}`);
+            }
+          } else {
+            console.error(`[ZIP] Failed to fetch ${doc.name}: ${response.status} ${response.statusText}`);
           }
         } catch (error) {
-          console.error(`Error fetching ${doc.name}:`, error);
+          console.error(`[ZIP] Error fetching ${doc.name}:`, error);
         }
+      }
+
+      if (addedCount === 0) {
+        showErrorToast('ZIP is empty', {
+          description: 'Could not download any documents. Check console for details.'
+        });
+        return;
       }
 
       // Generate and download ZIP

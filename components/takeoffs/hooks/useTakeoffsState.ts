@@ -202,6 +202,7 @@ export function useTakeoffsState() {
     abridgementState: abridgement.abridgementState,
     productCrossState: productCross.productCrossState,
     documentAbridgementProgress: abridgement.documentAbridgementProgress,
+    documentAbridgeState: abridgement.documentAbridgeState,
     itemCrossingState: productCross.itemCrossingState,
 
     // Product cross data

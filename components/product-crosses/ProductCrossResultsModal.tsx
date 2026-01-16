@@ -131,6 +131,9 @@ export function ProductCrossResultsModal({
     if (source === 'prompt') setIsSearchingByPrompt(true);
     else setIsSearchingByFilters(true);
     setSearchError(null);
+    // Clear selections when rerunning - old IDs won't exist in new results
+    setSelectedResultIds(new Set());
+    setDeletedAiIds(new Set());
 
     try {
       const productToSearch = {

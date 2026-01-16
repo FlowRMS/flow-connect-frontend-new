@@ -24,6 +24,12 @@ interface UseAbridgementProps {
   setTakeoffsData: React.Dispatch<React.SetStateAction<Takeoff[]>>;
 }
 
+// Per-document state for single doc operations (used by ClassificationTab for Retry button)
+export interface DocumentAbridgeState {
+  isProcessing: boolean;
+  error?: string;
+}
+
 export function useAbridgement({
   documents,
   setDocuments,
@@ -38,6 +44,11 @@ export function useAbridgement({
 
   const [documentAbridgementProgress, setDocumentAbridgementProgress] = useState<
     Record<string, DocumentProgress>
+  >({});
+
+  // State for individual document abridge operations (tracks per-doc isProcessing and error for Retry button)
+  const [documentAbridgeState, setDocumentAbridgeState] = useState<
+    Record<string, DocumentAbridgeState>
   >({});
 
   // Helper to add a log message to a document's progress
@@ -71,7 +82,7 @@ export function useAbridgement({
     }
   }, [selectedTakeoff, setTakeoffsData, setSelectedTakeoff]);
 
-  // Abridge a single document using AI
+  // Abridge a single document using AI with retry logic
   const handleAbridgeDocument = useCallback(async (docId: string) => {
     const doc = documents.find(d => d.id === docId);
     if (!doc || !doc.documentUrl) {
@@ -79,62 +90,89 @@ export function useAbridgement({
       return;
     }
 
+    // Set per-document state (clears any previous error)
+    setDocumentAbridgeState(prev => ({
+      ...prev,
+      [docId]: { isProcessing: true, error: undefined },
+    }));
     setAbridgementState({ isProcessing: true, progress: 0, currentItem: doc.name });
 
-    try {
-      const result = await abridgeDocumentAPI(
-        doc.documentUrl,
-        doc.name,
-        ['Extract relevant product and fixture information', 'Keep pages with specifications and schedules']
+    const MAX_RETRIES = 3;
+    let result: AbridgementResult | null = null;
+    let lastError: string | null = null;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        result = await abridgeDocumentAPI(
+          doc.documentUrl,
+          doc.name,
+          ['Extract relevant product and fixture information', 'Keep pages with specifications and schedules']
+        );
+        if (result) break;
+      } catch (apiError) {
+        const errorMsg = apiError instanceof Error ? apiError.message : 'API error';
+        lastError = errorMsg;
+        console.error(`[Abridge] Attempt ${attempt}/${MAX_RETRIES} failed:`, errorMsg);
+        if (attempt < MAX_RETRIES) {
+          const waitTime = attempt * 5000;
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+    }
+
+    // Handle result
+    if (result?.success) {
+      const actualPages = result.originalPages || doc.pages;
+      const effectiveAbridgedUrl = result.wasAbridged ? result.abridgedUrl : undefined;
+
+      setDocuments(docs =>
+        docs.map(d =>
+          d.id === docId
+            ? {
+                ...d,
+                pages: actualPages,
+                abridged: true,
+                abridgedPages: result!.abridgedPages || actualPages,
+                reductionPercentage: result!.reductionPercentage || 0,
+                abridgedUrl: effectiveAbridgedUrl || undefined,
+                pageAnalyses: result!.pageAnalyses || undefined,
+              }
+            : d
+        )
       );
 
-      if (result.success) {
-        const actualPages = result.originalPages || doc.pages;
-        const effectiveAbridgedUrl = result.wasAbridged ? result.abridgedUrl : undefined;
+      await updateTakeoffDocument(docId, {
+        pages: actualPages,
+        abridged: true,
+        abridgedPages: result.abridgedPages || actualPages,
+        abridgedUrl: effectiveAbridgedUrl || null,
+        reductionPercentage: result.reductionPercentage,
+        pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],
+      });
 
-        setDocuments(docs =>
-          docs.map(d =>
-            d.id === docId
-              ? {
-                  ...d,
-                  pages: actualPages,
-                  abridged: true,
-                  abridgedPages: result.abridgedPages || actualPages,
-                  reductionPercentage: result.reductionPercentage || 0,
-                  abridgedUrl: effectiveAbridgedUrl || undefined,
-                  pageAnalyses: result.pageAnalyses || undefined,
-                }
-              : d
-          )
-        );
-
-        await updateTakeoffDocument(docId, {
-          pages: actualPages,
-          abridged: true,
-          abridgedPages: result.abridgedPages || actualPages,
-          abridgedUrl: effectiveAbridgedUrl || null,
-          reductionPercentage: result.reductionPercentage,
-          pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],
-        });
-      } else {
-        setAbridgementState(prev => ({ ...prev, error: result.error || 'Abridgement failed' }));
-      }
-    } catch (error) {
-      console.error('Failed to abridge document:', error);
-      setAbridgementState(prev => ({
+      // Clear per-document state on success
+      setDocumentAbridgeState(prev => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Abridgement failed',
+        [docId]: { isProcessing: false, error: undefined },
       }));
-    } finally {
-      setAbridgementState({ isProcessing: false, progress: 100 });
+    } else {
+      // Set error for Retry button
+      const errorMsg = result?.error || lastError || 'Abridgement failed after retries';
+      setDocumentAbridgeState(prev => ({
+        ...prev,
+        [docId]: { isProcessing: false, error: errorMsg },
+      }));
+      setAbridgementState(prev => ({ ...prev, error: errorMsg }));
+    }
 
-      // Check if all abridgeable documents are now abridged
-      const docsToAbridge = documents.filter(d => d.documentUrl && (!d.abridged || !d.abridgedUrl));
-      const allAbridged = docsToAbridge.length === 0 || docsToAbridge.every(d => d.id === docId);
+    setAbridgementState({ isProcessing: false, progress: 100 });
 
-      if (allAbridged && selectedTakeoff && selectedTakeoff.status !== 'Complete') {
-        await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
-      }
+    // Check if all abridgeable documents are now abridged
+    const docsToAbridge = documents.filter(d => d.documentUrl && (!d.abridged || !d.abridgedUrl));
+    const allAbridged = docsToAbridge.length === 0 || docsToAbridge.every(d => d.id === docId);
+
+    if (allAbridged && selectedTakeoff && selectedTakeoff.status !== 'Complete') {
+      await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
     }
   }, [documents, selectedTakeoff, setDocuments, updateTakeoffStatus]);
 
@@ -240,6 +278,8 @@ export function useAbridgement({
     setAbridgementState,
     documentAbridgementProgress,
     setDocumentAbridgementProgress,
+    documentAbridgeState,
+    setDocumentAbridgeState,
     handleAbridgeDocument,
     handleAbridgeAll,
     addDocumentLog,
