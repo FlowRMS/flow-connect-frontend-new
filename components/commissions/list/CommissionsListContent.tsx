@@ -12,7 +12,10 @@ import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext
 import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
 import { iconMap } from '@/components/Sidebar';
 import type { RefObject } from 'react';
+import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
+import SortButton from '@/components/SortButton';
 import { useCommissionsListState } from './hooks/useCommissionsListState';
+import { getCommissionFilterOptions, getCommissionSortOptions } from './config/filterConfig';
 import { CommissionsTable } from './components/table/CommissionsTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { CheckDetailPanel } from './components/sidebar/CheckDetailPanel';
@@ -37,6 +40,38 @@ export default function CommissionsListContent() {
   }, [registerHeaderTarget]);
 
   const isReceivingAnimation = floatingIcon?.itemId === 'commissions';
+
+  // Filter and sort options
+  const filterOptions = getCommissionFilterOptions();
+  const sortOptions = getCommissionSortOptions();
+
+  // Map sortField and sortDirection to ActiveSort format for SortButton (for backwards compatibility)
+  // The columnName should match API field names directly
+  const activeSort = state.sortField && state.sortDirection
+    ? {
+        columnName: (() => {
+          const fieldMap: Record<string, string> = {
+            checkNumber: 'checkNumber',
+            status: 'status',
+            netAmount: 'enteredCommissionAmount',
+            commissionMonth: 'commissionMonth',
+            manufacturerName: 'factoryName',
+            postDate: 'postDate',
+            checkDate: 'checkDate',
+            entryDate: 'createdAt',
+            checkBalance: 'enteredCommissionAmount',
+          };
+          return fieldMap[state.sortField] || 'createdAt';
+        })(),
+        direction: state.sortDirection.toUpperCase() as 'ASC' | 'DESC',
+      }
+    : undefined;
+
+  // Map serverOrderBy to ActiveSort[] format for multi-sort support
+  const activeSorts = state.serverOrderBy.map(orderBy => ({
+    columnName: orderBy.columnName,
+    direction: orderBy.direction,
+  }));
 
   // Handler to open bulk delete modal instead of using confirm dialog
   const handleBulkDelete = () => {
@@ -91,6 +126,18 @@ export default function CommissionsListContent() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
             >
+              <AdvancedFilters
+                filterOptions={filterOptions}
+                onFiltersChange={state.handleServerFiltersChange}
+                activeFilters={state.activeFilters}
+              />
+              <SortButton
+                sortOptions={sortOptions}
+                activeSort={activeSort}
+                activeSorts={activeSorts}
+                onSortChange={state.handleSortChange}
+                onMultiSortChange={state.handleMultiSortChange}
+              />
               <div className="relative group">
                 <button
                   disabled
@@ -136,69 +183,61 @@ export default function CommissionsListContent() {
           </div>
 
           {/* Quick Date Filter */}
-          <QuickDateFilter
-            quickDatePreset={state.quickDatePreset}
-            setQuickDatePreset={state.setQuickDatePreset}
-            quickDateField={state.quickDateField}
-            setQuickDateField={state.setQuickDateField}
-            showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
-            setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
-          />
+          <div className="mt-4">
+            <QuickDateFilter
+              quickDatePreset={state.quickDatePreset}
+              setQuickDatePreset={state.setQuickDatePreset}
+              quickDateField={state.quickDateField}
+              setQuickDateField={state.setQuickDateField}
+              showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
+              setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
+            />
+          </div>
         </div>
 
         {/* Commissions Table */}
-        <div className="flex-1 overflow-auto p-6 pt-4" onScroll={state.handleScroll}>
-          {state.isLoadingChecks ? (
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-12">
-              <div className="flex flex-col items-center justify-center">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--primary)] mb-4" />
-                <p className="text-[var(--muted-foreground)] text-sm">Loading checks...</p>
-              </div>
+        <div className="flex-1 overflow-auto p-6 pt-4">
+          <CommissionsTable
+            filteredChecks={state.checks}
+            isLoading={state.isLoadingChecks}
+            selectedCheckIds={state.selectedCheckIds}
+            toggleCheckSelection={state.toggleCheckSelection}
+            selectAllChecks={state.selectAllChecks}
+            clearSelection={state.clearSelection}
+            areAllEligibleSelected={state.areAllEligibleSelected}
+            isItemSelected={state.isItemSelected}
+            isAllSelected={state.isAllSelected}
+            isPartiallySelected={state.isPartiallySelected}
+            handleSelectAll={state.handleSelectAll}
+            handleSelectOne={state.handleSelectOne}
+            sortField={state.sortField}
+            sortDirection={state.sortDirection}
+            handleSort={state.handleSort}
+            columnFilters={state.columnFilters}
+            onColumnFiltersChange={state.handleColumnFiltersChange}
+            filterOptions={filterOptions}
+            showBulkActionsMenu={state.showBulkActionsMenu}
+            setShowBulkActionsMenu={state.setShowBulkActionsMenu}
+            bulkSetStatus={state.bulkSetStatus}
+            bulkDelete={handleBulkDelete}
+            setSelectedCheck={state.setSelectedCheck}
+            isBulkUpdating={state.isBulkUpdating}
+            hasNextPage={state.hasNextPage}
+            isFetchingNextPage={state.isFetchingNextPage}
+            fetchNextPage={state.fetchNextPage}
+          />
+          {/* Infinite Scroll Loading Indicator */}
+          {state.isFetchingNextPage && (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)] mr-2" />
+              <span className="text-sm text-[var(--muted-foreground)]">Loading more checks...</span>
             </div>
-          ) : (
-            <>
-              <CommissionsTable
-                filteredChecks={state.filteredChecks}
-                selectedCheckIds={state.selectedCheckIds}
-                toggleCheckSelection={state.toggleCheckSelection}
-                selectAllChecks={state.selectAllChecks}
-                clearSelection={state.clearSelection}
-                areAllEligibleSelected={state.areAllEligibleSelected}
-                isItemSelected={state.isItemSelected}
-                isAllSelected={state.isAllSelected}
-                isPartiallySelected={state.isPartiallySelected}
-                handleSelectAll={state.handleSelectAll}
-                handleSelectOne={state.handleSelectOne}
-                sortField={state.sortField}
-                sortDirection={state.sortDirection}
-                handleSort={state.handleSort}
-                columnFilters={state.columnFilters}
-                setColumnFilters={state.setColumnFilters}
-                openFilter={state.openFilter}
-                setOpenFilter={state.setOpenFilter}
-                uniqueStatuses={state.uniqueStatuses}
-                uniqueManufacturers={state.uniqueManufacturers}
-                showBulkActionsMenu={state.showBulkActionsMenu}
-                setShowBulkActionsMenu={state.setShowBulkActionsMenu}
-                bulkSetStatus={state.bulkSetStatus}
-                bulkDelete={handleBulkDelete}
-                setSelectedCheck={state.setSelectedCheck}
-                isBulkUpdating={state.isBulkUpdating}
-              />
-              {/* Infinite Scroll Loading Indicator */}
-              {state.isFetchingNextPage && (
-                <div className="flex items-center justify-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)] mr-2" />
-                  <span className="text-sm text-[var(--muted-foreground)]">Loading more checks...</span>
-                </div>
-              )}
-              {/* End of List Indicator */}
-              {!state.hasNextPage && state.checks.length > 0 && (
-                <div className="text-center py-4 text-sm text-[var(--muted-foreground)]">
-                  All {state.totalCount} checks loaded
-                </div>
-              )}
-            </>
+          )}
+          {/* End of List Indicator */}
+          {!state.hasNextPage && state.checks.length > 0 && (
+            <div className="text-center py-4 text-sm text-[var(--muted-foreground)]">
+              All {state.totalCount} checks loaded
+            </div>
           )}
         </div>
       </div>
@@ -227,4 +266,3 @@ export default function CommissionsListContent() {
     </main>
   );
 }
-
