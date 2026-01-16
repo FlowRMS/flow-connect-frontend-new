@@ -17,7 +17,8 @@ export type BulkDeleteEntityType =
   | 'INVOICES'
   | 'QUOTES'
   | 'CHECKS'
-  | 'PRE_OPS';
+  | 'PRE_OPS'
+  | 'CREDITS';
 
 export interface BulkDeleteFailure {
   entityId: string;
@@ -41,6 +42,7 @@ export const ENTITY_DISPLAY_NAMES: Record<BulkDeleteEntityType, { singular: stri
   QUOTES: { singular: 'quote', plural: 'quotes' },
   CHECKS: { singular: 'check', plural: 'checks' },
   PRE_OPS: { singular: 'pre-opportunity', plural: 'pre-opportunities' },
+  CREDITS: { singular: 'credit', plural: 'credits' },
 };
 
 // ============================================================================

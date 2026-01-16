@@ -1,9 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import {
   Plus,
   Loader2,
@@ -132,6 +137,21 @@ export default function WorkflowsPage() {
   const [publicWorkflows, setPublicWorkflows] = useState<Workflow[]>([]);
   const [activeTab, setActiveTab] = useState('my');
 
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'flow-ai-workflows';
+
   useEffect(() => {
     fetchWorkflows();
   }, []);
@@ -151,19 +171,43 @@ export default function WorkflowsPage() {
 
   return (
     <div className="min-h-full bg-gradient-to-br from-background via-background to-primary/5">
-      <div className="container mx-auto px-6 py-8 space-y-6">
+      <div className="container mx-auto px-6 py-8 space-y-6 overflow-visible">
         {/* Hero Section */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <WorkflowIcon className="w-8 h-8 text-primary" />
-              Flow Workflows
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Create and manage AI-powered data processing workflows
-            </p>
+        <div className="flex items-center justify-between overflow-visible">
+          <div className="flex items-start gap-4 overflow-visible">
+            {/* Morphing Icon Target - Workflow Flow Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="workflow-flow"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['flow-ai-workflows']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-3xl font-bold tracking-tight"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Flow Workflows
+              </motion.h1>
+              <motion.p
+                className="text-muted-foreground mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                Create and manage AI-powered data processing workflows
+              </motion.p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <motion.div
+            className="flex items-center gap-2"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             <Button variant="outline" asChild>
               <Link href="/flow-ai/workflows/reporting">
                 <BarChart3 className="w-4 h-4 mr-2" />
@@ -176,7 +220,7 @@ export default function WorkflowsPage() {
                 Create Workflow
               </Link>
             </Button>
-          </div>
+          </motion.div>
         </div>
 
         {/* Workflows Tabs */}

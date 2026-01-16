@@ -6,6 +6,11 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
@@ -27,6 +32,21 @@ export default function ContactsContent() {
   const searchParams = useSearchParams();
   const state = useContactsState();
   const { setFullEntityContext } = useFlowChat();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'contacts';
 
   // Set full entity context for global chatbot (type, id, and contact name)
   useEffect(() => {
@@ -234,10 +254,40 @@ export default function ContactsContent() {
       {/* Header */}
       <div className="mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Contacts</h1>
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Contact Ripple Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="contact-ripple"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['contacts']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Contacts
+              </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                Showing {state.filteredContacts.length} of {state.totalCount} contacts
+              </motion.p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             {/* Dedupe Button - hidden on mobile, visible on tablet+ */}
             <button
               onClick={() => state.setShowDedupeModal(true)}
@@ -304,32 +354,29 @@ export default function ContactsContent() {
               <span className="hidden sm:inline">Add Contact</span>
               <span className="sm:hidden">Add</span>
             </button>
-          </div>
+          </motion.div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="mb-4 sm:mb-6 flex items-center justify-between border-b border-[var(--border)]">
-        <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-          {CONTACT_TYPES.map((type) => (
-            <button
-              key={type}
-              onClick={() => state.setSelectedType(type)}
-              className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
-                state.selectedType === type
-                  ? 'bg-[var(--primary)] text-white'
-                  : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
-              }`}
-            >
-              {type}
-              {type === 'All' && <span className="ml-1 sm:ml-2 text-xs opacity-75">({state.contacts.length})</span>}
-              {type !== 'All' && (
-                <span className="ml-1 sm:ml-2 text-xs opacity-75">
-                  ({state.contacts.filter(c => c.contactType.includes(type)).length})
-                </span>
-              )}
-            </button>
-          ))}
+      <div className="mb-4 sm:mb-6 flex items-center justify-between border-b border-[var(--border)] pb-2">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-[var(--muted-foreground)] leading-none">Quick filters:</span>
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto -mx-1 px-1 items-center">
+            {CONTACT_TYPES.map((type) => (
+              <button
+                key={type}
+                onClick={() => state.setSelectedType(type)}
+                className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
+                  state.selectedType === type
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

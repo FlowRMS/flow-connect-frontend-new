@@ -2,7 +2,7 @@
  * Take-Off Constants and Configurations
  */
 
-import type { TakeoffFilterOption, StepConfig, DocumentCategory, TakeoffStatus } from './types';
+import type { TakeoffFilterOption, TakeoffStatus } from './types';
 
 // Status color mapping
 export const STATUS_COLORS: Record<TakeoffStatus, string> = {
@@ -15,20 +15,28 @@ export const STATUS_COLORS: Record<TakeoffStatus, string> = {
 // Default status color
 export const DEFAULT_STATUS_COLOR = 'bg-gray-500 text-white';
 
-// Filter options for take-offs list
-export const TAKEOFF_FILTER_OPTIONS: TakeoffFilterOption[] = [
-  { id: 'takeoff-id', label: 'Takeoff ID', type: 'text' },
-  { id: 'title', label: 'Title', type: 'text' },
-  { id: 'status', label: 'Status', type: 'dropdown' },
-  { id: 'created-by', label: 'Created By', type: 'dropdown' },
-  { id: 'date', label: 'Date', type: 'date' },
+// Status options for filtering
+export const TAKEOFF_STATUS_OPTIONS = [
+  'Classification',
+  'Abridgment',
+  'Parsing',
+  'Complete',
 ] as const;
 
-// Step configuration for detail view
-export const TAKEOFF_STEPS: StepConfig[] = [
-  { id: 'classification', label: 'Classification', icon: '📑' },
-  { id: 'parsing', label: 'Schedule Parsing', icon: '🔍' },
-] as const;
+// Filter options for take-offs list
+// Note: "Created By" filter removed - backend now uses created_by_id (UUID) from auth
+export const TAKEOFF_FILTER_OPTIONS: TakeoffFilterOption[] = [
+  { id: 'takeoffId', label: 'Takeoff ID', type: 'text', columnName: 'id' },
+  { id: 'title', label: 'Title', type: 'text', columnName: 'title' },
+  {
+    id: 'status',
+    label: 'Status',
+    type: 'dropdown',
+    columnName: 'status',
+    options: [...TAKEOFF_STATUS_OPTIONS],
+  },
+  { id: 'date', label: 'Date', type: 'date', columnName: 'createdDate' },
+];
 
 // Document classification options
 export const CLASSIFICATION_OPTIONS = [
@@ -37,15 +45,6 @@ export const CLASSIFICATION_OPTIONS = [
   { value: 'Blueprints', label: 'Blueprints' },
   { value: 'Other Docs', label: 'Other Useful Docs' },
   { value: 'Irrelevant', label: 'Irrelevant' },
-] as const;
-
-// Default document categories for tabs
-export const DEFAULT_DOCUMENT_CATEGORIES: DocumentCategory[] = [
-  { id: 'Fixture Schedules', label: 'Fixture Schedules', count: 0 },
-  { id: 'Specifications', label: 'Specifications', count: 0 },
-  { id: 'Blueprints', label: 'Blueprints', count: 0 },
-  { id: 'Other Docs', label: 'Other Docs', count: 0 },
-  { id: 'Irrelevant', label: 'Irrelevant', count: 0 },
 ] as const;
 
 // Abridgment threshold (pages above this can be abridged)
@@ -59,11 +58,3 @@ export const MAX_UPLOAD_FILES = 20;
 
 // Accepted file types
 export const ACCEPTED_FILE_TYPES = '.pdf';
-
-// Sort options for take-offs
-export const TAKEOFF_SORT_OPTIONS = [
-  { columnName: 'title', label: 'Title' },
-  { columnName: 'createdDate', label: 'Created Date' },
-  { columnName: 'status', label: 'Status' },
-  { columnName: 'createdBy', label: 'Created By' },
-] as const;

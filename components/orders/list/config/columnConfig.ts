@@ -12,19 +12,19 @@ import type { ColumnConfig } from '../types';
 export const ORDER_TABLE_COLUMNS: ColumnConfig[] = [
   { id: 'checkbox', width: '40px', label: '', sortable: false, filterable: false, align: 'center' },
   { id: 'preview', width: '40px', label: '', sortable: false, filterable: false, align: 'center' },
-  { id: 'orderNumber', width: '120px', label: 'Order #', sortable: true, filterable: true },
-  { id: 'totalCommission', width: '120px', label: 'Commission', sortable: true, filterable: true, align: 'right' },
-  { id: 'status', width: '100px', label: 'Status', sortable: true, filterable: true },
-  { id: 'total', width: '100px', label: 'Amount', sortable: true, filterable: true, align: 'right' },
-  { id: 'orderDate', width: '90px', label: 'Order Date', sortable: true, filterable: true },
-  { id: 'entryDate', width: '90px', label: 'Entry Date', sortable: false, filterable: false },
+  { id: 'orderNumber', width: '140px', label: 'Order #', sortable: true, filterable: true },
+  { id: 'totalCommission', width: '140px', label: 'Commission', sortable: true, filterable: true, align: 'right' },
+  { id: 'status', width: '130px', label: 'Status', sortable: true, filterable: true },
+  { id: 'total', width: '120px', label: 'Amount', sortable: true, filterable: true, align: 'right' },
+  { id: 'orderDate', width: '130px', label: 'Order Date', sortable: true, filterable: true },
+  { id: 'entryDate', width: '130px', label: 'Entry Date', sortable: false, filterable: false },
   { id: 'createdBy', width: '140px', label: 'Created By', sortable: false, filterable: false },
   { id: 'shipDate', width: '90px', label: 'Ship Date', sortable: false, filterable: false },
   { id: 'dueDate', width: '90px', label: 'Due Date', sortable: false, filterable: false },
   { id: 'manufacturerName', width: '140px', label: 'Factory', sortable: true, filterable: true },
   { id: 'customerName', width: '140px', label: 'Customer', sortable: true, filterable: true },
-  { id: 'jobName', width: '1fr', label: 'Job Name', sortable: false, filterable: false },
-  { id: 'visible', width: '60px', label: 'Visible', sortable: false, filterable: false, align: 'center' },
+  { id: 'jobName', width: '180px', label: 'Job Name', sortable: false, filterable: false },
+  { id: 'visible', width: '50px', label: 'Visible', sortable: false, filterable: false, align: 'center' },
 ];
 
 /**

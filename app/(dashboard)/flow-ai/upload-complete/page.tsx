@@ -807,10 +807,10 @@ function Header({ onExportExcel, isExporting, hasData, workflowStatus, isRetryin
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Upload Complete</h1>
         <div className="flex items-center gap-2">
-          {/* Retry button - only shown for FAILED workflow status */}
-          {isFailed && onRetry && (
+          {/* Retry button - always shown */}
+          {onRetry && (
             <Button
-              variant="destructive"
+              variant={isFailed ? "destructive" : "outline"}
               onClick={onRetry}
               disabled={isRetrying}
               className="gap-2"

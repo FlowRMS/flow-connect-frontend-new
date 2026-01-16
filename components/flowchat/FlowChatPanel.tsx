@@ -30,6 +30,7 @@ import {
   GripVertical,
 } from 'lucide-react';
 import { useFlowChat, getEntityDisplayName, QuickAction } from '@/contexts/FlowChatContext';
+import { useChatSettings } from '@/contexts/UserSettingsContext';
 import { cn } from '@/lib/flow-ai/cn';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Textarea } from '@/components/flow-ai/ui/textarea';
@@ -140,6 +141,13 @@ export function FlowChatPanel() {
     acknowledgeChatReset,
   } = useFlowChat();
 
+  // Get chat settings from UserSettingsContext (saved via Settings page)
+  const { settings: savedChatSettings } = useChatSettings();
+
+  // Derive config values from saved settings with defaults
+  const disableSuggestions = !(savedChatSettings?.followUpSuggestions ?? true);
+  const enableVectorSearch = savedChatSettings?.vectorSearch ?? false;
+
   const [inputMessage, setInputMessage] = useState('');
   const [messageToSend, setMessageToSend] = useState(''); // The actual message sent to AI (may include context)
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -220,7 +228,7 @@ export function FlowChatPanel() {
     variables: {
       userMessage: messageToSend, // Use the contextual message (includes entity context if applicable)
       chatId: subscriptionChatId,
-      config: { disableSuggestions: true, enableVectorSearch: false },
+      config: { disableSuggestions, enableVectorSearch },
     },
     skip: !isSubmitting,
     onData: ({ data }) => {

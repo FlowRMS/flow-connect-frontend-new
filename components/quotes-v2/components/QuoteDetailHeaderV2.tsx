@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2, QuoteV2Status } from '../types';
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
+import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
 import { useCustomerSearch, useUserSearch, useJobSearch, useFactorySearch } from '../../quotes/api/useQuotesApi';
 import { searchUsers } from '../../quotes/api/quotesApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
@@ -1072,20 +1073,20 @@ export function QuoteDetailHeaderV2({
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Quote Date*</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.quoteDate)}
-              onChange={(e) => handleDateChange('quoteDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.quoteDate)}
+              onChange={(date) => handleDateChange('quoteDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Expiration Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.expirationDate)}
-              onChange={(e) => handleDateChange('expirationDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.expirationDate)}
+              onChange={(date) => handleDateChange('expirationDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>
@@ -1404,20 +1405,20 @@ export function QuoteDetailHeaderV2({
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Revised Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.revisedDate || '')}
-              onChange={(e) => handleDateChange('revisedDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.revisedDate || '')}
+              onChange={(date) => handleDateChange('revisedDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Accept Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.acceptDate || '')}
-              onChange={(e) => handleDateChange('acceptDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.acceptDate || '')}
+              onChange={(date) => handleDateChange('acceptDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>

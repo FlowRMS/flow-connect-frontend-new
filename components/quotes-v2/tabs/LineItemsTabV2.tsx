@@ -507,17 +507,20 @@ export function LineItemsTabV2({
         editValue = String(item.unitPrice || 0);
         break;
       case 'sellTotal':
-        displayValue = `$${Number(item.sellTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        // Subtract line discount from sell total
+        displayValue = `$${Number((item.sellTotal || 0) - (item.lineDiscountAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         break;
       case 'commissionPercent':
         displayValue = Number(item.commissionPercent || 0).toFixed(2);
         editValue = Number(item.commissionPercent || 0).toFixed(2);
         break;
       case 'commission':
-        displayValue = `$${Number(item.commission || 0).toFixed(2)}`;
+        // Subtract commission discount from commission per unit
+        displayValue = `$${Number((item.commission || 0) - ((item.commissionDiscountAmount || 0) / (item.quantity || 1))).toFixed(2)}`;
         break;
       case 'commissionTotal':
-        displayValue = `$${Number(item.commissionTotal || 0).toFixed(2)}`;
+        // Subtract commission discount from commission total
+        displayValue = `$${Number((item.commissionTotal || 0) - (item.commissionDiscountAmount || 0)).toFixed(2)}`;
         break;
       case 'linkedOrder':
         displayValue = item.linkedOrderNumber || '—';
@@ -851,6 +854,17 @@ export function LineItemsTabV2({
 
       {/* Table */}
       <div className="flex-1 overflow-auto px-6 py-4 pb-32">
+        {/* Add Line Button - at top */}
+        <button
+          onClick={addLineItem}
+          className="flex items-center gap-2 mb-3 text-sm text-indigo-600 hover:text-indigo-700 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10 5v10M5 10h10" strokeLinecap="round" />
+          </svg>
+          Add Line
+        </button>
+
         {/* Tip indicator - different message based on factoryPerLineItem setting */}
         <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
           <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-blue-500 flex-shrink-0">
@@ -940,17 +954,6 @@ export function LineItemsTabV2({
             </tbody>
           </table>
         </div>
-
-        {/* Add Line Button */}
-        <button
-          onClick={addLineItem}
-          className="flex items-center gap-2 mt-3 text-sm text-indigo-600 hover:text-indigo-700 transition-colors"
-        >
-          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M10 5v10M5 10h10" strokeLinecap="round" />
-          </svg>
-          Add Line
-        </button>
       </div>
 
       {/* Dropdown Portal */}

@@ -17,6 +17,7 @@ import {
   useCustomerSearch,
   useFactorySearch,
   useUserSearch,
+  useJobSearch,
 } from '../../../api';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 
@@ -103,6 +104,8 @@ export function OrderDetailsFields({
   const [insideRepSearchEnabled, setInsideRepSearchEnabled] = useState(false);
   const [endUserSearchTerm, setEndUserSearchTerm] = useState('');
   const [endUserSearchEnabled, setEndUserSearchEnabled] = useState(false);
+  const [jobSearchTerm, setJobSearchTerm] = useState('');
+  const [jobSearchEnabled, setJobSearchEnabled] = useState(false);
 
   // End user same as sold to checkbox state
   // Initialize to false - user must explicitly check it (matching quotes behavior)
@@ -141,6 +144,7 @@ export function OrderDetailsFields({
   const { data: factories, isLoading: isFactoryLoading } = useFactorySearch(factorySearchTerm, factorySearchEnabled);
   const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, { isInside: false, isOutside: true }, outsideRepSearchEnabled);
   const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(insideRepSearchTerm, { isInside: true, isOutside: false }, insideRepSearchEnabled);
+  const { data: jobs, isLoading: isJobLoading } = useJobSearch(jobSearchTerm, jobSearchEnabled);
 
   // Transform search results to dropdown options
   const soldToOptions = useMemo(() => {
@@ -191,6 +195,13 @@ export function OrderDetailsFields({
     }));
   }, [insideReps]);
 
+  const jobOptions = useMemo(() => {
+    return (jobs || []).map(j => ({
+      id: j.id,
+      label: j.jobName,
+      sublabel: j.jobType || undefined,
+    }));
+  }, [jobs]);
 
   // Field update handlers
   const handleFieldUpdate = (field: keyof Order, value: unknown) => {
@@ -306,7 +317,6 @@ export function OrderDetailsFields({
                 value={order.orderNumber}
                 onChange={(e) => handleFieldUpdate('orderNumber', e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                readOnly={!isCreateMode}
               />
             </div>
 
@@ -479,8 +489,8 @@ export function OrderDetailsFields({
             </div>
           </div>
 
-          {/* Row 2: Order Type, Shipping Terms, Payment Terms, Mark #, Projected Ship Date */}
-          <div className="grid grid-cols-5 gap-4 mb-4">
+          {/* Row 2: Order Type, Shipping Terms, Payment Terms, Mark #, Projected Ship Date, Job */}
+          <div className="grid grid-cols-6 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Order Type<span className="text-red-500">*</span>
@@ -543,6 +553,28 @@ export function OrderDetailsFields({
                 onChange={(date) => handleFieldUpdate('requestedShipDate', formatDateToString(date))}
                 placeholder="Select date..."
                 className="!py-2 !px-3 !rounded-md !text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Job
+              </label>
+              <SearchableDropdownV2
+                value={(order as any).jobId || ''}
+                displayValue={(order as any).jobName || ''}
+                onChange={(id, label) => {
+                  handleFieldUpdate('jobId' as keyof Order, id);
+                  handleFieldUpdate('jobName' as keyof Order, label);
+                  setJobSearchEnabled(false);
+                }}
+                options={jobOptions}
+                placeholder="Select Job..."
+                isLoading={isJobLoading}
+                onSearch={(query) => {
+                  setJobSearchTerm(query);
+                  setJobSearchEnabled(true);
+                }}
               />
             </div>
           </div>

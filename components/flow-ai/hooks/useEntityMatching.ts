@@ -1311,15 +1311,22 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
     );
   }, [documentType]);
 
+  // Steps that are optional and don't block validation
+  const optionalSteps: EntityStep[] = ['billtocustomers'];
+
   // Check if all entities are validated (only for visible/loaded steps based on document type)
+  // Note: Optional steps (like billToCustomers) are excluded from validation requirements
   const allValidated = useMemo(() => {
-    // Check if all visible steps are loaded
-    if (!visibleSteps.every(step => loadedSteps.has(step))) {
+    // Filter out optional steps from required validation
+    const requiredSteps = visibleSteps.filter(step => !optionalSteps.includes(step));
+
+    // Check if all required visible steps are loaded
+    if (!requiredSteps.every(step => loadedSteps.has(step))) {
       return false;
     }
 
-    // Get entities only for visible steps
-    const getEntitiesForVisibleSteps = (): PendingEntity[] => {
+    // Get entities only for required visible steps (excluding optional steps)
+    const getEntitiesForRequiredSteps = (): PendingEntity[] => {
       const entitiesMap: Record<EntityStep, PendingEntity[]> = {
         factories,
         customers,
@@ -1331,10 +1338,10 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
         credits,
         adjustments,
       };
-      return visibleSteps.flatMap(step => entitiesMap[step]);
+      return requiredSteps.flatMap(step => entitiesMap[step]);
     };
 
-    const allEntities = getEntitiesForVisibleSteps();
+    const allEntities = getEntitiesForRequiredSteps();
     return allEntities.length === 0 || allEntities.every((e) => isResolved(e.confirmationStatus));
   }, [factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, loadedSteps, visibleSteps]);
 

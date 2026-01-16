@@ -131,27 +131,9 @@ export function useCommissionFilters(checks: CommissionCheck[]) {
   };
 
   // Apply filters and sorting to checks
+  // Note: Quick date filters are now handled server-side, so we don't filter them here
   const filteredChecks = useMemo(() => {
     let result = checks;
-
-    // Apply quick date filter
-    if (quickDatePreset !== 'all') {
-      const { start, end } = getQuickDateRange(quickDatePreset);
-      if (start && end) {
-        result = result.filter((c) => {
-          let dateStr: string | undefined;
-          if (quickDateField === 'entryDate') {
-            dateStr = c.entryDate;
-          } else {
-            // For commissionMonth, we need to parse it as a date (format: "2025-01")
-            dateStr = c.commissionMonth + '-01';
-          }
-          if (!dateStr) return false;
-          const date = new Date(dateStr);
-          return date >= start && date <= end;
-        });
-      }
-    }
 
     // Apply status tab filter
     if (selectedStatus !== 'All') {
@@ -332,6 +314,8 @@ export function useCommissionFilters(checks: CommissionCheck[]) {
     // Sort state
     sortField,
     sortDirection,
+    setSortField,
+    setSortDirection,
     handleSort,
     // Unique values for dropdowns
     uniqueStatuses,

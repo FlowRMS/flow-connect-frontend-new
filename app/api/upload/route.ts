@@ -12,12 +12,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the form data from the request
-    const formData = await request.formData();
-
-    // Get the authorization header
+    // Get headers
     const authHeader = request.headers.get('authorization');
     const authProvider = request.headers.get('x-auth-provider');
+    const contentType = request.headers.get('content-type');
 
     if (!authHeader) {
       return NextResponse.json(
@@ -26,21 +24,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!contentType) {
+      return NextResponse.json(
+        { error: 'Content-Type required' },
+        { status: 400 }
+      );
+    }
+
+    // Read the raw body as a buffer - this preserves the multipart format exactly
+    const bodyBuffer = Buffer.from(await request.arrayBuffer());
+
     // Build headers for the backend request
     const headers: Record<string, string> = {
       'Authorization': authHeader,
+      'Content-Type': contentType, // Pass through with original boundary
+      'Content-Length': bodyBuffer.length.toString(),
     };
 
     if (authProvider) {
       headers['x-auth-provider'] = authProvider;
     }
-    // Don't set Content-Type - let fetch set it with the correct boundary for multipart
 
-    // Forward the multipart/form-data to the GraphQL API
+    // Forward the raw multipart body to the GraphQL API
     const response = await fetch(FLOWCRM_GRAPHQL_URL, {
       method: 'POST',
       headers,
-      body: formData,
+      body: bodyBuffer,
     });
 
     if (!response.ok) {

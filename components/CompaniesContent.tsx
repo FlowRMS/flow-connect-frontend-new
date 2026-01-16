@@ -6,6 +6,11 @@
 'use client';
 
 import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useFlowChat } from '@/contexts/FlowChatContext';
@@ -187,6 +192,21 @@ export default function CompaniesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setFullEntityContext } = useFlowChat();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'companies';
 
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
@@ -664,10 +684,32 @@ export default function CompaniesContent() {
       {/* Header */}
       <div className="mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Companies</h1>
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Building Rise Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="building-rise"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['companies']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Companies
+              </motion.h1>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             {/* Type Filter Dropdown */}
             <CompanyTypeFilterDropdown
               value={selectedTypeFilter}
@@ -727,7 +769,7 @@ export default function CompaniesContent() {
               <span className="hidden sm:inline">Add Company</span>
               <span className="sm:hidden">Add</span>
             </button>
-          </div>
+          </motion.div>
         </div>
       </div>
 

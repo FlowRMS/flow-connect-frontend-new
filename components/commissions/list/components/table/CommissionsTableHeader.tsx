@@ -3,11 +3,13 @@
  * Table header with column labels, sorting, and filters
  */
 
+'use client';
+
+import React, { useState, useCallback } from 'react';
 import type { CommissionCheck } from '@/lib/types/rms';
-import type { SortField, SortDirection, ColumnFilters } from '../../types';
-import { SortIcon } from './SortIcon';
-import { ColumnFilterDropdown } from './ColumnFilterDropdown';
-import { checkStatusLabels } from '../../constants';
+import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { getCommissionFilterOptions } from '../../config/filterConfig';
 
 interface CommissionsTableHeaderProps {
   // Selection
@@ -15,22 +17,10 @@ interface CommissionsTableHeaderProps {
   areAllEligibleSelected: boolean;
   isPartiallySelected?: boolean;
   onSelectAll: (checked: boolean) => void;
-  // Sorting
-  sortField: SortField;
-  sortDirection: SortDirection;
-  onSort: (field: SortField) => void;
-  // Filters
-  columnFilters: ColumnFilters;
-  setColumnFilters: (
-    filters: ColumnFilters | ((prev: ColumnFilters) => ColumnFilters)
-  ) => void;
-  openFilter: string | null;
-  setOpenFilter: (filterId: string | null) => void;
-  // Unique values for dropdowns
-  uniqueStatuses: string[];
-  uniqueManufacturers: string[];
-  // Grid columns
-  gridColumns: string;
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  filterOptions?: ReturnType<typeof getCommissionFilterOptions>;
+  columnFilters?: Record<string, ActiveFilter[]>;
 }
 
 export function CommissionsTableHeader({
@@ -38,279 +28,192 @@ export function CommissionsTableHeader({
   areAllEligibleSelected,
   isPartiallySelected = false,
   onSelectAll,
-  sortField,
-  sortDirection,
-  onSort,
-  columnFilters,
-  setColumnFilters,
-  openFilter,
-  setOpenFilter,
-  uniqueStatuses,
-  uniqueManufacturers,
-  gridColumns,
+  onColumnFiltersChange,
+  filterOptions = getCommissionFilterOptions(),
+  columnFilters: parentColumnFilters,
 }: CommissionsTableHeaderProps) {
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  
+  // Column filter state - use parent if provided, otherwise local state
+  const [localColumnFilters, setLocalColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+  const columnFilters = parentColumnFilters !== undefined ? parentColumnFilters : localColumnFilters;
+  
+  // Map from UI column keys to filter option IDs
+  const columnKeyToFilterId: Record<string, string> = {
+    checkNumber: 'check-number',
+    status: 'status',
+    commissionMonth: 'commission-month',
+    postDate: 'post-date',
+    checkDate: 'check-date',
+    entryDate: 'entry-date',
+    netAmount: 'net-amount',
+    manufacturerName: 'factory-name',
+  };
+  
+  // Handle column filter change - now receives ActiveFilter[]
+  const handleColumnFilterChange = useCallback((columnKey: string, filters: ActiveFilter[]) => {
+    // Calculate new filters
+    const newFilters = { ...columnFilters };
+    
+    // Remove filter if empty array
+    if (filters.length === 0) {
+      delete newFilters[columnKey];
+    } else {
+      newFilters[columnKey] = filters;
+    }
+    
+    // Update local state if using local state
+    if (parentColumnFilters === undefined) {
+      setLocalColumnFilters(newFilters);
+    }
+    
+    // Call the parent callback if provided
+    if (onColumnFiltersChange) {
+      onColumnFiltersChange(newFilters);
+    }
+  }, [columnFilters, parentColumnFilters, onColumnFiltersChange]);
+
+  // Render column filter component
+  const renderColumnFilter = (columnKey: string) => {
+    const filterId = columnKeyToFilterId[columnKey];
+    if (!filterId) {
+      return null;
+    }
+    
+    const filterOption = filterOptions.find(f => f.id === filterId);
+    if (!filterOption || !filterOption.columnName) {
+      return null;
+    }
+    
+    // Ensure type is preserved correctly
+    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean' | 'month';
+    
+    // Get filters for this column (ActiveFilter[])
+    const columnFiltersForThisColumn = columnFilters[columnKey] || [];
+    
+    return (
+      <ColumnFilter
+        type={filterType}
+        columnName={filterOption.columnName}
+        value={columnFiltersForThisColumn}
+        onChange={(filters) => handleColumnFilterChange(columnKey, filters)}
+        options={filterOption.options}
+        placeholder={filterOption.type === 'text' || filterOption.type === 'number' 
+          ? `Filter ${filterOption.label.toLowerCase()}...` 
+          : undefined}
+        isOpen={openFilter === columnKey}
+        onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
+        filterOption={filterOption}
+      />
+    );
+  };
   return (
-    <div
-      className="grid gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30 min-w-[1200px]"
-      style={{ gridTemplateColumns: gridColumns }}
-    >
-      {/* Preview column header - empty */}
-      <div className="flex items-center justify-center" />
+    <thead className="bg-gray-50 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
+      <tr>
+        {/* Preview column header */}
+        <th className="w-10 px-3 py-3 text-center"></th>
 
-      {/* Checkbox column */}
-      <div className="w-8 flex items-center">
-        <input
-          type="checkbox"
-          checked={areAllEligibleSelected}
-          ref={(el) => {
-            if (el) el.indeterminate = isPartiallySelected;
-          }}
-          onChange={(e) => onSelectAll(e.target.checked)}
-          className="rounded border-[var(--border)] accent-[var(--primary)]"
-        />
-      </div>
-
-      {/* Check Number */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('checkNumber')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Check Number
-          <SortIcon
-            field="checkNumber"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
+        {/* Checkbox column */}
+        <th className="w-10 px-3 py-3 text-left">
+          <input
+            type="checkbox"
+            checked={areAllEligibleSelected}
+            ref={(el) => {
+              if (el) el.indeterminate = isPartiallySelected;
+            }}
+            onChange={(e) => onSelectAll(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 accent-indigo-600"
           />
-        </button>
-        <ColumnFilterDropdown
-          type="text"
-          filterId="checkNumber"
-          value={columnFilters.checkNumber}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, checkNumber: value }))
-          }
-          placeholder="Search checks..."
-          isOpen={openFilter === 'checkNumber'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'checkNumber' ? null : 'checkNumber')
-          }
-        />
-      </div>
+        </th>
 
-      {/* Posted Status */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('status')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Posted Status
-          <SortIcon
-            field="status"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="status"
-          options={uniqueStatuses.map((s) => ({
-            value: s,
-            label: checkStatusLabels[s as keyof typeof checkStatusLabels],
-          }))}
-          value={columnFilters.status}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, status: value }))
-          }
-          placeholder="All Statuses"
-          isOpen={openFilter === 'status'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'status' ? null : 'status')
-          }
-        />
-      </div>
+        {/* Check Number */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Check Number</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('checkNumber')}
+            </div>
+          </div>
+        </th>
 
-      {/* Commission */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('netAmount')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Commission
-          <SortIcon
-            field="netAmount"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-      </div>
+        {/* Posted Status */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Posted Status</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('status')}
+            </div>
+          </div>
+        </th>
 
-      {/* Commission Month */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('commissionMonth')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Commission Month
-          <SortIcon
-            field="commissionMonth"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="daterange"
-          filterId="commissionMonth"
-          value={columnFilters.commissionMonth}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, commissionMonth: value }))
-          }
-          isOpen={openFilter === 'commissionMonth'}
-          onToggle={() =>
-            setOpenFilter(
-              openFilter === 'commissionMonth' ? null : 'commissionMonth'
-            )
-          }
-        />
-      </div>
+        {/* Commission */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+          <span className="whitespace-nowrap">Commission</span>
+        </th>
 
-      {/* Factory */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('manufacturerName')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Factory
-          <SortIcon
-            field="manufacturerName"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="manufacturerName"
-          options={uniqueManufacturers.map((m) => ({
-            value: m,
-            label: m,
-          }))}
-          value={columnFilters.manufacturerName}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, manufacturerName: value }))
-          }
-          placeholder="All Factories"
-          isOpen={openFilter === 'manufacturerName'}
-          onToggle={() =>
-            setOpenFilter(
-              openFilter === 'manufacturerName' ? null : 'manufacturerName'
-            )
-          }
-        />
-      </div>
+        {/* Commission Month */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Commission Month</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('commissionMonth')}
+            </div>
+          </div>
+        </th>
 
-      {/* Post Date */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('postDate')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Post Date
-          <SortIcon
-            field="postDate"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="daterange"
-          filterId="postDate"
-          value={columnFilters.postDate}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, postDate: value }))
-          }
-          isOpen={openFilter === 'postDate'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'postDate' ? null : 'postDate')
-          }
-        />
-      </div>
+        {/* Factory */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Factory</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('manufacturerName')}
+            </div>
+          </div>
+        </th>
 
-      {/* Check Date */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('checkDate')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Check Date
-          <SortIcon
-            field="checkDate"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="daterange"
-          filterId="checkDate"
-          value={columnFilters.checkDate}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, checkDate: value }))
-          }
-          isOpen={openFilter === 'checkDate'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'checkDate' ? null : 'checkDate')
-          }
-        />
-      </div>
+        {/* Post Date */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Post Date</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('postDate')}
+            </div>
+          </div>
+        </th>
 
-      {/* Entry Date */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('entryDate')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Entry Date
-          <SortIcon
-            field="entryDate"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="daterange"
-          filterId="entryDate"
-          value={columnFilters.entryDate}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, entryDate: value }))
-          }
-          isOpen={openFilter === 'entryDate'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'entryDate' ? null : 'entryDate')
-          }
-        />
-      </div>
+        {/* Check Date */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Check Date</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('checkDate')}
+            </div>
+          </div>
+        </th>
 
-      {/* Created By */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Created By
-        </span>
-      </div>
+        {/* Entry Date */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Entry Date</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('entryDate')}
+            </div>
+          </div>
+        </th>
 
-      {/* Check Balance */}
-      <div className="flex items-center justify-end">
-        <button
-          onClick={() => onSort('checkBalance')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Check Balance
-          <SortIcon
-            field="checkBalance"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-      </div>
-    </div>
+        {/* Created By */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
+          <span className="whitespace-nowrap">Created By</span>
+        </th>
+
+        {/* Check Balance */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+          <div className="flex items-center justify-end gap-1.5">
+            <span className="whitespace-nowrap">Check Balance</span>
+          </div>
+        </th>
+      </tr>
+    </thead>
   );
 }
 

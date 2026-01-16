@@ -3,7 +3,7 @@
  */
 
 import { STATUS_COLORS, DEFAULT_STATUS_COLOR, ABRIDGMENT_REDUCTION_FACTOR, ABRIDGMENT_PAGE_THRESHOLD } from './constants';
-import type { TakeoffStatus, TakeoffDocument, ParsedItem, DocumentClassification, DocumentCategory } from './types';
+import type { TakeoffStatus, TakeoffDocument, ParsedItem, DocumentClassification } from './types';
 
 /**
  * Get status badge color
@@ -40,13 +40,6 @@ export function abridgeDocument(doc: TakeoffDocument): TakeoffDocument {
 }
 
 /**
- * Abridge all eligible documents
- */
-export function abridgeAllDocuments(docs: TakeoffDocument[]): TakeoffDocument[] {
-  return docs.map(doc => abridgeDocument(doc));
-}
-
-/**
  * Classify a document
  */
 export function classifyDocument(
@@ -60,103 +53,29 @@ export function classifyDocument(
 }
 
 /**
- * Generate a random crossed part number
- */
-export function generateCrossedPartNumber(): string {
-  return `OC-${Math.floor(Math.random() * 90000) + 10000}`;
-}
-
-/**
- * Cross a single item
- */
-export function crossItem(item: ParsedItem): ParsedItem {
-  if (item.isOurManufacturer) return item;
-  
-  return {
-    ...item,
-    isCrossed: true,
-    crossedManufacturer: 'Our Company',
-    crossedPartNumber: generateCrossedPartNumber(),
-    crossedDescription: item.description + ' (Crossed)',
-  };
-}
-
-/**
- * Cross multiple items by IDs
- */
-export function crossItems(items: ParsedItem[], itemIds: Set<string>): ParsedItem[] {
-  return items.map(item => 
-    itemIds.has(item.id) && !item.isOurManufacturer ? crossItem(item) : item
-  );
-}
-
-/**
- * Cross all competitor items
- */
-export function crossAllItems(items: ParsedItem[]): ParsedItem[] {
-  return items.map(item => 
-    !item.isOurManufacturer ? crossItem(item) : item
-  );
-}
-
-/**
  * Get items that can be selected for crossing
  */
 export function getSelectableItems(items: ParsedItem[]): ParsedItem[] {
-  return items.filter(item => !item.isOurManufacturer && !item.isCrossed);
-}
-
-/**
- * Count documents by classification
- */
-export function countDocumentsByClassification(docs: TakeoffDocument[]): DocumentCategory[] {
-  const counts: Record<DocumentClassification, number> = {
-    'Fixture Schedules': 0,
-    'Specifications': 0,
-    'Blueprints': 0,
-    'Other Docs': 0,
-    'Irrelevant': 0,
-    '': 0,
-  };
-
-  docs.forEach(doc => {
-    if (doc.classification) {
-      counts[doc.classification]++;
-    }
-  });
-
-  return [
-    { id: 'Fixture Schedules', label: 'Fixture Schedules', count: counts['Fixture Schedules'] },
-    { id: 'Specifications', label: 'Specifications', count: counts['Specifications'] },
-    { id: 'Blueprints', label: 'Blueprints', count: counts['Blueprints'] },
-    { id: 'Other Docs', label: 'Other Docs', count: counts['Other Docs'] },
-    { id: 'Irrelevant', label: 'Irrelevant', count: counts['Irrelevant'] },
-  ];
+  // Allow re-crossing - only exclude items from our manufacturers
+  return items.filter(item => !item.isOurManufacturer);
 }
 
 /**
  * Determine the initial step based on takeoff status
+ * Maps status to appropriate step in 6-step workflow
  */
-export function getInitialStep(status: TakeoffStatus): 'classification' | 'parsing' {
+export function getInitialStep(status: TakeoffStatus): import('./types').TakeoffStep {
   switch (status) {
     case 'Complete':
     case 'Parsing':
       return 'parsing';
+    case 'Abridgment':
+      // After abridgment, show classification tab with abridged documents
+      // The user can then click "Proceed to Parsing"
+      return 'classification';
+    case 'Classification':
     default:
       return 'classification';
   }
 }
 
-/**
- * Create a new takeoff from upload
- */
-export function createNewTakeoff(title: string = 'New Takeoff Project'): import('./types').Takeoff {
-  return {
-    id: 'TO-NEW',
-    title,
-    source: 'Manual Upload',
-    createdBy: 'Current User',
-    createdDate: new Date().toISOString().split('T')[0],
-    status: 'Classification',
-  };
-}

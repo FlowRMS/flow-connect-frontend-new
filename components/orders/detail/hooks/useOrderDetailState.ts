@@ -17,6 +17,7 @@ import { useOrderHeader } from './useOrderHeader';
 import { useLineItemsTable } from './useLineItemsTable';
 import { useLineItemBulkActions } from './useLineItemBulkActions';
 import { toggleAllLineItems } from '../utils';
+import { useOrderSettings } from '@/contexts/UserSettingsContext';
 
 interface UseOrderDetailStateProps {
   orderId: string;
@@ -87,9 +88,23 @@ function createEmptyOrder(): Order {
 /**
  * Transform API Order detail to UI Order format
  */
-function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
+export function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
   // Map line items from API format to UI format
-  const lineItems: OrderLineItem[] = (apiOrder.details || []).map((detail: OrderDetail, index: number) => ({
+  const lineItems: OrderLineItem[] = (apiOrder.details || []).map((detail: OrderDetail, index: number) => {
+    // Parse values first so we can calculate if API values are missing
+    const quantity = parseFloat(detail.quantity || '0');
+    const unitPrice = parseFloat(detail.unitPrice || '0');
+    const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
+    const commissionRate = parseFloat(detail.commissionRate || '0');
+
+    // Calculate extended price - always calculate from inputs to ensure correctness
+    // The API subtotal/commission fields can be stale or incorrect, so we recalculate
+    const extendedPrice = quantity * unitPrice / divisor;
+
+    // Calculate commission amount based on extended price and commission rate
+    const commissionAmount = extendedPrice * (commissionRate / 100);
+
+    return {
     id: detail.id,
     lineNumber: detail.itemNumber || index + 1,
     productId: detail.productId || '',
@@ -98,12 +113,12 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     description: detail.product?.description || detail.productDescriptionAdhoc || '',
     uom: detail.uom?.title || null,
     uomId: detail.uom?.id || null,
-    divisor: detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1'),
-    quantity: parseFloat(detail.quantity || '0'),
-    unitPrice: parseFloat(detail.unitPrice || '0'),
-    extendedPrice: detail.subtotal || 0,
-    commissionRate: parseFloat(detail.commissionRate || '0'), // Keep as whole percentage (e.g., 8 for 8%)
-    commissionAmount: detail.commission || 0,
+    divisor,
+    quantity,
+    unitPrice,
+    extendedPrice,
+    commissionRate, // Keep as whole percentage (e.g., 8 for 8%)
+    commissionAmount,
     quantityShipped: detail.shippingBalance || 0,
     quantityInvoiced: 0, // API doesn't provide this directly
     quantityCredited: detail.cancelledBalance || 0,
@@ -112,7 +127,7 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     status: detail.status?.toLowerCase() as ('open' | 'shipped' | 'partial_shipped' | 'cancelled' | 'invoiced') || 'open',
     // Store additional fields for line item
     endUserId: detail.endUserId,
-    endUserName: '', // Will be fetched separately
+    endUserName: detail.endUser?.companyName || '', // Use embedded endUser from API response
     insideSplitRates: detail.insideSplitRates, // Store inside rep split rates from line item
     outsideSplitRates: detail.outsideSplitRates, // Store outside rep split rates from line item
     // Additional details fields (from AdditionalDetailsModal)
@@ -122,7 +137,18 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     lineDiscountAmount: detail.discount || 0,
     leadTime: detail.leadTime || '',
     note: detail.note || '',
-  }));
+    // Invoice linked to this line item
+    invoice: detail.invoice ? {
+      id: detail.invoice.id,
+      invoiceNumber: detail.invoice.invoiceNumber,
+      status: detail.invoice.status,
+      entityDate: detail.invoice.entityDate,
+      dueDate: detail.invoice.dueDate,
+      creationType: detail.invoice.creationType,
+      locked: detail.invoice.locked,
+    } : undefined,
+  };
+  });
 
   // Extract inside rep from the first line item's insideSplitRates
   const firstDetailWithInsideReps = apiOrder.details?.find(d => d.insideSplitRates && d.insideSplitRates.length > 0);
@@ -210,9 +236,10 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     .filter((id): id is string => !!id);
   const uniqueEndUserIds = [...new Set(lineItemEndUserIds)];
   if (uniqueEndUserIds.length === 1) {
-    // All line items have the same endUserId
+    // All line items have the same endUserId - get name from first line item with endUser
+    const firstLineWithEndUser = lineItems.find(li => (li as any).endUserId && (li as any).endUserName);
     (order as any).endUserId = uniqueEndUserIds[0];
-    (order as any).endUserName = ''; // Will be fetched separately
+    (order as any).endUserName = (firstLineWithEndUser as any)?.endUserName || '';
   } else if (uniqueEndUserIds.length === 0) {
     // No end users set on line items
     (order as any).endUserId = '';
@@ -256,6 +283,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   const { data: apiOrder, isLoading, error, refetch } = useOrder(isCreateMode ? null : orderId);
   const updateOrderMutation = useUpdateOrder();
   const createOrderMutation = useCreateOrder();
+
+  // User settings hook for applying saved defaults on new orders
+  const { settings: savedOrderSettings, isInitialized: settingsInitialized } = useOrderSettings();
 
   // Local order state for create mode or local edits
   const [localOrder, setLocalOrder] = useState<Order>(() => createEmptyOrder());
@@ -337,16 +367,22 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
         fetchPromises.push(outsideRepPromise);
       }
 
-      // Fetch end user names for line items AND order-level end user
-      const endUserIds = new Set<string>();
-      transformedOrder.lineItems.forEach(li => {
-        if ((li as any).endUserId) endUserIds.add((li as any).endUserId);
-      });
-      // Also include order-level endUserId
+      // End user names are now populated directly from the API's embedded endUser object
+      // Only fetch separately if there are line items with endUserId but missing endUserName
+      const lineItemsMissingEndUserName = transformedOrder.lineItems.filter(li =>
+        (li as any).endUserId && !(li as any).endUserName
+      );
       const orderEndUserId = (transformedOrder as any).endUserId;
-      if (orderEndUserId) endUserIds.add(orderEndUserId);
+      const orderMissingEndUserName = orderEndUserId && !(transformedOrder as any).endUserName;
 
-      if (endUserIds.size > 0) {
+      const endUserIdsToFetch = new Set<string>();
+      lineItemsMissingEndUserName.forEach(li => {
+        if ((li as any).endUserId) endUserIdsToFetch.add((li as any).endUserId);
+      });
+      if (orderMissingEndUserName) endUserIdsToFetch.add(orderEndUserId);
+
+      if (endUserIdsToFetch.size > 0) {
+        // Only fetch end user names that weren't in the API response
         const endUserPromise = searchCustomers('', true)
           .then((customers) => {
             const customerMap = new Map(customers.map(c => [c.id, c.companyName]));
@@ -355,12 +391,14 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
                 ...prev,
                 lineItems: (prev.lineItems || []).map(li => ({
                   ...li,
-                  endUserName: (li as any).endUserId ? customerMap.get((li as any).endUserId) || '' : '',
+                  // Only update if endUserName is empty and we have a match
+                  endUserName: (li as any).endUserName ||
+                    ((li as any).endUserId ? customerMap.get((li as any).endUserId) || '' : ''),
                 })),
               };
-              // Also set order-level end user name
+              // Also set order-level end user name if missing
               const prevOrderEndUserId = (prev as any).endUserId;
-              if (prevOrderEndUserId && customerMap.has(prevOrderEndUserId)) {
+              if (prevOrderEndUserId && !(prev as any).endUserName && customerMap.has(prevOrderEndUserId)) {
                 (updated as any).endUserName = customerMap.get(prevOrderEndUserId);
               }
               return updated;
@@ -500,8 +538,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     const updatedItems = items.map(item => {
       const quantity = item.quantity || 0;
       const unitPrice = item.unitPrice || 0;
+      const divisor = item.divisor || 1;
       const commissionRate = item.commissionRate || 0; // Stored as whole percentage (e.g., 8 for 8%)
-      const extendedPrice = quantity * unitPrice;
+      const extendedPrice = quantity * unitPrice / divisor;
       const commissionAmount = extendedPrice * (commissionRate / 100); // Convert to decimal for calculation
       return {
         ...item,
@@ -536,13 +575,23 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     new Set()
   );
 
-  // Settings state
+  // Settings state - initialized with defaults, will be updated from API or user settings
   const [showEndUserPerLine, setShowEndUserPerLine] = useState(false);
   const [showOutsideRepPerLine, setShowOutsideRepPerLine] = useState(false);
   const [showInsideRepPerLine, setShowInsideRepPerLine] = useState(false);
   const [customerPartNumberSource, setCustomerPartNumberSource] = useState<
     'soldTo' | 'endUser'
   >('soldTo');
+
+  // Apply saved user settings when creating a new order
+  useEffect(() => {
+    if (isCreateMode && settingsInitialized && savedOrderSettings) {
+      // Apply saved settings from user preferences
+      setShowEndUserPerLine(savedOrderSettings.showEndUserPerLine ?? false);
+      setShowOutsideRepPerLine(savedOrderSettings.showOutsideRepPerLine ?? false);
+      setShowInsideRepPerLine(savedOrderSettings.showInsideRepPerLine ?? false);
+    }
+  }, [isCreateMode, settingsInitialized, savedOrderSettings]);
 
   // Sections state
   const [showSections, setShowSections] = useState(false);
@@ -587,6 +636,41 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     );
     updateLineItems(updatedItems);
     closeAdditionalDetails();
+  };
+
+  // Live update additional details for a line item (without closing modal)
+  const liveUpdateAdditionalDetails = (updates: Partial<OrderLineItem>) => {
+    // Update the additionalDetailsLineItem so the modal stays in sync
+    setAdditionalDetailsLineItem((prev) => prev ? { ...prev, ...updates } : prev);
+
+    // Use functional update pattern to avoid stale closure issues
+    // This reads from prev instead of the closure-captured order/additionalDetailsLineItem
+    setLocalOrder((prevOrder) => {
+      if (!prevOrder) return prevOrder;
+
+      // Get the line item ID from the current additionalDetailsLineItem state
+      // We need to find which line item to update
+      const lineItemIdToUpdate = additionalDetailsLineItem?.id;
+      if (!lineItemIdToUpdate) return prevOrder;
+
+      const updatedItems = (prevOrder.lineItems || []).map((li) =>
+        li.id === lineItemIdToUpdate ? { ...li, ...updates } : li
+      );
+
+      // Recalculate totals
+      const subtotal = updatedItems.reduce((sum, item) => sum + (item.extendedPrice || 0), 0);
+      const totalCommission = updatedItems.reduce((sum, item) => sum + (item.commissionAmount || 0), 0);
+
+      return {
+        ...prevOrder,
+        lineItems: updatedItems,
+        subtotal,
+        total: subtotal + (prevOrder.freight || 0),
+        totalCommission,
+      };
+    });
+
+    if (!isCreateMode) setHasLocalEdits(true);
   };
 
   // Mock data for line item acknowledgements
@@ -803,6 +887,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       openAdditionalDetails: noopWithArg,
       closeAdditionalDetails: noop,
       saveAdditionalDetails: noopWithArg,
+      liveUpdateAdditionalDetails: noopWithArg,
       lineItemAcknowledgements: {},
       lineItemCredits: {},
       hasFreightLine: false,
@@ -1004,6 +1089,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     openAdditionalDetails,
     closeAdditionalDetails,
     saveAdditionalDetails,
+    liveUpdateAdditionalDetails,
 
     // Mock data
     lineItemAcknowledgements,
