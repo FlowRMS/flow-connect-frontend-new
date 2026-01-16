@@ -40,21 +40,35 @@ export function useNavigation({
 }: UseNavigationProps) {
   // Select a takeoff and load its documents
   const handleSelectTakeoff = useCallback(async (takeoff: Takeoff) => {
+    // Set initial takeoff from list (may have partial data)
     setSelectedTakeoff(takeoff);
     setViewMode('detail');
     setCurrentStep(getInitialStep(takeoff.status));
 
     let docs = takeoff.documents || [];
+    let fullTakeoffData: Takeoff | null = null;
 
-    if (docs.length === 0) {
-      try {
-        const fullTakeoff = await fetchTakeoff(takeoff.id);
-        if (fullTakeoff?.documents && fullTakeoff.documents.length > 0) {
+    // Always fetch full takeoff data to ensure we have latest status and documents
+    try {
+      const fullTakeoff = await fetchTakeoff(takeoff.id);
+      if (fullTakeoff) {
+        // Format documents first
+        if (fullTakeoff.documents && fullTakeoff.documents.length > 0) {
           docs = fullTakeoff.documents.map(doc => formatDocument(doc));
         }
-      } catch (error) {
-        console.error('[handleSelectTakeoff] Failed to fetch takeoff:', error);
+
+        // Update selectedTakeoff with FULL data (including latest status)
+        // Keep original takeoff fields and override with fresh API data
+        fullTakeoffData = {
+          ...takeoff,
+          status: fullTakeoff.status as Takeoff['status'],
+          documents: docs, // Use formatted documents
+        };
+        setSelectedTakeoff(fullTakeoffData);
+        setCurrentStep(getInitialStep(fullTakeoffData.status));
       }
+    } catch (error) {
+      console.error('[handleSelectTakeoff] Failed to fetch takeoff:', error);
     }
 
     if (docs.length > 0) {

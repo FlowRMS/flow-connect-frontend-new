@@ -3,7 +3,7 @@
  * Handles document abridgement state and operations
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { Takeoff, TakeoffDocument } from '../../types';
 import { statusApiMap } from '../../types';
 import {
@@ -37,12 +37,14 @@ export function useAbridgement({
   setSelectedTakeoff,
   setTakeoffsData,
 }: UseAbridgementProps) {
-  // Use ref to always have the latest selectedTakeoff value in callbacks
+  // Use refs to always have the latest values in callbacks
   // This avoids stale closure issues when retrying after partial failures
+  // Update synchronously on every render (not in useEffect) to ensure immediate availability
   const selectedTakeoffRef = useRef<Takeoff | null>(selectedTakeoff);
-  useEffect(() => {
-    selectedTakeoffRef.current = selectedTakeoff;
-  }, [selectedTakeoff]);
+  selectedTakeoffRef.current = selectedTakeoff;
+
+  const documentsRef = useRef<TakeoffDocument[]>(documents);
+  documentsRef.current = documents;
 
   const [abridgementState, setAbridgementState] = useState<ProcessingState>({
     isProcessing: false,
@@ -78,13 +80,28 @@ export function useAbridgement({
   // Update takeoff status helper - uses ref to always get latest takeoff
   const updateTakeoffStatus = useCallback(async (status: TakeoffStatusEnum, displayStatus: Takeoff['status']) => {
     const currentTakeoff = selectedTakeoffRef.current;
-    if (!currentTakeoff) return;
+    if (!currentTakeoff) {
+      console.warn('[Abridgement] Cannot update status: no takeoff selected');
+      return;
+    }
+    // Skip if already at target status or Complete
+    if (currentTakeoff.status === displayStatus) {
+      return; // Already at this status
+    }
+    if (currentTakeoff.status === 'Complete') {
+      console.warn('[Abridgement] Cannot update status: takeoff is Complete');
+      return;
+    }
     try {
       await apiUpdateTakeoff(currentTakeoff.id, { status });
       setTakeoffsData(prev =>
         prev.map(t => t.id === currentTakeoff.id ? { ...t, status: displayStatus } : t)
       );
       setSelectedTakeoff(prev => prev ? { ...prev, status: displayStatus } : null);
+      // Update ref immediately so subsequent calls have fresh data
+      if (selectedTakeoffRef.current) {
+        selectedTakeoffRef.current = { ...selectedTakeoffRef.current, status: displayStatus };
+      }
     } catch (error) {
       console.error('[Abridgement] Failed to update takeoff status:', error);
     }
@@ -92,15 +109,17 @@ export function useAbridgement({
 
   // Abridge a single document using AI with retry logic
   const handleAbridgeDocument = useCallback(async (docId: string) => {
-    const doc = documents.find(d => d.id === docId);
+    // Use ref to get latest documents (avoids stale closure in Flow 2: open existing takeoff)
+    const currentDocs = documentsRef.current;
+    const doc = currentDocs.find(d => d.id === docId);
     if (!doc || !doc.documentUrl) {
       console.error('Document not found or has no URL');
       return;
     }
 
     // Check BEFORE processing if this is the last doc that needs abridging
-    // (documents state is accurate here, before async operations)
-    const otherDocsNeedingAbridge = documents.filter(d =>
+    // Use ref to ensure we have latest documents state
+    const otherDocsNeedingAbridge = currentDocs.filter(d =>
       d.id !== docId && d.documentUrl && !d.abridged
     );
     const willBeLastDoc = otherDocsNeedingAbridge.length === 0;
@@ -171,10 +190,14 @@ export function useAbridgement({
         [docId]: { isProcessing: false, error: undefined },
       }));
 
+      // Update documentsRef immediately so willBeLastDoc calculation is accurate for next retry
+      documentsRef.current = documentsRef.current.map(d =>
+        d.id === docId ? { ...d, abridged: true } : d
+      );
+
       // Update takeoff status if this was the last document needing abridging
-      // Use ref to get latest takeoff state (avoids stale closure after partial failures)
-      const currentTakeoff = selectedTakeoffRef.current;
-      if (willBeLastDoc && currentTakeoff && currentTakeoff.status !== 'Complete') {
+      // The 'Complete' check is handled inside updateTakeoffStatus
+      if (willBeLastDoc) {
         await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
       }
     } else {
@@ -188,12 +211,14 @@ export function useAbridgement({
     }
 
     setAbridgementState({ isProcessing: false, progress: 100 });
-  }, [documents, setDocuments, updateTakeoffStatus]);
+  }, [setDocuments, updateTakeoffStatus]);
 
   // Abridge all documents
   const handleAbridgeAll = useCallback(async () => {
+    // Use ref to get latest documents (avoids stale closure in Flow 2: open existing takeoff)
+    const currentDocs = documentsRef.current;
     // Only check d.abridged, not abridgedUrl (docs with 0% reduction have no URL but are still processed)
-    const docsToAbridge = documents.filter(d =>
+    const docsToAbridge = currentDocs.filter(d =>
       d.documentUrl && !d.abridged
     );
 
@@ -286,7 +311,7 @@ export function useAbridgement({
     }
 
     setAbridgementState({ isProcessing: false, progress: 100 });
-  }, [documents, addDocumentLog, updateTakeoffStatus, setDocuments]);
+  }, [addDocumentLog, updateTakeoffStatus, setDocuments]);
 
   return {
     abridgementState,
