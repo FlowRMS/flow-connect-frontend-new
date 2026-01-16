@@ -105,16 +105,21 @@ async function getPdfPageCount(file: File): Promise<number> {
       return 0;
     }
 
-    const pdfjsLib = await import('pdfjs-dist/build/pdf.mjs');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+    // Dynamic import for pdfjs-dist (works with v5.x)
+    const pdfjs = await import('pdfjs-dist');
+
+    // Set worker source using unpkg CDN
+    if (typeof window !== 'undefined') {
+      pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+    }
 
     const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
 
     return pdf.numPages;
-  } catch (error) {
-    console.error('Failed to get PDF page count:', error);
+  } catch {
+    // Failed to get PDF page count - return 0 to continue with upload
     return 0;
   }
 }
