@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { fetchProducts } from '@/components/warehouse/api/warehouseDeliveriesApi';
+import React, { useMemo, useState } from 'react';
+import { useWarehouseProducts } from '@/components/warehouse/api/useWarehouseDeliveriesApi';
 
 interface AddProductModalProps {
   vendorId: string;
@@ -17,47 +17,21 @@ export default function AddProductModal({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string; partNumber: string } | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [products, setProducts] = useState<Array<{ id: string; name: string; partNumber: string }>>([]);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
-  const [productsError, setProductsError] = useState<string | null>(null);
+  const {
+    data: productResults = [],
+    isLoading: isLoadingProducts,
+    error: productsError,
+  } = useWarehouseProducts(searchTerm, vendorId, 50);
 
-  useEffect(() => {
-    let isActive = true;
-
-    if (!vendorId) {
-      setProducts([]);
-      setProductsError(null);
-      return;
-    }
-
-    const loadProducts = async () => {
-      setIsLoadingProducts(true);
-      setProductsError(null);
-      try {
-        const results = await fetchProducts(searchTerm.trim(), vendorId, 50);
-        if (!isActive) return;
-        setProducts(
-          results.map((product) => ({
-            id: product.id,
-            name: product.description || product.factoryPartNumber,
-            partNumber: product.factoryPartNumber,
-          }))
-        );
-      } catch (error) {
-        if (!isActive) return;
-        setProductsError(error instanceof Error ? error.message : 'Failed to load products');
-        setProducts([]);
-      } finally {
-        if (isActive) setIsLoadingProducts(false);
-      }
-    };
-
-    loadProducts();
-
-    return () => {
-      isActive = false;
-    };
-  }, [searchTerm, vendorId]);
+  const products = useMemo(
+    () =>
+      productResults.map((product) => ({
+        id: product.id,
+        name: product.description || product.factoryPartNumber,
+        partNumber: product.factoryPartNumber,
+      })),
+    [productResults]
+  );
 
   const availableProducts = products.filter((product) => !existingProductIds.includes(product.id));
   const filteredProducts = availableProducts;

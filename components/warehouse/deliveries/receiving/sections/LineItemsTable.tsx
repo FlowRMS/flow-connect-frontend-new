@@ -11,6 +11,15 @@ interface LineItemsTableProps {
   onRemoveExpectedItem: (lineItemId: string) => void;
   getItemAdjustedReceived: (item: LineItemReceive) => number;
   getItemDamagedTotal: (item: LineItemReceive) => number;
+  getItemAccountedTotal: (item: LineItemReceive) => number;
+  getItemDiscrepancyTotals: (itemId: string) => {
+    total: number;
+    damage: number;
+    shortage: number;
+    overage: number;
+    wrongItem: number;
+    other: number;
+  };
 }
 
 export default function LineItemsTable({
@@ -23,6 +32,8 @@ export default function LineItemsTable({
   onRemoveExpectedItem,
   getItemAdjustedReceived,
   getItemDamagedTotal,
+  getItemAccountedTotal,
+  getItemDiscrepancyTotals,
 }: LineItemsTableProps) {
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
@@ -86,15 +97,21 @@ export default function LineItemsTable({
             {lineItems.map((lineItem) => {
               const adjustedReceived = getItemAdjustedReceived(lineItem);
               const damagedTotal = getItemDamagedTotal(lineItem);
-              const variance = adjustedReceived + damagedTotal - lineItem.expectedQty;
-              const totalReceived = adjustedReceived + damagedTotal;
+              const disc = getItemDiscrepancyTotals(lineItem.id);
+              const accountedTotal = getItemAccountedTotal(lineItem);
+              const variance = accountedTotal - lineItem.expectedQty;
+              const totalReceived = accountedTotal;
+              const hasNonShortageIssue =
+                damagedTotal > 0 || disc.wrongItem > 0 || disc.other > 0 || disc.overage > 0;
               const statusLabel = lineItem.putAway
                 ? 'Put Away'
                 : totalReceived === 0
                   ? 'Pending'
-                  : totalReceived < lineItem.expectedQty
+                  : totalReceived < lineItem.expectedQty && !hasNonShortageIssue
                     ? 'Partial'
-                    : 'Received';
+                    : hasNonShortageIssue || totalReceived > lineItem.expectedQty
+                      ? 'Discrepancy'
+                      : 'Received';
               const statusClass = lineItem.putAway
                 ? 'bg-blue-100 text-blue-700'
                 : statusLabel === 'Pending'

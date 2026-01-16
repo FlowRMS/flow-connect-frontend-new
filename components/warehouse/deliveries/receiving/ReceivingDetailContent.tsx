@@ -1,32 +1,34 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  createDeliveryAssignee,
-  createDeliveryDocument,
-  createDeliveryIssue,
-  createDeliveryItem,
-  createDeliveryItemReceipt,
-  createDeliveryStatusHistory,
-  deleteDeliveryAssignee,
-  deleteDeliveryDocument,
-  deleteDeliveryItem,
-  fetchDeliveryById,
-  fetchFactories,
-  fetchShippingCarriers,
-  fetchWarehouseMembers,
-  fetchWarehouseLocations,
-  fetchWarehouses,
   mapDeliveryToShipment,
-  updateDelivery,
-  updateDeliveryItem,
-  createRecurringShipment,
-} from '@/components/warehouse/api/warehouseDeliveriesApi';
-import type { DeliveryApi } from '@/components/warehouse/api/warehouseDeliveriesApi';
-import { fetchUserById } from '@/components/lib/api/search';
-import { fetchContactsByCompanyId } from '@/components/lib/graphql';
-import { uploadFile } from '@/components/lib/graphql/files';
+  type DeliveryApi,
+} from '../api';
+import {
+  useCreateDeliveryAssignee,
+  useCreateDeliveryDocument,
+  useCreateDeliveryIssue,
+  useCreateDeliveryItem,
+  useCreateDeliveryItemReceipt,
+  useCreateDeliveryStatusHistory,
+  useCreateRecurringShipment,
+  useDeleteDeliveryAssignee,
+  useDeleteDeliveryDocument,
+  useDeleteDeliveryItem,
+  useUpdateDelivery,
+  useUpdateDeliveryItem,
+  useWarehouseDelivery,
+  useWarehouseLocations,
+  useWarehouseLookups,
+  useWarehouseMembers,
+  useUsersByIds,
+  useVendorContacts,
+  warehouseDeliveriesQueryKeys,
+} from '@/components/warehouse/api/useWarehouseDeliveriesApi';
+import { useQueryClient } from '@tanstack/react-query';
+import { deleteFile, uploadFile } from '@/components/lib/graphql/files';
 import { RecurrencePattern, AssignedUser, AssignedUserRole, DeliveryIssueType, AttachedDocument, IncomingShipment } from '@/lib/types/warehouse';
 import RecurringShipmentModal from '../../modals/RecurringShipmentModal';
 import { useWarehouse } from '../../WarehouseContext';
@@ -40,17 +42,10 @@ import ReceivingHeader from './sections/ReceivingHeader';
 import ReceivingSummarySidebar from './sections/ReceivingSummarySidebar';
 import LineItemsTable from './sections/LineItemsTable';
 import ReceivingInterface from './ReceivingInterface';
+import { ReceivingProvider } from './context/ReceivingContext';
 import PutAwayInterface from './sections/PutAwayInterface';
 import PackingSlipSection from './sections/PackingSlipSection';
 import NotesSection from './sections/NotesSection';
-import {
-  readCachedDelivery,
-  readCachedLookups,
-  readCachedDeliveryDetail,
-  writeCachedDeliveryDetail,
-  updateCachedDeliveriesList,
-  patchDeliveryCaches,
-} from './cache';
 import type {
   DeliveryDiscrepancy,
   LineItemReceive,
@@ -64,8 +59,8 @@ import { receivingSteps } from './types';
 type DeliveryItemReceiptInput = {
   deliveryItemId: string;
   receiptType: 'RECEIPT' | 'ADJUSTMENT' | 'RETURN';
-  receivedQty: number;
-  damagedQty: number;
+  receivedQuantity: number;
+  damagedQuantity: number;
   locationId: string | null;
   receivedById: string | null;
   receivedAt: string | null;
@@ -78,7 +73,10 @@ interface ReceivingDetailContentProps {
 
 export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailContentProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { isWorkerView } = useWarehouse();
+  const deliveryQuery = useWarehouseDelivery(shipmentId);
+  const { warehousesQuery, carriersQuery, vendorsQuery } = useWarehouseLookups();
 
   const [shipment, setShipment] = useState<IncomingShipment | null>(null);
   const [isLoadingShipment, setIsLoadingShipment] = useState(true);
@@ -91,6 +89,18 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   const [warehouseOptions, setWarehouseOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [carrierOptions, setCarrierOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [vendorOptions, setVendorOptions] = useState<Array<{ id: string; name: string; email?: string | null }>>([]);
+  const updateDeliveryMutation = useUpdateDelivery();
+  const updateDeliveryItemMutation = useUpdateDeliveryItem();
+  const deleteDeliveryItemMutation = useDeleteDeliveryItem();
+  const createDeliveryItemMutation = useCreateDeliveryItem();
+  const createDeliveryItemReceiptMutation = useCreateDeliveryItemReceipt();
+  const createDeliveryStatusHistoryMutation = useCreateDeliveryStatusHistory();
+  const createDeliveryDocumentMutation = useCreateDeliveryDocument();
+  const deleteDeliveryDocumentMutation = useDeleteDeliveryDocument();
+  const createDeliveryAssigneeMutation = useCreateDeliveryAssignee();
+  const deleteDeliveryAssigneeMutation = useDeleteDeliveryAssignee();
+  const createDeliveryIssueMutation = useCreateDeliveryIssue();
+  const createRecurringShipmentMutation = useCreateRecurringShipment();
 
   // Editable shipment details state
   const [isEditingDetails, setIsEditingDetails] = useState(!isWorkerView); // Start in edit mode for managers
@@ -116,158 +126,73 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     deliveryPatch?: Partial<DeliveryApi> & { id: string }
   ) => {
     setShipment((prev) => (prev ? { ...prev, ...patch } : prev));
-    if (deliveryPatch) {
-      patchDeliveryCaches(deliveryPatch);
-    }
+    void deliveryPatch;
   };
 
   useEffect(() => {
-    let isActive = true;
-
-    setIsLoadingShipment(true);
     setShipmentError(null);
-    setShipment(null);
-    setHasInitialized(false);
-
-    const loadShipment = async () => {
-      try {
-        let usedCachedList = false;
-        const cachedDetail = readCachedDeliveryDetail(shipmentId);
-        if (cachedDetail) {
-          const { carriers, vendors } = readCachedLookups();
-          const carrierMap = new Map((carriers || []).map((carrier) => [carrier.id, carrier]));
-          const factoryMap = new Map((vendors || []).map((vendor) => [vendor.id, vendor]));
-          setShipment(mapDeliveryToShipment(cachedDetail, new Map(), factoryMap, carrierMap));
-          setIsLoadingShipment(false);
-          return;
-        }
-
-        const cached = readCachedDelivery(shipmentId);
-        if (cached) {
-          const { carriers, vendors } = readCachedLookups();
-          const carrierMap = new Map((carriers || []).map((carrier) => [carrier.id, carrier]));
-          const factoryMap = new Map((vendors || []).map((vendor) => [vendor.id, vendor]));
-          setShipment(mapDeliveryToShipment(cached, new Map(), factoryMap, carrierMap));
-          setIsLoadingShipment(false);
-          usedCachedList = true;
-        }
-
-        const delivery = await fetchDeliveryById(shipmentId);
-        if (!isActive) return;
-        if (!delivery) {
-          setShipment(null);
-          setIsLoadingShipment(false);
-          return;
-        }
-        writeCachedDeliveryDetail(delivery);
-        if (usedCachedList) {
-          setHasInitialized(false);
-        }
-        setShipment(mapDeliveryToShipment(delivery, new Map(), new Map(), new Map()));
-        setIsLoadingShipment(false);
-      } catch (error) {
-        if (!isActive) return;
-        setShipmentError(error instanceof Error ? error.message : 'Failed to load delivery');
-        setIsLoadingShipment(false);
-      }
-    };
-
-    loadShipment();
-
-    return () => {
-      isActive = false;
-    };
-  }, [shipmentId]);
+    if (deliveryQuery.isLoading) {
+      setIsLoadingShipment(true);
+      return;
+    }
+    if (deliveryQuery.error) {
+      setShipmentError(deliveryQuery.error.message);
+      setIsLoadingShipment(false);
+      return;
+    }
+    if (!deliveryQuery.data) {
+      setShipment(null);
+      setIsLoadingShipment(false);
+      return;
+    }
+    setShipment(mapDeliveryToShipment(deliveryQuery.data, new Map(), new Map(), new Map()));
+    setIsLoadingShipment(false);
+  }, [deliveryQuery.data, deliveryQuery.error, deliveryQuery.isLoading]);
 
   useEffect(() => {
-    let isActive = true;
+    const warehouses = warehousesQuery.data || [];
+    const carriers = carriersQuery.data || [];
+    const vendors = vendorsQuery.data || [];
 
-    const loadOptions = async () => {
-      try {
-        const cached = readCachedLookups();
-        if (cached.warehouses) {
-          setWarehouseOptions(cached.warehouses);
-        }
-        if (cached.carriers) {
-          setCarrierOptions(cached.carriers.map((carrier) => ({ id: carrier.id, name: carrier.name })));
-        }
-        if (cached.vendors) {
-          const cachedVendorMap = new Map<string, { id: string; name: string; email?: string | null }>();
-          cached.vendors.forEach((vendor) => {
-            if (!cachedVendorMap.has(vendor.id)) {
-              cachedVendorMap.set(vendor.id, {
-                id: vendor.id,
-                name: vendor.title,
-                email: vendor.email,
-              });
-            }
-          });
-          setVendorOptions(Array.from(cachedVendorMap.values()));
-        }
-
-        const [warehouses, carriersList, vendors] = await Promise.all([
-          cached.warehouses ? Promise.resolve(cached.warehouses) : fetchWarehouses(),
-          cached.carriers ? Promise.resolve(cached.carriers) : fetchShippingCarriers(true),
-          fetchFactories('', true, 200),
-        ]);
-        if (!isActive) return;
-        const warehouseOptionsList = warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.name }));
-        setWarehouseOptions(warehouseOptionsList);
-        if (!cached.warehouses) {
-          try {
-            sessionStorage.setItem('warehouseLookupCache', JSON.stringify({ warehouses: warehouseOptionsList }));
-          } catch {
-            // Ignore cache write failures (private mode / quota).
-          }
-        }
-        setCarrierOptions(carriersList.map((carrier) => ({ id: carrier.id, name: carrier.name })));
-        const uniqueVendors = new Map<string, { id: string; name: string; email?: string | null }>();
-        vendors.forEach((vendor) => {
-          if (!uniqueVendors.has(vendor.id)) {
-            uniqueVendors.set(vendor.id, { id: vendor.id, name: vendor.title, email: vendor.email });
-          }
-        });
-        const vendorOptionsList = Array.from(uniqueVendors.values());
-        setVendorOptions(vendorOptionsList);
-        try {
-          sessionStorage.setItem('warehouseVendorsCache', JSON.stringify({ vendors }));
-        } catch {
-          // Ignore cache write failures (private mode / quota).
-        }
-      } catch (error) {
-        if (!isActive) return;
-        console.error('Failed to load delivery options:', error);
-        setWarehouseOptions([]);
-        setCarrierOptions([]);
-        setVendorOptions([]);
+    setWarehouseOptions(warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.name })));
+    setCarrierOptions(carriers.map((carrier) => ({ id: carrier.id, name: carrier.name })));
+    const uniqueVendors = new Map<string, { id: string; name: string; email?: string | null }>();
+    vendors.forEach((vendor) => {
+      if (!uniqueVendors.has(vendor.id)) {
+        uniqueVendors.set(vendor.id, { id: vendor.id, name: vendor.title, email: vendor.email });
       }
-    };
-
-    loadOptions();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
+    });
+    setVendorOptions(Array.from(uniqueVendors.values()));
+  }, [warehousesQuery.data, carriersQuery.data, vendorsQuery.data]);
 
   const refreshShipment = async () => {
     try {
-      const delivery = await fetchDeliveryById(shipmentId);
-      if (!delivery) {
+      await queryClient.invalidateQueries({ queryKey: warehouseDeliveriesQueryKeys.detail(shipmentId) });
+      const refreshed = await deliveryQuery.refetch();
+      if (!refreshed.data) {
         setShipment(null);
         return;
       }
       setHasInitialized(false);
-      writeCachedDeliveryDetail(delivery);
-      updateCachedDeliveriesList(delivery);
-      setShipment(mapDeliveryToShipment(delivery, new Map(), new Map(), new Map()));
+      setShipment(mapDeliveryToShipment(refreshed.data, new Map(), new Map(), new Map()));
     } catch (error) {
       console.error('Failed to refresh delivery:', error);
     }
   };
 
+  const membersWarehouseId = editWarehouseId || shipment?.warehouseId;
+  const membersQuery = useWarehouseMembers(membersWarehouseId || null, Boolean(membersWarehouseId));
+  const locationsQuery = useWarehouseLocations(membersWarehouseId || null, Boolean(membersWarehouseId));
+  const memberIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    (membersQuery.data || []).forEach((member) => ids.add(member.userId));
+    (shipment?.assignedManagers || []).forEach((manager) => ids.add(manager.userId));
+    (shipment?.assignedWorkers || []).forEach((worker) => ids.add(worker.userId));
+    return Array.from(ids);
+  }, [membersQuery.data, shipment?.assignedManagers, shipment?.assignedWorkers]);
+  const usersQuery = useUsersByIds(memberIds);
+
   useEffect(() => {
-    const membersWarehouseId = editWarehouseId || shipment?.warehouseId;
     if (!membersWarehouseId) {
       setAvailableManagers([]);
       setAvailableWorkers([]);
@@ -276,175 +201,97 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       return;
     }
 
-    let isActive = true;
+    const members = membersQuery.data || [];
+    const users = usersQuery.data || [];
+    const userLookup = new Map(
+      users.map((user) => [
+        user.id,
+        {
+          name:
+            user.fullName ||
+            [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+            user.email ||
+            user.id,
+          email: user.email || '',
+        },
+      ])
+    );
 
-    const loadMembers = async () => {
-      try {
-        const members = await fetchWarehouseMembers(membersWarehouseId);
-        if (!isActive) return;
-
-        const userIds = new Set<string>();
-        members.forEach((member) => userIds.add(member.userId));
-        (shipment.assignedManagers || []).forEach((manager) => userIds.add(manager.userId));
-        (shipment.assignedWorkers || []).forEach((worker) => userIds.add(worker.userId));
-
-        const users = await Promise.all(
-          Array.from(userIds).map(async (userId) => ({
-            userId,
-            user: await fetchUserById(userId),
-          }))
-        );
-        if (!isActive) return;
-
-        const userLookup = new Map(
-          users.map(({ userId, user }) => {
-            const name =
-              user?.fullName ||
-              [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
-              user?.email ||
-              userId;
-            return [userId, { name, email: user?.email || '' }];
-          })
-        );
-
-        const normalizeRole = (role: string | number) => {
-          if (typeof role === 'number') {
-            if (role === 2) return 'MANAGER';
-            if (role === 3) return 'WORKER';
-            return 'UNKNOWN';
-          }
-          return role.toUpperCase();
-        };
-
-        const managers = members
-          .filter((member) => normalizeRole(member.role) === 'MANAGER')
-          .map((member) => {
-            const userInfo = userLookup.get(member.userId);
-            return {
-              id: member.userId,
-              name: userInfo?.name || member.userId,
-              email: userInfo?.email || '',
-              role: 'manager' as AssignedUserRole,
-              warehouseIds: [membersWarehouseId],
-              isActive: true,
-            };
-          });
-
-        const workers = members
-          .filter((member) => normalizeRole(member.role) === 'WORKER')
-          .map((member) => {
-            const userInfo = userLookup.get(member.userId);
-            return {
-              id: member.userId,
-              name: userInfo?.name || member.userId,
-              email: userInfo?.email || '',
-              role: 'worker' as AssignedUserRole,
-              warehouseIds: [membersWarehouseId],
-              isActive: true,
-            };
-          });
-
-        const assignedManagers = (shipment.assignedManagers || []).map((manager) => {
-          const userInfo = userLookup.get(manager.userId);
-          return {
-            ...manager,
-            userName: userInfo?.name || manager.userName,
-            userEmail: userInfo?.email || manager.userEmail,
-          };
-        });
-
-        const assignedWorkers = (shipment.assignedWorkers || []).map((worker) => {
-          const userInfo = userLookup.get(worker.userId);
-          return {
-            ...worker,
-            userName: userInfo?.name || worker.userName,
-            userEmail: userInfo?.email || worker.userEmail,
-          };
-        });
-
-        setAvailableManagers(managers);
-        setAvailableWorkers(workers);
-        setResolvedManagers(assignedManagers);
-        setResolvedWorkers(assignedWorkers);
-      } catch (error) {
-        if (!isActive) return;
-        console.error('Failed to load warehouse members:', error);
-        setAvailableManagers([]);
-        setAvailableWorkers([]);
-        setResolvedManagers(shipment.assignedManagers || []);
-        setResolvedWorkers(shipment.assignedWorkers || []);
+    const normalizeRole = (role: string | number) => {
+      if (typeof role === 'number') {
+        if (role === 2) return 'MANAGER';
+        if (role === 3) return 'WORKER';
+        return 'UNKNOWN';
       }
+      return role.toUpperCase();
     };
 
-    loadMembers();
+    const managers = members
+      .filter((member) => normalizeRole(member.role) === 'MANAGER')
+      .map((member) => {
+        const userInfo = userLookup.get(member.userId);
+        return {
+          id: member.userId,
+          name: userInfo?.name || member.userId,
+          email: userInfo?.email || '',
+          role: 'manager' as AssignedUserRole,
+          warehouseIds: [membersWarehouseId],
+          isActive: true,
+        };
+      });
 
-    return () => {
-      isActive = false;
-    };
-  }, [shipment, editWarehouseId]);
+    const workers = members
+      .filter((member) => normalizeRole(member.role) === 'WORKER')
+      .map((member) => {
+        const userInfo = userLookup.get(member.userId);
+        return {
+          id: member.userId,
+          name: userInfo?.name || member.userId,
+          email: userInfo?.email || '',
+          role: 'worker' as AssignedUserRole,
+          warehouseIds: [membersWarehouseId],
+          isActive: true,
+        };
+      });
+
+    const assignedManagers = (shipment?.assignedManagers || []).map((manager) => {
+      const userInfo = userLookup.get(manager.userId);
+      return {
+        ...manager,
+        userName: userInfo?.name || manager.userName,
+        userEmail: userInfo?.email || manager.userEmail,
+      };
+    });
+
+    const assignedWorkers = (shipment?.assignedWorkers || []).map((worker) => {
+      const userInfo = userLookup.get(worker.userId);
+      return {
+        ...worker,
+        userName: userInfo?.name || worker.userName,
+        userEmail: userInfo?.email || worker.userEmail,
+      };
+    });
+
+    setAvailableManagers(managers);
+    setAvailableWorkers(workers);
+    setResolvedManagers(assignedManagers);
+    setResolvedWorkers(assignedWorkers);
+  }, [membersWarehouseId, membersQuery.data, usersQuery.data, shipment?.assignedManagers, shipment?.assignedWorkers]);
 
   useEffect(() => {
-    const warehouseId = editWarehouseId || shipment?.warehouseId;
-    if (!warehouseId) {
+    if (!membersWarehouseId) {
       setWarehouseBins([]);
       return;
     }
-
-    let isActive = true;
-    const cacheKey = `warehouseBinsCache:${warehouseId}`;
-    const cacheMaxAgeMs = 5 * 60 * 1000;
-    let shouldFetch = true;
-
-    try {
-      const cachedRaw = sessionStorage.getItem(cacheKey);
-      if (cachedRaw) {
-        const cached = JSON.parse(cachedRaw) as {
-          timestamp: number;
-          bins: Array<{ id: string; letterCode?: string }>;
-        };
-        if (cached?.bins) {
-          setWarehouseBins(cached.bins);
-        }
-        if (cached?.timestamp && Date.now() - cached.timestamp < cacheMaxAgeMs) {
-          shouldFetch = false;
-        }
-      }
-    } catch {
-      // Ignore cache parse errors.
-    }
-
-    if (!shouldFetch) {
-      return () => {
-        isActive = false;
-      };
-    }
-
-    fetchWarehouseLocations(warehouseId)
-      .then((locations) => {
-        if (!isActive) return;
-        const bins = locations
-          .filter((location) => location.level === 'BIN' && location.isActive)
-          .map((location) => ({
-            id: location.id,
-            letterCode: location.code || location.name,
-          }));
-        setWarehouseBins(bins);
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), bins }));
-        } catch {
-          // Ignore cache write failures.
-        }
-      })
-      .catch((error) => {
-        if (!isActive) return;
-        console.error('Failed to load warehouse bins:', error);
-        setWarehouseBins([]);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [editWarehouseId, shipment?.warehouseId]);
+    const locations = locationsQuery.data || [];
+    const bins = locations
+      .filter((location) => location.level === 'BIN' && location.isActive)
+      .map((location) => ({
+        id: location.id,
+        letterCode: location.code || location.name,
+      }));
+    setWarehouseBins(bins);
+  }, [membersWarehouseId, locationsQuery.data]);
 
 
   // Add expected items state
@@ -452,9 +299,25 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
 
   // Recurring shipment modal state
   const [showRecurringModal, setShowRecurringModal] = useState(false);
-  const [vendorContacts, setVendorContacts] = useState<Array<{ name: string; email: string }>>([]);
+  const isUuid = (value: string | undefined) =>
+    Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value));
 
-  const currentVendorContacts = vendorContacts;
+  const vendorIdForContacts = isUuid(editVendorId)
+    ? editVendorId
+    : isUuid(shipment?.vendorId)
+    ? shipment?.vendorId
+    : null;
+  const vendorContactsQuery = useVendorContacts(vendorIdForContacts);
+  const currentVendorContacts = useMemo(
+    () =>
+      (vendorContactsQuery.data || [])
+        .map((contact) => ({
+          name: [contact.firstName, contact.lastName].filter(Boolean).join(' ').trim() || contact.email || 'Unknown',
+          email: contact.email || '',
+        }))
+        .filter((contact) => contact.email || contact.name),
+    [vendorContactsQuery.data]
+  );
   // Show all contacts when input is empty, otherwise filter by input
   const filteredContacts = currentVendorContacts.filter(c =>
     editVendorContact === '' || c.name.toLowerCase().includes(editVendorContact.toLowerCase())
@@ -463,79 +326,19 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     editVendorEmail === '' || c.email.toLowerCase().includes(editVendorEmail.toLowerCase())
   );
 
-  const isUuid = (value: string | undefined) =>
-    Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value));
-
-  useEffect(() => {
-    const vendorId = editVendorId || shipment?.vendorId;
-    if (!vendorId || !isUuid(vendorId)) {
-      setVendorContacts([]);
-      return;
-    }
-
-    let isActive = true;
-    const cacheKey = `vendorContactsCache:${vendorId}`;
-    const cacheMaxAgeMs = 5 * 60 * 1000;
-    let shouldFetch = true;
-
-    try {
-      const cachedRaw = sessionStorage.getItem(cacheKey);
-      if (cachedRaw) {
-        const cached = JSON.parse(cachedRaw) as { timestamp: number; contacts: Array<{ name: string; email: string }> };
-        if (cached?.contacts) {
-          setVendorContacts(cached.contacts);
-        }
-        if (cached?.timestamp && Date.now() - cached.timestamp < cacheMaxAgeMs) {
-          shouldFetch = false;
-        }
-      }
-    } catch {
-      // Ignore cache parse errors.
-    }
-
-    if (!shouldFetch) {
-      return () => {
-        isActive = false;
-      };
-    }
-
-    fetchContactsByCompanyId(vendorId)
-      .then((contacts) => {
-        if (!isActive) return;
-        const mapped = contacts
-          .map((contact) => ({
-            name: [contact.firstName, contact.lastName].filter(Boolean).join(' ').trim() || contact.email || 'Unknown',
-            email: contact.email || '',
-          }))
-          .filter((contact) => contact.email || contact.name);
-        setVendorContacts(mapped);
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), contacts: mapped }));
-        } catch {
-          // Ignore cache write failures.
-        }
-      })
-      .catch((error) => {
-        if (!isActive) return;
-        console.error('Failed to load vendor contacts:', error);
-        setVendorContacts([]);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [editVendorId, shipment?.vendorId]);
-
   // View state for step navigation
   const [viewingStatus, setViewingStatus] = useState<ShipmentStatus | null>(null);
 
   // Packing Slip capture (replaces BOL focus)
   const [packingSlipImage, setPackingSlipImage] = useState<string | null>(null);
+  const [packingSlipFile, setPackingSlipFile] = useState<File | null>(null);
   const [packingSlipCaptured, setPackingSlipCaptured] = useState(false);
   const [packingSlipInputMode, setPackingSlipInputMode] = useState<'scan' | 'manual' | null>(null);
   const [isProcessingPackingSlip, setIsProcessingPackingSlip] = useState(false);
   const [packingSlipLineItems, setPackingSlipLineItems] = useState<PackingSlipLineItem[]>([]);
   const [packingSlipDiscrepancies, setPackingSlipDiscrepancies] = useState<PackingSlipDiscrepancy[]>([]);
+  const [isEditingPackingSlip, setIsEditingPackingSlip] = useState(false);
+  const [lastManualPackingSlipNotes, setLastManualPackingSlipNotes] = useState<string | null>(null);
 
   // Scanned packing slip documents
   const [scannedPackingSlips, setScannedPackingSlips] = useState<ScannedPackingSlip[]>([]);
@@ -607,6 +410,11 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     return { totals, byItem };
   }, [discrepancies]);
 
+  const toNumber = (value: number | string | null | undefined) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   useEffect(() => {
     if (!shipment || hasInitialized) return;
 
@@ -620,6 +428,24 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     setEditVendorEmail(shipment.vendorEmail || '');
     setAttachedDocuments(shipment.documents || []);
     setBaseDocuments(shipment.documents || []);
+    setLastManualPackingSlipNotes(null);
+    const packingSlipDocs = (shipment.documents || []).filter((doc) => doc.type === 'PACKING_SLIP');
+    const mappedPackingSlips = packingSlipDocs.map((doc, index) => ({
+      id: doc.id,
+      name: doc.name || `Packing Slip ${index + 1}`,
+      scannedAt: doc.uploadedAt,
+      imageUrl: doc.fileUrl,
+      fileId: doc.fileId,
+      lineItemIds: [],
+    }));
+    setScannedPackingSlips((prev) => {
+      const localOnly = prev.filter((ps) => ps.id.startsWith('PS-'));
+      return [...mappedPackingSlips, ...localOnly];
+    });
+    setPackingSlipCaptured((prev) => mappedPackingSlips.length > 0 || prev);
+    if (!packingSlipImage && mappedPackingSlips.length > 0) {
+      setPackingSlipImage(mappedPackingSlips[mappedPackingSlips.length - 1]?.imageUrl || null);
+    }
     setBaseAssignedManagers(shipment.assignedManagers || []);
     setBaseAssignedWorkers(shipment.assignedWorkers || []);
     setDiscrepancies(
@@ -627,7 +453,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         id: issue.id,
         lineItemId: issue.deliveryItemId,
         type: mapIssueTypeToDiscrepancy(issue.issueType),
-        quantity: issue.qty,
+        quantity: issue.quantity,
         description: issue.description || '',
         customType: issue.customIssueType,
       }))
@@ -635,15 +461,16 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
 
     const initialLineItems = shipment.items.map((item) => {
       const defaultBinId = '';
-      const receivedQty = item.receivedQuantity || 0;
-      const damagedQty = item.damagedQuantity || 0;
+      const receivedQty = toNumber(item.receivedQuantity);
+      const damagedQty = toNumber(item.damagedQuantity);
+      const expectedQty = toNumber(item.expectedQuantity);
       const hasProgress = receivedQty > 0 || damagedQty > 0;
       return {
         id: item.id,
         productId: item.productId,
         productName: item.productName,
         partNumber: item.partNumber,
-        expectedQty: item.expectedQuantity,
+        expectedQty,
         receivedQty,
         damagedQty,
         binId: defaultBinId,
@@ -664,6 +491,33 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     setCollapsedItems(new Set(shipment.items.map(item => item.id)));
     setHasInitialized(true);
   }, [shipment, hasInitialized]);
+
+  useEffect(() => {
+    if (!shipment) return;
+    const packingSlipDocs = (shipment.documents || []).filter((doc) => doc.type === 'PACKING_SLIP');
+    const mappedPackingSlips = packingSlipDocs
+      .map((doc, index) => ({
+        id: doc.id,
+        name: doc.name || `Packing Slip ${index + 1}`,
+        scannedAt: doc.uploadedAt,
+        imageUrl: doc.fileUrl,
+        fileId: doc.fileId,
+        lineItemIds: [],
+      }))
+      .sort((a, b) => new Date(a.scannedAt).getTime() - new Date(b.scannedAt).getTime());
+
+    setScannedPackingSlips((prev) => {
+      const localOnly = prev.filter((ps) => ps.id.startsWith('PS-'));
+      return [...mappedPackingSlips, ...localOnly];
+    });
+
+    if (mappedPackingSlips.length > 0) {
+      setPackingSlipCaptured(true);
+      if (!packingSlipImage) {
+        setPackingSlipImage(mappedPackingSlips[mappedPackingSlips.length - 1]?.imageUrl || null);
+      }
+    }
+  }, [packingSlipImage, shipment]);
 
   // Search/filter for line items
   const [itemSearchQuery, setItemSearchQuery] = useState('');
@@ -766,12 +620,12 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     discrepancySummary.byItem[itemId] || { total: 0, damage: 0, shortage: 0, overage: 0, wrongItem: 0, other: 0 };
 
   const getItemAdjustedReceived = (item: LineItemReceive) => {
-    return Math.max(0, item.receivedQty);
+    return Math.max(0, toNumber(item.receivedQty));
   };
 
   const getItemDamagedTotal = (item: LineItemReceive) => {
     const disc = getItemDiscrepancyTotals(item.id);
-    return item.damagedQty + disc.damage;
+    return toNumber(item.damagedQty) + toNumber(disc.damage);
   };
 
   const getItemAccountedTotal = (item: LineItemReceive) => {
@@ -779,21 +633,26 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     return (
       getItemAdjustedReceived(item) +
       getItemDamagedTotal(item) +
-      disc.shortage +
-      disc.wrongItem +
-      disc.other +
-      disc.overage
+      toNumber(disc.wrongItem) +
+      toNumber(disc.other) +
+      toNumber(disc.overage)
     );
   };
 
   // Calculate totals
-  const totalExpected = lineItems.reduce((sum, item) => sum + item.expectedQty, 0);
-  const totalRawReceived = lineItems.reduce((sum, item) => sum + item.receivedQty, 0);
-  const totalRawDamaged = lineItems.reduce((sum, item) => sum + item.damagedQty, 0);
-  const totalIssues = discrepancySummary.totals.total;
-  const totalReceived = Math.max(0, totalRawReceived);
-  const totalDamaged = totalRawDamaged + discrepancySummary.totals.damage;
-  const totalVariance = totalReceived + totalDamaged - totalExpected;
+    const totalExpected = lineItems.reduce((sum, item) => sum + toNumber(item.expectedQty), 0);
+    const totalRawReceived = lineItems.reduce((sum, item) => sum + toNumber(item.receivedQty), 0);
+    const totalRawDamaged = lineItems.reduce((sum, item) => sum + toNumber(item.damagedQty), 0);
+    const totalIssues = discrepancySummary.totals.total;
+    const totalReceived = Math.max(0, totalRawReceived);
+    const totalDamaged = totalRawDamaged + toNumber(discrepancySummary.totals.damage);
+    const totalVariance =
+      totalReceived +
+      totalDamaged +
+      toNumber(discrepancySummary.totals.wrongItem) +
+      toNumber(discrepancySummary.totals.other) +
+      toNumber(discrepancySummary.totals.overage) -
+      totalExpected;
   const allItemsVerified = lineItems.every(item => item.verified || getItemAccountedTotal(item) >= item.expectedQty);
 
   // Save shipment details handler
@@ -807,24 +666,27 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     const expectedDate =
       editEta || (shipment.eta ? shipment.eta.split('T')[0] : null);
 
-    updateDelivery(shipment.id, {
-      poNumber: editPoNumber,
-      warehouseId: editWarehouseId,
-      vendorId: editVendorId,
-      carrierId,
-      trackingNumber: editTrackingNumber || null,
-      status: shipment.status,
-      expectedDate,
-      arrivedAt: null,
-      receivingStartedAt: null,
-      receivedAt: shipment.receivedAt || null,
-      originAddressId: null,
-      destinationAddressId: null,
-      recurringShipmentId: shipment.recurringShipmentId || null,
-      vendorContactName: editVendorContact || null,
-      vendorContactEmail: editVendorEmail || selectedVendor?.email || null,
-      notes: shipment.notes || null,
-      updatedById: null,
+    updateDeliveryMutation.mutateAsync({
+      id: shipment.id,
+      input: {
+        poNumber: editPoNumber,
+        warehouseId: editWarehouseId,
+        vendorId: editVendorId,
+        carrierId,
+        trackingNumber: editTrackingNumber || null,
+        status: shipment.status,
+        expectedDate,
+        arrivedAt: null,
+        receivingStartedAt: null,
+        receivedAt: shipment.receivedAt || null,
+        originAddressId: null,
+        destinationAddressId: null,
+        recurringShipmentId: shipment.recurringShipmentId || null,
+        vendorContactName: editVendorContact || null,
+        vendorContactEmail: editVendorEmail || selectedVendor?.email || null,
+        notes: shipment.notes || null,
+        updatedById: null,
+      },
     })
       .then(() => {
         setEditVendorEmail(editVendorEmail || selectedVendor?.email || '');
@@ -852,14 +714,17 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     const expectedItem = shipment.expectedItems?.find((item) => item.id === itemId);
     if (!lineItem) return;
 
-    updateDeliveryItem(itemId, {
-      deliveryId: shipment.id,
-      productId: lineItem.productId,
-      expectedQty: newQty,
-      receivedQty: lineItem.receivedQty,
-      damagedQty: lineItem.damagedQty,
-      status: (expectedItem?.status || 'pending').toUpperCase(),
-      discrepancyNotes: expectedItem?.discrepancyNotes || null,
+    updateDeliveryItemMutation.mutateAsync({
+      id: itemId,
+      input: {
+        deliveryId: shipment.id,
+        productId: lineItem.productId,
+        expectedQuantity: newQty,
+        receivedQuantity: lineItem.receivedQty,
+        damagedQuantity: lineItem.damagedQty,
+        status: (expectedItem?.status || 'pending').toUpperCase(),
+        discrepancyNotes: expectedItem?.discrepancyNotes || null,
+      },
     })
       .then(() => refreshShipment())
       .catch((error) => {
@@ -873,7 +738,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     if (shouldDeferPersistence) {
       return;
     }
-    deleteDeliveryItem(itemId)
+    deleteDeliveryItemMutation.mutateAsync(itemId)
       .then(() => refreshShipment())
       .catch((error) => {
         console.error('Failed to remove expected item:', error);
@@ -905,12 +770,12 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       setShowAddProductModal(false);
       return;
     }
-    createDeliveryItem({
+    createDeliveryItemMutation.mutateAsync({
       deliveryId: shipment.id,
       productId: product.id,
-      expectedQty: quantity,
-      receivedQty: 0,
-      damagedQty: 0,
+      expectedQuantity: quantity,
+      receivedQuantity: 0,
+      damagedQuantity: 0,
       status: 'PENDING',
       discrepancyNotes: null,
     })
@@ -961,12 +826,12 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
 
     itemsToCreate.forEach((item) => {
       tasks.push(
-        createDeliveryItem({
+        createDeliveryItemMutation.mutateAsync({
           deliveryId: shipment.id,
           productId: item.productId,
-          expectedQty: item.expectedQty,
-          receivedQty: item.receivedQty,
-          damagedQty: item.damagedQty,
+          expectedQuantity: item.expectedQty,
+          receivedQuantity: item.receivedQty,
+          damagedQuantity: item.damagedQty,
           status: 'PENDING',
           discrepancyNotes: null,
         })
@@ -975,20 +840,23 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
 
     itemsToUpdate.forEach((item) => {
       tasks.push(
-        updateDeliveryItem(item.id, {
-          deliveryId: shipment.id,
-          productId: item.productId,
-          expectedQty: item.expectedQty,
-          receivedQty: item.receivedQty,
-          damagedQty: item.damagedQty,
-          status: 'PENDING',
-          discrepancyNotes: null,
+        updateDeliveryItemMutation.mutateAsync({
+          id: item.id,
+          input: {
+            deliveryId: shipment.id,
+            productId: item.productId,
+            expectedQuantity: item.expectedQty,
+            receivedQuantity: item.receivedQty,
+            damagedQuantity: item.damagedQty,
+            status: 'PENDING',
+            discrepancyNotes: null,
+          },
         })
       );
     });
 
     itemsToDelete.forEach((item) => {
-      tasks.push(deleteDeliveryItem(item.id));
+      tasks.push(deleteDeliveryItemMutation.mutateAsync(item.id));
     });
 
     docsToCreate.forEach((doc) => {
@@ -998,26 +866,34 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           let mimeType = doc.mimeType;
           let fileSize = doc.fileSize;
           let name = doc.name;
+          let fileId = doc.fileId;
 
-          if (!fileUrl) {
-            if (!doc.file) {
-              console.error('Missing file for delivery document upload:', doc);
-              return;
+            if (!fileId) {
+              if (!doc.file) {
+                console.error('Missing file for delivery document upload:', doc);
+                return;
+              }
+              const uploaded = await uploadFile({
+                file: doc.file,
+                fileName: doc.file.name,
+                fileEntityType: 'DELIVERIES',
+                folderPath: `/warehouse/deliveries/${shipmentId}`,
+              });
+              fileUrl = uploaded.filePath;
+              mimeType = uploaded.fileType || doc.file.type || 'application/octet-stream';
+              fileSize = uploaded.fileSize || doc.file.size;
+              name = uploaded.fileName;
+              fileId = uploaded.id;
             }
-            const uploaded = await uploadFile({
-              file: doc.file,
-              fileName: doc.file.name,
-              fileEntityType: 'UNDEFINED',
-            });
-            fileUrl = uploaded.filePath;
-            mimeType = uploaded.fileType || doc.file.type || 'application/octet-stream';
-            fileSize = uploaded.fileSize || doc.file.size;
-            name = uploaded.fileName;
+          if (!fileId) {
+            console.error('Missing fileId for delivery document:', doc);
+            return;
           }
-          return createDeliveryDocument({
+          return createDeliveryDocumentMutation.mutateAsync({
             deliveryId: shipment.id,
             name,
             docType: doc.type,
+            fileId,
             fileUrl,
             mimeType,
             fileSize,
@@ -1029,12 +905,12 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     });
 
     docsToDelete.forEach((doc) => {
-      tasks.push(deleteDeliveryDocument(doc.id));
+      tasks.push(deleteDeliveryDocumentMutation.mutateAsync(doc.id));
     });
 
     assignmentsToCreate.forEach((assignment) => {
       tasks.push(
-        createDeliveryAssignee({
+        createDeliveryAssigneeMutation.mutateAsync({
           deliveryId: shipment.id,
           userId: assignment.userId,
           role: assignment.role === 'manager' ? 'MANAGER' : 'WORKER',
@@ -1044,7 +920,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
 
     assignmentsToDelete.forEach((assignment) => {
       if (!assignment.id || isTempId(assignment.id)) return;
-      tasks.push(deleteDeliveryAssignee(assignment.id));
+      tasks.push(deleteDeliveryAssigneeMutation.mutateAsync(assignment.id));
     });
 
     if (tasks.length === 0) return;
@@ -1110,8 +986,8 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
 
     try {
       await syncPendingChanges();
-      await updateDelivery(shipment.id, payload);
-      await createDeliveryStatusHistory({
+      await updateDeliveryMutation.mutateAsync({ id: shipment.id, input: payload });
+      await createDeliveryStatusHistoryMutation.mutateAsync({
         deliveryId: shipment.id,
         status: 'PENDING',
         timestamp: null,
@@ -1141,7 +1017,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         ...pattern,
         expectedItems: shipment.expectedItems || [],
       };
-      const recurring = await createRecurringShipment({
+      const recurring = await createRecurringShipmentMutation.mutateAsync({
         name,
         vendorId: editVendorId || shipment.vendorId,
         warehouseId: editWarehouseId || shipment.warehouseId,
@@ -1171,26 +1047,29 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           updatedAt: nowIso,
         }
       );
-      await updateDelivery(shipment.id, {
-        poNumber: shipment.poNumber,
-        warehouseId: shipment.warehouseId,
-        vendorId: shipment.vendorId,
-        carrierId,
-        trackingNumber: shipment.trackingNumber || null,
-        status: 'PENDING',
-        expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
-        arrivedAt: null,
-        receivingStartedAt: null,
-        receivedAt: shipment.receivedAt || null,
-        originAddressId: null,
-        destinationAddressId: null,
-        recurringShipmentId: recurring.id,
-        vendorContactName: shipment.vendorContact || null,
-        vendorContactEmail: shipment.vendorEmail || null,
-        notes: shipment.notes || null,
-        updatedById: null,
+      await updateDeliveryMutation.mutateAsync({
+        id: shipment.id,
+        input: {
+          poNumber: shipment.poNumber,
+          warehouseId: shipment.warehouseId,
+          vendorId: shipment.vendorId,
+          carrierId,
+          trackingNumber: shipment.trackingNumber || null,
+          status: 'PENDING',
+          expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+          arrivedAt: null,
+          receivingStartedAt: null,
+          receivedAt: shipment.receivedAt || null,
+          originAddressId: null,
+          destinationAddressId: null,
+          recurringShipmentId: recurring.id,
+          vendorContactName: shipment.vendorContact || null,
+          vendorContactEmail: shipment.vendorEmail || null,
+          notes: shipment.notes || null,
+          updatedById: null,
+        },
       });
-      await createDeliveryStatusHistory({
+      await createDeliveryStatusHistoryMutation.mutateAsync({
         deliveryId: shipment.id,
         status: 'PENDING',
         timestamp: null,
@@ -1225,26 +1104,29 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     );
     try {
       await syncPendingChanges();
-      await updateDelivery(shipment.id, {
-        poNumber: shipment.poNumber,
-        warehouseId: shipment.warehouseId,
-        vendorId: shipment.vendorId,
-        carrierId: shipment.carrierId || null,
-        trackingNumber: shipment.trackingNumber || null,
-        status: 'ARRIVED',
-        expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
-        arrivedAt: nowIso,
-        receivingStartedAt: null,
-        receivedAt: shipment.receivedAt || null,
-        originAddressId: null,
-        destinationAddressId: null,
-        recurringShipmentId: shipment.recurringShipmentId || null,
-        vendorContactName: shipment.vendorContact || null,
-        vendorContactEmail: shipment.vendorEmail || null,
-        notes: shipment.notes || null,
-        updatedById: null,
+      await updateDeliveryMutation.mutateAsync({
+        id: shipment.id,
+        input: {
+          poNumber: shipment.poNumber,
+          warehouseId: shipment.warehouseId,
+          vendorId: shipment.vendorId,
+          carrierId: shipment.carrierId || null,
+          trackingNumber: shipment.trackingNumber || null,
+          status: 'ARRIVED',
+          expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+          arrivedAt: nowIso,
+          receivingStartedAt: null,
+          receivedAt: shipment.receivedAt || null,
+          originAddressId: null,
+          destinationAddressId: null,
+          recurringShipmentId: shipment.recurringShipmentId || null,
+          vendorContactName: shipment.vendorContact || null,
+          vendorContactEmail: shipment.vendorEmail || null,
+          notes: shipment.notes || null,
+          updatedById: null,
+        },
       });
-      await createDeliveryStatusHistory({
+      await createDeliveryStatusHistoryMutation.mutateAsync({
         deliveryId: shipment.id,
         status: 'ARRIVED',
         timestamp: null,
@@ -1275,34 +1157,37 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         updatedAt: nowIso,
       }
     );
-    updateDelivery(shipment.id, {
-      poNumber: shipment.poNumber,
-      warehouseId: shipment.warehouseId,
-      vendorId: shipment.vendorId,
-      carrierId: shipment.carrierId || null,
-      trackingNumber: shipment.trackingNumber || null,
-      status: 'RECEIVING',
-      expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
-      arrivedAt: shipment.arrivedAt || null,
-      receivingStartedAt: nowIso,
-      receivedAt: shipment.receivedAt || null,
-      originAddressId: null,
-      destinationAddressId: null,
-      recurringShipmentId: shipment.recurringShipmentId || null,
-      vendorContactName: shipment.vendorContact || null,
-      vendorContactEmail: shipment.vendorEmail || null,
-      notes: shipment.notes || null,
-      updatedById: null,
+    updateDeliveryMutation.mutateAsync({
+      id: shipment.id,
+      input: {
+        poNumber: shipment.poNumber,
+        warehouseId: shipment.warehouseId,
+        vendorId: shipment.vendorId,
+        carrierId: shipment.carrierId || null,
+        trackingNumber: shipment.trackingNumber || null,
+        status: 'RECEIVING',
+        expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+        arrivedAt: shipment.arrivedAt || null,
+        receivingStartedAt: nowIso,
+        receivedAt: shipment.receivedAt || null,
+        originAddressId: null,
+        destinationAddressId: null,
+        recurringShipmentId: shipment.recurringShipmentId || null,
+        vendorContactName: shipment.vendorContact || null,
+        vendorContactEmail: shipment.vendorEmail || null,
+        notes: shipment.notes || null,
+        updatedById: null,
+      },
     })
       .then(() =>
-        createDeliveryStatusHistory({
+        createDeliveryStatusHistoryMutation.mutateAsync({
           deliveryId: shipment.id,
-        status: 'RECEIVING',
-        timestamp: null,
-        userId: null,
-        note: 'Receiving started',
-      })
-    )
+          status: 'RECEIVING',
+          timestamp: null,
+          userId: null,
+          note: 'Receiving started',
+        })
+      )
       .then(() => void refreshShipment())
       .catch((error) => {
         console.error('Failed to start receiving:', error);
@@ -1334,78 +1219,106 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       const adjustedReceived = getItemAdjustedReceived(item);
       const damagedTotal = getItemDamagedTotal(item);
       const accountedTotal = getItemAccountedTotal(item);
+      const hasNonShortageIssue =
+        damagedTotal > 0 ||
+        toNumber(disc.wrongItem) > 0 ||
+        toNumber(disc.other) > 0 ||
+        toNumber(disc.overage) > 0;
       if (accountedTotal === 0) return 'PENDING';
-      if (damagedTotal > 0 || disc.total > 0) return 'DISCREPANCY';
-      if (adjustedReceived < item.expectedQty) return 'PARTIAL';
+      if (accountedTotal < item.expectedQty && !hasNonShortageIssue) return 'PARTIAL';
+      if (hasNonShortageIssue || accountedTotal > item.expectedQty) return 'DISCREPANCY';
       return 'RECEIVED';
     };
 
     try {
-      const receiptInputs = lineItems.reduce<DeliveryItemReceiptInput[]>(
-        (acc, item) => {
-          const goodQty = Math.max(0, getItemAdjustedReceived(item));
-          const damagedTotal = Math.max(0, getItemDamagedTotal(item));
-          const baseReceipt = {
-            receiptType: 'RECEIPT' as const,
-            receivedById: null,
-            receivedAt: nowIso,
-            note: null,
-          };
+      const receiptQueue = lineItems.reduce<
+        Array<{ input: DeliveryItemReceiptInput; isDamage: boolean }>
+      >((acc, item) => {
+        const goodQty = Math.max(0, getItemAdjustedReceived(item));
+        const damagedTotal = Math.max(0, getItemDamagedTotal(item));
+        const baseReceipt = {
+          receiptType: 'RECEIPT' as const,
+          receivedById: null,
+          receivedAt: nowIso,
+          note: null,
+        };
 
-          if (item.binAssignments.length > 0) {
-            item.binAssignments.forEach((assignment) => {
-              if (assignment.quantity <= 0) return;
-              acc.push({
+        if (item.binAssignments.length > 0) {
+          item.binAssignments.forEach((assignment) => {
+            if (assignment.quantity <= 0) return;
+            acc.push({
+              input: {
                 deliveryItemId: item.id,
-                receivedQty: assignment.quantity,
-                damagedQty: 0,
+                receivedQuantity: assignment.quantity,
+                damagedQuantity: 0,
                 locationId: assignment.binId || null,
                 ...baseReceipt,
-              });
+              },
+              isDamage: false,
             });
-          } else if (goodQty > 0) {
-            acc.push({
+          });
+        } else if (goodQty > 0) {
+          acc.push({
+            input: {
               deliveryItemId: item.id,
-              receivedQty: goodQty,
-              damagedQty: 0,
+              receivedQuantity: goodQty,
+              damagedQuantity: 0,
               locationId: item.binId || item.primaryBinId || null,
               ...baseReceipt,
-            });
-          }
+            },
+            isDamage: false,
+          });
+        }
 
-          if (damagedTotal > 0) {
-            acc.push({
+        if (damagedTotal > 0) {
+          acc.push({
+            input: {
               deliveryItemId: item.id,
-              receivedQty: 0,
-              damagedQty: damagedTotal,
+              receivedQuantity: 0,
+              damagedQuantity: damagedTotal,
               locationId: null,
               ...baseReceipt,
-            });
-          }
+            },
+            isDamage: true,
+          });
+        }
 
-          return acc;
-        },
-        []
-      );
+        return acc;
+      }, []);
 
       await Promise.all(
         lineItems.map((item) =>
-          updateDeliveryItem(item.id, {
-            deliveryId: shipment.id,
-            productId: item.productId,
-            expectedQty: item.expectedQty,
-            receivedQty: item.receivedQty,
-            damagedQty: item.damagedQty,
-            status: computeLineItemStatus(item),
-            discrepancyNotes: null,
+          updateDeliveryItemMutation.mutateAsync({
+            id: item.id,
+            input: {
+              deliveryId: shipment.id,
+              productId: item.productId,
+              expectedQuantity: item.expectedQty,
+              receivedQuantity: item.receivedQty,
+              damagedQuantity: Math.max(0, getItemDamagedTotal(item)),
+              status: computeLineItemStatus(item),
+              discrepancyNotes: null,
+            },
           })
         )
       );
 
-      if (receiptInputs.length > 0) {
-        await Promise.all(
-          receiptInputs.map((input) => createDeliveryItemReceipt(input))
+      const receiptIdByItem = new Map<string, { any?: string; damage?: string }>();
+      if (receiptQueue.length > 0) {
+        const createdReceipts = await Promise.all(
+          receiptQueue.map(({ input }) => createDeliveryItemReceiptMutation.mutateAsync(input))
         );
+        createdReceipts.forEach((receipt, index) => {
+          const queueEntry = receiptQueue[index];
+          const entry = receiptIdByItem.get(receipt.deliveryItemId) || {};
+          if (queueEntry?.isDamage) {
+            entry.damage = receipt.id;
+          }
+          if (!entry.any) {
+            entry.any = receipt.id;
+          }
+          receiptIdByItem.set(receipt.deliveryItemId, entry);
+        });
       }
 
       if (discrepancies.length > 0) {
@@ -1427,44 +1340,52 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         };
 
         await Promise.all(
-          discrepancies.map((disc) =>
-            createDeliveryIssue({
+          discrepancies.map((disc) => {
+            const receiptEntry = receiptIdByItem.get(disc.lineItemId);
+            const receiptId =
+              disc.type === 'damage'
+                ? receiptEntry?.damage || receiptEntry?.any || null
+                : receiptEntry?.any || null;
+            return createDeliveryIssueMutation.mutateAsync({
               deliveryId: shipment.id,
               deliveryItemId: disc.lineItemId,
-              receiptId: null,
+              receiptId,
               issueType: mapDiscrepancyType(disc.type),
               customIssueType: disc.type === 'other' ? disc.customType : null,
-              qty: disc.quantity,
+              quantity: disc.quantity,
               status: 'OPEN',
               description: disc.description || null,
               notes: null,
               communicatedAt: null,
-            })
-          )
+            });
+          })
         );
       }
 
-      await updateDelivery(shipment.id, {
-        poNumber: shipment.poNumber,
-        warehouseId: shipment.warehouseId,
-        vendorId: shipment.vendorId,
-        carrierId: shipment.carrierId || null,
-        trackingNumber: shipment.trackingNumber || null,
-        status: 'RECEIVED',
-        expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
-        arrivedAt: shipment.arrivedAt || null,
-        receivingStartedAt: shipment.receivingStartedAt || null,
-        receivedAt: nowIso,
-        originAddressId: null,
-        destinationAddressId: null,
-        recurringShipmentId: shipment.recurringShipmentId || null,
-        vendorContactName: shipment.vendorContact || null,
-        vendorContactEmail: shipment.vendorEmail || null,
-        notes: shipment.notes || null,
-        updatedById: null,
+      await updateDeliveryMutation.mutateAsync({
+        id: shipment.id,
+        input: {
+          poNumber: shipment.poNumber,
+          warehouseId: shipment.warehouseId,
+          vendorId: shipment.vendorId,
+          carrierId: shipment.carrierId || null,
+          trackingNumber: shipment.trackingNumber || null,
+          status: 'RECEIVED',
+          expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+          arrivedAt: shipment.arrivedAt || null,
+          receivingStartedAt: shipment.receivingStartedAt || null,
+          receivedAt: nowIso,
+          originAddressId: null,
+          destinationAddressId: null,
+          recurringShipmentId: shipment.recurringShipmentId || null,
+          vendorContactName: shipment.vendorContact || null,
+          vendorContactEmail: shipment.vendorEmail || null,
+          notes: shipment.notes || null,
+          updatedById: null,
+        },
       });
 
-      await createDeliveryStatusHistory({
+      await createDeliveryStatusHistoryMutation.mutateAsync({
         deliveryId: shipment.id,
         status: 'RECEIVED',
         timestamp: null,
@@ -1523,9 +1444,10 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       const reader = new FileReader();
       reader.onloadend = () => {
         setPackingSlipImage(reader.result as string);
+        setPackingSlipFile(file);
         setPackingSlipInputMode('scan');
-        // Simulate OCR processing
-        processPackingSlipImage();
+        // Simulate OCR processing + persist document
+        void processPackingSlipImage(file);
       };
       reader.readAsDataURL(file);
     }
@@ -1542,8 +1464,9 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         const reader = new FileReader();
         reader.onloadend = () => {
           setPackingSlipImage(reader.result as string);
+          setPackingSlipFile(file);
           setPackingSlipInputMode('scan');
-          processPackingSlipImage();
+          void processPackingSlipImage(file);
         };
         reader.readAsDataURL(file);
       }
@@ -1551,7 +1474,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     input.click();
   };
 
-  const processPackingSlipImage = () => {
+  const processPackingSlipImage = async (file?: File) => {
     setIsProcessingPackingSlip(true);
     const newPackingSlipId = `PS-${Date.now()}`;
     const newPackingSlip: ScannedPackingSlip = {
@@ -1559,10 +1482,46 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       name: `Packing Slip ${scannedPackingSlips.length + 1}`,
       scannedAt: new Date().toISOString(),
       imageUrl: packingSlipImage || '',
+      fileId: undefined,
       lineItemIds: [],
     };
     setScannedPackingSlips(prev => [...prev, newPackingSlip]);
     setCurrentPackingSlipId(newPackingSlipId);
+    if (file && shipment) {
+      const created = await handleAddDocument({
+        name: `Packing Slip ${new Date().toLocaleDateString()}`,
+        type: 'PACKING_SLIP',
+        fileUrl: '',
+        mimeType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+        file,
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: 'Packing Slip Capture',
+        notes: 'Captured from Arrived workflow.',
+      });
+      if (created?.id) {
+        setScannedPackingSlips((prev) =>
+          prev.map((ps) =>
+            ps.id === newPackingSlipId
+              ? {
+                  ...ps,
+                  id: created.id,
+                  name: created.name || ps.name,
+                  scannedAt: created.uploadedAt || ps.scannedAt,
+                  imageUrl: created.fileUrl || ps.imageUrl,
+                  fileId: created.fileId,
+                }
+              : ps
+          )
+        );
+        setLineItems((prev) =>
+          prev.map((item) =>
+            item.packingSlipId === newPackingSlipId ? { ...item, packingSlipId: created.id } : item
+          )
+        );
+        setCurrentPackingSlipId(created.id);
+      }
+    }
     setIsProcessingPackingSlip(false);
     setPackingSlipCaptured(true);
   };
@@ -1579,10 +1538,127 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
 
   const handleClearPackingSlip = () => {
     setPackingSlipImage(null);
+    setPackingSlipFile(null);
     setPackingSlipInputMode(null);
     setPackingSlipLineItems([]);
     setPackingSlipCaptured(false);
     setPackingSlipDiscrepancies([]);
+    setCurrentPackingSlipId(null);
+  };
+
+  const latestPackingSlip = scannedPackingSlips[scannedPackingSlips.length - 1];
+  const latestPersistedPackingSlip = [...scannedPackingSlips]
+    .filter((ps) => !ps.id.startsWith('PS-'))
+    .pop();
+
+  const handleEditPackingSlip = async () => {
+    if (isEditingPackingSlip) return;
+    setIsEditingPackingSlip(true);
+    const resetPackingSlipState = () => {
+      setPackingSlipCaptured(false);
+      setPackingSlipImage(null);
+      setPackingSlipFile(null);
+      setPackingSlipInputMode(null);
+      setPackingSlipLineItems([]);
+      setPackingSlipDiscrepancies([]);
+      setCurrentPackingSlipId(null);
+    };
+
+    if (latestPersistedPackingSlip && shipment) {
+      try {
+        const removedId = latestPersistedPackingSlip.id;
+        const fileId = latestPersistedPackingSlip.fileId || null;
+        await deleteDeliveryDocumentMutation.mutateAsync(removedId);
+        if (fileId) {
+          await deleteFile(fileId);
+        }
+        applyShipmentPatch({
+          documents: (shipment.documents || []).filter((doc) => doc.id !== removedId),
+        });
+        setAttachedDocuments((prev) => prev.filter((doc) => doc.id !== removedId));
+        setScannedPackingSlips((prev) => prev.filter((ps) => ps.id !== removedId));
+        setLineItems((prev) =>
+          prev.map((item) =>
+            item.packingSlipId === removedId ? { ...item, packingSlipId: undefined } : item
+          )
+        );
+        resetPackingSlipState();
+        void refreshShipment();
+      } catch (error) {
+        console.error('Failed to remove packing slip document:', error);
+      } finally {
+        setIsEditingPackingSlip(false);
+      }
+      return;
+    }
+
+    if (latestPackingSlip) {
+      const removedId = latestPackingSlip.id;
+      setScannedPackingSlips((prev) => prev.filter((ps) => ps.id !== latestPackingSlip.id));
+      setLineItems((prev) =>
+        prev.map((item) =>
+          item.packingSlipId === removedId ? { ...item, packingSlipId: undefined } : item
+        )
+      );
+    }
+    if (shipment && lastManualPackingSlipNotes && shipment.notes?.includes(lastManualPackingSlipNotes)) {
+      const trimmedNotes = shipment.notes.replace(`\n\n${lastManualPackingSlipNotes}`, '').trim();
+      await updateDeliveryMutation.mutateAsync({
+        id: shipment.id,
+        input: {
+          poNumber: shipment.poNumber,
+          warehouseId: shipment.warehouseId,
+          vendorId: shipment.vendorId,
+          status: shipment.status,
+          expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+          carrierId: shipment.carrierId || null,
+          trackingNumber: shipment.trackingNumber || null,
+          vendorContactName: shipment.vendorContact || null,
+          vendorContactEmail: shipment.vendorEmail || null,
+          notes: trimmedNotes || null,
+          updatedById: null,
+        },
+      });
+      applyShipmentPatch({ notes: trimmedNotes || undefined });
+      setLastManualPackingSlipNotes(null);
+    }
+    resetPackingSlipState();
+    setIsEditingPackingSlip(false);
+  };
+
+  const formatPackingSlipNotes = (lines: PackingSlipLineItem[]) => {
+    const cleaned = lines.filter((line) => line.partNumber || line.description);
+    if (cleaned.length === 0) return null;
+    const header = `Packing Slip (manual) - ${new Date().toLocaleString()}`;
+    const rows = cleaned
+      .map((line) => `- ${line.partNumber || 'N/A'} | ${line.description || 'N/A'} | qty: ${line.quantity}`)
+      .join('\n');
+    return `${header}\n${rows}`;
+  };
+
+  const persistPackingSlipNotes = async (lines: PackingSlipLineItem[]) => {
+    if (!shipment) return;
+    const notesPayload = formatPackingSlipNotes(lines);
+    if (!notesPayload) return;
+    const nextNotes = shipment.notes ? `${shipment.notes}\n\n${notesPayload}` : notesPayload;
+    await updateDeliveryMutation.mutateAsync({
+      id: shipment.id,
+      input: {
+        poNumber: shipment.poNumber,
+        warehouseId: shipment.warehouseId,
+        vendorId: shipment.vendorId,
+        status: shipment.status,
+        expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+        carrierId: shipment.carrierId || null,
+        trackingNumber: shipment.trackingNumber || null,
+        vendorContactName: shipment.vendorContact || null,
+        vendorContactEmail: shipment.vendorEmail || null,
+        notes: nextNotes,
+        updatedById: null,
+      },
+    });
+    setLastManualPackingSlipNotes(notesPayload);
+    applyShipmentPatch({ notes: nextNotes });
   };
 
   // Incremental receiving / pallet handlers
@@ -1658,33 +1734,41 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         ...document,
       };
       setAttachedDocuments((prev) => [...prev, newDocument]);
-      return;
+      return null;
     }
     try {
       let fileUrl = document.fileUrl;
       let mimeType = document.mimeType;
       let fileSize = document.fileSize;
       let name = document.name;
+      let fileId = document.fileId;
 
-      if (!fileUrl) {
-        if (!document.file) {
-          console.error('Missing file for delivery document upload:', document);
-          return;
+        if (!fileId) {
+          if (!document.file) {
+            console.error('Missing file for delivery document upload:', document);
+            return;
+          }
+          const uploaded = await uploadFile({
+            file: document.file,
+            fileName: document.file.name,
+            fileEntityType: 'DELIVERIES',
+            folderPath: `/warehouse/deliveries/${shipmentId}`,
+          });
+          fileUrl = uploaded.filePath;
+          mimeType = uploaded.fileType || document.file.type || 'application/octet-stream';
+          fileSize = uploaded.fileSize || document.file.size;
+          name = uploaded.fileName;
+          fileId = uploaded.id;
         }
-        const uploaded = await uploadFile({
-          file: document.file,
-          fileName: document.file.name,
-          fileEntityType: 'UNDEFINED',
-        });
-        fileUrl = uploaded.filePath;
-        mimeType = uploaded.fileType || document.file.type || 'application/octet-stream';
-        fileSize = uploaded.fileSize || document.file.size;
-        name = uploaded.fileName;
+      if (!fileId) {
+        console.error('Missing fileId for delivery document:', document);
+        return null;
       }
-      await createDeliveryDocument({
+      const created = await createDeliveryDocumentMutation.mutateAsync({
         deliveryId: shipment.id,
         name,
         docType: document.type,
+        fileId,
         fileUrl,
         mimeType,
         fileSize,
@@ -1692,8 +1776,16 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         notes: document.notes || null,
       });
       void refreshShipment();
+      return {
+        id: created.id,
+        fileId,
+        fileUrl,
+        name,
+        uploadedAt: document.uploadedAt,
+      };
     } catch (error) {
       console.error('Failed to add delivery document:', error);
+      return null;
     }
   };
 
@@ -1702,7 +1794,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       setAttachedDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
       return;
     }
-    deleteDeliveryDocument(documentId)
+    deleteDeliveryDocumentMutation.mutateAsync(documentId)
       .then(() => refreshShipment())
       .catch((error) => {
         console.error('Failed to remove delivery document:', error);
@@ -1732,7 +1824,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       }
       return;
     }
-    await createDeliveryAssignee({
+    await createDeliveryAssigneeMutation.mutateAsync({
       deliveryId: shipmentId,
       userId,
       role: role === 'manager' ? 'MANAGER' : 'WORKER',
@@ -1747,55 +1839,34 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       setResolvedWorkers((prev) => prev.filter((assignment) => assignment.id !== assignmentId));
       return;
     }
-    await deleteDeliveryAssignee(assignmentId);
+    await deleteDeliveryAssigneeMutation.mutateAsync(assignmentId);
     await refreshShipment();
   };
 
   // Receiving Interface Component
   const receivingInterface = (
-    <ReceivingInterface
-      totalReceived={totalReceived}
-      totalExpected={totalExpected}
-      totalIssues={totalIssues}
-      palletSessions={palletSessions}
-      currentPalletNumber={currentPalletNumber}
-      allItemsVerified={allItemsVerified}
+    <ReceivingProvider
+      lineItems={lineItems}
+      warehouseBins={warehouseBins}
+      onCompleteReceiving={handleCompleteReceiving}
+      onCameraCapture={handleCameraCapture}
+      onPackingSlipImageUpload={handlePackingSlipImageUpload}
+      onClearPackingSlip={handleClearPackingSlip}
+      setLineItems={setLineItems}
+      setDiscrepancies={setDiscrepancies}
+      setPackingSlipInputMode={setPackingSlipInputMode}
+      setViewingPackingSlip={setViewingPackingSlip}
       isTransitioning={isTransitioning}
       packingSlipCaptured={packingSlipCaptured}
       packingSlipLineItems={packingSlipLineItems}
       isProcessingPackingSlip={isProcessingPackingSlip}
-      itemSearchQuery={itemSearchQuery}
-      collapsedItems={collapsedItems}
-      lineItems={lineItems}
-      discrepancies={discrepancies}
       scannedPackingSlips={scannedPackingSlips}
-      warehouseBins={warehouseBins}
-      showSavePalletConfirm={showSavePalletConfirm}
-      setShowSavePalletConfirm={setShowSavePalletConfirm}
-      setPackingSlipInputMode={setPackingSlipInputMode}
-      setItemSearchQuery={setItemSearchQuery}
-      setCollapsedItems={setCollapsedItems}
-      setDiscrepancies={setDiscrepancies}
-      setViewingPackingSlip={setViewingPackingSlip}
-      handleCompleteReceiving={handleCompleteReceiving}
-      handleCameraCapture={handleCameraCapture}
-      handlePackingSlipImageUpload={handlePackingSlipImageUpload}
-      handleClearPackingSlip={handleClearPackingSlip}
-      handleSavePallet={handleSavePallet}
-      handleReceiveAll={handleReceiveAll}
-      handleOneClickPutAway={handleOneClickPutAway}
-      handleUnverifyItem={handleUnverifyItem}
-      handleUpdateLineItem={handleUpdateLineItem}
-      handleVerifyItem={handleVerifyItem}
-      getItemDiscrepancyTotals={getItemDiscrepancyTotals}
-      getItemAdjustedReceived={getItemAdjustedReceived}
-      getItemAccountedTotal={getItemAccountedTotal}
-      isNonPrimaryBin={isNonPrimaryBin}
-      getEmptyBins={getEmptyBins}
-      voiceSupported={voiceSupported}
-      isRecordingVoice={isRecordingVoice}
-      handleVoiceInput={handleVoiceInput}
-    />
+      palletSessions={palletSessions}
+      currentPalletNumber={currentPalletNumber}
+      discrepancies={discrepancies}
+    >
+      <ReceivingInterface />
+    </ReceivingProvider>
   );
   // Put-Away Interface Component
   const putAwayInterface = (
@@ -1816,12 +1887,14 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       totalExpected={totalExpected}
       isEditingDetails={isEditingDetails}
       hasVendorSelected={hasVendorSelected}
-      onAddProductClick={() => setShowAddProductModal(true)}
-      onUpdateExpectedQty={handleUpdateExpectedQty}
-      onRemoveExpectedItem={handleRemoveExpectedItem}
-      getItemAdjustedReceived={getItemAdjustedReceived}
-      getItemDamagedTotal={getItemDamagedTotal}
-    />
+        onAddProductClick={() => setShowAddProductModal(true)}
+        onUpdateExpectedQty={handleUpdateExpectedQty}
+        onRemoveExpectedItem={handleRemoveExpectedItem}
+        getItemAdjustedReceived={getItemAdjustedReceived}
+        getItemDamagedTotal={getItemDamagedTotal}
+        getItemAccountedTotal={getItemAccountedTotal}
+        getItemDiscrepancyTotals={getItemDiscrepancyTotals}
+      />
   );
 
   return (
@@ -1967,23 +2040,43 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           </div>
         </div>
 
-        <PackingSlipSection
-          displayStatus={displayStatus}
-          packingSlipCaptured={packingSlipCaptured}
-          packingSlipInputMode={packingSlipInputMode}
-          packingSlipImage={packingSlipImage}
-          isProcessingPackingSlip={isProcessingPackingSlip}
-          packingSlipLineItems={packingSlipLineItems}
-          packingSlipDiscrepancies={packingSlipDiscrepancies}
-          onCameraCapture={handleCameraCapture}
-          onImageUpload={handlePackingSlipImageUpload}
-          onClearPackingSlip={handleClearPackingSlip}
-          setPackingSlipInputMode={setPackingSlipInputMode}
-          setPackingSlipCaptured={setPackingSlipCaptured}
-          setPackingSlipLineItems={setPackingSlipLineItems}
-          setPackingSlipDiscrepancies={setPackingSlipDiscrepancies}
-          onAddPackingSlipLine={handleAddPackingSlipLine}
-        />
+        {(() => {
+          const canViewPackingSlip =
+            (packingSlipImage && packingSlipImage.startsWith('data:')) ||
+            Boolean(latestPersistedPackingSlip?.fileId || latestPersistedPackingSlip?.imageUrl);
+
+          return (
+            <PackingSlipSection
+              displayStatus={displayStatus}
+              packingSlipCaptured={packingSlipCaptured}
+              packingSlipInputMode={packingSlipInputMode}
+              packingSlipImage={packingSlipImage}
+              isProcessingPackingSlip={isProcessingPackingSlip}
+              isEditingPackingSlip={isEditingPackingSlip}
+              packingSlipLineItems={packingSlipLineItems}
+              packingSlipDiscrepancies={packingSlipDiscrepancies}
+              onCameraCapture={handleCameraCapture}
+              onImageUpload={handlePackingSlipImageUpload}
+              onClearPackingSlip={handleClearPackingSlip}
+              onViewPackingSlip={
+                canViewPackingSlip
+                  ? () => {
+                      if (latestPersistedPackingSlip || latestPackingSlip) {
+                        setViewingPackingSlip(latestPersistedPackingSlip || latestPackingSlip);
+                      }
+                    }
+                  : undefined
+              }
+              onEditPackingSlip={handleEditPackingSlip}
+              setPackingSlipInputMode={setPackingSlipInputMode}
+              setPackingSlipCaptured={setPackingSlipCaptured}
+              setPackingSlipLineItems={setPackingSlipLineItems}
+              setPackingSlipDiscrepancies={setPackingSlipDiscrepancies}
+              onAddPackingSlipLine={handleAddPackingSlipLine}
+              onConfirmManualPackingSlip={persistPackingSlipNotes}
+            />
+          );
+        })()}
 
         {/* Receiving Interface - Show when status is RECEIVING */}
         {isReceiving && (
@@ -2261,7 +2354,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                             hour: 'numeric',
                             minute: '2-digit',
                           })}
-                          {ps.lineItemIds.length > 0 && ` • ${ps.lineItemIds.length} items`}
+                          {ps.lineItemIds.length > 0 && ` - ${ps.lineItemIds.length} items`}
                         </p>
                       </div>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
@@ -2330,5 +2423,3 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     </main>
   );
 }
-
-

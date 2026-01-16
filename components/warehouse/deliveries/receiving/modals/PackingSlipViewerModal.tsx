@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { getFilePresignedUrl } from '@/components/lib/graphql/files';
 import type { LineItemReceive, ScannedPackingSlip } from '../types';
 
 interface PackingSlipViewerModalProps {
@@ -12,6 +13,34 @@ export default function PackingSlipViewerModal({
   lineItems,
   onClose,
 }: PackingSlipViewerModalProps) {
+  const [resolvedImageUrl, setResolvedImageUrl] = useState<string | null>(packingSlip.imageUrl || null);
+
+  useEffect(() => {
+    const currentUrl = packingSlip.imageUrl || '';
+    const hasDirectUrl =
+      currentUrl.startsWith('http') ||
+      currentUrl.startsWith('data:') ||
+      currentUrl.startsWith('blob:');
+
+    if (hasDirectUrl) {
+      setResolvedImageUrl(currentUrl);
+      return;
+    }
+
+    if (packingSlip.fileId) {
+      getFilePresignedUrl(packingSlip.fileId)
+        .then((url) => {
+          setResolvedImageUrl(url || null);
+        })
+        .catch(() => {
+          setResolvedImageUrl(null);
+        });
+      return;
+    }
+
+    setResolvedImageUrl(currentUrl || null);
+  }, [packingSlip.fileId, packingSlip.imageUrl]);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -44,11 +73,11 @@ export default function PackingSlipViewerModal({
           </button>
         </div>
         <div className="flex-1 overflow-auto p-4">
-          {packingSlip.imageUrl ? (
+          {resolvedImageUrl ? (
             <div className="flex items-center justify-center bg-gray-100 rounded-lg min-h-[400px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={packingSlip.imageUrl}
+                src={resolvedImageUrl}
                 alt={packingSlip.name}
                 className="max-w-full max-h-[60vh] object-contain"
               />

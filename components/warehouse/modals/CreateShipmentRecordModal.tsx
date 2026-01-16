@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { fetchFactories, fetchProducts, fetchWarehouses } from '../api/warehouseDeliveriesApi';
-import { readCachedLookups } from '../deliveries/receiving/cache';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useWarehouseLookups, useWarehouseProducts } from '../api/useWarehouseDeliveriesApi';
 import { ShipmentStatus } from '@/lib/types/warehouse';
 
 interface ShipmentLineItem {
@@ -42,9 +41,7 @@ export default function CreateShipmentRecordModal({
   isSubmitting = false,
   carriers,
 }: CreateShipmentRecordModalProps) {
-  const [factories, setFactories] = useState<Array<{ id: string; name: string }>>([]);
-  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
-  const [vendorProducts, setVendorProducts] = useState<Array<{ id: string; factoryPartNumber: string; description?: string | null }>>([]);
+  const { warehousesQuery, vendorsQuery } = useWarehouseLookups();
   const isArrivingNow = initialStatus === 'ARRIVED';
   const [poNumber, setPoNumber] = useState<string>(`PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`);
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
@@ -61,80 +58,24 @@ export default function CreateShipmentRecordModal({
   const [lineItems, setLineItems] = useState<ShipmentLineItem[]>([]);
   const [showProductSelector, setShowProductSelector] = useState(false);
 
+  const { data: vendorProducts = [] } = useWarehouseProducts('', selectedVendorId, 200);
+  const factories = useMemo(
+    () => (vendorsQuery.data || []).map((vendor) => ({ id: vendor.id, name: vendor.title })),
+    [vendorsQuery.data]
+  );
+  const warehouses = useMemo(
+    () => (warehousesQuery.data || []).map((wh) => ({ id: wh.id, name: wh.name })),
+    [warehousesQuery.data]
+  );
+
   const selectedVendor = factories.find(f => f.id === selectedVendorId);
   const selectedWarehouse = warehouses.find(w => w.id === selectedWarehouseId);
 
   useEffect(() => {
-    let isActive = true;
-
-    const loadLookups = async () => {
-      try {
-        const cached = readCachedLookups();
-        if (cached.warehouses) {
-          setWarehouses(cached.warehouses);
-          setSelectedWarehouseId((current) => current || cached.warehouses?.[0]?.id || '');
-        }
-        if (cached.vendors) {
-          setFactories(cached.vendors.map((vendor) => ({ id: vendor.id, name: vendor.title })));
-        }
-
-        const [warehouseData, factoryData] = await Promise.all([
-          fetchWarehouses(),
-          fetchFactories('', true, 100),
-        ]);
-        if (!isActive) return;
-        const warehouseOptions = warehouseData.map((wh) => ({ id: wh.id, name: wh.name }));
-        setWarehouses(warehouseOptions);
-        setFactories(factoryData.map((factory) => ({ id: factory.id, name: factory.title })));
-        setSelectedWarehouseId((current) => current || warehouseData[0]?.id || '');
-        try {
-          sessionStorage.setItem(
-            'warehouseLookupCache',
-            JSON.stringify({ warehouses: warehouseOptions })
-          );
-        } catch {
-          // Ignore cache write failures (private mode / quota).
-        }
-        try {
-          sessionStorage.setItem('warehouseVendorsCache', JSON.stringify({ vendors: factoryData }));
-        } catch {
-          // Ignore cache write failures (private mode / quota).
-        }
-      } catch (error) {
-        console.error('Failed to load warehouse lookups', error);
-      }
-    };
-
-    void loadLookups();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isActive = true;
-
-    const loadProducts = async () => {
-      if (!selectedVendorId) {
-        setVendorProducts([]);
-        return;
-      }
-      try {
-        const products = await fetchProducts('', selectedVendorId, 200);
-        if (!isActive) return;
-        setVendorProducts(products);
-      } catch (error) {
-        console.error('Failed to load vendor products', error);
-      }
-    };
-
-    void loadProducts();
-
-    return () => {
-      isActive = false;
-    };
-  }, [selectedVendorId]);
+    if (!selectedWarehouseId && warehouses.length > 0) {
+      setSelectedWarehouseId(warehouses[0]?.id || '');
+    }
+  }, [selectedWarehouseId, warehouses]);
 
   const handleAddProduct = (product: { id: string; factoryPartNumber: string; description?: string | null }) => {
     if (lineItems.some(item => item.productId === product.id)) {

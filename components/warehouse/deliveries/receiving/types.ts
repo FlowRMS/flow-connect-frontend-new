@@ -1,4 +1,4 @@
-import type { DeliveryApi } from '@/components/warehouse/api/warehouseDeliveriesApi';
+import type { DeliveryApi } from '../api';
 import type { AssignedUserRole, ShipmentStatus } from '@/lib/types/warehouse';
 
 export type WarehouseUser = {
@@ -45,6 +45,7 @@ export interface ScannedPackingSlip {
   name: string;
   scannedAt: string;
   imageUrl: string;
+  fileId?: string;
   lineItemIds: string[];
 }
 

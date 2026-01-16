@@ -1,118 +1,68 @@
 'use client';
 
 import React from 'react';
-import type { DeliveryDiscrepancy, LineItemReceive, PackingSlipLineItem, ScannedPackingSlip } from './types';
+import type { BinAssignment } from './types';
+import { useReceivingContext } from './context/ReceivingContext';
 
-type WarehouseBin = {
-  id: string;
-  letterCode?: string;
-  currentQuantity?: number;
-  maxCapacity?: number;
-};
+export default function ReceivingInterface() {
+  const {
+    // State
+    lineItems,
+    discrepancies,
+    collapsedItems,
+    itemSearchQuery,
+    palletSessions,
+    currentPalletNumber,
+    scannedPackingSlips,
+    warehouseBins,
+    packingSlipLineItems,
+    packingSlipCaptured,
+    isProcessingPackingSlip,
+    showSavePalletConfirm,
+    isTransitioning,
+    voiceSupported,
+    isRecordingVoice,
 
-type PalletSession = {
-  id: string;
-  palletNumber: number;
-  items: Array<{ lineItemId: string; quantity: number }>;
-};
+    // Setters
+    setItemSearchQuery,
+    setCollapsedItems,
+    setDiscrepancies,
+    setShowSavePalletConfirm,
+    setPackingSlipInputMode,
+    setViewingPackingSlip,
 
-type DiscrepancyTotals = {
-  total: number;
-  damage: number;
-  shortage: number;
-  overage: number;
-  wrongItem: number;
-  other: number;
-};
+    // Actions
+    actions,
 
-interface ReceivingInterfaceProps {
-  totalReceived: number;
-  totalExpected: number;
-  totalIssues: number;
-  palletSessions: PalletSession[];
-  currentPalletNumber: number;
-  allItemsVerified: boolean;
-  isTransitioning: boolean;
-  packingSlipCaptured: boolean;
-  packingSlipLineItems: PackingSlipLineItem[];
-  isProcessingPackingSlip: boolean;
-  itemSearchQuery: string;
-  collapsedItems: Set<string>;
-  lineItems: LineItemReceive[];
-  discrepancies: DeliveryDiscrepancy[];
-  scannedPackingSlips: ScannedPackingSlip[];
-  warehouseBins: WarehouseBin[];
-  showSavePalletConfirm: boolean;
-  setShowSavePalletConfirm: React.Dispatch<React.SetStateAction<boolean>>;
-  setPackingSlipInputMode: React.Dispatch<React.SetStateAction<'scan' | 'manual' | null>>;
-  setItemSearchQuery: React.Dispatch<React.SetStateAction<string>>;
-  setCollapsedItems: React.Dispatch<React.SetStateAction<Set<string>>>;
-  setDiscrepancies: React.Dispatch<React.SetStateAction<DeliveryDiscrepancy[]>>;
-  setViewingPackingSlip: React.Dispatch<React.SetStateAction<ScannedPackingSlip | null>>;
-  handleCompleteReceiving: () => void;
-  handleCameraCapture: () => void;
-  handlePackingSlipImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  handleClearPackingSlip: () => void;
-  handleSavePallet: () => void;
-  handleReceiveAll: (itemId: string, expectedQty: number) => void;
-  handleOneClickPutAway: (itemId: string) => void;
-  handleUnverifyItem: (itemId: string) => void;
-  handleUpdateLineItem: (itemId: string, updates: Partial<LineItemReceive>) => void;
-  handleVerifyItem: (itemId: string) => void;
-  getItemDiscrepancyTotals: (itemId: string) => DiscrepancyTotals;
-  getItemAdjustedReceived: (item: LineItemReceive) => number;
-  getItemAccountedTotal: (item: LineItemReceive) => number;
-  isNonPrimaryBin: (item: LineItemReceive) => boolean;
-  getEmptyBins: () => WarehouseBin[];
-  voiceSupported: boolean;
-  isRecordingVoice: string | null;
-  handleVoiceInput: (lineItemId: string) => void;
-}
+    // Computed
+    computed,
+  } = useReceivingContext();
 
-export default function ReceivingInterface(props: ReceivingInterfaceProps) {
+  const {
+    verifyItem: handleVerifyItem,
+    unverifyItem: handleUnverifyItem,
+    updateLineItem: handleUpdateLineItem,
+    receiveAll: handleReceiveAll,
+    oneClickPutAway: handleOneClickPutAway,
+    savePallet: handleSavePallet,
+    handleVoiceInput,
+    completeReceiving: handleCompleteReceiving,
+    cameraCapture: handleCameraCapture,
+    packingSlipImageUpload: handlePackingSlipImageUpload,
+    clearPackingSlip: handleClearPackingSlip,
+  } = actions;
+
   const {
     totalReceived,
     totalExpected,
     totalIssues,
-    palletSessions,
-    currentPalletNumber,
     allItemsVerified,
-    isTransitioning,
-    packingSlipCaptured,
-    packingSlipLineItems,
-    isProcessingPackingSlip,
-    itemSearchQuery,
-    collapsedItems,
-    lineItems,
-    discrepancies,
-    scannedPackingSlips,
-    warehouseBins,
-    showSavePalletConfirm,
-    setShowSavePalletConfirm,
-    setPackingSlipInputMode,
-    setItemSearchQuery,
-    setCollapsedItems,
-    setDiscrepancies,
-    setViewingPackingSlip,
-    handleCompleteReceiving,
-    handleCameraCapture,
-    handlePackingSlipImageUpload,
-    handleClearPackingSlip,
-    handleSavePallet,
-    handleReceiveAll,
-    handleOneClickPutAway,
-    handleUnverifyItem,
-    handleUpdateLineItem,
-    handleVerifyItem,
     getItemDiscrepancyTotals,
     getItemAdjustedReceived,
     getItemAccountedTotal,
     isNonPrimaryBin,
     getEmptyBins,
-    voiceSupported,
-    isRecordingVoice,
-    handleVoiceInput,
-  } = props;
+  } = computed;
 
   return (
     <div className="bg-[var(--card)] rounded-lg border-2 border-yellow-400 overflow-hidden">

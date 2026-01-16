@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Warehouse } from '@/lib/types/warehouse';
-import { fetchWarehouses } from './api/warehouseDeliveriesApi';
+import { fetchWarehouses } from './deliveries/api';
 
 export type WarehouseViewMode = 'manager' | 'worker';
 

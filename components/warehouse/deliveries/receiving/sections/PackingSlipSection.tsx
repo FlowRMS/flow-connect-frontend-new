@@ -8,16 +8,20 @@ interface PackingSlipSectionProps {
   packingSlipInputMode: 'scan' | 'manual' | null;
   packingSlipImage: string | null;
   isProcessingPackingSlip: boolean;
+  isEditingPackingSlip?: boolean;
   packingSlipLineItems: PackingSlipLineItem[];
   packingSlipDiscrepancies: PackingSlipDiscrepancy[];
   onCameraCapture: () => void;
   onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onClearPackingSlip: () => void;
+  onViewPackingSlip?: () => void;
+  onEditPackingSlip?: () => void;
   setPackingSlipInputMode: (mode: 'scan' | 'manual' | null) => void;
   setPackingSlipCaptured: (value: boolean) => void;
   setPackingSlipLineItems: React.Dispatch<React.SetStateAction<PackingSlipLineItem[]>>;
   setPackingSlipDiscrepancies: React.Dispatch<React.SetStateAction<PackingSlipDiscrepancy[]>>;
   onAddPackingSlipLine: () => void;
+  onConfirmManualPackingSlip: (lines: PackingSlipLineItem[]) => void | Promise<void>;
 }
 
 export default function PackingSlipSection({
@@ -26,16 +30,20 @@ export default function PackingSlipSection({
   packingSlipInputMode,
   packingSlipImage,
   isProcessingPackingSlip,
+  isEditingPackingSlip = false,
   packingSlipLineItems,
   packingSlipDiscrepancies,
   onCameraCapture,
   onImageUpload,
   onClearPackingSlip,
+  onViewPackingSlip,
+  onEditPackingSlip,
   setPackingSlipInputMode,
   setPackingSlipCaptured,
   setPackingSlipLineItems,
   setPackingSlipDiscrepancies,
   onAddPackingSlipLine,
+  onConfirmManualPackingSlip,
 }: PackingSlipSectionProps) {
   return (
     <>
@@ -255,6 +263,7 @@ export default function PackingSlipSection({
                 <button
                   onClick={() => {
                     if (packingSlipLineItems.length > 0 && packingSlipLineItems.some((line) => line.partNumber || line.description)) {
+                      void onConfirmManualPackingSlip(packingSlipLineItems);
                       setPackingSlipCaptured(true);
                       setPackingSlipInputMode(null);
                     }
@@ -366,9 +375,16 @@ export default function PackingSlipSection({
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {packingSlipImage && (
+              {(packingSlipImage || onViewPackingSlip) && (
                 <button
-                  onClick={() => window.open(packingSlipImage, '_blank')}
+                  onClick={() => {
+                    if (packingSlipImage && packingSlipImage.startsWith('data:')) {
+                      window.open(packingSlipImage, '_blank');
+                      return;
+                    }
+                    onViewPackingSlip?.();
+                  }}
+                  disabled={isEditingPackingSlip}
                   className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -376,17 +392,15 @@ export default function PackingSlipSection({
                     <circle cx="8.5" cy="8.5" r="1.5" />
                     <polyline points="21 15 16 10 5 21" />
                   </svg>
-                  View Image
+                  {isEditingPackingSlip ? 'Updating...' : 'View Image'}
                 </button>
               )}
               <button
-                onClick={() => {
-                  setPackingSlipCaptured(false);
-                  setPackingSlipDiscrepancies([]);
-                }}
-                className="text-xs text-blue-600 hover:underline"
+                onClick={onEditPackingSlip}
+                disabled={isEditingPackingSlip}
+                className="text-xs text-blue-600 hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Edit
+                {isEditingPackingSlip ? 'Removing...' : 'Remove'}
               </button>
             </div>
           </div>

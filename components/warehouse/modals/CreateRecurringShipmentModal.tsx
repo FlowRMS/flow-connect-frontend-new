@@ -12,10 +12,8 @@ import {
   weekOfMonthLabels,
   RecurringShipment,
 } from '@/lib/types/warehouse';
-import { getRecurrenceDescription, parseDateInput } from '../utils/recurrence';
-import { fetchFactories, fetchProducts, fetchWarehouses } from '../api/warehouseDeliveriesApi';
-
-const carriers = ['UPS', 'FedEx', 'USPS', 'DHL', 'Freight', 'Other'];
+import { getRecurrenceDescription, parseDateInput } from '../deliveries/utils/recurrence';
+import { useWarehouseLookups, useWarehouseProducts } from '../api/useWarehouseDeliveriesApi';
 
 interface CreateRecurringShipmentModalProps {
   onClose: () => void;
@@ -28,9 +26,7 @@ export default function CreateRecurringShipmentModal({
   onSubmit,
   isSubmitting = false,
 }: CreateRecurringShipmentModalProps) {
-  const [factories, setFactories] = useState<Array<{ id: string; name: string }>>([]);
-  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
-  const [products, setProducts] = useState<Array<{ id: string; title: string; factoryPartNumber?: string | null }>>([]);
+  const { carriersQuery, vendorsQuery, warehousesQuery } = useWarehouseLookups();
 
   // Basic info state
   const [name, setName] = useState('');
@@ -57,60 +53,32 @@ export default function CreateRecurringShipmentModal({
   const [productSearch, setProductSearch] = useState('');
 
   useEffect(() => {
-    let isActive = true;
+    const vendors = vendorsQuery.data || [];
+    const warehouses = warehousesQuery.data || [];
+    if (!vendorId && vendors.length > 0) {
+      setVendorId(vendors[0]?.id || '');
+      setVendorName(vendors[0]?.title || '');
+    }
+    if (!warehouseId && warehouses.length > 0) {
+      setWarehouseId(warehouses[0]?.id || '');
+      setWarehouseName(warehouses[0]?.name || '');
+    }
+  }, [vendorId, warehouseId, vendorsQuery.data, warehousesQuery.data]);
 
-    const loadLookups = async () => {
-      try {
-        const [warehouseData, factoryData] = await Promise.all([
-          fetchWarehouses(),
-          fetchFactories('', true, 100),
-        ]);
-        if (!isActive) return;
-        setWarehouses(warehouseData.map((wh) => ({ id: wh.id, name: wh.name })));
-        setFactories(factoryData.map((factory) => ({ id: factory.id, name: factory.title })));
-        setVendorId((current) => current || factoryData[0]?.id || '');
-        setVendorName((current) => current || factoryData[0]?.title || '');
-        setWarehouseId((current) => current || warehouseData[0]?.id || '');
-        setWarehouseName((current) => current || warehouseData[0]?.name || '');
-      } catch (error) {
-        console.error('Failed to load recurring shipment lookups', error);
-      }
-    };
-
-    void loadLookups();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isActive = true;
-
-    const loadProducts = async () => {
-      if (!vendorId) {
-        setProducts([]);
-        return;
-      }
-      try {
-        const items = await fetchProducts(productSearch || '', vendorId, 200);
-        if (!isActive) return;
-        setProducts(items.map((item) => ({
-          id: item.id,
-          title: item.description || item.factoryPartNumber,
-          factoryPartNumber: item.factoryPartNumber,
-        })));
-      } catch (error) {
-        console.error('Failed to load products', error);
-      }
-    };
-
-    void loadProducts();
-
-    return () => {
-      isActive = false;
-    };
-  }, [vendorId, productSearch]);
+  const productsVendorId = showProductSelector ? vendorId : null;
+  const { data: productsData = [] } = useWarehouseProducts(productSearch || '', productsVendorId, 200);
+  const factories = useMemo(
+    () => (vendorsQuery.data || []).map((vendor) => ({ id: vendor.id, name: vendor.title })),
+    [vendorsQuery.data]
+  );
+  const warehouses = useMemo(
+    () => (warehousesQuery.data || []).map((wh) => ({ id: wh.id, name: wh.name })),
+    [warehousesQuery.data]
+  );
+  const carrierOptions = useMemo(
+    () => (carriersQuery.data || []).map((carrier) => carrier.name),
+    [carriersQuery.data]
+  );
 
   const currentPattern: RecurrencePattern = {
     frequency,
@@ -170,12 +138,17 @@ export default function CreateRecurringShipmentModal({
   };
 
   const filteredProducts = useMemo(() => {
+    const products = productsData.map((item) => ({
+      id: item.id,
+      title: item.description || item.factoryPartNumber,
+      factoryPartNumber: item.factoryPartNumber,
+    }));
     if (!productSearch.trim()) return products.slice(0, 10);
     const search = productSearch.toLowerCase();
     return products
       .filter(p => p.title.toLowerCase().includes(search) || (p.factoryPartNumber || '').toLowerCase().includes(search))
       .slice(0, 10);
-  }, [products, productSearch]);
+  }, [productsData, productSearch]);
 
   const canSubmit = name.trim() && vendorId && warehouseId && expectedItems.length > 0;
 
@@ -281,9 +254,9 @@ export default function CreateRecurringShipmentModal({
                     className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                   >
                     <option value="">Select carrier...</option>
-                    {carriers.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
+                      {carrierOptions.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
                   </select>
                 </div>
                 <div>

@@ -2,8 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { AssignedUser, AssignedUserRole } from '@/lib/types/warehouse';
-import { fetchWarehouseMembers } from '@/components/warehouse/api/warehouseDeliveriesApi';
-import { fetchUserById } from '@/components/lib/api/search';
+import { useUsersByIds, useWarehouseMembers } from '@/components/warehouse/api/useWarehouseDeliveriesApi';
 
 type WarehouseUser = {
   id: string;
@@ -39,8 +38,14 @@ export default function AssignmentPanel({
 }: AssignmentPanelProps) {
   const [showManagerDropdown, setShowManagerDropdown] = useState(false);
   const [showWorkerDropdown, setShowWorkerDropdown] = useState(false);
-  const [fetchedManagers, setFetchedManagers] = useState<WarehouseUser[]>([]);
-  const [fetchedWorkers, setFetchedWorkers] = useState<WarehouseUser[]>([]);
+  const membersQuery = useWarehouseMembers(warehouseId || null, !availableManagers && !availableWorkers);
+  const memberIds = useMemo(() => {
+    if (!membersQuery.data) return [];
+    const ids = new Set<string>();
+    membersQuery.data.forEach((member) => ids.add(member.userId));
+    return Array.from(ids);
+  }, [membersQuery.data]);
+  const usersQuery = useUsersByIds(memberIds);
 
   useEffect(() => {
     if (!isEditable) {
@@ -49,142 +54,76 @@ export default function AssignmentPanel({
     }
   }, [isEditable]);
 
-  useEffect(() => {
-    if (availableManagers || availableWorkers) return;
-    if (!warehouseId) {
-      setFetchedManagers([]);
-      setFetchedWorkers([]);
-      return;
-    }
-
-    let isActive = true;
-    const cacheKey = `warehouseMembersCache:${warehouseId}`;
-    const cacheMaxAgeMs = 5 * 60 * 1000;
-    let shouldFetch = true;
-
-    try {
-      const cachedRaw = sessionStorage.getItem(cacheKey);
-      if (cachedRaw) {
-        const cached = JSON.parse(cachedRaw) as {
-          timestamp: number;
-          managers: WarehouseUser[];
-          workers: WarehouseUser[];
-        };
-        if (cached?.managers) {
-          setFetchedManagers(cached.managers);
-        }
-        if (cached?.workers) {
-          setFetchedWorkers(cached.workers);
-        }
-        if (cached?.timestamp && Date.now() - cached.timestamp < cacheMaxAgeMs) {
-          shouldFetch = false;
-        }
+  const resolvedManagers = useMemo(() => {
+    if (availableManagers) return availableManagers;
+    const members = membersQuery.data || [];
+    const userLookup = new Map(
+      (usersQuery.data || []).map((user) => {
+        const name =
+          user.fullName ||
+          [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+          user.email ||
+          user.id;
+        return [user.id, { name, email: user.email || '' }];
+      })
+    );
+    const normalizeRole = (role: string | number) => {
+      if (typeof role === 'number') {
+        if (role === 2) return 'MANAGER';
+        if (role === 3) return 'WORKER';
+        return 'UNKNOWN';
       }
-    } catch {
-      // Ignore cache parse errors.
-    }
-
-    if (!shouldFetch) {
-      return () => {
-        isActive = false;
-      };
-    }
-
-    const loadMembers = async () => {
-      try {
-        const members = await fetchWarehouseMembers(warehouseId);
-        if (!isActive) return;
-
-        const userIds = new Set<string>();
-        members.forEach((member) => userIds.add(member.userId));
-
-        const users = await Promise.all(
-          Array.from(userIds).map(async (userId) => ({
-            userId,
-            user: await fetchUserById(userId),
-          }))
-        );
-        if (!isActive) return;
-
-        const userLookup = new Map(
-          users.map(({ userId, user }) => {
-            const name =
-              user?.fullName ||
-              [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
-              user?.email ||
-              userId;
-            return [userId, { name, email: user?.email || '' }];
-          })
-        );
-
-        const normalizeRole = (role: string | number) => {
-          if (typeof role === 'number') {
-            if (role === 2) return 'MANAGER';
-            if (role === 3) return 'WORKER';
-            return 'UNKNOWN';
-          }
-          return role.toUpperCase();
+      return role.toUpperCase();
+    };
+    return members
+      .filter((member) => normalizeRole(member.role) === 'MANAGER')
+      .map((member) => {
+        const userInfo = userLookup.get(member.userId);
+        return {
+          id: member.userId,
+          name: userInfo?.name || member.userId,
+          email: userInfo?.email || '',
+          role: 'manager' as AssignedUserRole,
+          warehouseIds: warehouseId ? [warehouseId] : [],
+          isActive: true,
         };
-
-        const managers = members
-          .filter((member) => normalizeRole(member.role) === 'MANAGER')
-          .map((member) => {
-            const userInfo = userLookup.get(member.userId);
-            return {
-              id: member.userId,
-              name: userInfo?.name || member.userId,
-              email: userInfo?.email || '',
-              role: 'manager' as AssignedUserRole,
-              warehouseIds: [warehouseId],
-              isActive: true,
-            };
-          });
-
-        const workers = members
-          .filter((member) => normalizeRole(member.role) === 'WORKER')
-          .map((member) => {
-            const userInfo = userLookup.get(member.userId);
-            return {
-              id: member.userId,
-              name: userInfo?.name || member.userId,
-              email: userInfo?.email || '',
-              role: 'worker' as AssignedUserRole,
-              warehouseIds: [warehouseId],
-              isActive: true,
-            };
-          });
-
-        setFetchedManagers(managers);
-        setFetchedWorkers(workers);
-        try {
-          sessionStorage.setItem(
-            cacheKey,
-            JSON.stringify({ timestamp: Date.now(), managers, workers })
-          );
-        } catch {
-          // Ignore cache write failures.
-        }
-      } catch (error) {
-        if (!isActive) return;
-        console.error('Failed to load warehouse members:', error);
-        setFetchedManagers([]);
-        setFetchedWorkers([]);
+      });
+  }, [availableManagers, membersQuery.data, usersQuery.data, warehouseId]);
+  const resolvedWorkers = useMemo(() => {
+    if (availableWorkers) return availableWorkers;
+    const members = membersQuery.data || [];
+    const userLookup = new Map(
+      (usersQuery.data || []).map((user) => {
+        const name =
+          user.fullName ||
+          [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+          user.email ||
+          user.id;
+        return [user.id, { name, email: user.email || '' }];
+      })
+    );
+    const normalizeRole = (role: string | number) => {
+      if (typeof role === 'number') {
+        if (role === 2) return 'MANAGER';
+        if (role === 3) return 'WORKER';
+        return 'UNKNOWN';
       }
+      return role.toUpperCase();
     };
-
-    loadMembers();
-
-    return () => {
-      isActive = false;
-    };
-  }, [availableManagers, availableWorkers, warehouseId]);
-
-  const resolvedManagers = useMemo(() => (
-    availableManagers ?? fetchedManagers
-  ), [availableManagers, fetchedManagers]);
-  const resolvedWorkers = useMemo(() => (
-    availableWorkers ?? fetchedWorkers
-  ), [availableWorkers, fetchedWorkers]);
+    return members
+      .filter((member) => normalizeRole(member.role) === 'WORKER')
+      .map((member) => {
+        const userInfo = userLookup.get(member.userId);
+        return {
+          id: member.userId,
+          name: userInfo?.name || member.userId,
+          email: userInfo?.email || '',
+          role: 'worker' as AssignedUserRole,
+          warehouseIds: warehouseId ? [warehouseId] : [],
+          isActive: true,
+        };
+      });
+  }, [availableWorkers, membersQuery.data, usersQuery.data, warehouseId]);
 
   const filteredManagers = resolvedManagers.filter(
     m => !assignedManagers.some(am => am.userId === m.id)

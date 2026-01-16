@@ -4,16 +4,17 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  fetchDeliveryById,
-  fetchDeliveryIssueById,
-  fetchFactoryById,
-  fetchShippingCarriers,
-  fetchWarehouses,
   mapDeliveryToShipment,
   mapIssueFromDelivery,
-  updateDeliveryIssue,
-} from '../../api/warehouseDeliveriesApi';
-import { fetchUserById } from '@/components/lib/api/search';
+} from '../api';
+import {
+  useFactoryById,
+  useUpdateDeliveryIssue,
+  useUserById,
+  useWarehouseDelivery,
+  useWarehouseDeliveryIssue,
+  useWarehouseLookups,
+} from '../../api/useWarehouseDeliveriesApi';
 import {
   DeliveryIssue,
   DeliveryIssueActivity,
@@ -31,9 +32,22 @@ interface DeliveryIssueDetailContentProps {
 
 export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDetailContentProps) {
   const router = useRouter();
+  const isUuid = (value?: string | null) =>
+    Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value));
+  const { warehousesQuery, carriersQuery, vendorsQuery } = useWarehouseLookups();
+  const issueQuery = useWarehouseDeliveryIssue(issueId);
+  const deliveryQuery = useWarehouseDelivery(issueQuery.data?.deliveryId ?? null);
+  const factoryQuery = useFactoryById(deliveryQuery.data?.vendorId ?? null);
+  const reporterQuery = useUserById(issueQuery.data?.createdById ?? null);
+  const communicatedByQuery = useUserById(
+    isUuid(issueQuery.data?.communicatedBy) ? issueQuery.data?.communicatedBy ?? null : null
+  );
+  const resolvedByQuery = useUserById(
+    isUuid(issueQuery.data?.resolvedBy) ? issueQuery.data?.resolvedBy ?? null : null
+  );
+  const updateDeliveryIssueMutation = useUpdateDeliveryIssue();
   const [issue, setIssue] = useState<DeliveryIssue | null>(null);
   const [shipment, setShipment] = useState<IncomingShipment | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [reportedByName, setReportedByName] = useState('');
   const [communicatedByName, setCommunicatedByName] = useState('');
   const [resolvedByName, setResolvedByName] = useState('');
@@ -47,97 +61,78 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
   const [newNote, setNewNote] = useState('');
   const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const isLoading =
+    issueQuery.isLoading ||
+    deliveryQuery.isLoading ||
+    warehousesQuery.isLoading ||
+    carriersQuery.isLoading;
 
   useEffect(() => {
-    let isActive = true;
+    if (!issueQuery.data || !deliveryQuery.data) {
+      setIssue(null);
+      setShipment(null);
+      return;
+    }
 
-    const loadIssue = async () => {
-      setIsLoading(true);
-      try {
-        const issueData = await fetchDeliveryIssueById(issueId);
-        if (!issueData) {
-          if (isActive) {
-            setIssue(null);
-            setShipment(null);
-          }
-          return;
-        }
+    const warehousesData = warehousesQuery.data || [];
+    const carriersData = carriersQuery.data || [];
+    const vendorCandidates = vendorsQuery.data || [];
+    const factoryMap = new Map(
+      [
+        ...vendorCandidates.map((vendor) => [vendor.id, vendor] as const),
+        ...(factoryQuery.data ? [[factoryQuery.data.id, factoryQuery.data] as const] : []),
+      ]
+    );
+    const warehouseMap = new Map(warehousesData.map((warehouse) => [warehouse.id, warehouse]));
+    const carrierMap = new Map(carriersData.map((carrier) => [carrier.id, carrier]));
 
-        const delivery = await fetchDeliveryById(issueData.deliveryId);
-        if (!delivery) {
-          if (isActive) {
-            setIssue(null);
-            setShipment(null);
-          }
-          return;
-        }
+    const mappedIssue = mapIssueFromDelivery(issueQuery.data, deliveryQuery.data, warehouseMap, factoryMap);
+    const mappedShipment = mapDeliveryToShipment(deliveryQuery.data, warehouseMap, factoryMap, carrierMap);
 
-        const [warehousesData, carriersData, vendor, reporter] = await Promise.all([
-          fetchWarehouses(),
-          fetchShippingCarriers(true),
-          fetchFactoryById(delivery.vendorId),
-          issueData.createdById ? fetchUserById(issueData.createdById) : Promise.resolve(null),
-        ]);
+    setIssue(mappedIssue);
+    setShipment(mappedShipment);
+    setCommunicationNotes(mappedIssue.communicationNotes || '');
+    setResolutionNotes(mappedIssue.resolutionNotes || '');
 
-        const warehouseMap = new Map(warehousesData.map((warehouse) => [warehouse.id, warehouse]));
-        const carrierMap = new Map(carriersData.map((carrier) => [carrier.id, carrier]));
-        const factoryMap = new Map(
-          vendor ? [[vendor.id, vendor]] : []
-        );
+    const reporterName =
+      reporterQuery.data?.fullName ||
+      [reporterQuery.data?.firstName, reporterQuery.data?.lastName].filter(Boolean).join(' ').trim() ||
+      reporterQuery.data?.email ||
+      mappedIssue.reportedBy ||
+      'Unknown';
+    setReportedByName(isUuid(reporterName) ? 'Unknown' : reporterName);
 
-        const mappedIssue = mapIssueFromDelivery(issueData, delivery, warehouseMap, factoryMap);
-        const mappedShipment = mapDeliveryToShipment(delivery, warehouseMap, factoryMap, carrierMap);
+    const communicatorName =
+      communicatedByQuery.data?.fullName ||
+      [communicatedByQuery.data?.firstName, communicatedByQuery.data?.lastName].filter(Boolean).join(' ').trim() ||
+      communicatedByQuery.data?.email ||
+      mappedIssue.communicatedBy ||
+      '';
+    setCommunicatedByName(isUuid(communicatorName) ? '' : communicatorName);
+    const resolverName =
+      resolvedByQuery.data?.fullName ||
+      [resolvedByQuery.data?.firstName, resolvedByQuery.data?.lastName].filter(Boolean).join(' ').trim() ||
+      resolvedByQuery.data?.email ||
+      mappedIssue.resolvedBy ||
+      '';
+    setResolvedByName(isUuid(resolverName) ? '' : resolverName);
 
-        if (!isActive) return;
-
-        setIssue(mappedIssue);
-        setShipment(mappedShipment);
-        setCommunicationNotes(mappedIssue.communicationNotes || '');
-        setResolutionNotes(mappedIssue.resolutionNotes || '');
-        const isUuid = (value?: string | null) =>
-          Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value));
-        const reporterName =
-          reporter?.fullName ||
-          [reporter?.firstName, reporter?.lastName].filter(Boolean).join(' ').trim() ||
-          reporter?.email ||
-          mappedIssue.reportedBy ||
-          'Unknown';
-        setReportedByName(isUuid(reporterName) ? 'Unknown' : reporterName);
-        const resolveUserName = async (value?: string | null) => {
-          if (!value) return '';
-          if (!isUuid(value)) return value;
-          const user = await fetchUserById(value);
-          return (
-            user?.fullName ||
-            [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
-            user?.email ||
-            value
-          );
-        };
-        const communicatorName = await resolveUserName(mappedIssue.communicatedBy || undefined);
-        setCommunicatedByName(communicatorName);
-        const resolverName = await resolveUserName(mappedIssue.resolvedBy || undefined);
-        setResolvedByName(resolverName);
-        const initialNotes: Record<string, string> = {};
-        mappedIssue.items.forEach((item) => {
-          initialNotes[item.id] = item.notes || '';
-        });
-        setItemNotes(initialNotes);
-      } catch (error) {
-        console.error('Failed to load delivery issue', error);
-      } finally {
-        if (isActive) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    void loadIssue();
-
-    return () => {
-      isActive = false;
-    };
-  }, [issueId]);
+    const initialNotes: Record<string, string> = {};
+    mappedIssue.items.forEach((item) => {
+      initialNotes[item.id] = item.notes || '';
+    });
+    setItemNotes(initialNotes);
+  }, [
+    issueQuery.data,
+    deliveryQuery.data,
+    warehousesQuery.data,
+    carriersQuery.data,
+    vendorsQuery.data,
+    factoryQuery.data,
+    reporterQuery.data,
+    communicatedByQuery.data,
+    resolvedByQuery.data,
+  ]);
 
   if (isLoading) {
     return (
@@ -181,7 +176,7 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
       deliveryItemId: item?.id || '',
       issueType: item?.issueType || 'OTHER',
       customIssueType: item?.customIssueType || null,
-      qty: item?.quantity || 0,
+      quantity: item?.quantity || 0,
       status: overrides.status || current.status,
       description: item?.description || null,
       notes: overrides.notes ?? current.notes ?? null,
@@ -196,19 +191,16 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
     setActionMessage(null);
     const nowIso = new Date().toISOString();
     try {
-      await updateDeliveryIssue(issue.id, buildIssueInput(issue, {
-        status: 'COMMUNICATED',
-        communicatedAt: nowIso,
-        notes: communicationNotes || issue.notes || null,
-      }));
+      await updateDeliveryIssueMutation.mutateAsync({
+        id: issue.id,
+        input: buildIssueInput(issue, {
+          status: 'COMMUNICATED',
+          communicatedAt: nowIso,
+          notes: communicationNotes || issue.notes || null,
+        }),
+      });
       setIssue({
         ...issue,
-        status: 'COMMUNICATED',
-        communicatedAt: nowIso,
-        communicationNotes,
-      });
-      updateCachedIssue({
-        id: issue.id,
         status: 'COMMUNICATED',
         communicatedAt: nowIso,
         communicationNotes,
@@ -229,17 +221,15 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
     setResolutionMessage(null);
     setActionMessage(null);
     try {
-      await updateDeliveryIssue(issue.id, buildIssueInput(issue, {
-        status: 'RESOLVED',
-        notes: resolutionNotes || issue.notes || null,
-      }));
+      await updateDeliveryIssueMutation.mutateAsync({
+        id: issue.id,
+        input: buildIssueInput(issue, {
+          status: 'RESOLVED',
+          notes: resolutionNotes || issue.notes || null,
+        }),
+      });
       setIssue({
         ...issue,
-        status: 'RESOLVED',
-        resolutionNotes,
-      });
-      updateCachedIssue({
-        id: issue.id,
         status: 'RESOLVED',
         resolutionNotes,
       });
@@ -258,9 +248,11 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
     setIsUpdatingStatus(true);
     setActionMessage(null);
     try {
-      await updateDeliveryIssue(issue.id, buildIssueInput(issue, { status: 'CLOSED' }));
+      await updateDeliveryIssueMutation.mutateAsync({
+        id: issue.id,
+        input: buildIssueInput(issue, { status: 'CLOSED' }),
+      });
       setIssue({ ...issue, status: 'CLOSED' });
-      updateCachedIssue({ id: issue.id, status: 'CLOSED' });
       setActionMessage({ type: 'success', text: 'Issue closed.' });
     } catch (error) {
       console.error('Failed to close issue', error);
@@ -275,23 +267,12 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
     setIsUpdatingStatus(true);
     setActionMessage(null);
     try {
-      await updateDeliveryIssue(issue.id, buildIssueInput(issue, { status: 'OPEN', communicatedAt: null }));
+      await updateDeliveryIssueMutation.mutateAsync({
+        id: issue.id,
+        input: buildIssueInput(issue, { status: 'OPEN', communicatedAt: null }),
+      });
       setIssue({
         ...issue,
-        status: 'OPEN',
-        communicatedAt: undefined,
-        communicatedBy: undefined,
-        communicationMethod: undefined,
-        communicationNotes: undefined,
-        resolvedAt: undefined,
-        resolvedBy: undefined,
-        resolutionType: undefined,
-        resolutionNotes: undefined,
-        creditAmount: undefined,
-        replacementShipmentId: undefined,
-      });
-      updateCachedIssue({
-        id: issue.id,
         status: 'OPEN',
         communicatedAt: undefined,
         communicatedBy: undefined,
@@ -327,14 +308,23 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
     };
 
     const currentActivities = issue.activities || [];
-    const updated = updateDeliveryIssue(issue.id, {
-      activities: [...currentActivities, newActivity],
-    });
-
-    if (updated) {
-      setIssue(updated);
-      setNewNote('');
-    }
+    updateDeliveryIssueMutation
+      .mutateAsync({
+        id: issue.id,
+        input: {
+          activities: [...currentActivities, newActivity],
+        },
+      })
+      .then(() => {
+        setIssue({
+          ...issue,
+          activities: [...currentActivities, newActivity],
+        });
+        setNewNote('');
+      })
+      .catch((error) => {
+        console.error('Failed to add issue note', error);
+      });
   };
 
   const handleSaveItemNote = (itemId: string) => {
@@ -359,19 +349,29 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
     };
 
     const currentActivities = issue.activities || [];
-    const updated = updateDeliveryIssue(issue.id, {
-      items: updatedItems,
-      activities: [...currentActivities, newActivity],
-    });
-
-    if (updated) {
-      setIssue(updated);
-      setExpandedItems(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(itemId);
-        return newSet;
+    updateDeliveryIssueMutation
+      .mutateAsync({
+        id: issue.id,
+        input: {
+          items: updatedItems,
+          activities: [...currentActivities, newActivity],
+        },
+      })
+      .then(() => {
+        setIssue({
+          ...issue,
+          items: updatedItems,
+          activities: [...currentActivities, newActivity],
+        });
+        setExpandedItems(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to save item note', error);
       });
-    }
   };
 
   const toggleItemExpanded = (itemId: string) => {
@@ -1043,15 +1043,3 @@ ${issue.warehouseName}`;
     </div>
   );
 }
-  const updateCachedIssue = (patch: Partial<DeliveryIssue> & { id: string }) => {
-    try {
-      const raw = sessionStorage.getItem('warehouseDeliveryIssuesCache');
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as { warehouseId?: string; issues?: DeliveryIssue[] };
-      if (!Array.isArray(parsed.issues)) return;
-      const issues = parsed.issues.map((item) => (item.id === patch.id ? { ...item, ...patch } : item));
-      sessionStorage.setItem('warehouseDeliveryIssuesCache', JSON.stringify({ ...parsed, issues }));
-    } catch {
-      // Ignore cache update failures.
-    }
-  };

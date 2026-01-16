@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { calculateNextDate, formatDateOnly, getRecurrenceDescription, parseDateInput } from '../../utils/recurrence';
+import { calculateNextDate, formatDateOnly, getRecurrenceDescription, parseDateInput } from '../utils/recurrence';
 import {
   RecurringShipment,
   RecurringShipmentStatus,
