@@ -37,13 +37,6 @@ export function CommissionsTableHeader({
   // Column filter state - use parent if provided, otherwise local state
   const [localColumnFilters, setLocalColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
   const columnFilters = parentColumnFilters !== undefined ? parentColumnFilters : localColumnFilters;
-  const setColumnFilters = parentColumnFilters !== undefined 
-    ? (filters: Record<string, ActiveFilter[]>) => {
-        if (onColumnFiltersChange) {
-          onColumnFiltersChange(filters);
-        }
-      }
-    : setLocalColumnFilters;
   
   // Map from UI column keys to filter option IDs
   const columnKeyToFilterId: Record<string, string> = {
@@ -59,24 +52,26 @@ export function CommissionsTableHeader({
   
   // Handle column filter change - now receives ActiveFilter[]
   const handleColumnFilterChange = useCallback((columnKey: string, filters: ActiveFilter[]) => {
-    setColumnFilters((currentFilters) => {
-      const newFilters = { ...currentFilters };
-      
-      // Remove filter if empty array
-      if (filters.length === 0) {
-        delete newFilters[columnKey];
-      } else {
-        newFilters[columnKey] = filters;
-      }
-      
-      // Call the parent callback if provided
-      if (onColumnFiltersChange) {
-        onColumnFiltersChange(newFilters);
-      }
-      
-      return newFilters;
-    });
-  }, [onColumnFiltersChange, setColumnFilters]);
+    // Calculate new filters
+    const newFilters = { ...columnFilters };
+    
+    // Remove filter if empty array
+    if (filters.length === 0) {
+      delete newFilters[columnKey];
+    } else {
+      newFilters[columnKey] = filters;
+    }
+    
+    // Update local state if using local state
+    if (parentColumnFilters === undefined) {
+      setLocalColumnFilters(newFilters);
+    }
+    
+    // Call the parent callback if provided
+    if (onColumnFiltersChange) {
+      onColumnFiltersChange(newFilters);
+    }
+  }, [columnFilters, parentColumnFilters, onColumnFiltersChange]);
 
   // Render column filter component
   const renderColumnFilter = (columnKey: string) => {
