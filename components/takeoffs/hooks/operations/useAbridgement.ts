@@ -117,13 +117,6 @@ export function useAbridgement({
       return;
     }
 
-    // Check BEFORE processing if this is the last doc that needs abridging
-    // Use ref to ensure we have latest documents state
-    const otherDocsNeedingAbridge = currentDocs.filter(d =>
-      d.id !== docId && d.documentUrl && !d.abridged
-    );
-    const willBeLastDoc = otherDocsNeedingAbridge.length === 0;
-
     // Set per-document state (clears any previous error)
     setDocumentAbridgeState(prev => ({
       ...prev,
@@ -195,11 +188,9 @@ export function useAbridgement({
         d.id === docId ? { ...d, abridged: true } : d
       );
 
-      // Update takeoff status if this was the last document needing abridging
-      // The 'Complete' check is handled inside updateTakeoffStatus
-      if (willBeLastDoc) {
-        await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
-      }
+      // Update takeoff status to Abridgment when document is successfully processed
+      // This ensures status reflects actual work done (shown in UI as abridgement results)
+      await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
     } else {
       // Set error for Retry button
       const errorMsg = result?.error || lastError || 'Abridgement failed after retries';
@@ -224,7 +215,6 @@ export function useAbridgement({
 
     if (docsToAbridge.length === 0) return;
 
-    await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
     setAbridgementState({ isProcessing: true, progress: 0 });
 
     // Initialize per-document progress
@@ -287,6 +277,10 @@ export function useAbridgement({
             ...prev,
             [doc.id]: { ...prev[doc.id], progress: 100, status: 'complete' },
           }));
+
+          // Update takeoff status to Abridgment when document is successfully processed
+          // This ensures status reflects actual work done (shown in UI as abridgement results)
+          await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
         } else {
           const errorMsg = result.error || 'Abridgement failed';
           addDocumentLog(doc.id, `❌ Error: ${errorMsg}`);
