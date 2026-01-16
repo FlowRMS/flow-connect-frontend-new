@@ -16,7 +16,6 @@ interface CommissionRowProps {
   linkedReason: string;
   onToggleSelection: () => void;
   onPreview: () => void;
-  gridColumns: string;
 }
 
 export function CommissionRow({
@@ -26,7 +25,6 @@ export function CommissionRow({
   linkedReason,
   onToggleSelection,
   onPreview,
-  gridColumns,
 }: CommissionRowProps) {
   const router = useRouter();
 
@@ -35,21 +33,20 @@ export function CommissionRow({
   };
 
   return (
-    <div
+    <tr
       onClick={handleRowClick}
-      className={`grid gap-4 px-6 py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer min-w-[1200px] ${
-        isSelected ? 'bg-[var(--primary)]/5' : ''
+      className={`hover:bg-gray-50 transition-colors cursor-pointer ${
+        isSelected ? 'bg-indigo-50' : ''
       }`}
-      style={{ gridTemplateColumns: gridColumns }}
     >
       {/* Preview button */}
-      <div className="flex items-center justify-center">
+      <td className="px-3 py-3 text-center">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onPreview();
           }}
-          className="p-1.5 hover:bg-[var(--muted)] rounded transition-colors"
+          className="p-1 hover:bg-gray-100 rounded transition-colors"
           title="Quick preview"
         >
           <svg
@@ -59,24 +56,22 @@ export function CommissionRow({
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
+            className="text-gray-400"
           >
             <circle cx="11" cy="11" r="8" />
             <path d="M21 21l-4.35-4.35" />
           </svg>
         </button>
-      </div>
+      </td>
 
       {/* Checkbox */}
-      <div
-        className="w-8 flex items-center relative group"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <td className="px-3 py-3 relative group" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
           checked={isSelected}
           disabled={isLinked}
           onChange={onToggleSelection}
-          className={`rounded border-[var(--border)] ${
+          className={`w-4 h-4 rounded border-gray-300 accent-indigo-600 ${
             isLinked ? 'opacity-40 cursor-not-allowed' : ''
           }`}
         />
@@ -86,17 +81,17 @@ export function CommissionRow({
             <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
           </div>
         )}
-      </div>
+      </td>
 
       {/* Check Number */}
-      <div className="flex items-center">
-        <span className="font-medium text-[var(--foreground)]">
+      <td className="px-3 py-3">
+        <span className="text-sm font-medium text-indigo-600 hover:underline">
           {check.checkNumber}
         </span>
-      </div>
+      </td>
 
       {/* Posted Status */}
-      <div className="flex items-center">
+      <td className="px-3 py-3">
         {(() => {
           const status = check.status?.toUpperCase();
           const isOpen = status === 'OPEN';
@@ -130,69 +125,71 @@ export function CommissionRow({
             </span>
           );
         })()}
-      </div>
+      </td>
 
       {/* Commission */}
-      <div className="flex items-center">
-        <span className="text-sm text-[var(--foreground)]">
+      <td className="px-3 py-3">
+        <span className="text-sm font-medium text-gray-900">
           {formatCurrency(check.netAmount)}
         </span>
-      </div>
+      </td>
 
       {/* Commission Month */}
-      <div className="flex items-center">
-        <span className="text-sm text-[var(--muted-foreground)]">
+      <td className="px-3 py-3">
+        <span className="text-xs text-gray-500">
           {formatMonth(check.commissionMonth)}
         </span>
-      </div>
+      </td>
 
       {/* Factory */}
-      <div className="flex items-center">
-        {check.manufacturerName && (
+      <td className="px-3 py-3">
+        {check.manufacturerName ? (
           <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-[var(--muted)] flex items-center justify-center text-xs font-medium text-[var(--muted-foreground)]">
+            <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-600">
               {check.manufacturerName.charAt(0)}
             </span>
-            <span className="text-sm text-[var(--foreground)]">
+            <span className="text-sm text-gray-900 truncate block" title={check.manufacturerName}>
               {check.manufacturerName}
             </span>
           </div>
+        ) : (
+          <span className="text-sm text-gray-500">-</span>
         )}
-      </div>
+      </td>
 
       {/* Post Date */}
-      <div className="flex items-center">
-        <span className="text-sm text-[var(--muted-foreground)]">
-          {check.postDate ? formatDate(check.postDate) : ''}
+      <td className="px-3 py-3">
+        <span className="text-xs text-gray-500">
+          {check.postDate ? formatDate(check.postDate) : '-'}
         </span>
-      </div>
+      </td>
 
       {/* Check Date */}
-      <div className="flex items-center">
-        <span className="text-sm text-[var(--muted-foreground)]">
-          {check.checkDate ? formatDate(check.checkDate) : ''}
+      <td className="px-3 py-3">
+        <span className="text-xs text-gray-500">
+          {check.checkDate ? formatDate(check.checkDate) : '-'}
         </span>
-      </div>
+      </td>
 
       {/* Entry Date */}
-      <div className="flex items-center">
-        <span className="text-sm text-[var(--muted-foreground)]">
+      <td className="px-3 py-3">
+        <span className="text-xs text-gray-500">
           {formatDate(check.entryDate)}
         </span>
-      </div>
+      </td>
 
       {/* Created By */}
-      <div className="flex items-center">
+      <td className="px-3 py-3">
         <AvatarInline name={(check as any).createdBy} size="sm" />
-      </div>
+      </td>
 
       {/* Check Balance */}
-      <div className="flex items-center justify-end">
-        <span className="text-sm text-[var(--foreground)]">
+      <td className="px-3 py-3 text-right">
+        <span className="text-sm font-medium text-gray-900">
           {formatCurrency(check.checkBalance)}
         </span>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 

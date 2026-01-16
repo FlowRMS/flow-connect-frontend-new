@@ -1,5 +1,7 @@
 export type FilterOperator = 'EQ' | 'NE' | 'ILIKE' | 'LIKE' | 'BEGINS_WITH' | 'ENDS_WITH' | 'IS_NULL' | 'IS_NOT_NULL' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'IN';
 
+export type NumberFormat = 'currency' | 'percentage' | 'number';
+
 export type ActiveFilter = {
   columnName: string;
   operator: FilterOperator;
@@ -15,10 +17,11 @@ export type ActiveSort = {
 export type FilterOption = {
   id: string;
   label: string;
-  type: 'dropdown' | 'date' | 'text' | 'number';
+  type: 'dropdown' | 'date' | 'text' | 'number' | 'boolean' | 'month';
   columnName?: string; // API column name for filtering
   available?: boolean; // Whether this filter is available in the API
   options?: string[]; // Available options for dropdown filters
+  numberFormat?: NumberFormat; // Format for number filters: 'currency' | 'percentage' | 'number' (default)
 };
 
 export type AdvancedFiltersProps = {
