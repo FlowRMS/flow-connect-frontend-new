@@ -544,6 +544,7 @@ export function AddLinkModal({
     JOB: 'Job',
     CONTACT: 'Contact',
     COMPANY: 'Company',
+    CUSTOMER: 'Customer',
     PRE_OPPORTUNITY: 'Pre-Opportunity',
     QUOTE: 'Quote',
     ORDER: 'Order',

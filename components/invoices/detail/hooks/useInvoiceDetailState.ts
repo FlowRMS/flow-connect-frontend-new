@@ -66,7 +66,19 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
   const order = apiInvoice.order as any;
 
   // Transform details to extended line items for editing
-  const extendedLineItems: InvoiceLineItem[] = (apiInvoice.details || []).map((detail, index) => ({
+  const extendedLineItems: InvoiceLineItem[] = (apiInvoice.details || []).map((detail, index) => {
+    // Parse base values first
+    const quantity = parseFloat(detail.quantity || '0');
+    const unitPrice = parseFloat(detail.unitPrice || '0');
+    const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
+    const commissionRate = parseFloat(detail.commissionRate || '0');
+
+    // Always calculate derived values from base fields (like quotes does)
+    // Don't rely on API total/commission as they may not be populated
+    const sellTotal = quantity * unitPrice / divisor;
+    const commissionAmount = sellTotal * (commissionRate / 100);
+
+    return {
     id: detail.id,
     orderLineItemId: detail.orderDetailId || '',
     lineNumber: detail.itemNumber || index + 1,
@@ -74,17 +86,17 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     partNumber: detail.product?.factoryPartNumber || detail.productNameAdhoc || '',
     custPartNumber: '',
     description: detail.product?.description || detail.productDescriptionAdhoc || '',
-    quantity: parseFloat(detail.quantity || '0'),
-    unitPrice: parseFloat(detail.unitPrice || '0'),
+    quantity,
+    unitPrice,
     uom: detail.uom?.title || null,
     uomId: detail.uom?.id || detail.uomId || null,
-    divisor: detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1'),
-    total: detail.total || 0,
-    amount: detail.total || 0,
-    commissionPercent: parseFloat(detail.commissionRate || '0'),
-    commissionRate: parseFloat(detail.commissionRate || '0'),
-    commission: detail.commission || 0,
-    commissionAmount: detail.commission || 0,
+    divisor,
+    total: sellTotal,
+    amount: sellTotal,
+    commissionPercent: commissionRate,
+    commissionRate: commissionRate,
+    commission: commissionAmount,
+    commissionAmount: commissionAmount,
     discountPercent: parseFloat(detail.discountRate || '0'),
     discount: detail.discount || 0,
     commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
@@ -108,7 +120,8 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
       splitRate: parseFloat(s.splitRate || '0'),
       position: s.position || 0,
     })),
-  }));
+  };
+  });
 
   // Get per-line-item flags from order
   const endUserPerLineItem = order?.endUserPerLineItem || false;
@@ -218,9 +231,12 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
   const quantity = parseFloat(detail.quantity || '0');
   const unitPrice = parseFloat(detail.unitPrice || '0');
   const divisor = parseFloat(detail.divisionFactor || '1');
-  const total = detail.total || (quantity * unitPrice / divisor);
   const commissionRate = parseFloat(detail.commissionRate || '0');
-  const commissionAmount = detail.commission || 0;
+
+  // Always calculate derived values from base fields (like quotes does)
+  // Don't rely on API total/commission as they may not be populated
+  const total = quantity * unitPrice / divisor;
+  const commissionAmount = total * (commissionRate / 100);
 
   return {
     id: detail.id,

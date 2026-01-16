@@ -73,6 +73,7 @@ export const getLinkedChecksForInvoice = (
 /**
  * Calculate totals for an invoice
  * Accepts EditableInvoice (local type) or Invoice (RMS type)
+ * Always calculates from line items to ensure accuracy (like quotes does)
  */
 export const calculateInvoiceTotals = (invoice: EditableInvoice | Invoice): {
   subtotal: number;
@@ -84,11 +85,29 @@ export const calculateInvoiceTotals = (invoice: EditableInvoice | Invoice): {
   totalOvg: number;
   totalEarn: number;
 } => {
+  // Always calculate subtotal from line items (sum of sellTotal/amount)
+  const subtotal = invoice.lineItems.reduce((sum, item) => {
+    const lineItem = item as InvoiceLineItem;
+    const quantity = lineItem.quantity || 0;
+    const unitPrice = lineItem.unitPrice || 0;
+    const divisor = lineItem.divisor || 1;
+    const sellTotal = quantity * unitPrice / divisor;
+    return sum + sellTotal;
+  }, 0);
+
+  // Always calculate commission from line items
+  const totalCommission = invoice.lineItems.reduce((sum, item) => {
+    const lineItem = item as InvoiceLineItem;
+    const quantity = lineItem.quantity || 0;
+    const unitPrice = lineItem.unitPrice || 0;
+    const divisor = lineItem.divisor || 1;
+    const commissionRate = lineItem.commissionRate ?? 0;
+    const sellTotal = quantity * unitPrice / divisor;
+    const commission = sellTotal * (commissionRate / 100);
+    return sum + commission;
+  }, 0);
+
   // Calculate overage totals from line items
-  const totalCommission = invoice.lineItems.reduce(
-    (sum, item) => sum + ((item as InvoiceLineItem).amount || 0) * ((item as InvoiceLineItem).commissionRate ?? 0.08),
-    0
-  );
   const totalOvg = invoice.lineItems.reduce(
     (sum, item) => sum + (item.unitPrice * 0.15 * item.quantity * 0.85),
     0
@@ -96,12 +115,12 @@ export const calculateInvoiceTotals = (invoice: EditableInvoice | Invoice): {
   const totalEarn = totalCommission + totalOvg;
 
   return {
-    subtotal: invoice.subtotal,
-    freight: invoice.freight,
-    total: invoice.total,
-    commission: invoice.totalCommission,
-    amountPaid: invoice.amountPaid,
-    balance: invoice.balance,
+    subtotal,
+    freight: 0,
+    total: subtotal,
+    commission: totalCommission,
+    amountPaid: 0,
+    balance: 0,
     totalOvg,
     totalEarn,
   };
