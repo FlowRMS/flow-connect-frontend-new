@@ -51,7 +51,8 @@ export interface Contact {
   tags: string[];
   lists: string[]; // Deprecated: kept for UI compatibility, always empty
   territory: string;
-  lastActivity: string;
+  lastActivity: string; // Deprecated: use createdAt instead
+  createdAt: string;
   firstName: string;
   lastName: string;
   createdBy: string;
@@ -124,7 +125,8 @@ export function mapLandingPageToUIContact(landingPage: ContactLandingPage): Cont
     tags: parseTags(landingPage.tags), // Parse tags from landing page
     lists: [], // Deprecated: no longer exists in backend, kept for UI compatibility
     territory: '',
-    lastActivity: landingPage.createdAt || new Date().toISOString(),
+    lastActivity: landingPage.createdAt || new Date().toISOString(), // Deprecated
+    createdAt: landingPage.createdAt || new Date().toISOString(),
     createdBy: landingPage.createdBy || '',
   };
 }
@@ -151,7 +153,8 @@ export function mapAPIContactToUIContact(apiContact: APIContact): Contact {
     tags,
     lists: [], // Deprecated: no longer exists in backend, kept for UI compatibility
     territory: apiContact.territory || '',
-    lastActivity: apiContact.createdAt || new Date().toISOString(),
+    lastActivity: apiContact.createdAt || new Date().toISOString(), // Deprecated
+    createdAt: apiContact.createdAt || new Date().toISOString(),
     createdBy: apiContact.createdBy || '',
     notes: apiContact.notes || '',
     addresses: [],

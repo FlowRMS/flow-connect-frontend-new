@@ -404,6 +404,9 @@ export default function ContactsContent() {
             fetchNextPage={state.fetchNextPage}
             isLoading={state.isLoading}
             hasFilters={state.activeFilters.length > 0}
+            onColumnFiltersChange={state.handleColumnFiltersChange}
+            filterOptions={contactFilterOptions}
+            columnFilters={state.columnFilters}
           />
         ) : (
           <GridView contacts={state.filteredContacts} onContactClick={state.setSelectedContact} />
