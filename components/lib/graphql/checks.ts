@@ -604,10 +604,23 @@ export async function fetchChecksByFactory(factoryId: string): Promise<CheckSear
 /**
  * Fetch all checks using findLandingPages
  */
+export interface CheckLandingPageOrderBy {
+  columnName: string;
+  direction: 'ASC' | 'DESC';
+}
+
+export interface CheckLandingPageFilter {
+  columnName: string;
+  operator: string;
+  value?: string;
+  values?: string[];
+}
+
 export async function fetchChecksLandingPage(
-  filters?: Array<{ columnName: string; operator: string; value: string }>,
+  filters?: CheckLandingPageFilter[],
   limit: number = 100,
-  offset: number = 0
+  offset: number = 0,
+  orderBy?: CheckLandingPageOrderBy[]
 ): Promise<{ total: number; records: CheckLandingPage[] }> {
   try {
     const response = await crmGraphQLRequest<{ findLandingPages: FindChecksLandingPagesResponse }>({
@@ -616,7 +629,7 @@ export async function fetchChecksLandingPage(
         filters: filters || [],
         limit,
         offset,
-        orderBy: [
+        orderBy: orderBy || [
           {
             columnName: 'createdAt',
             direction: 'DESC',

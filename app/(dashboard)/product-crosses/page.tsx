@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import ProductCrossesContent from '@/components/ProductCrossesContent';
+import { ProductCrossesContent } from '@/components/product-crosses/ProductCrossesContent';
 
 export default function ProductCrossesPage() {
   return (
