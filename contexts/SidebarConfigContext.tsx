@@ -76,10 +76,9 @@ const defaultConfig: SidebarConfig = {
       label: 'Quotes',
       collapsed: false,
       items: [
-        // { id: 'take-offs', name: 'Take-Offs', href: '/take-offs', enabled: true },
-        // { id: 'product-crosses', name: 'Product Crosses', href: '/product-crosses', enabled: true },
+        { id: 'take-offs', name: 'Take-Offs', href: '/take-offs', enabled: true },
+        { id: 'product-crosses', name: 'Product Crosses', href: '/product-crosses', enabled: true },
         { id: 'quotes', name: 'Quotes', href: '/quotes-v2', enabled: true },
-        // { id: 'quotes-v2', name: 'Quotes V2', href: '/quotes-v2', enabled: true },
       ]
     },
     {
