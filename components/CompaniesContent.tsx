@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react';
+import { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
 import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
@@ -20,8 +20,7 @@ import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCom
 
 import { companyToasts } from './lib/toast';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
-import type { CompanySourceType, RelatedEntityContact, RelatedEntityJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
-import { COMPANY_SOURCE_TYPE_LABELS, COMPANY_SOURCE_TYPE_OPTIONS } from './lib/crm-graphql';
+import type { RelatedEntityContact, RelatedEntityJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
 
 // Modular imports
 import { useCompaniesState } from './companies/hooks/useCompaniesState';
@@ -32,13 +31,17 @@ import GridView from './companies/views/GridView';
 import ListView from './companies/views/ListView';
 import { ManageCompanyTypesModal } from './companies/modals/ManageCompanyTypesModal';
 
-// Company Type Filter Dropdown Component
+// Company Type Filter Dropdown Component - uses dynamic company types from API
 function CompanyTypeFilterDropdown({
   value,
   onChange,
+  companyTypes,
+  isLoading,
 }: {
   value: string;
   onChange: (value: string) => void;
+  companyTypes: CompanyType[];
+  isLoading?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,14 +51,22 @@ function CompanyTypeFilterDropdown({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // All options including "All" at the top (exclude MANUFACTURER - managed separately in /manufacturers)
-  const allOptions = ['All', ...COMPANY_SOURCE_TYPE_OPTIONS.filter(type => type !== 'MANUFACTURER')];
+  // Build options: "All" at top, then active company types sorted by displayOrder
+  const sortedTypes = useMemo(() => {
+    return [...companyTypes]
+      .filter(t => t.isActive)
+      .sort((a, b) => a.displayOrder - b.displayOrder);
+  }, [companyTypes]);
 
   // Filter options based on search term
-  const filteredOptions = allOptions.filter(option => {
-    const label = option === 'All' ? 'All' : COMPANY_SOURCE_TYPE_LABELS[option as CompanySourceType];
-    return label.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const filteredTypes = useMemo(() => {
+    if (!searchTerm) return sortedTypes;
+    const term = searchTerm.toLowerCase();
+    return sortedTypes.filter(t => t.name.toLowerCase().includes(term));
+  }, [sortedTypes, searchTerm]);
+
+  // Check if "All" matches search
+  const showAllOption = !searchTerm || 'all types'.includes(searchTerm.toLowerCase());
 
   useEffect(() => {
     setPortalTarget(document.body);
@@ -100,7 +111,12 @@ function CompanyTypeFilterDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedLabel = value === 'All' ? 'All Types' : COMPANY_SOURCE_TYPE_LABELS[value as CompanySourceType] || 'All Types';
+  // Find the selected type name for display
+  const selectedLabel = useMemo(() => {
+    if (value === 'All') return 'All Types';
+    const selectedType = companyTypes.find(t => t.name === value);
+    return selectedType?.name || 'All Types';
+  }, [value, companyTypes]);
 
   const dropdownContent = isOpen && portalTarget && createPortal(
     <div
@@ -121,38 +137,67 @@ function CompanyTypeFilterDropdown({
       </div>
       {/* Options list */}
       <div className="max-h-60 overflow-y-auto py-1">
-        {filteredOptions.length === 0 ? (
+        {isLoading ? (
+          <div className="px-4 py-3 text-sm text-gray-500 text-center">Loading types...</div>
+        ) : !showAllOption && filteredTypes.length === 0 ? (
           <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching types found</div>
         ) : (
-          filteredOptions.map((option) => {
-            const label = option === 'All' ? 'All Types' : COMPANY_SOURCE_TYPE_LABELS[option as CompanySourceType];
-            const isSelected = value === option;
-            return (
+          <>
+            {/* All Types option */}
+            {showAllOption && (
               <button
-                key={option}
                 type="button"
                 onClick={() => {
-                  onChange(option);
+                  onChange('All');
                   setIsOpen(false);
                 }}
                 className={`
                   w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
                   transition-colors hover:bg-gray-50
-                  ${isSelected ? 'bg-blue-50' : ''}
+                  ${value === 'All' ? 'bg-blue-50' : ''}
                 `}
               >
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${option === 'All' ? 'bg-gray-400' : 'bg-green-500'}`} />
-                <span className={`flex-1 ${isSelected ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-                  {label}
+                <span className="w-2 h-2 rounded-full flex-shrink-0 bg-gray-400" />
+                <span className={`flex-1 ${value === 'All' ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                  All Types
                 </span>
-                {isSelected && (
+                {value === 'All' && (
                   <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                   </svg>
                 )}
               </button>
-            );
-          })
+            )}
+            {/* Dynamic company types */}
+            {filteredTypes.map((companyType) => {
+              const isSelected = value === companyType.name;
+              return (
+                <button
+                  key={companyType.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(companyType.name);
+                    setIsOpen(false);
+                  }}
+                  className={`
+                    w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
+                    transition-colors hover:bg-gray-50
+                    ${isSelected ? 'bg-blue-50' : ''}
+                  `}
+                >
+                  <span className="w-2 h-2 rounded-full flex-shrink-0 bg-green-500" />
+                  <span className={`flex-1 ${isSelected ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                    {companyType.name}
+                  </span>
+                  {isSelected && (
+                    <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </>
         )}
       </div>
     </div>,
@@ -709,10 +754,12 @@ export default function CompaniesContent() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
           >
-            {/* Type Filter Dropdown */}
+            {/* Type Filter Dropdown - uses dynamic company types */}
             <CompanyTypeFilterDropdown
               value={selectedTypeFilter}
               onChange={handleTypeFilterChange}
+              companyTypes={companyTypes}
+              isLoading={!companyTypesData}
             />
 
             {/* View Mode Toggle */}
