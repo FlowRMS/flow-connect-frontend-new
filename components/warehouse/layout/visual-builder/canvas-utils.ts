@@ -15,7 +15,10 @@ export function feetToPixels(feet: number): number {
 /**
  * Convert pixels to feet
  */
-export function pixelsToFeet(pixels: number): number {
+export function pixelsToFeet(pixels: number | undefined | null): number {
+  if (pixels === undefined || pixels === null || isNaN(pixels)) {
+    return 0;
+  }
   return Math.round(pixels / PIXELS_PER_FOOT);
 }
 

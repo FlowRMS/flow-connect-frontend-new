@@ -461,6 +461,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           endUserPerLineItem: state.showEndUserPerLine,
           insidePerLineItem: state.showInsideRepPerLine,
           outsidePerLineItem: state.showOutsideRepPerLine,
+          // Job reference
+          jobId: (order as any).jobId || undefined,
         };
 
         console.log('Creating order with input:', createInput);
@@ -495,6 +497,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             endUserPerLineItem: state.showEndUserPerLine,
             insidePerLineItem: state.showInsideRepPerLine,
             outsidePerLineItem: state.showOutsideRepPerLine,
+            // Job reference
+            jobId: (order as any).jobId || undefined,
           };
 
           await state.updateOrderMutation.mutateAsync(updateInput);

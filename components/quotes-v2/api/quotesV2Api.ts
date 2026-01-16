@@ -155,6 +155,8 @@ export function useQuotesV2Infinite(
     },
     enabled: true,
     staleTime: 30 * 1000,
+    // Keep previous data while fetching new data to prevent UI flicker
+    placeholderData: (previousData) => previousData,
   });
 }
 

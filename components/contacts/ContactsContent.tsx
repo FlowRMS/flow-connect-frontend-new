@@ -272,6 +272,14 @@ export default function ContactsContent() {
               >
                 Contacts
               </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                Showing {state.filteredContacts.length} of {state.totalCount} contacts
+              </motion.p>
             </div>
           </div>
           <motion.div
@@ -351,27 +359,24 @@ export default function ContactsContent() {
       </div>
 
       {/* Filters */}
-      <div className="mb-4 sm:mb-6 flex items-center justify-between border-b border-[var(--border)]">
-        <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-          {CONTACT_TYPES.map((type) => (
-            <button
-              key={type}
-              onClick={() => state.setSelectedType(type)}
-              className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
-                state.selectedType === type
-                  ? 'bg-[var(--primary)] text-white'
-                  : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
-              }`}
-            >
-              {type}
-              {type === 'All' && <span className="ml-1 sm:ml-2 text-xs opacity-75">({state.contacts.length})</span>}
-              {type !== 'All' && (
-                <span className="ml-1 sm:ml-2 text-xs opacity-75">
-                  ({state.contacts.filter(c => c.contactType.includes(type)).length})
-                </span>
-              )}
-            </button>
-          ))}
+      <div className="mb-4 sm:mb-6 flex items-center justify-between border-b border-[var(--border)] pb-2">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-[var(--muted-foreground)] leading-none">Quick filters:</span>
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto -mx-1 px-1 items-center">
+            {CONTACT_TYPES.map((type) => (
+              <button
+                key={type}
+                onClick={() => state.setSelectedType(type)}
+                className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
+                  state.selectedType === type
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

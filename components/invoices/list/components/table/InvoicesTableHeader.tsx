@@ -3,12 +3,13 @@
  * Table header with column labels, sorting, and filters
  */
 
+'use client';
+
+import React, { useState, useCallback } from 'react';
 import type { Invoice } from '@/lib/types/rms';
-import type { SortField, SortDirection, ColumnFilters } from '../../types';
-import { SortIcon } from './SortIcon';
-import { ColumnFilterDropdown } from './ColumnFilterDropdown';
-import { invoiceStatusLabels } from '../../constants';
-import { formatCurrency } from '../../utils';
+import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { getInvoiceFilterOptions } from '../../config/filterConfig';
 
 interface InvoicesTableHeaderProps {
   // Selection
@@ -16,23 +17,10 @@ interface InvoicesTableHeaderProps {
   areAllEligibleSelected: boolean;
   isPartiallySelected?: boolean;
   onSelectAll: (checked: boolean) => void;
-  // Sorting
-  sortField: SortField;
-  sortDirection: SortDirection;
-  onSort: (field: SortField) => void;
-  // Filters
-  columnFilters: ColumnFilters;
-  setColumnFilters: (filters: ColumnFilters | ((prev: ColumnFilters) => ColumnFilters)) => void;
-  openFilter: string | null;
-  setOpenFilter: (filterId: string | null) => void;
-  // Unique values for dropdowns
-  uniqueCustomers: string[];
-  uniqueManufacturers: string[];
-  uniqueStatuses: string[];
-  uniqueTotals: number[];
-  uniqueBalances: number[];
-  // Grid columns
-  gridColumns: string;
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  filterOptions?: ReturnType<typeof getInvoiceFilterOptions>;
+  columnFilters?: Record<string, ActiveFilter[]>;
 }
 
 export function InvoicesTableHeader({
@@ -40,261 +28,202 @@ export function InvoicesTableHeader({
   areAllEligibleSelected,
   isPartiallySelected,
   onSelectAll,
-  sortField,
-  sortDirection,
-  onSort,
-  columnFilters,
-  setColumnFilters,
-  openFilter,
-  setOpenFilter,
-  uniqueCustomers,
-  uniqueManufacturers,
-  uniqueStatuses,
-  uniqueTotals,
-  uniqueBalances,
-  gridColumns,
+  onColumnFiltersChange,
+  filterOptions = getInvoiceFilterOptions(),
+  columnFilters: parentColumnFilters,
 }: InvoicesTableHeaderProps) {
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  
+  // Column filter state - use parent if provided, otherwise local state
+  const [localColumnFilters, setLocalColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+  const columnFilters = parentColumnFilters !== undefined ? parentColumnFilters : localColumnFilters;
+  
+  // Map from UI column keys to filter option IDs
+  const columnKeyToFilterId: Record<string, string> = {
+    invoiceNumber: 'invoice-number',
+    status: 'status',
+    total: 'total',
+    commission: 'commission',
+    invoiceDate: 'invoice-date',
+    dueDate: 'due-date',
+    entryDate: 'created-date',
+    orderNumber: 'order-number',
+    published: 'published',
+    factoryName: 'factory-name',
+  };
+  
+  // Handle column filter change - now receives ActiveFilter[]
+  const handleColumnFilterChange = useCallback((columnKey: string, filters: ActiveFilter[]) => {
+    // Calculate new filters
+    const newFilters = { ...columnFilters };
+    
+    // Remove filter if empty array
+    if (filters.length === 0) {
+      delete newFilters[columnKey];
+    } else {
+      newFilters[columnKey] = filters;
+    }
+    
+    // Update local state if using local state
+    if (parentColumnFilters === undefined) {
+      setLocalColumnFilters(newFilters);
+    }
+    
+    // Call the parent callback if provided
+    if (onColumnFiltersChange) {
+      onColumnFiltersChange(newFilters);
+    }
+  }, [columnFilters, parentColumnFilters, onColumnFiltersChange]);
+
+  // Render column filter component
+  const renderColumnFilter = (columnKey: string) => {
+    const filterId = columnKeyToFilterId[columnKey];
+    if (!filterId) {
+      return null;
+    }
+    
+    const filterOption = filterOptions.find(f => f.id === filterId);
+    if (!filterOption || !filterOption.columnName) {
+      return null;
+    }
+    
+    // Ensure type is preserved correctly
+    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean';
+    
+    // Get filters for this column (ActiveFilter[])
+    const columnFiltersForThisColumn = columnFilters[columnKey] || [];
+    
+    return (
+      <ColumnFilter
+        type={filterType}
+        columnName={filterOption.columnName}
+        value={columnFiltersForThisColumn}
+        onChange={(filters) => handleColumnFilterChange(columnKey, filters)}
+        options={filterOption.options}
+        placeholder={filterOption.type === 'text' || filterOption.type === 'number' 
+          ? `Filter ${filterOption.label.toLowerCase()}...` 
+          : undefined}
+        isOpen={openFilter === columnKey}
+        onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
+        filterOption={filterOption}
+      />
+    );
+  };
   return (
-    <div
-      className="grid gap-2 px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30 sticky top-0"
-      style={{ gridTemplateColumns: gridColumns }}
-    >
-      {/* Checkbox column */}
-      <div className="flex items-center justify-center">
-        <input
-          type="checkbox"
-          checked={areAllEligibleSelected}
-          ref={(el) => {
-            if (el) el.indeterminate = isPartiallySelected ?? false;
-          }}
-          onChange={(e) => onSelectAll(e.target.checked)}
-          className="w-4 h-4 accent-[var(--primary)]"
-        />
-      </div>
-
-      {/* Preview column header - empty */}
-      <div className="flex items-center justify-center" />
-
-      {/* Invoice # */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('invoiceNumber')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Invoice #
-          <SortIcon
-            field="invoiceNumber"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
+    <thead className="bg-gray-50 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
+      <tr>
+        {/* Checkbox */}
+        <th className="w-10 px-3 py-3 text-left">
+          <input
+            type="checkbox"
+            checked={areAllEligibleSelected}
+            ref={(el) => {
+              if (el) el.indeterminate = isPartiallySelected ?? false;
+            }}
+            onChange={(e) => onSelectAll(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 accent-indigo-600"
           />
-        </button>
-        <ColumnFilterDropdown
-          type="text"
-          filterId="invoiceNumber"
-          value={columnFilters.invoiceNumber}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, invoiceNumber: value }))
-          }
-          placeholder="Search invoices..."
-          isOpen={openFilter === 'invoiceNumber'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'invoiceNumber' ? null : 'invoiceNumber')
-          }
-        />
-      </div>
+        </th>
 
-      {/* Status */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('status')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Status
-          <SortIcon
-            field="status"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="status"
-          options={uniqueStatuses.map((s) => ({
-            value: s,
-            label: invoiceStatusLabels[s as keyof typeof invoiceStatusLabels],
-          }))}
-          value={columnFilters.status}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, status: value }))
-          }
-          placeholder="All Statuses"
-          isOpen={openFilter === 'status'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'status' ? null : 'status')
-          }
-        />
-      </div>
+        {/* Preview */}
+        <th className="w-10 px-3 py-3 text-center"></th>
 
-      {/* Order # */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Order #
-        </span>
-      </div>
+        {/* Invoice # */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Invoice #</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('invoiceNumber')}
+            </div>
+          </div>
+        </th>
 
-      {/* Invoice Date */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('invoiceDate')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Invoice Date
-          <SortIcon
-            field="invoiceDate"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="daterange"
-          filterId="invoiceDate"
-          value={columnFilters.invoiceDate}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, invoiceDate: value }))
-          }
-          isOpen={openFilter === 'invoiceDate'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'invoiceDate' ? null : 'invoiceDate')
-          }
-        />
-      </div>
+        {/* Status */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Status</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('status')}
+            </div>
+          </div>
+        </th>
 
-      {/* Inv Amount */}
-      <div className="flex items-center justify-end">
-        <button
-          onClick={() => onSort('total')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Inv Amount
-          <SortIcon
-            field="total"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="total"
-          options={uniqueTotals.map((t) => ({
-            value: t.toString(),
-            label: formatCurrency(t),
-          }))}
-          value={columnFilters.total}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, total: value }))
-          }
-          placeholder="All Totals"
-          isOpen={openFilter === 'total'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'total' ? null : 'total')
-          }
-        />
-      </div>
+        {/* Order # */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Order #</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('orderNumber')}
+            </div>
+          </div>
+        </th>
 
-      {/* Comm Amount */}
-      <div className="flex items-center justify-end">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Comm Amount
-        </span>
-      </div>
+        {/* Invoice Date */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Invoice Date</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('invoiceDate')}
+            </div>
+          </div>
+        </th>
 
-      {/* Factory */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('manufacturerName')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Factory
-          <SortIcon
-            field="manufacturerName"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="manufacturerName"
-          options={uniqueManufacturers.map((m) => ({
-            value: m,
-            label: m,
-          }))}
-          value={columnFilters.manufacturerName}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, manufacturerName: value }))
-          }
-          placeholder="All Factories"
-          isOpen={openFilter === 'manufacturerName'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'manufacturerName' ? null : 'manufacturerName')
-          }
-        />
-      </div>
+        {/* Inv Amount */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+          <div className="flex items-center justify-end gap-1.5">
+            <span className="whitespace-nowrap">Inv Amount</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('total')}
+            </div>
+          </div>
+        </th>
 
-      {/* Entry Date */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Entry Date
-        </span>
-      </div>
+        {/* Comm Amount */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+          <span className="whitespace-nowrap">Comm Amount</span>
+        </th>
 
-      {/* Created By */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Created By
-        </span>
-      </div>
+        {/* Factory */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Factory</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('factoryName')}
+            </div>
+          </div>
+        </th>
 
-      {/* Due Date */}
-      <div className="flex items-center">
-        <button
-          onClick={() => onSort('dueDate')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
-          Due Date
-          <SortIcon
-            field="dueDate"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="daterange"
-          filterId="dueDate"
-          value={columnFilters.dueDate}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, dueDate: value }))
-          }
-          isOpen={openFilter === 'dueDate'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'dueDate' ? null : 'dueDate')
-          }
-        />
-      </div>
+        {/* Entry Date */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <span className="whitespace-nowrap">Entry Date</span>
+        </th>
 
-      {/* Paid */}
-      <div className="flex items-center justify-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Paid
-        </span>
-      </div>
+        {/* Created By */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
+          <span className="whitespace-nowrap">Created By</span>
+        </th>
 
-      {/* Locked */}
-      <div className="flex items-center justify-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Locked
-        </span>
-      </div>
-    </div>
+        {/* Due Date */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Due Date</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('dueDate')}
+            </div>
+          </div>
+        </th>
+
+        {/* Published */}
+        <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '80px' }}>
+          <div className="flex items-center justify-center gap-1.5">
+            <span className="whitespace-nowrap">Published</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('published')}
+            </div>
+          </div>
+        </th>
+      </tr>
+    </thead>
   );
 }
 

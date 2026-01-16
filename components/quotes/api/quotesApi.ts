@@ -4,6 +4,7 @@
  */
 
 import { crmGraphQLRequest } from '../../lib/crm-graphql';
+import { LandingSourceType } from '../../lib/graphql/types';
 
 // ============================================================================
 // Enums
@@ -37,6 +38,7 @@ export interface QuoteCustomer {
   isParent: boolean;
   parentId?: string;
   published: boolean;
+  buyingGroupId?: string;
 }
 
 export interface QuoteCreatedBy {
@@ -106,6 +108,7 @@ export interface QuoteDetail {
   discountRate?: string;
   divisionFactor?: string;
   endUserId?: string;
+  endUser?: QuoteCustomer;
   factoryId?: string;
   factory?: QuoteDetailFactory;
   itemNumber?: number;
@@ -310,9 +313,9 @@ export interface PaginatedQuotesResult {
 // ============================================================================
 
 const QUOTE_LANDING_PAGES = `
-  query QuoteLandingPages($filters: [Filter!], $limit: Int, $offset: Int, $orderBy: [OrderBy!]) {
+  query QuoteLandingPages($sourceType: LandingSourceType!, $filters: [Filter!], $limit: Int, $offset: Int, $orderBy: [OrderBy!]) {
     findLandingPages(
-      sourceType: QUOTES
+      sourceType: $sourceType
       filters: $filters
       limit: $limit
       offset: $offset
@@ -402,6 +405,14 @@ const FIND_QUOTE_BY_ID = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
         factory {
           id
@@ -560,6 +571,14 @@ const CREATE_QUOTE = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
         factory {
           id
@@ -696,6 +715,14 @@ const UPDATE_QUOTE = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
         factory {
           id
@@ -860,6 +887,14 @@ const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
         factory {
           id
@@ -1154,6 +1189,7 @@ export async function fetchQuotesWithPagination(
   }>({
     query: QUOTE_LANDING_PAGES,
     variables: {
+      sourceType: LandingSourceType.QUOTES,
       filters,
       orderBy,
       limit: pagination?.limit ?? 50,

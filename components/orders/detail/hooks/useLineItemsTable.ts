@@ -1,20 +1,56 @@
 /**
  * useLineItemsTable Hook
  * Manages line items table state: columns, views, sorting, tooltips
+ * Applies column configuration from user settings (cached in UserSettingsContext)
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { OrderLineItem, Invoice } from '@/lib/types/rms';
 import type { ColumnKey, InvoiceTooltipState } from '../types';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import { SAVED_VIEWS, getDefaultView } from '../config/viewsConfig';
+import { useOrderSettings } from '@/contexts/UserSettingsContext';
+
+/**
+ * Get visible columns from saved settings or fall back to defaults
+ * This is the key function that applies user column preferences
+ */
+function getInitialVisibleColumns(
+  savedColumnConfig: Array<{ key: string; visible: boolean }> | undefined
+): Set<ColumnKey> {
+  if (savedColumnConfig && savedColumnConfig.length > 0) {
+    // Use saved settings - only include columns marked as visible
+    const visibleKeys = savedColumnConfig
+      .filter(col => col.visible)
+      .map(col => col.key as ColumnKey);
+    return new Set(visibleKeys);
+  }
+  // Fall back to hardcoded defaults if no settings
+  return new Set(DEFAULT_VISIBLE_COLUMNS);
+}
 
 export function useLineItemsTable() {
-  // Column visibility and pinning
+  // Get saved order settings from context (already cached, no extra API calls)
+  const { settings: savedOrderSettings, isInitialized: settingsInitialized } = useOrderSettings();
+
+  // Track if we've applied settings to avoid re-applying on every render
+  const hasAppliedSettings = useRef(false);
+
+  // Column visibility and pinning - initialize with defaults, will be updated from settings
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
     new Set(DEFAULT_VISIBLE_COLUMNS)
   );
   const [pinnedColumns, setPinnedColumns] = useState<Set<ColumnKey>>(new Set());
+
+  // Apply saved column configuration when settings are loaded
+  // This runs once when settings are initialized and applies to ALL orders (new and existing)
+  useEffect(() => {
+    if (settingsInitialized && !hasAppliedSettings.current) {
+      const columnsFromSettings = getInitialVisibleColumns(savedOrderSettings?.columnConfig);
+      setVisibleColumns(columnsFromSettings);
+      hasAppliedSettings.current = true;
+    }
+  }, [settingsInitialized, savedOrderSettings?.columnConfig]);
 
   // Views
   const [showViewsMenu, setShowViewsMenu] = useState(false);

@@ -53,13 +53,13 @@ export default function CarrierServiceConfig({ carrier, onUpdate }: CarrierServi
             {carrier.serviceTypes?.map((service) => (
               <span
                 key={service}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]"
               >
                 {service}
                 <button
                   type="button"
                   onClick={() => handleRemoveService(service)}
-                  className="hover:text-blue-900 dark:hover:text-blue-200"
+                  className="hover:text-[var(--primary-hover)]"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
@@ -78,7 +78,7 @@ export default function CarrierServiceConfig({ carrier, onUpdate }: CarrierServi
             <select
               value=""
               onChange={(e) => handleAddService(e.target.value)}
-              className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
             >
               <option value="">+ Add service type...</option>
               {Object.entries(SERVICE_TYPE_OPTIONS).map(([category, services]) => (
@@ -102,7 +102,7 @@ export default function CarrierServiceConfig({ carrier, onUpdate }: CarrierServi
           <select
             value={carrier.defaultServiceType || ''}
             onChange={(e) => onUpdate({ defaultServiceType: e.target.value })}
-            className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
           >
             <option value="">Select default service</option>
             {carrier.serviceTypes?.map((service) => (

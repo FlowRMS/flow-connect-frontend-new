@@ -10,7 +10,7 @@ interface WorkerRowProps {
 
 export default function WorkerRow({ worker, role, onRoleChange, onRemove }: WorkerRowProps) {
   return (
-    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-[var(--accent)]/50 group">
+    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-[var(--muted)]/50 group">
       <div className="flex items-center gap-2">
         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
           {worker.name

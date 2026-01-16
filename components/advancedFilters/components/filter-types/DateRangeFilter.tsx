@@ -40,7 +40,7 @@ export function DateRangeFilter({
         <button
           onClick={() => onApply(option)}
           disabled={!dateRangeStart && !dateRangeEnd}
-          className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+          className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
           Apply
         </button>

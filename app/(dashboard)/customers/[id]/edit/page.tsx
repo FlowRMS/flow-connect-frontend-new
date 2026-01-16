@@ -27,12 +27,13 @@ import {
   useUpdateAddress,
   useDeleteAddress,
 } from '../../../../../components/hooks/useAddressApi';
+import { ConnectedEntitiesSection } from '../../../../../components/shared/ConnectedEntitiesSection';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-type TabId = 'overview' | 'addresses' | 'child-customers' | 'buying-group-members' | 'inside-reps' | 'outside-reps' | 'settings';
+type TabId = 'overview' | 'addresses' | 'connected-entities' | 'child-customers' | 'buying-group-members' | 'inside-reps' | 'outside-reps' | 'settings';
 
 // Generate unique temp ID
 const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -144,6 +145,7 @@ export default function CustomerEditPage() {
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
     'addresses': null,
+    'connected-entities': null,
     'child-customers': null,
     'buying-group-members': null,
     'inside-reps': null,
@@ -227,7 +229,7 @@ export default function CustomerEditPage() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'addresses', 'child-customers', 'buying-group-members', 'inside-reps', 'outside-reps', 'settings'];
+    const tabIds: TabId[] = ['overview', 'addresses', 'child-customers', 'buying-group-members', 'inside-reps', 'outside-reps', 'settings', 'connected-entities'];
 
     const handleScroll = () => {
       // Skip scroll spy updates during programmatic scrolling
@@ -501,6 +503,7 @@ export default function CustomerEditPage() {
     { id: 'inside-reps' as TabId, label: 'Inside Reps', count: insideRepEntries.length || null },
     { id: 'outside-reps' as TabId, label: 'Outside Reps', count: outsideRepEntries.length || null },
     { id: 'settings' as TabId, label: 'Settings' },
+    { id: 'connected-entities' as TabId, label: 'Connected Entities' },
   ];
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
@@ -1345,6 +1348,17 @@ export default function CustomerEditPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ============ CONNECTED ENTITIES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['connected-entities'] = el; }} id="section-connected-entities">
+          <ConnectedEntitiesSection
+            entityId={customerId}
+            sourceEntityType="CUSTOMER"
+            title="Connected Entities"
+            showAddLinkButton={true}
+            enabledCategories={['contacts', 'companies', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+          />
         </div>
 
         {/* Required Fields Note */}

@@ -57,12 +57,12 @@ export default function CanvasElement({
 
   return (
     <div
-      className={`absolute transition-shadow ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+      className={`absolute transition-shadow select-none ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
       style={{
-        left: element.x,
-        top: element.y,
-        width: element.width,
-        height: element.height,
+        left: element.x ?? 0,
+        top: element.y ?? 0,
+        width: element.width ?? 100,
+        height: element.height ?? 100,
         transform: `rotate(${element.rotation || 0}deg)`,
         zIndex: isSelected ? 100 : 10 - depth,
       }}
@@ -109,12 +109,17 @@ export default function CanvasElement({
                 e.stopPropagation();
                 onAddChild(element.id, element.type);
               }}
-              className={`p-0.5 rounded hover:bg-white/50 ${colors.text}`}
+              className={`flex items-center gap-1 px-1.5 py-1 rounded-md bg-white/40 hover:bg-white/80 shadow-sm ${colors.text} transition-colors`}
               title={`Add ${levelLabels[nextType]}`}
             >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
+              {(element.width ?? 0) >= 150 && (
+                <span className="text-[9px] font-medium whitespace-nowrap">
+                  Add {levelLabels[nextType]}
+                </span>
+              )}
             </button>
           )}
         </div>

@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import type { LocationWithPath, PrintFormat } from '../types';
 import { printFormats } from '../constants';
-import { generateQRPattern, generatePrintCSS } from '../utils';
+import { generateQRCodeValue, generateQRCodeSVG, getQRCodeSize, generatePrintCSS } from '../utils';
 
 interface UsePrintQRCodesProps {
   locations: LocationWithPath[];
@@ -12,11 +12,25 @@ interface UsePrintQRCodesProps {
 }
 
 export function usePrintQRCodes({ locations, format, warehouseName }: UsePrintQRCodesProps) {
-  const handlePrint = useCallback(() => {
+  const handlePrint = useCallback(async () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const formatConfig = printFormats.find((f) => f.id === format);
+    const qrSize = getQRCodeSize(format);
+
+    // Generate all QR codes as SVG strings
+    const qrCodePromises = locations.map(async (loc) => {
+      const qrValue = generateQRCodeValue({
+        locationId: loc.id,
+        locationName: loc.name,
+        path: loc.path,
+        warehouseName,
+      });
+      const svgString = await generateQRCodeSVG(qrValue, qrSize);
+      return { location: loc, svg: svgString };
+    });
+
+    const qrCodes = await Promise.all(qrCodePromises);
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -29,15 +43,13 @@ export function usePrintQRCodes({ locations, format, warehouseName }: UsePrintQR
         </head>
         <body>
           <div class="print-grid">
-            ${locations
+            ${qrCodes
               .map(
-                (loc) => `
+                ({ location, svg }) => `
               <div class="qr-item">
-                <svg class="qr-code" viewBox="0 0 100 100">
-                  ${generateQRPattern(loc.id)}
-                </svg>
-                <div class="qr-label">${loc.name}</div>
-                ${format !== 'labels-80' ? `<div class="qr-path">${loc.path}</div>` : ''}
+                <div class="qr-code">${svg}</div>
+                <div class="qr-label">${location.name}</div>
+                ${format !== 'labels-80' ? `<div class="qr-path">${location.path}</div>` : ''}
               </div>
             `
               )

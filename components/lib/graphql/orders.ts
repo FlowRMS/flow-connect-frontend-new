@@ -40,6 +40,7 @@ export interface OrderCustomer {
   isParent: boolean;
   parentId?: string;
   published: boolean;
+  buyingGroupId?: string;
 }
 
 export interface OrderCreatedBy {
@@ -117,6 +118,7 @@ export interface OrderDetail {
   discountRate?: string;
   divisionFactor?: string;
   endUserId?: string;
+  endUser?: OrderCustomer;
   freightCharge?: string;
   itemNumber?: number;
   leadTime?: string;
@@ -281,6 +283,7 @@ export interface CreateOrderInput {
   endUserPerLineItem?: boolean;
   insidePerLineItem?: boolean;
   outsidePerLineItem?: boolean;
+  jobId?: string;
 }
 
 export interface UpdateOrderInput extends CreateOrderInput {}
@@ -398,6 +401,14 @@ const FIND_ORDER_BY_ID = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         freightCharge
         id
         itemNumber
@@ -574,6 +585,14 @@ const CREATE_ORDER = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         freightCharge
         id
         itemNumber
@@ -725,6 +744,14 @@ const UPDATE_ORDER = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         freightCharge
         id
         itemNumber

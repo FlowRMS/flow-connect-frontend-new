@@ -18,6 +18,7 @@ interface StyledMonthPickerProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  tabIndex?: number;
 }
 
 /**
@@ -36,14 +37,15 @@ export const StyledMonthPicker: React.FC<StyledMonthPickerProps> = ({
   placeholderText,
   placeholder,
   disabled,
-  className
+  className,
+  tabIndex = 0,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [isMounted, setIsMounted] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const displayPlaceholder = placeholderText || placeholder || 'Select month...';
 
@@ -163,6 +165,16 @@ export const StyledMonthPicker: React.FC<StyledMonthPickerProps> = ({
         onChange={(date) => {
           onChange(date);
           setIsOpen(false);
+          // Move focus to next focusable element after selection
+          setTimeout(() => {
+            const focusableElements = document.querySelectorAll<HTMLElement>(
+              'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])'
+            );
+            const currentIndex = Array.from(focusableElements).findIndex(el => el === triggerRef.current);
+            if (currentIndex !== -1 && currentIndex < focusableElements.length - 1) {
+              focusableElements[currentIndex + 1]?.focus();
+            }
+          }, 0);
         }}
         inline
         showMonthYearPicker
@@ -172,14 +184,42 @@ export const StyledMonthPicker: React.FC<StyledMonthPickerProps> = ({
     portalTarget
   );
 
+  // Handle keyboard events on the trigger button
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+
+    switch (e.key) {
+      case 'Enter':
+      case ' ':
+      case 'ArrowDown':
+        e.preventDefault();
+        setIsOpen(true);
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setIsOpen(false);
+        break;
+      case 'Tab':
+        // Close if open and let natural tab behavior continue
+        if (isOpen) {
+          setIsOpen(false);
+        }
+        break;
+    }
+  };
+
   return (
     <div ref={wrapperRef} className="relative">
-      <div
+      <button
         ref={triggerRef}
+        type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
+        onKeyDown={handleKeyDown}
+        disabled={disabled}
+        tabIndex={disabled ? -1 : tabIndex}
         className={`
           w-full px-4 py-3 border rounded-xl text-sm flex items-center justify-between
-          transition-all duration-200
+          transition-all duration-200 text-left
           ${disabled
             ? 'border-gray-200 bg-gray-50 cursor-default text-gray-500'
             : 'border-gray-300 bg-white cursor-pointer hover:border-blue-300 hover:shadow-sm'
@@ -194,7 +234,7 @@ export const StyledMonthPicker: React.FC<StyledMonthPickerProps> = ({
         <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-      </div>
+      </button>
       {datePickerContent}
     </div>
   );
