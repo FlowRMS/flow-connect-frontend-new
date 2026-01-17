@@ -3,7 +3,7 @@
  * Handles document abridgement state and operations
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { Takeoff, TakeoffDocument } from '../../types';
 import { statusApiMap } from '../../types';
 import {
@@ -24,6 +24,12 @@ interface UseAbridgementProps {
   setTakeoffsData: React.Dispatch<React.SetStateAction<Takeoff[]>>;
 }
 
+// Per-document state for single doc operations (used by ClassificationTab for Retry button)
+export interface DocumentAbridgeState {
+  isProcessing: boolean;
+  error?: string;
+}
+
 export function useAbridgement({
   documents,
   setDocuments,
@@ -31,6 +37,15 @@ export function useAbridgement({
   setSelectedTakeoff,
   setTakeoffsData,
 }: UseAbridgementProps) {
+  // Use refs to always have the latest values in callbacks
+  // This avoids stale closure issues when retrying after partial failures
+  // Update synchronously on every render (not in useEffect) to ensure immediate availability
+  const selectedTakeoffRef = useRef<Takeoff | null>(selectedTakeoff);
+  selectedTakeoffRef.current = selectedTakeoff;
+
+  const documentsRef = useRef<TakeoffDocument[]>(documents);
+  documentsRef.current = documents;
+
   const [abridgementState, setAbridgementState] = useState<ProcessingState>({
     isProcessing: false,
     progress: 0,
@@ -38,6 +53,11 @@ export function useAbridgement({
 
   const [documentAbridgementProgress, setDocumentAbridgementProgress] = useState<
     Record<string, DocumentProgress>
+  >({});
+
+  // State for individual document abridge operations (tracks per-doc isProcessing and error for Retry button)
+  const [documentAbridgeState, setDocumentAbridgeState] = useState<
+    Record<string, DocumentAbridgeState>
   >({});
 
   // Helper to add a log message to a document's progress
@@ -57,96 +77,142 @@ export function useAbridgement({
     }));
   }, []);
 
-  // Update takeoff status helper
+  // Update takeoff status helper - uses ref to always get latest takeoff
   const updateTakeoffStatus = useCallback(async (status: TakeoffStatusEnum, displayStatus: Takeoff['status']) => {
-    if (!selectedTakeoff) return;
+    const currentTakeoff = selectedTakeoffRef.current;
+    if (!currentTakeoff) return;
+
+    // Normalize status comparison (API returns uppercase, display uses Title case)
+    const normalizedCurrentStatus = currentTakeoff.status?.toUpperCase();
+    const normalizedTargetStatus = status; // Already uppercase
+
+    // Skip if already at target status or Complete
+    if (normalizedCurrentStatus === normalizedTargetStatus || normalizedCurrentStatus === 'COMPLETE') {
+      return;
+    }
+
     try {
-      await apiUpdateTakeoff(selectedTakeoff.id, { status });
+      await apiUpdateTakeoff(currentTakeoff.id, { status });
       setTakeoffsData(prev =>
-        prev.map(t => t.id === selectedTakeoff.id ? { ...t, status: displayStatus } : t)
+        prev.map(t => t.id === currentTakeoff.id ? { ...t, status: displayStatus } : t)
       );
       setSelectedTakeoff(prev => prev ? { ...prev, status: displayStatus } : null);
+      // Update ref immediately so subsequent calls have fresh data
+      if (selectedTakeoffRef.current) {
+        selectedTakeoffRef.current = { ...selectedTakeoffRef.current, status: displayStatus };
+      }
     } catch (error) {
       console.error('[Abridgement] Failed to update takeoff status:', error);
     }
-  }, [selectedTakeoff, setTakeoffsData, setSelectedTakeoff]);
+  }, [setTakeoffsData, setSelectedTakeoff]);
 
-  // Abridge a single document using AI
+  // Abridge a single document using AI with retry logic
   const handleAbridgeDocument = useCallback(async (docId: string) => {
-    const doc = documents.find(d => d.id === docId);
+    // Use ref to get latest documents (avoids stale closure in Flow 2: open existing takeoff)
+    const currentDocs = documentsRef.current;
+    const doc = currentDocs.find(d => d.id === docId);
     if (!doc || !doc.documentUrl) {
       console.error('Document not found or has no URL');
       return;
     }
 
+    // Set per-document state (clears any previous error)
+    setDocumentAbridgeState(prev => ({
+      ...prev,
+      [docId]: { isProcessing: true, error: undefined },
+    }));
     setAbridgementState({ isProcessing: true, progress: 0, currentItem: doc.name });
 
-    try {
-      const result = await abridgeDocumentAPI(
-        doc.documentUrl,
-        doc.name,
-        ['Extract relevant product and fixture information', 'Keep pages with specifications and schedules']
-      );
+    const MAX_RETRIES = 3;
+    let result: AbridgementResult | null = null;
+    let lastError: string | null = null;
 
-      if (result.success) {
-        const actualPages = result.originalPages || doc.pages;
-        const effectiveAbridgedUrl = result.wasAbridged ? result.abridgedUrl : undefined;
-
-        setDocuments(docs =>
-          docs.map(d =>
-            d.id === docId
-              ? {
-                  ...d,
-                  pages: actualPages,
-                  abridged: true,
-                  abridgedPages: result.abridgedPages || actualPages,
-                  reductionPercentage: result.reductionPercentage || 0,
-                  abridgedUrl: effectiveAbridgedUrl || undefined,
-                  pageAnalyses: result.pageAnalyses || undefined,
-                }
-              : d
-          )
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        result = await abridgeDocumentAPI(
+          doc.documentUrl,
+          doc.name,
+          ['Extract relevant product and fixture information', 'Keep pages with specifications and schedules']
         );
-
-        await updateTakeoffDocument(docId, {
-          pages: actualPages,
-          abridged: true,
-          abridgedPages: result.abridgedPages || actualPages,
-          abridgedUrl: effectiveAbridgedUrl || null,
-          reductionPercentage: result.reductionPercentage,
-          pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],
-        });
-      } else {
-        setAbridgementState(prev => ({ ...prev, error: result.error || 'Abridgement failed' }));
-      }
-    } catch (error) {
-      console.error('Failed to abridge document:', error);
-      setAbridgementState(prev => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'Abridgement failed',
-      }));
-    } finally {
-      setAbridgementState({ isProcessing: false, progress: 100 });
-
-      // Check if all abridgeable documents are now abridged
-      const docsToAbridge = documents.filter(d => d.documentUrl && (!d.abridged || !d.abridgedUrl));
-      const allAbridged = docsToAbridge.length === 0 || docsToAbridge.every(d => d.id === docId);
-
-      if (allAbridged && selectedTakeoff && selectedTakeoff.status !== 'Complete') {
-        await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
+        if (result) break;
+      } catch (apiError) {
+        const errorMsg = apiError instanceof Error ? apiError.message : 'API error';
+        lastError = errorMsg;
+        console.error(`[Abridge] Attempt ${attempt}/${MAX_RETRIES} failed:`, errorMsg);
+        if (attempt < MAX_RETRIES) {
+          const waitTime = attempt * 5000;
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
       }
     }
-  }, [documents, selectedTakeoff, setDocuments, updateTakeoffStatus]);
+
+    // Handle result
+    if (result?.success) {
+      const actualPages = result.originalPages || doc.pages;
+      const effectiveAbridgedUrl = result.wasAbridged ? result.abridgedUrl : undefined;
+
+      setDocuments(docs =>
+        docs.map(d =>
+          d.id === docId
+            ? {
+                ...d,
+                pages: actualPages,
+                abridged: true,
+                abridgedPages: result!.abridgedPages || actualPages,
+                reductionPercentage: result!.reductionPercentage || 0,
+                abridgedUrl: effectiveAbridgedUrl || undefined,
+                pageAnalyses: result!.pageAnalyses || undefined,
+              }
+            : d
+        )
+      );
+
+      await updateTakeoffDocument(docId, {
+        pages: actualPages,
+        abridged: true,
+        abridgedPages: result.abridgedPages || actualPages,
+        abridgedUrl: effectiveAbridgedUrl || null,
+        reductionPercentage: result.reductionPercentage,
+        pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],
+      });
+
+      // Clear per-document state on success
+      setDocumentAbridgeState(prev => ({
+        ...prev,
+        [docId]: { isProcessing: false, error: undefined },
+      }));
+
+      // Update documentsRef immediately so willBeLastDoc calculation is accurate for next retry
+      documentsRef.current = documentsRef.current.map(d =>
+        d.id === docId ? { ...d, abridged: true } : d
+      );
+
+      // Update takeoff status to Abridgment when document is successfully processed
+      await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
+    } else {
+      // Set error for Retry button
+      const errorMsg = result?.error || lastError || 'Abridgement failed after retries';
+      setDocumentAbridgeState(prev => ({
+        ...prev,
+        [docId]: { isProcessing: false, error: errorMsg },
+      }));
+      setAbridgementState(prev => ({ ...prev, error: errorMsg }));
+    }
+
+    setAbridgementState({ isProcessing: false, progress: 100 });
+  }, [setDocuments, updateTakeoffStatus]);
 
   // Abridge all documents
   const handleAbridgeAll = useCallback(async () => {
-    const docsToAbridge = documents.filter(d =>
-      d.documentUrl && (!d.abridged || !d.abridgedUrl)
+    // Use ref to get latest documents (avoids stale closure in Flow 2: open existing takeoff)
+    const currentDocs = documentsRef.current;
+    // Only check d.abridged, not abridgedUrl (docs with 0% reduction have no URL but are still processed)
+    const docsToAbridge = currentDocs.filter(d =>
+      d.documentUrl && !d.abridged
     );
 
     if (docsToAbridge.length === 0) return;
 
-    await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
     setAbridgementState({ isProcessing: true, progress: 0 });
 
     // Initialize per-document progress
@@ -209,6 +275,10 @@ export function useAbridgement({
             ...prev,
             [doc.id]: { ...prev[doc.id], progress: 100, status: 'complete' },
           }));
+
+          // Update takeoff status to Abridgment when document is successfully processed
+          // This ensures status reflects actual work done (shown in UI as abridgement results)
+          await updateTakeoffStatus('ABRIDGMENT', 'Abridgment');
         } else {
           const errorMsg = result.error || 'Abridgement failed';
           addDocumentLog(doc.id, `❌ Error: ${errorMsg}`);
@@ -233,13 +303,15 @@ export function useAbridgement({
     }
 
     setAbridgementState({ isProcessing: false, progress: 100 });
-  }, [documents, addDocumentLog, updateTakeoffStatus, setDocuments]);
+  }, [addDocumentLog, updateTakeoffStatus, setDocuments]);
 
   return {
     abridgementState,
     setAbridgementState,
     documentAbridgementProgress,
     setDocumentAbridgementProgress,
+    documentAbridgeState,
+    setDocumentAbridgeState,
     handleAbridgeDocument,
     handleAbridgeAll,
     addDocumentLog,
