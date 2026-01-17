@@ -18,6 +18,21 @@ interface CreateShipmentRecordModalProps {
   initialStatus?: ShipmentStatus;
   isSubmitting?: boolean;
   carriers: Array<{ id: string; name: string }>;
+  recurringShipments?: Array<{
+    id: string;
+    name: string;
+    vendorId: string;
+    warehouseId: string;
+    nextExpectedDate: string;
+    carrier?: string;
+    notes?: string;
+    expectedItems: Array<{
+      productId: string;
+      productName: string;
+      partNumber: string;
+      expectedQuantity: number;
+    }>;
+  }>;
 }
 
 export interface ShipmentRecord {
@@ -32,6 +47,7 @@ export interface ShipmentRecord {
   carrier?: string;
   items: ShipmentLineItem[];
   notes?: string;
+  recurringShipmentId?: string;
 }
 
 export default function CreateShipmentRecordModal({
@@ -40,6 +56,7 @@ export default function CreateShipmentRecordModal({
   initialStatus,
   isSubmitting = false,
   carriers,
+  recurringShipments = [],
 }: CreateShipmentRecordModalProps) {
   const { warehousesQuery, vendorsQuery } = useWarehouseLookups();
   const isArrivingNow = initialStatus === 'ARRIVED';
@@ -55,10 +72,28 @@ export default function CreateShipmentRecordModal({
   const [trackingNumber, setTrackingNumber] = useState('');
   const [carrier, setCarrier] = useState('');
   const [notes, setNotes] = useState('');
+  const [recurringShipmentId, setRecurringShipmentId] = useState<string>('');
   const [lineItems, setLineItems] = useState<ShipmentLineItem[]>([]);
   const [showProductSelector, setShowProductSelector] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
-  const { data: vendorProducts = [] } = useWarehouseProducts('', selectedVendorId, 200);
+  // Debounce search term to avoid too many API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(productSearchTerm);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [productSearchTerm]);
+
+  // Only fetch products when product selector is open AND vendor is selected (lazy loading)
+  // This prevents unnecessary fetches when just opening the modal
+  const { data: vendorProducts = [], isLoading: isLoadingProducts } = useWarehouseProducts(
+    debouncedSearchTerm,
+    showProductSelector ? selectedVendorId : null,
+    50 // Reduced from 200 to 50 for better performance
+  );
   const factories = useMemo(
     () => (vendorsQuery.data || []).map((vendor) => ({ id: vendor.id, name: vendor.title })),
     [vendorsQuery.data]
@@ -70,6 +105,12 @@ export default function CreateShipmentRecordModal({
 
   const selectedVendor = factories.find(f => f.id === selectedVendorId);
   const selectedWarehouse = warehouses.find(w => w.id === selectedWarehouseId);
+
+  // Filter recurring shipments by selected vendor
+  const availableRecurringShipments = useMemo(() => {
+    if (!selectedVendorId) return [];
+    return recurringShipments.filter(rs => rs.vendorId === selectedVendorId);
+  }, [recurringShipments, selectedVendorId]);
 
   useEffect(() => {
     if (!selectedWarehouseId && warehouses.length > 0) {
@@ -109,7 +150,7 @@ export default function CreateShipmentRecordModal({
     if (!selectedWarehouseId || !poNumber) return;
     if (lineItemsRequired && (lineItems.length === 0 || !selectedVendorId)) return;
 
-    onSubmit({
+    const recordData = {
       poNumber,
       vendorId: selectedVendorId,
       vendorName: selectedVendor?.name || '',
@@ -121,7 +162,10 @@ export default function CreateShipmentRecordModal({
       carrier: carrier || undefined,
       items: lineItems,
       notes: notes || undefined,
-    });
+      recurringShipmentId: recurringShipmentId || undefined,
+    };
+
+    onSubmit(recordData);
   };
 
   const totalItems = lineItems.reduce((sum, item) => sum + item.expectedQuantity, 0);
@@ -202,6 +246,7 @@ export default function CreateShipmentRecordModal({
                 onChange={(e) => {
                   setSelectedVendorId(e.target.value);
                   setLineItems([]);
+                  setRecurringShipmentId(''); // Reset recurring shipment when vendor changes
                 }}
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                 required={!isArrivingNow}
@@ -232,6 +277,75 @@ export default function CreateShipmentRecordModal({
               </select>
             </div>
           </div>
+
+          {/* Recurring Shipment Selection (Optional) */}
+          {availableRecurringShipments.length > 0 && (
+            <div className="border border-dashed border-blue-300 rounded-lg p-4 bg-blue-50/50">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                    <path d="M17 1l4 4-4 4"/>
+                    <path d="M3 11V9a4 4 0 014-4h14"/>
+                    <path d="M7 23l-4-4 4-4"/>
+                    <path d="M21 13v2a4 4 0 01-4 4H3"/>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-[var(--foreground)] mb-1">Link to Recurring Shipment (Optional)</h4>
+                  <p className="text-xs text-[var(--muted-foreground)] mb-3">
+                    If this delivery is part of a recurring schedule, select it below. When received, the next delivery will be automatically created.
+                  </p>
+                  <select
+                    value={recurringShipmentId}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      setRecurringShipmentId(selectedId);
+
+                      // Auto-fill form from recurring shipment data instead of auto-creating
+                      if (selectedId) {
+                        const selected = availableRecurringShipments.find(rs => rs.id === selectedId);
+                        if (selected) {
+                          // Pre-fill form fields
+                          setSelectedWarehouseId(selected.warehouseId);
+                          if (selected.nextExpectedDate) {
+                            setEta(selected.nextExpectedDate.split('T')[0]);
+                          }
+                          if (selected.carrier) {
+                            setCarrier(selected.carrier);
+                          }
+                          if (selected.notes) {
+                            setNotes(selected.notes);
+                          }
+                          // Pre-fill line items from expected items
+                          if (selected.expectedItems && selected.expectedItems.length > 0) {
+                            setLineItems(selected.expectedItems.map((item, index) => ({
+                              id: `recurring-${selectedId}-${index}`,
+                              productId: item.productId,
+                              productName: item.productName,
+                              partNumber: item.partNumber,
+                              expectedQuantity: item.expectedQuantity,
+                            })));
+                          }
+                        }
+                      } else {
+                        // Clear pre-filled data when deselecting
+                        setLineItems([]);
+                        setNotes('');
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  >
+                    <option value="">Not a recurring delivery</option>
+                    {availableRecurringShipments.map((rs) => (
+                      <option key={rs.id} value={rs.id}>
+                        {rs.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ETA and Carrier */}
           <div className="grid grid-cols-2 gap-4">
@@ -464,7 +578,10 @@ export default function CreateShipmentRecordModal({
             <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
               <h3 className="font-medium text-[var(--foreground)]">Select Product</h3>
               <button
-                onClick={() => setShowProductSelector(false)}
+                onClick={() => {
+                  setShowProductSelector(false);
+                  setProductSearchTerm(''); // Clear search when closing
+                }}
                 className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -472,10 +589,39 @@ export default function CreateShipmentRecordModal({
                 </svg>
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {vendorProducts.length === 0 ? (
+            {/* Product Search */}
+            <div className="px-4 pt-3 pb-2">
+              <div className="relative">
+                <svg
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={productSearchTerm}
+                  onChange={(e) => setProductSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 pt-2">
+              {isLoadingProducts ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]" />
+                </div>
+              ) : vendorProducts.length === 0 ? (
                 <p className="text-center text-[var(--muted-foreground)] py-8">
-                  No products found from this vendor
+                  {productSearchTerm ? `No products found matching "${productSearchTerm}"` : 'No products found from this vendor'}
                 </p>
               ) : (
                 <div className="space-y-2">

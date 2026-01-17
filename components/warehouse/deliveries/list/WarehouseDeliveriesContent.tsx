@@ -408,7 +408,8 @@ export default function WarehouseDeliveriesContent() {
 
     setIsCreatingDelivery(true);
     try {
-      const delivery = await createDeliveryMutation.mutateAsync({
+      // 1. Create delivery with recurring_shipment_id
+      const deliveryInput = {
         poNumber: record.poNumber,
         warehouseId: record.warehouseId,
         vendorId: record.vendorId,
@@ -419,28 +420,37 @@ export default function WarehouseDeliveriesContent() {
         vendorContactName: record.vendorContact || null,
         vendorContactEmail: record.vendorEmail || null,
         notes: record.notes || null,
-      });
+        recurringShipmentId: record.recurringShipmentId || null,
+      };
 
-      await Promise.all(
-        record.items.map((item) =>
-          createDeliveryItemMutation.mutateAsync({
-            deliveryId: delivery.id,
-            productId: item.productId,
-            expectedQuantity: item.expectedQuantity,
-            receivedQuantity: 0,
-            damagedQuantity: 0,
-            status: 'PENDING',
-          })
-        )
-      );
+      const delivery = await createDeliveryMutation.mutateAsync(deliveryInput);
 
-      await createDeliveryStatusHistoryMutation.mutateAsync({
-        deliveryId: delivery.id,
-        status: record.status,
-        timestamp: null,
-        userId: null,
-        note: 'Delivery created',
-      });
+      // 2. Create delivery items in parallel WITHOUT triggering refetch for each one
+      // We'll manually invalidate queries at the end to avoid N refetches
+      if (record.items.length > 0) {
+        const itemPromises = record.items.map((item) =>
+          createDeliveryItemMutation.mutateAsync(
+            {
+              deliveryId: delivery.id,
+              productId: item.productId,
+              expectedQuantity: item.expectedQuantity,
+              receivedQuantity: 0,
+              damagedQuantity: 0,
+              status: 'PENDING',
+            },
+            {
+              // Disable automatic cache invalidation for each item
+              // We'll do it once at the end
+              onSuccess: undefined,
+            }
+          )
+        );
+        await Promise.all(itemPromises);
+      }
+
+      // NOTE: Backend automatically creates initial status history (delivery_service.py:67-75)
+      // NOTE: Backend automatically updates recurring shipment when delivery is marked as RECEIVED
+      // See delivery_service.py lines 100-118 for auto-generation logic
 
       setShowCreateRecordModal(false);
       setCreateRecordInitialStatus(undefined);
@@ -451,7 +461,7 @@ export default function WarehouseDeliveriesContent() {
     } finally {
       setIsCreatingDelivery(false);
     }
-  }, [carrierLookups, createDeliveryMutation, createDeliveryItemMutation, createDeliveryStatusHistoryMutation, router]);
+  }, [carrierLookups, createDeliveryMutation, createDeliveryItemMutation, router]);
 
   const handleUpdateShipmentStatus = useCallback(async (status: ShipmentStatus) => {
     if (!selectedShipment) return;
@@ -785,7 +795,7 @@ export default function WarehouseDeliveriesContent() {
                   : calculateNextDate(data.recurrencePattern, startDate);
                 const expectedDateIso = formatDateOnly(expectedDate);
 
-                const recurring = await createRecurringShipmentMutation.mutateAsync({
+                await createRecurringShipmentMutation.mutateAsync({
                   name: data.name,
                   vendorId: data.vendorId,
                   warehouseId: data.warehouseId,
@@ -799,63 +809,7 @@ export default function WarehouseDeliveriesContent() {
                   status: data.status,
                   nextExpectedDate: expectedDateIso,
                 });
-
-                const carrierId = carrierLookups.find((carrier) => carrier.name === data.carrier)?.id;
-                const delivery = await createDeliveryMutation.mutateAsync({
-                  poNumber: `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`,
-                  warehouseId: data.warehouseId,
-                  vendorId: data.vendorId,
-                  carrierId: carrierId || null,
-                  trackingNumber: null,
-                  status: 'PENDING',
-                  expectedDate: expectedDateIso,
-                  vendorContactName: data.vendorContact || null,
-                  vendorContactEmail: data.vendorEmail || null,
-                  notes: data.notes || null,
-                  recurringShipmentId: recurring.id,
-                });
-
-                await Promise.all(
-                  data.expectedItems.map((item) =>
-                    createDeliveryItemMutation.mutateAsync({
-                      deliveryId: delivery.id,
-                      productId: item.productId,
-                      expectedQuantity: item.expectedQuantity,
-                      receivedQuantity: 0,
-                      damagedQuantity: 0,
-                      status: 'PENDING',
-                    })
-                  )
-                );
-
-                await createDeliveryStatusHistoryMutation.mutateAsync({
-                  deliveryId: delivery.id,
-                  status: 'PENDING',
-                  timestamp: null,
-                  userId: null,
-                  note: 'Generated from recurring shipment',
-                });
-
-                const nextDate = calculateNextDate(data.recurrencePattern, expectedDate);
-                await updateRecurringShipmentMutation.mutateAsync({
-                  id: recurring.id,
-                  input: {
-                    name: data.name,
-                    vendorId: data.vendorId,
-                    warehouseId: data.warehouseId,
-                    recurrencePattern,
-                    startDate: data.startDate.split('T')[0],
-                    endDate: data.endDate ? data.endDate.split('T')[0] : null,
-                    vendorContactName: data.vendorContact || null,
-                    vendorContactEmail: data.vendorEmail || null,
-                    carrier: data.carrier || null,
-                    notes: data.notes || null,
-                    status: data.status,
-                    lastGeneratedDate: expectedDateIso,
-                    nextExpectedDate: formatDateOnly(nextDate),
-                  },
-                });
-                queryClient.invalidateQueries({ queryKey: warehouseDeliveriesQueryKeys.all });
+                // Mutation already invalidates recurring queries in onSuccess - no manual invalidation needed
               } catch (error) {
                 console.error('Failed to create recurring shipment', error);
               }
@@ -1397,6 +1351,16 @@ export default function WarehouseDeliveriesContent() {
           initialStatus={createRecordInitialStatus}
           isSubmitting={isCreatingDelivery}
           carriers={carrierLookups.map((carrier) => ({ id: carrier.id, name: carrier.name }))}
+          recurringShipments={recurringShipments.map((rs) => ({
+            id: rs.id,
+            name: rs.name,
+            vendorId: rs.vendorId,
+            warehouseId: rs.warehouseId,
+            nextExpectedDate: rs.nextExpectedDate || '',
+            carrier: rs.carrier,
+            notes: rs.notes,
+            expectedItems: rs.expectedItems
+          }))}
         />
       )}
 

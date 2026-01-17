@@ -5,7 +5,7 @@ import type { RecurrencePattern } from '@/lib/types/warehouse';
  * Fixed version with proper logic for all frequency types
  */
 export function calculateNextDate(pattern: RecurrencePattern, fromDate: Date = new Date()): Date {
-  const result = new Date(fromDate);
+  let result = new Date(fromDate);
   // Reset time to midnight for date-only operations
   result.setHours(0, 0, 0, 0);
 

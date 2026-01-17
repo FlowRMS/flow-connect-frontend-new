@@ -6,6 +6,7 @@ const CREATE_DELIVERY_MUTATION = `
       id
       poNumber
       status
+      recurringShipmentId
     }
   }
 `;
@@ -155,8 +156,8 @@ const UPDATE_RECURRING_SHIPMENT_MUTATION = `
   }
 `;
 
-export async function createDelivery(input: Record<string, unknown>): Promise<{ id: string; poNumber: string; status: string }> {
-  const response = await crmGraphQLRequest<{ createDelivery: { id: string; poNumber: string; status: string } }>({
+export async function createDelivery(input: Record<string, unknown>): Promise<{ id: string; poNumber: string; status: string; recurringShipmentId?: string | null }> {
+  const response = await crmGraphQLRequest<{ createDelivery: { id: string; poNumber: string; status: string; recurringShipmentId?: string | null } }>({
     query: CREATE_DELIVERY_MUTATION,
     variables: { input },
   });
