@@ -32,14 +32,21 @@ export const NUMBER_TO_LEVEL: Record<number, LocationLevel> = {
   6: 'BIN',
 };
 
+export interface ProductLite {
+  id: string;
+  factoryPartNumber: string;
+  description: string | null;
+  unitPrice: number;
+  published: boolean;
+}
+
 export interface LocationProductAssignment {
   id: string;
   locationId: string;
   productId: string;
   quantity: number;
   createdAt: string;
-  productName: string;
-  partNumber: string;
+  product: ProductLite;
 }
 
 export interface WarehouseLocation {
@@ -137,8 +144,13 @@ const PRODUCT_ASSIGNMENT_FIELDS = `
   productId
   quantity
   createdAt
-  productName
-  partNumber
+  product {
+    id
+    factoryPartNumber
+    description
+    unitPrice
+    published
+  }
 `;
 
 // ============================================================================
