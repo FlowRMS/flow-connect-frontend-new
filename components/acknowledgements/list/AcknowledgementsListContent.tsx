@@ -100,7 +100,7 @@ export default function AcknowledgementsListContent() {
 
   // Local filter/sort state
   const [creationTypeFilter, setCreationTypeFilter] = useState<AcknowledgementCreationType | 'ALL'>('ALL');
-  const [sortField, setSortField] = useState<'date' | 'quantity' | 'number' | 'shipDate'>('date');
+  const [sortField, setSortField] = useState<'date' | 'quantity' | 'number'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Filter and sort acknowledgements
@@ -115,9 +115,6 @@ export default function AcknowledgementsListContent() {
         switch (sortField) {
           case 'date':
             comparison = new Date(a.orderEntityDate || a.createdAt || '').getTime() - new Date(b.orderEntityDate || b.createdAt || '').getTime();
-            break;
-          case 'shipDate':
-            comparison = new Date(a.shipDate || '').getTime() - new Date(b.shipDate || '').getTime();
             break;
           case 'quantity':
             comparison = parseInt(a.quantity || '0') - parseInt(b.quantity || '0');
@@ -136,7 +133,7 @@ export default function AcknowledgementsListContent() {
     count: filteredAcknowledgements.length,
   }), [filteredAcknowledgements]);
 
-  const toggleSort = (field: 'date' | 'quantity' | 'number' | 'shipDate') => {
+  const toggleSort = (field: 'date' | 'quantity' | 'number') => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -374,18 +371,8 @@ export default function AcknowledgementsListContent() {
                       )}
                     </div>
                   </th>
-                  <th
-                    className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
-                    onClick={() => toggleSort('shipDate')}
-                  >
-                    <div className="flex items-center gap-1">
-                      Ship Date
-                      {sortField === 'shipDate' && (
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className={sortDirection === 'asc' ? 'rotate-180' : ''}>
-                          <path d="M5 8l5 5 5-5"/>
-                        </svg>
-                      )}
-                    </div>
+                  <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">
+                    Ship Date
                   </th>
                   <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Type</th>
                   <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Created By</th>
@@ -430,7 +417,7 @@ export default function AcknowledgementsListContent() {
                         {ack.quantity || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
-                        {formatDate(ack.shipDate)}
+                        -
                       </td>
                       <td className="px-4 py-3 text-center">
                         {typeConfig && (

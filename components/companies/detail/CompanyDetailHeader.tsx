@@ -67,14 +67,14 @@ export default function CompanyDetailHeader({
               <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-1.5 md:mb-2">
                 <h1 className="text-lg md:text-2xl font-bold text-[var(--foreground)] truncate">{company.name}</h1>
                 <span className={`inline-flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-xs md:text-sm font-medium ${
-                  company.companySourceType === 'MANUFACTURER'
+                  company.companyTypeName?.toLowerCase() === 'manufacturer'
                     ? 'bg-purple-50 text-purple-700'
                     : 'bg-green-50 text-green-700'
                 }`}>
                   <span className={`w-1.5 md:w-2 h-1.5 md:h-2 rounded-full ${
-                    company.companySourceType === 'MANUFACTURER' ? 'bg-purple-500' : 'bg-green-500'
+                    company.companyTypeName?.toLowerCase() === 'manufacturer' ? 'bg-purple-500' : 'bg-green-500'
                   }`}></span>
-                  {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
+                  {company.companyTypeName || company.type?.[0] || 'Customer'}
                 </span>
               </div>
 

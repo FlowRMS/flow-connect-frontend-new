@@ -181,7 +181,7 @@ const GET_RELATED_ENTITIES = `
         url
       }
       companies {
-        companySourceType
+        companyTypeId
         createdAt
         id
         name

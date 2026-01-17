@@ -278,10 +278,17 @@ export const COMPANY_SOURCE_TYPE_OPTIONS: CompanySourceType[] = [
   'TRADE_ASSOCIATION',
 ];
 
+// CompanyTypeRef - reference to a company type
+export interface CompanyTypeRef {
+  id: string;
+  name: string;
+}
+
 export interface Company {
   id: string;
   name: string;
-  companySourceType: CompanySourceType;
+  companyTypeId?: string | null;      // UUID reference to CompanyType
+  companyType?: CompanyTypeRef | null; // Nested company type object
   parentCompanyId?: string | null;
   phone?: string | null;
   website?: string | null;
@@ -294,7 +301,7 @@ export interface Company {
 
 export interface CompanyInput {
   name: string;
-  companySourceType: CompanySourceType;
+  companyTypeId: string;              // UUID reference to CompanyType
   parentCompanyId?: string;
   phone?: string;
   website?: string;
@@ -305,7 +312,7 @@ export interface CompanyInput {
 
 export interface UpdateCompanyInput {
   name?: string;
-  companySourceType?: CompanySourceType;
+  companyTypeId?: string;             // UUID reference to CompanyType
   parentCompanyId?: string;
   phone?: string;
   website?: string;
@@ -317,7 +324,9 @@ export interface UpdateCompanyInput {
 export interface CompanyLandingPage {
   id: string;
   name: string;
-  companySourceType: CompanySourceType;
+  companySourceType?: string;         // Type name from landing page
+  companyTypeId?: string;             // UUID reference to CompanyType (detail view only)
+  companyType?: CompanyTypeRef;       // Nested company type object (detail view only)
   phone?: string;
   website?: string;
   standardCommissionRate?: number;

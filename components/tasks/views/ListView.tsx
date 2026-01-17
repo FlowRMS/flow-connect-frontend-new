@@ -82,6 +82,11 @@ export default function ListView({ tasks, onUpdateTask, onToggleComplete, onSele
                   <h3 className={`font-semibold text-[var(--foreground)] text-base ${task.completed ? 'line-through opacity-60' : ''}`}>
                     {task.title}
                   </h3>
+                  {task.category && (
+                    <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-xs font-medium">
+                      {task.category}
+                    </span>
+                  )}
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(task.status)}`}>
                     {task.status}
                   </span>

@@ -37,7 +37,7 @@ export function AcknowledgementsTab({
   onDeleteAcknowledgement,
 }: AcknowledgementsTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState<'date' | 'quantity' | 'number' | 'shipDate'>('date');
+  const [sortField, setSortField] = useState<'date' | 'quantity' | 'number'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Filter and sort acknowledgements
@@ -59,9 +59,6 @@ export function AcknowledgementsTab({
       switch (sortField) {
         case 'date':
           comparison = new Date(a.entityDate || '').getTime() - new Date(b.entityDate || '').getTime();
-          break;
-        case 'shipDate':
-          comparison = new Date(a.shipDate || '').getTime() - new Date(b.shipDate || '').getTime();
           break;
         case 'quantity':
           comparison = parseInt(a.quantity || '0') - parseInt(b.quantity || '0');
@@ -250,18 +247,8 @@ export function AcknowledgementsTab({
                     )}
                   </div>
                 </th>
-                <th
-                  className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
-                  onClick={() => toggleSort('shipDate')}
-                >
-                  <div className="flex items-center gap-1">
-                    Ship Date
-                    {sortField === 'shipDate' && (
-                      <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className={sortDirection === 'asc' ? 'rotate-180' : ''}>
-                        <path d="M5 8l5 5 5-5"/>
-                      </svg>
-                    )}
-                  </div>
+                <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">
+                  Ship Date
                 </th>
                 <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Type</th>
                 <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Actions</th>
@@ -289,7 +276,7 @@ export function AcknowledgementsTab({
                       {ack.quantity || '-'}
                     </td>
                     <td className="px-4 py-3 text-[var(--muted-foreground)]">
-                      {formatDate(ack.shipDate)}
+                      -
                     </td>
                     <td className="px-4 py-3 text-center">
                       {typeConfig && (

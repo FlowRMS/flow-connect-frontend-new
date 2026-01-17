@@ -46,7 +46,7 @@ const RESULT_TYPE_CONFIG: Record<string, {
         <path d="M9 6h2M9 10h2M9 14h2M13 6h2M13 10h2"/>
       </svg>
     ),
-    href: (id) => `/companies/${id}/edit`,
+    href: (id) => `/companies?id=${id}`,
   },
   CONTACT: {
     color: 'text-green-700',

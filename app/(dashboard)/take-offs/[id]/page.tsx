@@ -70,27 +70,7 @@ export default function TakeoffDetailPage() {
         setCurrentStep(getInitialStep(transformed.status));
 
         if (response.documents && response.documents.length > 0) {
-          console.log('[loadTakeoff] Raw documents from backend:', response.documents.length);
-          response.documents.forEach((doc, i) => {
-            console.log(`[loadTakeoff] Raw doc ${i} (${doc.name}):`, {
-              abridged: doc.abridged,
-              documentUrl: doc.documentUrl?.substring(0, 80) + '...',
-              abridgedUrl: doc.abridgedUrl?.substring(0, 80) + '...' || null,
-              parsedItems: doc.parsedItems?.length || 0,
-            });
-          });
-
           const docs: TakeoffDocument[] = response.documents.map(transformDocumentResponse);
-
-          console.log('[loadTakeoff] Transformed documents:', docs.length);
-          docs.forEach((doc, i) => {
-            console.log(`[loadTakeoff] Transformed doc ${i} (${doc.name}):`, {
-              abridged: doc.abridged,
-              documentUrl: doc.documentUrl?.substring(0, 80) + '...',
-              abridgedUrl: doc.abridgedUrl?.substring(0, 80) + '...' || null,
-            });
-          });
-
           setDocuments(docs);
 
           const allParsedItems: ParsedItem[] = [];
@@ -99,7 +79,6 @@ export default function TakeoffDetailPage() {
               allParsedItems.push(...doc.parsedItems);
             }
           });
-          console.log('[loadTakeoff] Total parsed items loaded:', allParsedItems.length);
           setParsedItems(allParsedItems);
         }
       }
@@ -148,7 +127,6 @@ export default function TakeoffDetailPage() {
 
   // Handler specifically for "Proceed to Parsing" button - changes step AND triggers parsing
   const handleProceedToParsing = async () => {
-    console.log('[handleProceedToParsing] Called');
     setCurrentStep('parsing');
     if (takeoff) {
       try {
@@ -160,10 +138,8 @@ export default function TakeoffDetailPage() {
     // Auto-trigger parsing when proceeding from classification (use refs for latest values)
     const currentParsedItems = parsedItemsRef.current;
     const currentIsProcessing = isParsingRef.current;
-    console.log('[handleProceedToParsing] parsedItems:', currentParsedItems.length, 'isProcessing:', currentIsProcessing);
 
     if (currentParsedItems.length === 0 && !currentIsProcessing) {
-      console.log('[handleProceedToParsing] Triggering handleParseSchedules');
       // Call directly instead of setTimeout to avoid closure issues
       handleParseSchedules();
     }
@@ -250,8 +226,6 @@ export default function TakeoffDetailPage() {
     const zip = new JSZip();
     const takeoffName = takeoff?.title || 'takeoff';
 
-    console.log(`📦 Starting ZIP download for ${docsWithUrls.length} documents...`);
-
     // Track progress
     let downloaded = 0;
     const total = docsWithUrls.length;
@@ -280,7 +254,6 @@ export default function TakeoffDetailPage() {
         // Add to ZIP
         zip.file(fileName, blob);
         downloaded++;
-        console.log(`📄 Downloaded ${downloaded}/${total}: ${fileName}`);
       } catch (error) {
         console.error(`Error downloading ${doc.name}:`, error);
       }
@@ -295,7 +268,6 @@ export default function TakeoffDetailPage() {
     }
 
     // Generate ZIP and trigger download
-    console.log('📦 Generating ZIP file...');
     const content = await zip.generateAsync({ type: 'blob' });
 
     // Create download link
@@ -307,8 +279,6 @@ export default function TakeoffDetailPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-
-    console.log(`✅ ZIP download complete: ${downloaded} documents`);
   };
 
   // Abridge a single document using AI
@@ -318,9 +288,6 @@ export default function TakeoffDetailPage() {
       console.error('Document not found or has no URL');
       return;
     }
-
-    console.log('[page.tsx Abridge] Starting for doc:', doc.name);
-    console.log('[page.tsx Abridge] Original documentUrl:', doc.documentUrl);
 
     // Set processing state
     setDocumentAbridgeState(prev => ({
@@ -335,23 +302,12 @@ export default function TakeoffDetailPage() {
         ['Extract relevant product and fixture information', 'Keep pages with specifications and schedules']
       );
 
-      console.log('[page.tsx Abridge] API Result:', {
-        success: result.success,
-        abridgedUrl: result.abridgedUrl,
-        wasAbridged: result.wasAbridged,
-        originalPages: result.originalPages,
-        abridgedPages: result.abridgedPages,
-        error: result.error,
-      });
-
       if (result.success) {
         const actualPages = result.originalPages || doc.pages;
         // Only use abridgedUrl if a new PDF was actually generated
         const effectiveAbridgedUrl = result.wasAbridged ? result.abridgedUrl : undefined;
 
         // Update document with abridgement results
-        console.log('[page.tsx Abridge] wasAbridged:', result.wasAbridged);
-        console.log('[page.tsx Abridge] Updating state with abridgedUrl:', effectiveAbridgedUrl);
         setDocuments(docs =>
           docs.map(d =>
             d.id === docId
@@ -371,7 +327,6 @@ export default function TakeoffDetailPage() {
         // Persist to backend - only save abridgedUrl if a new PDF was generated
         // Use same fallback values as state update to ensure DB consistency
         const persistAbridgedPages = result.abridgedPages || actualPages;
-        console.log('[page.tsx Abridge] Persisting to backend with abridgedUrl:', effectiveAbridgedUrl);
         await updateTakeoffDocument(docId, {
           pages: actualPages,
           abridged: true,
@@ -387,16 +342,12 @@ export default function TakeoffDetailPage() {
           [docId]: { isProcessing: false },
         }));
 
-        // Check if all abridgeable documents are now abridged - update status to Abridgment
-        // Include docs that are abridged but have no abridgedUrl (below threshold)
-        const docsToAbridge = documents.filter(d => d.documentUrl && (!d.abridged || !d.abridgedUrl));
-        const allAbridged = docsToAbridge.length === 0 || docsToAbridge.every(d => d.id === docId);
-
-        if (allAbridged && takeoff && takeoff.status !== 'Complete') {
+        // Update takeoff status to Abridgment when document is successfully processed
+        // This ensures status reflects actual work done (shown in UI as abridgement results)
+        if (takeoff && takeoff.status !== 'Complete' && takeoff.status !== 'Abridgment') {
           try {
             await updateTakeoff(takeoff.id, { status: 'ABRIDGMENT' });
             setTakeoff(prev => prev ? { ...prev, status: 'Abridgment' } : null);
-            console.log('[page.tsx handleAbridgeDocument] All docs abridged - status updated to Abridgment');
           } catch (statusErr) {
             console.error('[page.tsx handleAbridgeDocument] Failed to update status:', statusErr);
           }
@@ -417,24 +368,14 @@ export default function TakeoffDetailPage() {
     }
   };
 
-  // Abridge all documents that haven't been abridged yet or are below threshold
+  // Abridge all documents that haven't been abridged yet
   const handleAbridgeAll = async () => {
-    // Include docs that are abridged but have no abridgedUrl (below threshold - allow retry)
-    const unabridgedDocs = documents.filter(d => d.documentUrl && d.pages > 0 && (!d.abridged || !d.abridgedUrl));
+    // Only process documents that haven't been abridged yet
+    const unabridgedDocs = documents.filter(d => d.documentUrl && d.pages > 0 && !d.abridged);
     for (const doc of unabridgedDocs) {
       await handleAbridgeDocument(doc.id);
     }
-
-    // Update takeoff status to ABRIDGMENT after all documents are abridged
-    if (unabridgedDocs.length > 0 && takeoff && takeoff.status !== 'Complete') {
-      try {
-        await updateTakeoff(takeoff.id, { status: 'ABRIDGMENT' });
-        setTakeoff(prev => prev ? { ...prev, status: 'Abridgment' } : null);
-        console.log('[page.tsx handleAbridgeAll] Status updated to Abridgment');
-      } catch (statusErr) {
-        console.error('[page.tsx handleAbridgeAll] Failed to update status:', statusErr);
-      }
-    }
+    // Status update is handled in handleAbridgeDocument when each document succeeds
   };
 
   // View abridgment report for a document
@@ -452,8 +393,6 @@ export default function TakeoffDetailPage() {
     const scheduleDocs = currentDocs.filter(d =>
       d.abridgedUrl || d.documentUrl
     );
-
-    console.log('[Parsing] Total docs:', currentDocs.length, 'Docs with URLs:', scheduleDocs.length);
 
     if (scheduleDocs.length === 0) {
       console.warn('No documents available for parsing');
@@ -474,7 +413,6 @@ export default function TakeoffDetailPage() {
         const urlToUse = doc.abridgedUrl || doc.documentUrl;
         if (!urlToUse) continue;
 
-        console.log(`Parsing document: ${doc.name}`);
         const items = await parseScheduleDocument(urlToUse, doc.name, doc.id);
         allParsedItems.push(...items);
 
@@ -505,7 +443,6 @@ export default function TakeoffDetailPage() {
   const handleCrossItem = async (itemId: string) => {
     const item = parsedItems.find(i => i.id === itemId);
     if (!item || item.isOurManufacturer) {
-      console.log('[DEBUG handleCrossItem] Skipping - item not found or is our manufacturer');
       return;
     }
 
@@ -607,7 +544,6 @@ export default function TakeoffDetailPage() {
         try {
           await updateTakeoff(takeoff.id, { status: 'COMPLETE' });
           setTakeoff(prev => prev ? { ...prev, status: 'Complete' } : null);
-          console.log('[page.tsx handleCrossItem] All items crossed - status updated to Complete');
         } catch (statusErr) {
           console.error('[page.tsx handleCrossItem] Failed to update status:', statusErr);
         }
@@ -623,16 +559,12 @@ export default function TakeoffDetailPage() {
 
   // Cross all competitor items in a single batch API call - allows re-crossing
   const handleCrossAll = async () => {
-    console.log('🔵 [page.tsx handleCrossAll] Starting batch cross...');
     const itemsToCross = parsedItems.filter(i => !i.isOurManufacturer);
 
     if (itemsToCross.length === 0) {
-      console.log('🔵 [page.tsx handleCrossAll] No items to cross');
       showInfoToast('No items to cross', { description: 'All items are from our manufacturers.' });
       return;
     }
-
-    console.log(`🔵 [page.tsx handleCrossAll] Crossing ${itemsToCross.length} items in batch`);
 
     // Set Cross All button processing state (separate from individual item states)
     setIsCrossAllProcessing(true);
@@ -654,15 +586,11 @@ export default function TakeoffDetailPage() {
         quantity: item.quantity,
       }));
 
-      console.log('🔵 [page.tsx handleCrossAll] Calling crossProducts API with', productsToMatch.length, 'products');
-
       // Single batch API call for all products
       const results = await crossProducts(
         productsToMatch,
         ['SIMPLE', 'UPGRADE', 'VALUE']
       );
-
-      console.log('🔵 [page.tsx handleCrossAll] API returned', results?.length, 'results');
 
       // Process results and update items
       const updatedItems = [...parsedItems];
@@ -710,8 +638,6 @@ export default function TakeoffDetailPage() {
 
       // Persist updated items to backend for each document
       // Items may not have documentId set, so we need to match them by checking document.parsedItems
-      console.log('🔵 [page.tsx handleCrossAll] Persisting to documents...');
-
       for (const doc of documents) {
         if (!doc.parsedItems || doc.parsedItems.length === 0) continue;
 
@@ -722,23 +648,19 @@ export default function TakeoffDetailPage() {
         if (updatedItemsForDoc.length > 0) {
           try {
             await updateTakeoffDocument(doc.id, { parsedItems: updatedItemsForDoc });
-            console.log(`🔵 [page.tsx handleCrossAll] Persisted ${updatedItemsForDoc.length} items to document ${doc.id}`);
           } catch (persistErr) {
             console.error(`Failed to persist items for document ${doc.id}:`, persistErr);
           }
         }
       }
 
-      console.log('🔵 [page.tsx handleCrossAll] Batch cross complete');
-
       // Update takeoff status to COMPLETE
       if (takeoff) {
         try {
           await updateTakeoff(takeoff.id, { status: 'COMPLETE' });
           setTakeoff(prev => prev ? { ...prev, status: 'Complete' } : null);
-          console.log('🔵 [page.tsx handleCrossAll] Status updated to Complete');
         } catch (statusErr) {
-          console.error('🔴 [page.tsx handleCrossAll] Failed to update status:', statusErr);
+          console.error('[handleCrossAll] Failed to update status:', statusErr);
         }
       }
 
@@ -746,7 +668,7 @@ export default function TakeoffDetailPage() {
       setIsCrossAllProcessing(false);
 
     } catch (err) {
-      console.error('🔴 [page.tsx handleCrossAll] Batch cross failed:', err);
+      console.error('[handleCrossAll] Batch cross failed:', err);
       // Clear processing state on error for each individual item
       const errorState: Record<string, { isProcessing: boolean; error?: string }> = {};
       itemsToCross.forEach(item => {
@@ -868,9 +790,7 @@ export default function TakeoffDetailPage() {
         clientName={takeoff?.metadata?.clientName}
         crossedItems={parsedItems.filter(item => item.isCrossed)}
         onClose={() => setShowCreateQuoteModal(false)}
-        onSuccess={(quote) => {
-          console.log('Quote created:', quote);
-        }}
+        onSuccess={() => {}}
       />
     </main>
   );

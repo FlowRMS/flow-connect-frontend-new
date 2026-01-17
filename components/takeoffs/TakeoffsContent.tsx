@@ -62,6 +62,7 @@ export function TakeoffsContent() {
     // Abridgement state
     abridgementState,
     documentAbridgementProgress,
+    documentAbridgeState,
     // Per-item crossing state
     itemCrossingState,
     handleCrossItem,
@@ -283,6 +284,7 @@ export function TakeoffsContent() {
           isAbridgementProcessing={abridgementState.isProcessing}
           abridgementProgress={abridgementState.progress}
           documentAbridgementProgress={documentAbridgementProgress}
+          documentAbridgeState={documentAbridgeState}
           onBack={handleBackToList}
           onStepChange={handleStepChange}
           onProceedToParsing={handleProceedToParsing}
