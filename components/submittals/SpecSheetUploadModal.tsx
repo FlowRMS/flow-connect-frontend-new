@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { specSheetCategoryLabels } from '../../lib/data/submittals-mock';
-import type { SpecSheetCategory, UploadSource } from '../../lib/types/submittals';
-import { useManufacturersWithSpecSheets, useCreateSpecSheet, useFoldersByFactory } from './api/useSpecSheetsApi';
+import React from 'react';
+import {
+  useSpecSheetUpload,
+  SourceTabs,
+  UrlInput,
+  FileDropZone,
+  CategorySelector,
+  FolderSelector,
+} from './upload-modal';
 
 interface SpecSheetUploadModalProps {
   onClose: () => void;
@@ -12,138 +17,7 @@ interface SpecSheetUploadModalProps {
 }
 
 export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufacturerId }: SpecSheetUploadModalProps) {
-  const [uploadSource, setUploadSource] = useState<UploadSource>('url');
-  const [url, setUrl] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [manufacturerId, setManufacturerId] = useState(defaultManufacturerId || '');
-  const [displayName, setDisplayName] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<SpecSheetCategory[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string>('');
-  const [showNewFolder, setShowNewFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-
-  const { data: manufacturers = [], isLoading: loadingManufacturers } = useManufacturersWithSpecSheets();
-  const createSpecSheetMutation = useCreateSpecSheet();
-
-  // Fetch existing folders for the selected manufacturer
-  const { data: existingFolders = [], isLoading: loadingFolders } = useFoldersByFactory(manufacturerId || null);
-
-  // Build folder options for dropdown
-  const folderOptions = useMemo(() => {
-    if (!existingFolders || existingFolders.length === 0) return [];
-    return existingFolders
-      .map(f => f.folderPath)
-      .sort((a, b) => a.localeCompare(b));
-  }, [existingFolders]);
-
-  const allCategories: SpecSheetCategory[] = [
-    'indoor', 'outdoor', 'sports_lighting', 'controls', 'emergency',
-    'decorative', 'industrial', 'drives', 'sub_metering', 'cable_tray', 'other'
-  ];
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile && droppedFile.type === 'application/pdf') {
-      setFile(droppedFile);
-      if (!displayName) {
-        setDisplayName(droppedFile.name.replace('.pdf', ''));
-      }
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      if (!displayName) {
-        setDisplayName(selectedFile.name.replace('.pdf', ''));
-      }
-    }
-  };
-
-  const toggleCategory = (category: SpecSheetCategory) => {
-    setSelectedCategories(prev =>
-      prev.includes(category)
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
-    );
-  };
-
-  const handleAddFolder = () => {
-    if (!newFolderName.trim()) return;
-    // If there's already a folder path, append the new folder
-    const currentPath = selectedFolderPath;
-    const newPath = currentPath
-      ? `${currentPath}/${newFolderName.trim()}`
-      : newFolderName.trim();
-    setSelectedFolderPath(newPath);
-    setNewFolderName('');
-    setShowNewFolder(false);
-  };
-
-  const handleClearFolder = () => {
-    setSelectedFolderPath('');
-  };
-
-  const getFileName = () => {
-    if (uploadSource === 'file' && file) {
-      return file.name;
-    }
-    if (uploadSource === 'url' && url) {
-      // Extract filename from URL
-      const urlParts = url.split('/');
-      const lastPart = urlParts[urlParts.length - 1];
-      return lastPart.split('?')[0] || 'spec-sheet.pdf';
-    }
-    return 'spec-sheet.pdf';
-  };
-
-  const handleSubmit = async () => {
-    setError(null);
-
-    try {
-      const input = {
-        factoryId: manufacturerId,
-        fileName: getFileName(),
-        displayName: displayName || undefined,
-        uploadSource: uploadSource,
-        sourceUrl: uploadSource === 'url' ? url : undefined,
-        pageCount: 1, // Backend will determine actual page count when processing
-        categories: selectedCategories,
-        folderPath: selectedFolderPath || undefined,
-        file: uploadSource === 'file' ? file ?? undefined : undefined,
-        published: true,
-        needsReview: false,
-      };
-
-      await createSpecSheetMutation.mutateAsync(input);
-      onSuccess?.();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create spec sheet');
-    }
-  };
-
-  const isValid = () => {
-    const hasSource = uploadSource === 'url' ? url.trim() : file;
-    return hasSource && manufacturerId && selectedCategories.length > 0;
-  };
-
-  const isLoading = createSpecSheetMutation.isPending;
+  const upload = useSpecSheetUpload({ defaultManufacturerId, onSuccess, onClose });
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -151,10 +25,7 @@ export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufa
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
           <h2 className="text-lg font-semibold text-[var(--foreground)]">Add Spec Sheet</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
-          >
+          <button onClick={onClose} className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors">
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
             </svg>
@@ -163,257 +34,59 @@ export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufa
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Error message */}
-          {error && (
+          {upload.error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-              {error}
+              {upload.error}
             </div>
           )}
 
-          {/* Upload Source Tabs */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Upload Method</label>
-            <div className="flex border border-[var(--border)] rounded-lg overflow-hidden">
-              <button
-                onClick={() => setUploadSource('url')}
-                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-                  uploadSource === 'url'
-                    ? 'bg-[var(--primary)] text-white'
-                    : 'bg-[var(--background)] text-[var(--foreground)] hover:bg-[var(--muted)]'
-                }`}
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M8 12a4 4 0 004-4V4a4 4 0 00-8 0v4a4 4 0 004 4z"/>
-                    <path d="M12 12v2a4 4 0 01-8 0v-2"/>
-                  </svg>
-                  From URL
-                </span>
-              </button>
-              <button
-                onClick={() => setUploadSource('file')}
-                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-                  uploadSource === 'file'
-                    ? 'bg-[var(--primary)] text-white'
-                    : 'bg-[var(--background)] text-[var(--foreground)] hover:bg-[var(--muted)]'
-                }`}
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 14V6M6 10l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M3 17h14" strokeLinecap="round"/>
-                  </svg>
-                  Upload File
-                </span>
-              </button>
-            </div>
-          </div>
+          <SourceTabs uploadSource={upload.uploadSource} setUploadSource={upload.setUploadSource} />
 
-          {/* URL Input */}
-          {uploadSource === 'url' && (
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                Spec Sheet URL
-              </label>
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://manufacturer.com/specs/product.pdf"
-                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
-              />
-              <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                Paste a direct link to the PDF spec sheet
-              </p>
-            </div>
+          {upload.uploadSource === 'url' && (
+            <UrlInput url={upload.url} setUrl={upload.setUrl} />
           )}
 
-          {/* File Upload */}
-          {uploadSource === 'file' && (
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                Upload PDF
-              </label>
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                  isDragging
-                    ? 'border-[var(--primary)] bg-[var(--primary)]/5'
-                    : file
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-[var(--border)] hover:border-[var(--primary)]'
-                }`}
-              >
-                {file ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500">
-                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                      <path d="M14 2v6h6"/>
-                    </svg>
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-[var(--foreground)]">{file.name}</p>
-                      <p className="text-xs text-[var(--muted-foreground)]">
-                        {(file.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setFile(null)}
-                      className="p-1 hover:bg-[var(--muted)] rounded"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                      </svg>
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-3 text-[var(--muted-foreground)]">
-                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    <p className="text-sm text-[var(--foreground)] mb-1">
-                      Drag and drop your PDF here
-                    </p>
-                    <p className="text-xs text-[var(--muted-foreground)] mb-3">or</p>
-                    <label className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-[var(--muted)] text-[var(--foreground)] rounded-lg cursor-pointer hover:bg-[var(--muted)]/80 transition-colors">
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M4 16v2a2 2 0 002 2h8a2 2 0 002-2v-2M10 4v10M6 8l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      Browse Files
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                      />
-                    </label>
-                  </>
-                )}
-              </div>
-            </div>
+          {upload.uploadSource === 'file' && (
+            <FileDropZone
+              file={upload.file}
+              isDragging={upload.isDragging}
+              onDragOver={upload.handleDragOver}
+              onDragLeave={upload.handleDragLeave}
+              onDrop={upload.handleDrop}
+              onFileSelect={upload.handleFileSelect}
+              onClear={() => upload.setFile(null)}
+            />
           )}
 
           {/* Manufacturer */}
           <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Manufacturer
-            </label>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Manufacturer</label>
             <select
-              value={manufacturerId}
-              onChange={(e) => {
-                setManufacturerId(e.target.value);
-                setSelectedFolderPath(''); // Reset folder when manufacturer changes
-              }}
-              disabled={loadingManufacturers}
+              value={upload.manufacturerId}
+              onChange={(e) => upload.handleManufacturerChange(e.target.value)}
+              disabled={upload.loadingManufacturers}
               className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)] disabled:opacity-50"
             >
-              <option value="">{loadingManufacturers ? 'Loading...' : 'Select manufacturer...'}</option>
-              {manufacturers.map(m => (
+              <option value="">{upload.loadingManufacturers ? 'Loading...' : 'Select manufacturer...'}</option>
+              {upload.manufacturers.map(m => (
                 <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>
           </div>
 
-          {/* Folder Selection */}
-          {manufacturerId && (
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                Folder <span className="text-[var(--muted-foreground)] font-normal">(optional)</span>
-              </label>
-              {loadingFolders ? (
-                <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
-                  <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
-                  Loading folders...
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {/* Folder dropdown or selected folder display */}
-                  {selectedFolderPath ? (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--muted)] rounded-lg">
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-yellow-500 flex-shrink-0">
-                        <path d="M3 4h5l2 2h7a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1z"/>
-                      </svg>
-                      <span className="flex-1 text-sm text-[var(--foreground)]">{selectedFolderPath}</span>
-                      <button
-                        type="button"
-                        onClick={handleClearFolder}
-                        className="p-0.5 text-[var(--muted-foreground)] hover:text-red-500 transition-colors"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                        </svg>
-                      </button>
-                    </div>
-                  ) : folderOptions.length > 0 ? (
-                    <select
-                      value={selectedFolderPath}
-                      onChange={(e) => setSelectedFolderPath(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
-                    >
-                      <option value="">No folder (root level)</option>
-                      {folderOptions.map(path => (
-                        <option key={path} value={path}>{path}</option>
-                      ))}
-                    </select>
-                  ) : null}
-
-                  {/* Add new folder form */}
-                  {showNewFolder ? (
-                    <div className="flex items-center gap-2">
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-yellow-500 flex-shrink-0">
-                        <path d="M3 4h5l2 2h7a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1z"/>
-                      </svg>
-                      <input
-                        type="text"
-                        value={newFolderName}
-                        onChange={(e) => setNewFolderName(e.target.value)}
-                        placeholder="New folder name"
-                        className="flex-1 px-2 py-1.5 text-sm border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleAddFolder();
-                          } else if (e.key === 'Escape') {
-                            setShowNewFolder(false);
-                            setNewFolderName('');
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddFolder}
-                        disabled={!newFolderName.trim()}
-                        className="px-2 py-1 text-xs font-medium bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Add
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowNewFolder(false);
-                          setNewFolderName('');
-                        }}
-                        className="p-1 text-[var(--muted-foreground)] hover:bg-[var(--muted)] rounded transition-colors"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                        </svg>
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowNewFolder(true)}
-                      className="text-xs text-[var(--primary)] hover:underline"
-                    >
-                      + Create new folder
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+          {upload.manufacturerId && (
+            <FolderSelector
+              loadingFolders={upload.loadingFolders}
+              folderOptions={upload.folderOptions}
+              selectedFolderPath={upload.selectedFolderPath}
+              setSelectedFolderPath={upload.setSelectedFolderPath}
+              showNewFolder={upload.showNewFolder}
+              setShowNewFolder={upload.setShowNewFolder}
+              newFolderName={upload.newFolderName}
+              setNewFolderName={upload.setNewFolderName}
+              handleAddFolder={upload.handleAddFolder}
+              handleClearFolder={upload.handleClearFolder}
+            />
           )}
 
           {/* Display Name */}
@@ -423,40 +96,18 @@ export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufa
             </label>
             <input
               type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              value={upload.displayName}
+              onChange={(e) => upload.setDisplayName(e.target.value)}
               placeholder="e.g., Lithonia 2x4 LED Troffer Series"
               className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
             />
-            <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-              Override the file name with a friendly name
-            </p>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">Override the file name with a friendly name</p>
           </div>
 
-          {/* Categories */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Categories
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {allCategories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => toggleCategory(cat)}
-                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                    selectedCategories.includes(cat)
-                      ? 'bg-[var(--primary)] text-white'
-                      : 'bg-[var(--muted)] text-[var(--foreground)] hover:bg-[var(--muted)]/80'
-                  }`}
-                >
-                  {specSheetCategoryLabels[cat]}
-                </button>
-              ))}
-            </div>
-            {selectedCategories.length === 0 && (
-              <p className="mt-2 text-xs text-red-500">Select at least one category</p>
-            )}
-          </div>
+          <CategorySelector
+            selectedCategories={upload.selectedCategories}
+            toggleCategory={upload.toggleCategory}
+          />
         </div>
 
         {/* Footer */}
@@ -468,11 +119,11 @@ export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufa
             Cancel
           </button>
           <button
-            onClick={handleSubmit}
-            disabled={!isValid() || isLoading}
+            onClick={upload.handleSubmit}
+            disabled={!upload.isValid() || upload.isLoading}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? (
+            {upload.isLoading ? (
               <>
                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
