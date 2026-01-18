@@ -14,11 +14,12 @@ export type JobCompanyRole = 'SPECIFIER' | 'AWARDEE';
 export interface JobCompanyLinkCompany {
   id: string;
   name: string;
-  companySourceType?: string;
+  companyTypeId?: string;
   phone?: string;
   website?: string;
   tags?: string;
   parentCompanyId?: string;
+  territoryId?: string;
   createdAt?: string;
 }
 
@@ -58,11 +59,12 @@ const GET_JOB_COMPANY_LINKS = `
       company {
         id
         name
-        companySourceType
+        companyTypeId
         phone
         website
         tags
         parentCompanyId
+        territoryId
         createdAt
       }
     }
@@ -80,11 +82,12 @@ const GET_JOB_SPECIFIERS = `
       company {
         id
         name
-        companySourceType
+        companyTypeId
         phone
         website
         tags
         parentCompanyId
+        territoryId
         createdAt
       }
     }
@@ -102,11 +105,12 @@ const GET_JOB_AWARDEES = `
       company {
         id
         name
-        companySourceType
+        companyTypeId
         phone
         website
         tags
         parentCompanyId
+        territoryId
         createdAt
       }
     }
@@ -128,11 +132,12 @@ const ADD_COMPANY_TO_JOB = `
       company {
         id
         name
-        companySourceType
+        companyTypeId
         phone
         website
         tags
         parentCompanyId
+        territoryId
         createdAt
       }
     }

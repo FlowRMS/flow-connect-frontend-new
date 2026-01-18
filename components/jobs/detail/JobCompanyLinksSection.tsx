@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -13,8 +13,10 @@ import {
   fetchJobAwardees,
   addCompanyToJob,
   removeCompanyFromJob,
+  fetchCompanyTypes,
   type JobCompanyLink,
   type JobCompanyRole,
+  type CompanyType,
 } from '../../lib/graphql';
 import { searchCompanies, type CompanySearchResult } from '../../lib/api/search';
 import { showSuccessToast, showErrorToast } from '../../lib/toast';
@@ -258,17 +260,9 @@ function AddCompanyModal({
                       <span className="font-medium text-[var(--foreground)] truncate">
                         {company.name}
                       </span>
-                      {company.companySourceType && (
-                        <span
-                          className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
-                            company.companySourceType === 'MANUFACTURER'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-emerald-100 text-emerald-700'
-                          }`}
-                        >
-                          {company.companySourceType === 'MANUFACTURER'
-                            ? 'Manufacturer'
-                            : 'Customer'}
+                      {company.companyType?.name && (
+                        <span className="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 bg-blue-100 text-blue-700">
+                          {company.companyType.name}
                         </span>
                       )}
                     </div>
@@ -317,6 +311,7 @@ interface CompanyCardProps {
   onRemove: () => void;
   onCompanyClick?: (companyId: string) => void;
   isRemoving: boolean;
+  companyTypesMap: Map<string, string>;
 }
 
 function CompanyCard({
@@ -326,6 +321,7 @@ function CompanyCard({
   onRemove,
   onCompanyClick,
   isRemoving,
+  companyTypesMap,
 }: CompanyCardProps) {
   const router = useRouter();
 
@@ -367,17 +363,9 @@ function CompanyCard({
             <h4 className="font-medium text-[var(--foreground)] truncate">
               {link.company.name}
             </h4>
-            {link.company.companySourceType && (
-              <span
-                className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
-                  link.company.companySourceType === 'MANUFACTURER'
-                    ? 'bg-purple-100 text-purple-700'
-                    : 'bg-emerald-100 text-emerald-700'
-                }`}
-              >
-                {link.company.companySourceType === 'MANUFACTURER'
-                  ? 'Manufacturer'
-                  : 'Customer'}
+            {link.company.companyTypeId && companyTypesMap.get(link.company.companyTypeId) && (
+              <span className="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 bg-blue-100 text-blue-700">
+                {companyTypesMap.get(link.company.companyTypeId)}
               </span>
             )}
           </div>
@@ -485,6 +473,7 @@ interface CompanyLinksPaneProps {
   onCompanyClick?: (companyId: string) => void;
   accentColor: string;
   icon: React.ReactNode;
+  companyTypesMap: Map<string, string>;
 }
 
 function CompanyLinksPane({
@@ -499,6 +488,7 @@ function CompanyLinksPane({
   onCompanyClick,
   accentColor,
   icon,
+  companyTypesMap,
 }: CompanyLinksPaneProps) {
   return (
     <div className="flex-1 bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-hidden">
@@ -584,6 +574,7 @@ function CompanyLinksPane({
                 onRemove={() => onRemove(link.company.id)}
                 onCompanyClick={onCompanyClick}
                 isRemoving={removingCompanyId === link.company.id}
+                companyTypesMap={companyTypesMap}
               />
             ))}
           </div>
@@ -607,6 +598,19 @@ export function JobCompanyLinksSection({
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addModalRole, setAddModalRole] = useState<JobCompanyRole>('SPECIFIER');
   const [removingCompanyId, setRemovingCompanyId] = useState<string | null>(null);
+
+  // Fetch company types for lookup
+  const { data: companyTypes = [] } = useQuery({
+    queryKey: ['companyTypes'],
+    queryFn: () => fetchCompanyTypes(),
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  // Create a map of company type ID to name for quick lookup
+  const companyTypesMap = useMemo(
+    () => new Map(companyTypes.map((ct) => [ct.id, ct.name])),
+    [companyTypes]
+  );
 
   // Fetch specifiers
   const {
@@ -707,6 +711,7 @@ export function JobCompanyLinksSection({
               removingCompanyId={removingCompanyId}
               onCompanyClick={onCompanyClick}
               accentColor="from-blue-500 to-blue-600"
+              companyTypesMap={companyTypesMap}
               icon={
                 <svg
                   width="20"
@@ -739,6 +744,7 @@ export function JobCompanyLinksSection({
               removingCompanyId={removingCompanyId}
               onCompanyClick={onCompanyClick}
               accentColor="from-amber-500 to-orange-500"
+              companyTypesMap={companyTypesMap}
               icon={
                 <svg
                   width="20"
