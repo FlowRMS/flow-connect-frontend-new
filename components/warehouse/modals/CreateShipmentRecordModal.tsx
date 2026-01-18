@@ -82,7 +82,7 @@ export default function CreateShipmentRecordModal({
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(productSearchTerm);
-    }, 300); // 300ms debounce
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [productSearchTerm]);
@@ -92,7 +92,7 @@ export default function CreateShipmentRecordModal({
   const { data: vendorProducts = [], isLoading: isLoadingProducts } = useWarehouseProducts(
     debouncedSearchTerm,
     showProductSelector ? selectedVendorId : null,
-    50 // Reduced from 200 to 50 for better performance
+    50
   );
   const factories = useMemo(
     () => (vendorsQuery.data || []).map((vendor) => ({ id: vendor.id, name: vendor.title })),

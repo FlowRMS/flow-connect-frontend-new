@@ -79,7 +79,7 @@ export function useDeliveriesListState({
     return deliveriesQuery.data;
   }, [useInfiniteScroll, deliveriesInfiniteQuery.data, deliveriesQuery.data]);
 
-  // Derived data (eliminates 7 useState hooks!)
+  // Derived data
   const derivedData = useDerivedDeliveryData({
     deliveriesData,
     recurringData: recurringQuery.data,
