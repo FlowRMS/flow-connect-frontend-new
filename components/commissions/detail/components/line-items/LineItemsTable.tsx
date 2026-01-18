@@ -137,7 +137,7 @@ export function LineItemsTable({
       </div>
 
       {/* Scrollable table container - both horizontal and vertical scroll */}
-      <div className="flex-1 overflow-auto min-h-0">
+      <div className="flex-1 overflow-auto min-h-0 max-h-[60vh] scrollbar-always-visible">
         <table className="w-full min-w-[1400px]">
           <LineItemsTableHeader
             visibleColumns={visibleColumns}
