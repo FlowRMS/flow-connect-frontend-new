@@ -451,18 +451,18 @@ function ParentCompanySelect({ value, selectedName, onChange, onClear }: ParentC
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold ${
-                  company.companySourceType === 'MANUFACTURER' ? 'bg-purple-500' : 'bg-green-500'
-                }`}>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold bg-emerald-500">
                   {company.name.substring(0, 2).toUpperCase()}
                 </div>
                 <div>
                   <div className={`font-medium ${value === company.id ? 'text-blue-600' : 'text-gray-900'}`}>
                     {company.name}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
-                  </div>
+                  {company.companyType?.name && (
+                    <div className="text-xs text-gray-500">
+                      {company.companyType.name}
+                    </div>
+                  )}
                 </div>
               </div>
               {value === company.id && (

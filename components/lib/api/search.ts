@@ -44,7 +44,7 @@ const mapFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse }>(item
 export interface CompanySearchResult {
   id: string;
   name: string;
-  companySourceType: string;
+  companyType?: { id: string; name?: string } | null;
   createdAt: string;
   createdBy: string;
   parentCompanyId: string;
