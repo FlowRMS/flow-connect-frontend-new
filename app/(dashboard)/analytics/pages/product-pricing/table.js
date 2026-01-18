@@ -49,6 +49,8 @@ import { sumSkipNulls } from "@/lib/analytics/lib/pivot/aggregators";
 import { normalizePivotConfig, pivotConfigsEqual, computePivotValueTotals } from "@/lib/analytics/lib/pivot/pivotUtils";
 import { applyPivotSorting } from "@/lib/analytics/lib/pivot/applyPivotSorting";
 import { FullScreenModal, ExpandButton } from "@/components/analytics/ui/FullScreenModal";
+import { PivotConfigManager } from "@/components/analytics/table-config/PivotConfigManager";
+import { useTableConfig } from "@/lib/analytics/hooks/useTableConfig";
 import { PRODUCT_PRICING_QUERY, FACTORIES_QUERY, CUSTOMERS_SEARCH_QUERY } from "./queries";
 
 // Sparkline SVG component for inline price trend visualization
@@ -139,33 +141,47 @@ export function ProductPricingPivotGrid() {
   const [sortingConfig, setSortingConfig] = useState([]);
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
 
-  // Column visibility state - default visible columns
-  const [visibleColumns, setVisibleColumns] = useState([
-    "factoryPartNumber",
-    "productDescription", 
-    "lowestPrice",
-    "highestPrice",
-    "averagePrice",
-    "priceTrend", // Sparkline column
-  ]);
+  // Column visibility is now handled by pivot configurator - removed old checkbox panel
 
   // Full-screen modal state
   const [isFullScreen, setIsFullScreen] = useState(false);
 
-  // Pivot config state - we'll compute this dynamically based on visible columns
-  // For a flat table view, all visible columns go in rows
-  const pivotConfig = useMemo(() => {
-    // Put all visible columns in rows for a flat table view (not aggregated)
-    return normalizePivotConfig({
-      rows: visibleColumns,
+  // Grid key for forcing re-render - must be declared early since setPivotConfig uses setGridKey
+  const [gridKey, setGridKey] = useState(0);
+
+  // Table configuration management
+  const getAdditionalState = useCallback(() => {
+    return {
+      advancedFilters,
+      setAdvancedFilters,
+      dateRange: { startDate, endDate },
+      setDateRange: ({ startDate: start, endDate: end }) => {
+        if (start !== undefined) setStartDate(start);
+        if (end !== undefined) setEndDate(end);
+      },
+      sorting: sortingConfig,
+      setSorting: setSortingConfig,
+    };
+  }, [advancedFilters, startDate, endDate, sortingConfig]);
+
+  // Pivot config state - user can configure rows, columns, values
+  // Default: show all main columns as rows
+  const [pivotConfigState, setPivotConfigState] = useState(
+    normalizePivotConfig({
+      rows: ["factoryPartNumber", "productDescription", "lowestPrice", "highestPrice", "averagePrice", "priceTrend"],
       columns: [],
       values: [],
-    });
-  }, [visibleColumns]);
+    })
+  );
 
-  // No-op since pivot config is computed from visible columns
-  const setPivotConfig = useCallback(() => {
-    // Pivot config is now computed from visibleColumns, so we don't need to update it
+  const pivotConfig = useMemo(() => {
+    return normalizePivotConfig(pivotConfigState);
+  }, [pivotConfigState]);
+
+  const setPivotConfig = useCallback((newConfig) => {
+    const normalized = normalizePivotConfig(newConfig);
+    setPivotConfigState(normalized);
+    setGridKey(prev => prev + 1);
   }, []);
 
   // Handle apply button from DateRangeFilter
@@ -249,6 +265,10 @@ export function ProductPricingPivotGrid() {
     return filtered;
   }, [transformedRows, advancedFilters]);
 
+  // Ref to store source rows so Price Trend column can access full data independently
+  // Must be declared before sortedRows so useEffect can use it
+  const sourceRowsRef = useRef([]);
+
   // Apply sorting
   const sortedRows = useMemo(() => {
     return applyPivotSorting({
@@ -257,6 +277,12 @@ export function ProductPricingPivotGrid() {
       // pivotConfig: pivotConfigState,
     });
   }, [filteredRows, sortingConfig]);
+
+  // Update sourceRowsRef whenever sortedRows changes
+  // This allows Price Trend column to access full source data independently
+  useEffect(() => {
+    sourceRowsRef.current = sortedRows;
+  }, [sortedRows]);
 
   // Calculate min/max for data bars (Excel-style visualization)
   const columnRanges = useMemo(() => {
@@ -277,14 +303,77 @@ export function ProductPricingPivotGrid() {
     
     return ranges;
   }, [sortedRows]);
-
+  
   // Bar chart renderer function for price comparison (lowest, highest, average)
+  // Price Trend column is INDEPENDENT - it always accesses full row data from source
   const createPriceBarChartCell = useCallback((h, props) => {
-    const lowestPrice = props.model.lowestPrice || 0;
-    const highestPrice = props.model.highestPrice || 0;
-    const averagePrice = props.model.averagePrice || 0;
+    let lowestPrice, highestPrice, averagePrice;
     
-    if (lowestPrice === 0 && highestPrice === 0) {
+    // ALWAYS access from source data to ensure Price Trend works independently
+    // This works in both normal mode and fullscreen mode, regardless of column selection
+    const sourceRows = sourceRowsRef.current;
+    let foundSourceRow = false;
+    
+    if (sourceRows && sourceRows.length > 0) {
+      // Try multiple ways to identify the row:
+      // 1. By factoryPartNumber (if it's in props.model)
+      // 2. By rowIndex (if available in props)
+      // 3. By matching all available props.model values
+      
+      let sourceRow = null;
+      
+      // Method 1: Try factoryPartNumber (most reliable)
+      const factoryPartNumber = props.model?.factoryPartNumber;
+      if (factoryPartNumber) {
+        sourceRow = sourceRows.find(row => row.factoryPartNumber === factoryPartNumber);
+      }
+      
+      // Method 2: Try rowIndex (if available)
+      if (!sourceRow && props.rowIndex !== undefined && props.rowIndex !== null) {
+        const rowIndex = props.rowIndex;
+        if (rowIndex >= 0 && rowIndex < sourceRows.length) {
+          sourceRow = sourceRows[rowIndex];
+        }
+      }
+      
+      // Method 3: Try matching by any unique identifier available in props.model
+      if (!sourceRow && props.model) {
+        // Try to find by matching productDescription as fallback
+        const productDescription = props.model?.productDescription;
+        if (productDescription && productDescription !== 'N/A') {
+          sourceRow = sourceRows.find(row => row.productDescription === productDescription);
+        }
+      }
+      
+      if (sourceRow) {
+        // Use source data - this ensures we always have all three prices
+        lowestPrice = sourceRow.lowestPrice;
+        highestPrice = sourceRow.highestPrice;
+        averagePrice = sourceRow.averagePrice;
+        foundSourceRow = true;
+      }
+    }
+    
+    // Only fallback to props.model if source data lookup completely failed
+    // This handles edge cases where factoryPartNumber might not match
+    if (!foundSourceRow || lowestPrice === undefined || highestPrice === undefined || averagePrice === undefined) {
+      // Fallback: try props.model
+      const modelLowest = props.model?.lowestPrice;
+      const modelHighest = props.model?.highestPrice;
+      const modelAverage = props.model?.averagePrice;
+      
+      if (lowestPrice === undefined) lowestPrice = modelLowest;
+      if (highestPrice === undefined) highestPrice = modelHighest;
+      if (averagePrice === undefined) averagePrice = modelAverage;
+    }
+    
+    // Convert to numbers, defaulting to 0
+    lowestPrice = parseFloat(lowestPrice) || 0;
+    highestPrice = parseFloat(highestPrice) || 0;
+    averagePrice = parseFloat(averagePrice) || 0;
+    
+    // Only show N/A if truly no data (all zeros)
+    if (lowestPrice === 0 && highestPrice === 0 && averagePrice === 0) {
       return h('span', { class: 'text-gray-400 text-xs' }, 'N/A');
     }
     
@@ -333,6 +422,31 @@ export function ProductPricingPivotGrid() {
   const gridRef = useRef(null);
   const containerRef = useRef(null);
 
+  // Table configuration management - must be after gridRef declaration
+  const {
+    configManager,
+    saveCurrentConfig,
+    loadConfig,
+    getSavedConfigs,
+    deleteConfig,
+    exportConfig,
+    importConfig,
+    isConfigDialogOpen,
+    openConfigDialog,
+    closeConfigDialog,
+    handleConfigApplied,
+    hasUnsavedChanges,
+    lastSavedConfig,
+    autoSaveEnabled,
+    toggleAutoSave,
+    scheduleAutoSave,
+    refreshTrigger,
+  } = useTableConfig(
+    gridRef,
+    "product-pricing",
+    getAdditionalState
+  );
+
   // Handle resize
   const handleResize = useCallback(() => {
     if (containerRef.current) {
@@ -373,8 +487,6 @@ export function ProductPricingPivotGrid() {
     []
   );
 
-  // Grid key for forcing re-render
-  const [gridKey, setGridKey] = useState(0);
 
   // All available columns configuration
   const allColumns = useMemo(
@@ -545,32 +657,61 @@ export function ProductPricingPivotGrid() {
     [createPriceBarChartCell]
   );
 
-  // Filtered columns based on visibility
-  const columns = useMemo(
-    () => allColumns.filter(col => visibleColumns.includes(col.prop)),
-    [allColumns, visibleColumns]
-  );
+  // Columns are now controlled by pivot config (rows/columns/values)
+  // Use all columns - pivot configurator will handle which ones to show
+  const columns = useMemo(() => {
+    // Get columns from pivot config rows/columns/values
+    const pivotColumns = [
+      ...pivotConfig.rows,
+      ...pivotConfig.columns,
+      ...pivotConfig.values,
+    ];
+    
+    // Return columns in the order they appear in pivot config
+    // If no pivot config, show all columns as rows
+    if (pivotColumns.length === 0) {
+      return allColumns;
+    }
+    
+    // Map pivot column props to full column definitions
+    let cols = pivotColumns
+      .map(prop => allColumns.find(col => col.prop === prop))
+      .filter(Boolean);
+    
+    // IMPORTANT: If priceTrend is selected, ensure lowestPrice, highestPrice, and averagePrice
+    // are always included in columns (even if not selected) so their data is available in props.model
+    const hasPriceTrend = pivotColumns.includes('priceTrend');
+    if (hasPriceTrend) {
+      const requiredPriceProps = ['lowestPrice', 'highestPrice', 'averagePrice'];
+      requiredPriceProps.forEach(prop => {
+        if (!pivotColumns.includes(prop)) {
+          // Find the column definition and add it (but it will be hidden visually)
+          const colDef = allColumns.find(col => col.prop === prop);
+          if (colDef) {
+            // Insert after the last price column or at the end
+            cols.push({
+              ...colDef,
+              size: 0, // Hide by setting width to 0
+              minSize: 0,
+              // Don't add it to the visible columns list, but include it so data is available
+            });
+          }
+        }
+      });
+    }
+    
+    return cols;
+  }, [pivotConfig, allColumns]);
 
-  // Toggle column visibility
-  const toggleColumnVisibility = useCallback((prop) => {
-    setVisibleColumns(prev => {
-      if (prev.includes(prop)) {
-        return prev.filter(p => p !== prop);
-      } else {
-        return [...prev, prop];
-      }
-    });
-    // Force grid re-render when columns change
-    setGridKey(prev => prev + 1);
-  }, []);
+  // Column visibility is now handled by pivot configurator - no need for toggleColumnVisibility
 
   const config = useMemo(
     () => ({
-      dimensions: columns,
+      dimensions: allColumns, // Use allColumns so pivot configurator shows all available fields
       rows: pivotConfig.rows,
       columns: pivotConfig.columns,
       values: pivotConfig.values,
-      hasConfigurator: false,
+      hasConfigurator: true,
       flatHeaders: true,
       aggregatorNames: {
         sum: "Sum",
@@ -581,7 +722,7 @@ export function ProductPricingPivotGrid() {
         min: "Minimum",
       },
     }),
-    [pivotConfig, columns]
+    [pivotConfig, allColumns]
   );
 
   const additionalData = useMemo(() => ({ pivot: { ...config } }), [config]);
@@ -686,15 +827,14 @@ export function ProductPricingPivotGrid() {
     gridRef.current.setColumns = () => true;
   }, [pivotConfig, columns, setPivotConfig]);
 
-  // Pivot config is now controlled by visibleColumns via checkboxes
-  // No need to listen to grid pivot config updates
+  // Pivot config is now controlled by pivot configurator (rows/columns/values)
 
   // Set CSS custom properties for data bars and render price bar charts after grid renders
+  // This works for both main grid and fullscreen modal
   useEffect(() => {
-    if (!containerRef.current) return;
-    
     const updateDataBars = () => {
-      const containers = containerRef.current?.querySelectorAll?.('.revo-data-bar-container');
+      // Use document.querySelectorAll to find containers in both main grid and fullscreen modal
+      const containers = document.querySelectorAll('.revo-data-bar-container');
       if (containers) {
         containers.forEach(container => {
           const barWidth = container.getAttribute('data-bar-width');
@@ -708,9 +848,8 @@ export function ProductPricingPivotGrid() {
     };
     
     const renderPriceBarCharts = () => {
-      // Use document.querySelectorAll as fallback
-      const containers = containerRef.current?.querySelectorAll?.('.revo-price-bar-chart-container') 
-        || document.querySelectorAll('.revo-price-bar-chart-container');
+      // Use document.querySelectorAll to find containers in both main grid and fullscreen modal
+      const containers = document.querySelectorAll('.revo-price-bar-chart-container');
       if (containers && containers.length > 0) {
         containers.forEach(container => {
           // Skip if already has SVG rendered
@@ -796,13 +935,15 @@ export function ProductPricingPivotGrid() {
       runRenders();
     });
     
-    // MutationObserver to detect when RevoGrid renders new cells
+    // MutationObserver to detect when RevoGrid renders new cells in both main and fullscreen containers
     let observer = null;
-    if (containerRef.current) {
+    // Observe both main container and document body (to catch fullscreen modal changes)
+    const targetNode = containerRef.current || document.body;
+    if (targetNode) {
       observer = new MutationObserver(() => {
         runRenders();
       });
-      observer.observe(containerRef.current, {
+      observer.observe(targetNode, {
         childList: true,
         subtree: true
       });
@@ -817,7 +958,7 @@ export function ProductPricingPivotGrid() {
       cancelAnimationFrame(raf);
       if (observer) observer.disconnect();
     };
-  }, [sortedRows, gridKey, columnRanges]);
+  }, [sortedRows, gridKey, columnRanges, isFullScreen]); // Add isFullScreen to dependencies
 
   const handleClearDates = useCallback(() => {
     setStartDate("");
@@ -899,7 +1040,7 @@ export function ProductPricingPivotGrid() {
           </div>
           <div className="flex items-start pt-3">
             <FilterPane
-              columns={columns}
+              columns={allColumns}
               visibleColumns={columns}
               data={transformedRows}
               filters={advancedFilters}
@@ -998,6 +1139,16 @@ export function ProductPricingPivotGrid() {
                 onClick={() => setIsFullScreen(true)}
                 disabled={sortedRows.length === 0}
               />
+              <PivotConfigManager
+                configManager={configManager}
+                gridRef={gridRef}
+                onConfigApplied={handleConfigApplied}
+                deleteConfig={deleteConfig}
+                loadConfig={loadConfig}
+                saveConfig={saveCurrentConfig}
+                getSavedConfigs={getSavedConfigs}
+                refreshTrigger={refreshTrigger}
+              />
               <button
                 onClick={() => setIsSortModalOpen(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm"
@@ -1048,38 +1199,19 @@ export function ProductPricingPivotGrid() {
           </div>
         </div>
 
-        {/* Grid with Column Visibility Panel */}
-        <div className="flex">
-          {/* Column Visibility Panel */}
-          <div className="w-56 flex-shrink-0 border-r border-gray-200 bg-gray-50 p-3 overflow-y-auto" style={{ maxHeight: `${gridDimensions.height}px` }}>
-            <div className="space-y-1">
-              {allColumns.map((col) => (
-                <label
-                  key={col.prop}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 cursor-pointer text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    checked={visibleColumns.includes(col.prop)}
-                    onChange={() => toggleColumnVisibility(col.prop)}
-                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700 truncate">{col.name}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Main Grid Container */}
-          <div
-            ref={containerRef}
-            className="pivot-grid-container bg-white rounded-none relative flex-1"
-            style={{
-              height: `${gridDimensions.height}px`,
-              overflowX: "auto",
-              overflowY: "auto",
-            }}
-          >
+        {/* Main Grid Container */}
+        <div
+          ref={containerRef}
+          className="pivot-grid-container bg-white rounded-none relative w-full"
+          style={{
+            height: `${gridDimensions.height}px`,
+            width: "100%",
+            minWidth: "100%",
+            overflowX: "auto",
+            overflowY: "auto",
+            position: "relative",
+          }}
+        >
           {!appliedStartDate || !appliedEndDate ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-4 p-8">
@@ -1139,7 +1271,7 @@ export function ProductPricingPivotGrid() {
             </div>
           ) : (
             <RevoGrid
-              key={`${gridKey}-${visibleColumns.join('-')}`}
+              key={`${gridKey}-${pivotConfig.rows.join('-')}-${pivotConfig.columns.join('-')}-${pivotConfig.values.join('-')}`}
               ref={internalGridRef}
               hide-attribution
               range
@@ -1167,6 +1299,7 @@ export function ProductPricingPivotGrid() {
                 "--rg-color-row-even": "rgb(255, 255, 255)",
                 "--rg-color-row-odd": "rgb(248, 250, 252)",
                 width: "100%",
+                minWidth: "100%",
                 height: "100%",
                 fontFamily: "'Inter', system-ui, sans-serif",
                 fontSize: "14px",
@@ -1174,7 +1307,6 @@ export function ProductPricingPivotGrid() {
               }}
             />
           )}
-          </div>
         </div>
       </Card>
 
@@ -1196,8 +1328,14 @@ export function ProductPricingPivotGrid() {
         title="Product Pricing Analysis - Full Screen"
       >
         <div
-          className="pivot-grid-container bg-white rounded-lg relative w-full h-full"
-          style={{ height: "100%", width: "100%" }}
+          className="pivot-grid-container bg-white rounded-lg relative w-full h-full fullscreen-grid-container"
+          style={{ 
+            height: "100%", 
+            width: "100%",
+            minWidth: "100%",
+            overflowX: "auto",
+            overflowY: "auto",
+          }}
         >
           {isHydrated && sortedRows.length > 0 && (
             <RevoGrid
@@ -1228,6 +1366,7 @@ export function ProductPricingPivotGrid() {
                 "--rg-color-row-even": "rgb(255, 255, 255)",
                 "--rg-color-row-odd": "rgb(248, 250, 252)",
                 width: "100%",
+                minWidth: "100%",
                 height: "100%",
                 fontFamily: "'Inter', system-ui, sans-serif",
                 fontSize: "14px",
