@@ -1,5 +1,12 @@
 // Barrel export for utils
 
-export { buildLocationList } from './locationBuilder';
-export { generateQRPattern, generateQRPatternSVG, hashCode } from './qrCodeGenerator';
-export { generatePrintCSS, getPreviewGridClasses, getPreviewQRSize, getPreviewLabelSize } from './printStyles';
+export { buildLocationListFromApi, buildEmptyLocationList } from './locationBuilder';
+export {
+  generateQRCodeValue,
+  generateQRCodeSVG,
+  getQRCodeSize,
+  getPreviewQRSize,
+  getPreviewLabelSize,
+  type QRCodeData,
+} from './qrCodeGenerator';
+export { generatePrintCSS, getPreviewGridClasses } from './printStyles';

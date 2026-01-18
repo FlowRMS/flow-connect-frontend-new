@@ -218,6 +218,37 @@ export {
   type FileEntityType,
 } from './files';
 
+// Takeoffs module
+export {
+  fetchUserTakeoffs,
+  fetchTakeoff,
+  createTakeoff,
+  updateTakeoff,
+  deleteTakeoff,
+  updateTakeoffDocument,
+  type TakeoffStatusEnum,
+  type TakeoffDocumentResponse,
+  type TakeoffResponse,
+  type PageAnalysis,
+  type ParsedItem,
+  type TakeoffDocumentInput,
+  type CreateTakeoffInput,
+  type UpdateTakeoffInput,
+  type UpdateTakeoffDocumentInput,
+} from './takeoffs';
+
+// Product Crosses module
+export {
+  crossProducts,
+  crossProductsFromDocument,
+  transformResultsToDisplayItems,
+  type ProductCrossTypeEnum,
+  type ProductAlternative,
+  type ProductCrossResult,
+  type ParsedProductCross,
+  type ProductCrossDisplayItem,
+} from './product-crosses';
+
 // Orders module
 export {
   fetchOrdersWithPagination,
@@ -431,6 +462,30 @@ export {
   type BulkDeleteResult,
   type BulkDeleteFailure,
 } from './bulk-operations';
+
+// Company Types module
+export {
+  fetchCompanyTypes,
+  fetchCompanyType,
+  createCompanyType,
+  updateCompanyType,
+  deleteCompanyType,
+  type CompanyType,
+  type CreateCompanyTypeInput,
+  type UpdateCompanyTypeInput,
+} from './company-types';
+
+// Task Categories module
+export {
+  fetchTaskCategories,
+  fetchTaskCategory,
+  createTaskCategory,
+  updateTaskCategory,
+  deleteTaskCategory,
+  type TaskCategory,
+  type CreateTaskCategoryInput,
+  type UpdateTaskCategoryInput,
+} from './task-categories';
 
 // Job Company Links module
 export {

@@ -27,6 +27,7 @@ interface AdditionalDetailsModalProps {
   onClose: () => void;
   lineItem: OrderLineItem | null;
   onSave: (updates: Partial<OrderLineItem>) => void;
+  onLiveUpdate?: (updates: Partial<OrderLineItem>) => void;
   showEndUserPerLine?: boolean;
   showOutsideRepPerLine?: boolean;
   showInsideRepPerLine?: boolean;
@@ -37,6 +38,7 @@ export function AdditionalDetailsModal({
   onClose,
   lineItem,
   onSave,
+  onLiveUpdate,
   showEndUserPerLine = false,
   showOutsideRepPerLine = false,
   showInsideRepPerLine = false,
@@ -542,15 +544,28 @@ export function AdditionalDetailsModal({
               <label className="block text-sm text-gray-700 mb-1">Commission Discount %</label>
               <div className="flex items-center gap-2">
                 <input
-                  type="number"
-                  value={formData.commissionDiscountPercent}
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.commissionDiscountPercent || ''}
                   onChange={(e) => {
+                    const value = e.target.value.replace(/^0+(?=\d)/, '');
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      e.target.value = value;
+                    }
                     const percent = parseFloat(e.target.value) || 0;
-                    // Calculate commission discount amount based on line item's commission amount
-                    const commissionAmount = lineItem?.commissionAmount || 0;
-                    const discountAmount = (commissionAmount * percent) / 100;
+                    // Calculate commission discount amount based on line item's commission total
+                    // Use commissionAmount if available, otherwise calculate from extendedPrice * commissionRate
+                    const extendedPrice = lineItem?.extendedPrice || 0;
+                    const commissionRate = lineItem?.commissionRate || 0;
+                    const commissionTotal = lineItem?.commissionAmount || (extendedPrice * (commissionRate / 100));
+                    const discountAmount = (commissionTotal * percent) / 100;
                     setFormData({
                       ...formData,
+                      commissionDiscountPercent: percent,
+                      commissionDiscountAmount: discountAmount,
+                    });
+                    // Live update the line item (without closing modal)
+                    onLiveUpdate?.({
                       commissionDiscountPercent: percent,
                       commissionDiscountAmount: discountAmount,
                     });
@@ -580,15 +595,25 @@ export function AdditionalDetailsModal({
               <label className="block text-sm text-gray-700 mb-1">Line Discount %</label>
               <div className="flex items-center gap-2">
                 <input
-                  type="number"
-                  value={formData.lineDiscountPercent}
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.lineDiscountPercent || ''}
                   onChange={(e) => {
+                    const value = e.target.value.replace(/^0+(?=\d)/, '');
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      e.target.value = value;
+                    }
                     const percent = parseFloat(e.target.value) || 0;
                     // Calculate line discount amount based on line item's extended price
                     const extendedPrice = lineItem?.extendedPrice || 0;
                     const discountAmount = (extendedPrice * percent) / 100;
                     setFormData({
                       ...formData,
+                      lineDiscountPercent: percent,
+                      lineDiscountAmount: discountAmount,
+                    });
+                    // Live update the line item (without closing modal)
+                    onLiveUpdate?.({
                       lineDiscountPercent: percent,
                       lineDiscountAmount: discountAmount,
                     });

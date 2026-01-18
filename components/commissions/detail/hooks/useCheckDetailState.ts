@@ -27,6 +27,7 @@ import {
   useCreateCheck,
   useUpdateCheck,
   useDeleteCheck,
+  usePostCheck,
 } from '@/components/orders/api/checksApi';
 import { unpostCheck as unpostCheckApi } from '@/components/lib/graphql/checks';
 import type { AdjustmentLandingPage } from '@/components/orders/api/adjustmentsApi';
@@ -59,6 +60,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   const createCheckMutation = useCreateCheck();
   const updateCheckMutation = useUpdateCheck();
   const deleteCheckMutation = useDeleteCheck();
+  const postCheckMutation = usePostCheck();
 
   // Track if we've made local edits (for unsaved changes indicator)
   const [hasLocalEdits, setHasLocalEdits] = useState(false);
@@ -220,6 +222,47 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       setPostedDate(check.postDate || '');
     }
   }, [check]);
+
+  // Wrapper functions for header field setters that track changes
+  const handleSetFactory = useCallback((value: string) => {
+    setFactory(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCommissionMonth = useCallback((value: string) => {
+    setCommissionMonth(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCheckNumber = useCallback((value: string) => {
+    setCheckNumber(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCommissionAmount = useCallback((value: number) => {
+    setCommissionAmount(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetCheckDate = useCallback((value: string) => {
+    setCheckDate(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetPostedDate = useCallback((value: string) => {
+    setPostedDate(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetStatus = useCallback((value: CheckStatus) => {
+    setStatus(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
+
+  const handleSetFactoryId = useCallback((value: string) => {
+    setFactoryId(value);
+    if (!isCreateMode) setHasLocalEdits(true);
+  }, [isCreateMode]);
 
   // Adjustments state (legacy format for backward compatibility)
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
@@ -767,21 +810,25 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       commissionMonth: formattedCommissionMonth,
       enteredCommissionAmount: String(commissionAmount),
       factoryId,
-      status: status === 'posted' ? 'POSTED' : 'OPEN',
       creationType: 'MANUAL',
-      details: details.length > 0 ? details : undefined,
+      details: details,
     };
 
     try {
+      let savedCheckId = checkId;
+
       if (isCreateMode) {
         const newCheck = await createCheckMutation.mutateAsync(input);
+        savedCheckId = newCheck.id;
+        setHasLocalEdits(false);
         toast.success('Check created successfully');
-        router.push(`/commissions/${newCheck.id}`);
+        router.push(`/commissions/${savedCheckId}`);
       } else {
         await updateCheckMutation.mutateAsync({
           ...input,
           id: checkId,
         });
+        setHasLocalEdits(false);
         toast.success('Check updated successfully');
         refetchCheck();
       }
@@ -798,7 +845,6 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     commissionMonth,
     commissionAmount,
     factoryId,
-    status,
     lineItems,
     adjustments,
     createCheckMutation,
@@ -829,6 +875,9 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
   // Unpost check state
   const [isUnposting, setIsUnposting] = useState(false);
+
+  // Post check state
+  const [isPosting, setIsPosting] = useState(false);
 
   // Delete confirmation modal state
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
@@ -863,6 +912,30 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     }
   }, [isCreateMode, checkId, status, refetchCheck]);
 
+  // Post check - changes status from OPEN to POSTED directly without needing to save
+  const handlePost = useCallback(async () => {
+    if (isCreateMode) {
+      toast.error('Please save the check first before posting');
+      return;
+    }
+    if (status === 'posted') return;
+
+    setIsPosting(true);
+    try {
+      await postCheckMutation.mutateAsync(checkId);
+      toast.success('Check posted successfully');
+      // Update local status to posted
+      setStatus('posted');
+      // Refetch the check data to ensure sync with server
+      refetchCheck();
+    } catch (error) {
+      console.error('Error posting check:', error);
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsPosting(false);
+    }
+  }, [isCreateMode, checkId, status, postCheckMutation, refetchCheck]);
+
   // Loading state - show loading for existing checks that haven't loaded yet
   if (!isCreateMode && isLoadingCheck) {
     return {
@@ -887,13 +960,15 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     hasChanges: isCreateMode || hasLocalEdits,
     resetChanges: () => setHasLocalEdits(false),
 
-    // Save/Delete/Unpost actions
+    // Save/Delete/Post/Unpost actions
     handleSave,
     handleSaveAndClose,
     handleDelete,
+    handlePost,
     handleUnpost,
     isSaving: createCheckMutation.isPending || updateCheckMutation.isPending,
     isDeleting: deleteCheckMutation.isPending,
+    isPosting,
     isUnposting,
 
     // Delete confirmation modal
@@ -903,7 +978,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
     // Factory ID (for API)
     factoryId,
-    setFactoryId,
+    setFactoryId: handleSetFactoryId,
 
     // Tab state
     activeTab,
@@ -981,19 +1056,19 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
     // Form fields
     factory,
-    setFactory,
+    setFactory: handleSetFactory,
     commissionMonth,
-    setCommissionMonth,
+    setCommissionMonth: handleSetCommissionMonth,
     checkNumber,
-    setCheckNumber,
+    setCheckNumber: handleSetCheckNumber,
     commissionAmount,
-    setCommissionAmount,
+    setCommissionAmount: handleSetCommissionAmount,
     checkDate,
-    setCheckDate,
+    setCheckDate: handleSetCheckDate,
     status,
-    setStatus,
+    setStatus: handleSetStatus,
     postedDate,
-    setPostedDate,
+    setPostedDate: handleSetPostedDate,
     // Whether the check was originally posted (from API) - used to disable Save button
     isOriginallyPosted: !isCreateMode && apiCheck?.status === 'POSTED',
     isTotalStatedCommission,

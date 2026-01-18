@@ -196,12 +196,12 @@ export function useDeleteQuote() {
 
 /**
  * Create quote from pre-opportunity mutation
- * @param preOpportunityDetailIds - Optional comma-separated list of detail IDs to include
+ * @param preOpportunityDetailIds - Optional array of detail IDs to include
  */
 export function useCreateQuoteFromPreOpportunity() {
   const queryClient = useQueryClient();
 
-  return useMutation<Quote, Error, { preOpportunityId: string; quoteNumber: string; preOpportunityDetailIds?: string }>({
+  return useMutation<Quote, Error, { preOpportunityId: string; quoteNumber: string; preOpportunityDetailIds?: string[] }>({
     mutationFn: ({ preOpportunityId, quoteNumber, preOpportunityDetailIds }) =>
       createQuoteFromPreOpportunity(preOpportunityId, quoteNumber, preOpportunityDetailIds),
     onSuccess: () => {

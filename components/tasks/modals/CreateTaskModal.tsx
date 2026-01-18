@@ -7,11 +7,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  useCreateTask, 
+import {
+  useCreateTask,
   useCreateTaskLink,
   useUserSearch
 } from '../api';
+import { useTaskCategories, type TaskCategory } from '../../hooks/useCRMApi';
 import { taskToasts } from '../../lib/toast';
 import { AVAILABLE_TAGS, API_PRIORITY_OPTIONS, API_STATUS_OPTIONS } from '../constants';
 import type { TaskPriorityAPI, TaskStatusAPI } from '../types';
@@ -35,6 +36,11 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const [reminderDate, setReminderDate] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+
+  // Fetch task categories
+  const { data: categoriesData } = useTaskCategories();
+  const categories: TaskCategory[] = categoriesData ?? [];
   
   // Assignee state - now supports multiple assignees
   const [assigneeSearch, setAssigneeSearch] = useState('');
@@ -173,6 +179,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
         reminderDate: reminderDate || undefined,
         tags: selectedTags.length > 0 ? selectedTags.join(',') : undefined,
         assigneeIds: selectedAssignees.length > 0 ? selectedAssignees.map(a => a.id) : undefined,
+        categoryId: selectedCategoryId || undefined,
       });
 
       // Create links for all selected entities
@@ -205,6 +212,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     setSelectedTags([]);
     setSelectedLinks([]);
     setSelectedAssignees([]);
+    setSelectedCategoryId('');
     setCustomTag('');
     setAssigneeSearch('');
   };
@@ -309,8 +317,8 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                 />
               </div>
 
-              {/* Status and Priority Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              {/* Status, Priority, and Category Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div>
                   <label className={labelClass}>
                     <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -342,6 +350,25 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                       label: priorityLabels[p],
                       color: p === 'CRITICAL' ? '#9333ea' : p === 'URGENT' ? '#ef4444' : p === 'NORMAL' ? '#3b82f6' : '#9ca3af',
                     }))}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    Category
+                  </label>
+                  <CustomSelect
+                    value={selectedCategoryId}
+                    onChange={(val) => setSelectedCategoryId(val)}
+                    options={[
+                      { value: '', label: 'No Category' },
+                      ...categories.map(c => ({
+                        value: c.id,
+                        label: c.name,
+                      }))
+                    ]}
                   />
                 </div>
               </div>

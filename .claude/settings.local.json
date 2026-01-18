@@ -26,7 +26,8 @@
       "Bash(npm i:*)",
       "Bash(findstr:*)",
       "Bash(diff:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(npm run lint)"
     ],
     "deny": [],
     "ask": []

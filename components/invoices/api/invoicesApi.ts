@@ -28,6 +28,7 @@ export {
   type CreateInvoiceInput,
   type UpdateInvoiceInput,
   type CreateInvoiceFromOrderInput,
+  type OrderDetailInputForInvoice,
   type InvoiceDetailInput,
   type InvoiceSplitRateInput,
   type InvoiceLandingPageFilter,

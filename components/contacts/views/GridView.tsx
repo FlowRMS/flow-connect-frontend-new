@@ -78,19 +78,6 @@ export default function GridView({ contacts, onContactClick }: GridViewProps) {
             )}
           </div>
 
-          {/* Contact Types */}
-          {contact.contactType.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-1">
-              {contact.contactType.map((type) => (
-                <span
-                  key={type}
-                  className="px-2 py-0.5 text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)] rounded-full"
-                >
-                  {type}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       ))}
     </div>

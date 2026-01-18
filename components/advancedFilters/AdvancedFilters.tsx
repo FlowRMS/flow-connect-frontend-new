@@ -4,12 +4,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import './AdvancedFilters.css';
 import type { FilterOperator, ActiveFilter, ActiveSort, FilterOption, AdvancedFiltersProps } from './types';
-import { parseDateString, formatDateToISO } from './utils';
+import { parseDateString, formatDateToISO, formatDateToBackend } from './utils';
 import { ActiveFilters } from './components/ActiveFilters';
 import { TextFilter } from './components/filter-types/TextFilter';
 import { NumberFilter } from './components/filter-types/NumberFilter';
 import { DropdownFilter } from './components/filter-types/DropdownFilter';
 import { DateRangeFilter } from './components/filter-types/DateRangeFilter';
+import { BooleanFilter } from './components/filter-types/BooleanFilter';
+import { MonthYearFilter } from './components/filter-types/MonthYearFilter';
 
 // Re-export types for backward compatibility
 export type { FilterOperator, ActiveFilter, ActiveSort, FilterOption };
@@ -32,9 +34,12 @@ export default function AdvancedFilters({
   const [filterValue, setFilterValue] = useState('');
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
   const [numberOperator, setNumberOperator] = useState<FilterOperator>('EQ');
+  const [textOperator, setTextOperator] = useState<FilterOperator>('ILIKE');
+  const [booleanValue, setBooleanValue] = useState<'all' | 'true' | 'false' | null>(null);
   const [localFilters, setLocalFilters] = useState<ActiveFilter[]>([]);
   const [dateRangeStart, setDateRangeStart] = useState<Date | null>(null);
   const [dateRangeEnd, setDateRangeEnd] = useState<Date | null>(null);
+  const [selectedMonthYear, setSelectedMonthYear] = useState<Date | null>(null);
 
   // Create a stable key for the filters to compare
   const filtersKey = useMemo(() => {
@@ -83,7 +88,15 @@ export default function AdvancedFilters({
         // Find existing filters for this column (date filters use two: GTE and LTE)
         const existingFilters = localFilters.filter(f => f.columnName === option.columnName);
         
-        if (option.type === 'date') {
+        if (option.type === 'boolean') {
+          // For boolean filters, check if there's an active filter
+          const booleanFilter = existingFilters.find(f => f.operator === 'EQ');
+          if (booleanFilter && booleanFilter.value) {
+            setBooleanValue(booleanFilter.value === 'true' ? 'true' : 'false');
+          } else {
+            setBooleanValue('all');
+          }
+        } else if (option.type === 'date') {
           // For date filters, look for GTE (start) and LTE (end) filters
           const startFilter = existingFilters.find(f => f.operator === 'GTE');
           const endFilter = existingFilters.find(f => f.operator === 'LTE');
@@ -98,6 +111,25 @@ export default function AdvancedFilters({
             setDateRangeEnd(parseDateString(endFilter.value));
           } else {
             setDateRangeEnd(null);
+          }
+          
+          setFilterValue('');
+          setSelectedValues([]);
+        } else if (option.type === 'month') {
+          // For month filters, look for GTE filter (start of month)
+          // We use the GTE filter value to determine the selected month/year
+          const startFilter = existingFilters.find(f => f.operator === 'GTE');
+          
+          if (startFilter?.value) {
+            const date = parseDateString(startFilter.value);
+            if (date) {
+              // Set to first day of the month to match the picker
+              setSelectedMonthYear(new Date(date.getFullYear(), date.getMonth(), 1));
+            } else {
+              setSelectedMonthYear(null);
+            }
+          } else {
+            setSelectedMonthYear(null);
           }
           
           setFilterValue('');
@@ -166,6 +198,14 @@ export default function AdvancedFilters({
         setDateRangeStart(null);
         setDateRangeEnd(null);
       }
+      // Reset month/year when opening a month filter
+      if (option.type === 'month') {
+        // Don't reset if there's already a filter for this column
+        const existingFilters = localFilters.filter(f => f.columnName === option.columnName);
+        if (existingFilters.length === 0) {
+          setSelectedMonthYear(null);
+        }
+      }
     }
   };
 
@@ -194,6 +234,7 @@ export default function AdvancedFilters({
     }
     setExpandedFilterId(null);
     setFilterValue('');
+    setIsExpanded(false);
   };
 
   const handleApplyMultiSelect = (option: FilterOption) => {
@@ -221,6 +262,7 @@ export default function AdvancedFilters({
       onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
     }
     setExpandedFilterId(null);
+    setIsExpanded(false);
   };
 
   const toggleValue = (value: string) => {
@@ -256,6 +298,7 @@ export default function AdvancedFilters({
     }
     setExpandedFilterId(null);
     setFilterValue('');
+    setIsExpanded(false);
   };
 
   const handleApplyDateRangeFilter = (option: FilterOption) => {
@@ -271,7 +314,7 @@ export default function AdvancedFilters({
       newFilters.push({
         columnName: option.columnName,
         operator: 'GTE',
-        value: formatDateToISO(dateRangeStart),
+        value: formatDateToBackend(dateRangeStart),
       });
     }
     
@@ -280,7 +323,7 @@ export default function AdvancedFilters({
       newFilters.push({
         columnName: option.columnName,
         operator: 'LTE',
-        value: formatDateToISO(dateRangeEnd),
+        value: formatDateToBackend(dateRangeEnd),
       });
     }
     
@@ -296,12 +339,96 @@ export default function AdvancedFilters({
     setExpandedFilterId(null);
     setDateRangeStart(null);
     setDateRangeEnd(null);
+    setIsExpanded(false);
+  };
+
+  const handleApplyMonthYearFilter = (option: FilterOption) => {
+    if (!option.columnName || !selectedMonthYear) return;
+    
+    // Remove existing month filters for this column (GTE and LTE)
+    const newFilters = localFilters.filter(f => 
+      f.columnName !== option.columnName || (f.operator !== 'GTE' && f.operator !== 'LTE')
+    );
+    
+    // Calculate first and last day of the selected month
+    const year = selectedMonthYear.getFullYear();
+    const month = selectedMonthYear.getMonth();
+    
+    // Always use YYYY-MM-DD format (without time) for month filters
+    // First day of month: YYYY-MM-01
+    const monthStr = String(month + 1).padStart(2, '0');
+    const firstDay = `${year}-${monthStr}-01`;
+    
+    // Last day of month: get the last day of the month
+    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+    const lastDay = `${year}-${monthStr}-${String(lastDayOfMonth).padStart(2, '0')}`;
+    
+    // Add GTE filter for start of month
+    newFilters.push({
+      columnName: option.columnName,
+      operator: 'GTE',
+      value: firstDay,
+    });
+    
+    // Add LTE filter for end of month
+    newFilters.push({
+      columnName: option.columnName,
+      operator: 'LTE',
+      value: lastDay,
+    });
+    
+    setLocalFilters(newFilters);
+    
+    // Notify parent
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    } else if (onFilterChange) {
+      // Backward compatibility - use the first filter
+      onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
+    }
+    setExpandedFilterId(null);
+    setSelectedMonthYear(null);
+    setIsExpanded(false);
+  };
+
+  const handleApplyBooleanFilter = (option: FilterOption, value: 'all' | 'true' | 'false') => {
+    if (!option.columnName) return;
+    
+    // Remove existing filter for this column
+    const newFilters = localFilters.filter(f => f.columnName !== option.columnName);
+    
+    // Add filter only if value is not 'all'
+    if (value !== 'all') {
+      newFilters.push({
+        columnName: option.columnName,
+        operator: 'EQ',
+        value: value, // 'true' or 'false' as string
+      });
+    }
+    
+    setLocalFilters(newFilters);
+    
+    // Notify parent
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    } else if (onFilterChange) {
+      onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
+    }
+    setExpandedFilterId(null);
+    setBooleanValue(null);
   };
 
   const handleClearFilter = (columnName?: string) => {
     if (columnName) {
-      // Clear specific filter (for date filters, this removes both GTE and LTE)
-      const newFilters = localFilters.filter(f => f.columnName !== columnName);
+      // Clear specific filter (for date and month filters, this removes both GTE and LTE)
+      const option = filterOptions.find(o => o.columnName === columnName);
+      const isDateOrMonthFilter = option?.type === 'date' || option?.type === 'month';
+      
+      const newFilters = localFilters.filter(f => {
+        if (f.columnName !== columnName) return true;
+        if (isDateOrMonthFilter && (f.operator === 'GTE' || f.operator === 'LTE')) return false;
+        return true;
+      });
       setLocalFilters(newFilters);
       if (onFiltersChange) {
         onFiltersChange(newFilters);
@@ -321,6 +448,8 @@ export default function AdvancedFilters({
     setExpandedFilterId(null);
     setDateRangeStart(null);
     setDateRangeEnd(null);
+    setBooleanValue(null);
+    setIsExpanded(false);
   };
 
   const activeFilterCount = localFilters.length;
@@ -360,8 +489,8 @@ export default function AdvancedFilters({
             {/* Header - Fixed */}
             <div className="flex-shrink-0 flex items-start justify-between p-3 sm:p-6 pb-3 sm:pb-4 border-b border-gray-100">
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-2 sm:p-2.5 bg-blue-50 rounded-lg">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" className="sm:w-5 sm:h-5">
+                <div className="p-2 sm:p-2.5 bg-indigo-50 rounded-lg">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2" className="sm:w-5 sm:h-5">
                     <path d="M3 6h18M7 12h10M11 18h2" strokeLinecap="round"/>
                   </svg>
                 </div>
@@ -421,9 +550,9 @@ export default function AdvancedFilters({
                           option.available === false
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                             : expandedFilterId === option.id
-                              ? 'bg-blue-600 text-white shadow-lg border border-blue-600'
+                              ? 'bg-indigo-600 text-white shadow-lg border border-indigo-600'
                               : localFilters.some(f => f.columnName === option.columnName)
-                                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm'
                                 : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300'
                         }`}
                       >
@@ -458,7 +587,7 @@ export default function AdvancedFilters({
                           sideOffset={4}
                           className="z-[100] bg-white rounded-lg shadow-xl overflow-hidden"
                           style={{ 
-                            width: option.type === 'date' ? '320px' : 'var(--radix-popover-trigger-width)' 
+                            width: option.type === 'date' ? '320px' : option.type === 'month' ? '240px' : 'var(--radix-popover-trigger-width)' 
                           }}
                           onOpenAutoFocus={(e) => e.preventDefault()}
                         >
@@ -482,6 +611,13 @@ export default function AdvancedFilters({
                             }}
                             onApply={handleApplyDateRangeFilter}
                           />
+                        ) : option.type === 'month' ? (
+                          <MonthYearFilter
+                            option={option}
+                            selectedMonthYear={selectedMonthYear}
+                            onMonthYearChange={setSelectedMonthYear}
+                            onApply={handleApplyMonthYearFilter}
+                          />
                         ) : option.type === 'dropdown' ? (
                           <DropdownFilter
                             option={option}
@@ -491,11 +627,27 @@ export default function AdvancedFilters({
                             onToggleValue={toggleValue}
                             onApply={handleApplyMultiSelect}
                           />
+                        ) : option.type === 'boolean' ? (
+                          <BooleanFilter
+                            option={option}
+                            selectedValue={booleanValue}
+                            onValueChange={(value) => {
+                              setBooleanValue(value);
+                              handleApplyBooleanFilter(option, value);
+                            }}
+                            onClear={() => {
+                              setBooleanValue(null);
+                              handleClearFilter(option.columnName);
+                            }}
+                            hasActiveFilter={localFilters.some(f => f.columnName === option.columnName)}
+                          />
                         ) : (
                           <TextFilter
                             option={option}
                             filterValue={filterValue}
+                            textOperator={textOperator}
                             onFilterValueChange={setFilterValue}
+                            onOperatorChange={setTextOperator}
                             onApply={handleApplyFilter}
                           />
                         )}

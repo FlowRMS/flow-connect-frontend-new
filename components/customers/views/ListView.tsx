@@ -89,6 +89,9 @@ export function ListView({
                 Type
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                Parent
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
                 Status
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
@@ -175,6 +178,15 @@ export function ListView({
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                       Child
                     </span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {customer.parent ? (
+                    <span className="text-sm text-[var(--foreground)]">
+                      {customer.parent}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-[var(--muted-foreground)]">-</span>
                   )}
                 </td>
                 <td className="px-4 py-3">

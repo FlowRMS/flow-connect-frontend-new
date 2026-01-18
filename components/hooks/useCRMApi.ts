@@ -770,7 +770,7 @@ export function useCRMPreOpportunityLandingPages(
   return useQuery<PreOpportunityLandingPage[], Error>({
     queryKey: crmQueryKeys.preOpportunityLandingPages(filters, orderBy),
     queryFn: async () => {
-      const result = await fetchPreOpportunityLandingPages(filters, orderBy);
+      const result = await fetchPreOpportunityLandingPages(filters, orderBy, { limit: 300 });
       return result.records;
     },
     enabled: true,
@@ -1774,5 +1774,143 @@ export function useCRMCheckSearch(searchTerm: string) {
     queryFn: () => searchChecks(searchTerm),
     enabled: searchTerm.length >= 0,
     staleTime: 30 * 1000,
+  });
+}
+
+// ============================================================================
+// Company Types Hooks
+// ============================================================================
+
+import {
+  fetchCompanyTypes,
+  createCompanyType,
+  updateCompanyType,
+  deleteCompanyType,
+  type CompanyType,
+  type CreateCompanyTypeInput,
+  type UpdateCompanyTypeInput,
+} from '../lib/crm-graphql';
+
+export type { CompanyType, CreateCompanyTypeInput, UpdateCompanyTypeInput };
+
+/**
+ * Fetch all company types
+ */
+export function useCompanyTypes() {
+  return useQuery<CompanyType[], Error>({
+    queryKey: [...crmQueryKeys.all, 'companyTypes'],
+    queryFn: () => fetchCompanyTypes(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Create a new company type
+ */
+export function useCreateCompanyType() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CompanyType, Error, CreateCompanyTypeInput>({
+    mutationFn: createCompanyType,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'companyTypes'] });
+    },
+  });
+}
+
+/**
+ * Update an existing company type
+ */
+export function useUpdateCompanyType() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CompanyType, Error, { id: string; input: UpdateCompanyTypeInput }>({
+    mutationFn: ({ id, input }) => updateCompanyType(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'companyTypes'] });
+    },
+  });
+}
+
+/**
+ * Delete a company type
+ */
+export function useDeleteCompanyType() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deleteCompanyType,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'companyTypes'] });
+    },
+  });
+}
+
+// ============================================================================
+// Task Categories Hooks
+// ============================================================================
+
+import {
+  fetchTaskCategories,
+  createTaskCategory,
+  updateTaskCategory,
+  deleteTaskCategory,
+  type TaskCategory,
+  type CreateTaskCategoryInput,
+  type UpdateTaskCategoryInput,
+} from '../lib/crm-graphql';
+
+export type { TaskCategory, CreateTaskCategoryInput, UpdateTaskCategoryInput };
+
+/**
+ * Fetch all task categories
+ */
+export function useTaskCategories() {
+  return useQuery<TaskCategory[], Error>({
+    queryKey: [...crmQueryKeys.all, 'taskCategories'],
+    queryFn: () => fetchTaskCategories(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Create a new task category
+ */
+export function useCreateTaskCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskCategory, Error, CreateTaskCategoryInput>({
+    mutationFn: createTaskCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'taskCategories'] });
+    },
+  });
+}
+
+/**
+ * Update an existing task category
+ */
+export function useUpdateTaskCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskCategory, Error, { id: string; input: UpdateTaskCategoryInput }>({
+    mutationFn: ({ id, input }) => updateTaskCategory(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'taskCategories'] });
+    },
+  });
+}
+
+/**
+ * Delete a task category
+ */
+export function useDeleteTaskCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deleteTaskCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'taskCategories'] });
+    },
   });
 }

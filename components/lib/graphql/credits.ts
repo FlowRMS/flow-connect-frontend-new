@@ -150,6 +150,11 @@ export interface FindLandingPagesResponse {
   records: CreditLandingPage[];
 }
 
+export interface PaginatedCreditsResult {
+  total: number;
+  records: CreditLandingPage[];
+}
+
 // Input Types
 export interface CreditOutsideSplitRateInput {
   id?: string;
@@ -433,6 +438,59 @@ export async function fetchCreditsByOrder(orderId: string): Promise<CreditLandin
 }
 
 /**
+ * Fetch credits with pagination using findLandingPages
+ */
+export async function fetchCreditsWithPagination(
+  filters?: Array<{ columnName: string; operator: string; value: string }>,
+  options?: { limit?: number; offset?: number }
+): Promise<PaginatedCreditsResult> {
+  const { limit = 50, offset = 0 } = options || {};
+
+  try {
+    const response = await crmGraphQLRequest<{ findLandingPages: FindLandingPagesResponse }>({
+      query: FIND_CREDITS_LANDING_PAGE,
+      variables: {
+        filters: filters || [],
+        limit,
+        offset,
+        orderBy: [
+          {
+            columnName: 'createdAt',
+            direction: 'DESC',
+          },
+        ],
+      },
+    });
+
+    if (response.errors) {
+      console.warn('findLandingPages query error:', response.errors[0]?.message);
+      return { total: 0, records: [] };
+    }
+
+    return {
+      total: response.data?.findLandingPages?.total || 0,
+      records: response.data?.findLandingPages?.records || [],
+    };
+  } catch (error) {
+    console.warn('Error fetching credits:', error);
+    return { total: 0, records: [] };
+  }
+}
+
+/**
+ * Fetch all credits using findLandingPages (general fetch, not order-specific)
+ * @deprecated Use fetchCreditsWithPagination for paginated results
+ */
+export async function fetchCreditsLandingPage(
+  filters?: Array<{ columnName: string; operator: string; value: string }>,
+  limit: number = 100,
+  offset: number = 0
+): Promise<CreditLandingPage[]> {
+  const result = await fetchCreditsWithPagination(filters, { limit, offset });
+  return result.records;
+}
+
+/**
  * Generate a credit number if not provided
  */
 function generateCreditNumber(): string {
@@ -501,4 +559,29 @@ export async function deleteCredit(id: string): Promise<boolean> {
   }
 
   return true;
+}
+
+/**
+ * Fetch all credit IDs for bulk operations
+ * Fetches all IDs in batches for select-all functionality
+ */
+export async function fetchAllCreditIds(
+  filters?: Array<{ columnName: string; operator: string; value: string }>
+): Promise<string[]> {
+  // First, get total count
+  const initialResult = await fetchCreditsWithPagination(filters, { limit: 1, offset: 0 });
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all IDs in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await fetchCreditsWithPagination(filters, { limit: batchSize, offset });
+    allIds.push(...result.records.map(record => record.id));
+  }
+
+  return allIds;
 }

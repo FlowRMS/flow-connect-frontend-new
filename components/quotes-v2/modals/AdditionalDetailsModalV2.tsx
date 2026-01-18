@@ -21,6 +21,7 @@ interface AdditionalDetailsModalV2Props {
   onClose: () => void;
   lineItem: LineItemV2 | null;
   onSave: (updates: Partial<LineItemV2>) => void;
+  onLiveUpdate?: (updates: Partial<LineItemV2>) => void;
   settings?: QuoteSettingsV2;
 }
 
@@ -29,6 +30,7 @@ export function AdditionalDetailsModalV2({
   onClose,
   lineItem,
   onSave,
+  onLiveUpdate,
   settings,
 }: AdditionalDetailsModalV2Props) {
   const [formData, setFormData] = useState({
@@ -526,15 +528,25 @@ export function AdditionalDetailsModalV2({
               <label className="block text-sm text-gray-700 mb-1">Commission Discount %</label>
               <div className="flex items-center gap-2">
                 <input
-                  type="number"
-                  value={formData.commissionDiscountPercent}
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.commissionDiscountPercent || ''}
                   onChange={(e) => {
+                    const value = e.target.value.replace(/^0+(?=\d)/, '');
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      e.target.value = value;
+                    }
                     const percent = parseFloat(e.target.value) || 0;
                     // Calculate commission discount amount based on line item's commission total
                     const commissionTotal = lineItem?.commissionTotal || 0;
                     const discountAmount = (commissionTotal * percent) / 100;
                     setFormData({
                       ...formData,
+                      commissionDiscountPercent: percent,
+                      commissionDiscountAmount: discountAmount,
+                    });
+                    // Live update the line item (without closing modal)
+                    onLiveUpdate?.({
                       commissionDiscountPercent: percent,
                       commissionDiscountAmount: discountAmount,
                     });
@@ -564,15 +576,25 @@ export function AdditionalDetailsModalV2({
               <label className="block text-sm text-gray-700 mb-1">Line Discount %</label>
               <div className="flex items-center gap-2">
                 <input
-                  type="number"
-                  value={formData.lineDiscountPercent}
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.lineDiscountPercent || ''}
                   onChange={(e) => {
+                    const value = e.target.value.replace(/^0+(?=\d)/, '');
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      e.target.value = value;
+                    }
                     const percent = parseFloat(e.target.value) || 0;
                     // Calculate line discount amount based on line item's sell total
                     const sellTotal = lineItem?.sellTotal || 0;
                     const discountAmount = (sellTotal * percent) / 100;
                     setFormData({
                       ...formData,
+                      lineDiscountPercent: percent,
+                      lineDiscountAmount: discountAmount,
+                    });
+                    // Live update the line item (without closing modal)
+                    onLiveUpdate?.({
                       lineDiscountPercent: percent,
                       lineDiscountAmount: discountAmount,
                     });

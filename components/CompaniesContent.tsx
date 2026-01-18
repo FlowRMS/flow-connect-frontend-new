@@ -5,18 +5,22 @@
 
 'use client';
 
-import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react';
+import { useMemo, useEffect, useState, useRef, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from './advancedFilters/AdvancedFilters';
 import SortButton from './SortButton';
-import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany } from './hooks/useCRMApi';
+import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany, useCompanyTypes, type CompanyType } from './hooks/useCRMApi';
 
 import { companyToasts } from './lib/toast';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
-import type { CompanySourceType, RelatedEntityContact, RelatedEntityJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
-import { COMPANY_SOURCE_TYPE_LABELS, COMPANY_SOURCE_TYPE_OPTIONS } from './lib/crm-graphql';
+import type { RelatedEntityContact, RelatedEntityJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
 
 // Modular imports
 import { useCompaniesState } from './companies/hooks/useCompaniesState';
@@ -25,14 +29,19 @@ import { mapAPICompanyToUICompany } from './companies/types';
 import CompanyDetailView from './companies/detail/CompanyDetailView';
 import GridView from './companies/views/GridView';
 import ListView from './companies/views/ListView';
+import { ManageCompanyTypesModal } from './companies/modals/ManageCompanyTypesModal';
 
-// Company Type Filter Dropdown Component
+// Company Type Filter Dropdown Component - uses dynamic company types from API
 function CompanyTypeFilterDropdown({
   value,
   onChange,
+  companyTypes,
+  isLoading,
 }: {
   value: string;
   onChange: (value: string) => void;
+  companyTypes: CompanyType[];
+  isLoading?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,14 +51,22 @@ function CompanyTypeFilterDropdown({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // All options including "All" at the top (exclude MANUFACTURER - managed separately in /manufacturers)
-  const allOptions = ['All', ...COMPANY_SOURCE_TYPE_OPTIONS.filter(type => type !== 'MANUFACTURER')];
+  // Build options: "All" at top, then active company types sorted by displayOrder
+  const sortedTypes = useMemo(() => {
+    return [...companyTypes]
+      .filter(t => t.isActive)
+      .sort((a, b) => a.displayOrder - b.displayOrder);
+  }, [companyTypes]);
 
   // Filter options based on search term
-  const filteredOptions = allOptions.filter(option => {
-    const label = option === 'All' ? 'All' : COMPANY_SOURCE_TYPE_LABELS[option as CompanySourceType];
-    return label.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const filteredTypes = useMemo(() => {
+    if (!searchTerm) return sortedTypes;
+    const term = searchTerm.toLowerCase();
+    return sortedTypes.filter(t => t.name.toLowerCase().includes(term));
+  }, [sortedTypes, searchTerm]);
+
+  // Check if "All" matches search
+  const showAllOption = !searchTerm || 'all types'.includes(searchTerm.toLowerCase());
 
   useEffect(() => {
     setPortalTarget(document.body);
@@ -94,7 +111,12 @@ function CompanyTypeFilterDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedLabel = value === 'All' ? 'All Types' : COMPANY_SOURCE_TYPE_LABELS[value as CompanySourceType] || 'All Types';
+  // Find the selected type name for display
+  const selectedLabel = useMemo(() => {
+    if (value === 'All') return 'All Types';
+    const selectedType = companyTypes.find(t => t.name === value);
+    return selectedType?.name || 'All Types';
+  }, [value, companyTypes]);
 
   const dropdownContent = isOpen && portalTarget && createPortal(
     <div
@@ -115,38 +137,67 @@ function CompanyTypeFilterDropdown({
       </div>
       {/* Options list */}
       <div className="max-h-60 overflow-y-auto py-1">
-        {filteredOptions.length === 0 ? (
+        {isLoading ? (
+          <div className="px-4 py-3 text-sm text-gray-500 text-center">Loading types...</div>
+        ) : !showAllOption && filteredTypes.length === 0 ? (
           <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching types found</div>
         ) : (
-          filteredOptions.map((option) => {
-            const label = option === 'All' ? 'All Types' : COMPANY_SOURCE_TYPE_LABELS[option as CompanySourceType];
-            const isSelected = value === option;
-            return (
+          <>
+            {/* All Types option */}
+            {showAllOption && (
               <button
-                key={option}
                 type="button"
                 onClick={() => {
-                  onChange(option);
+                  onChange('All');
                   setIsOpen(false);
                 }}
                 className={`
                   w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
                   transition-colors hover:bg-gray-50
-                  ${isSelected ? 'bg-blue-50' : ''}
+                  ${value === 'All' ? 'bg-blue-50' : ''}
                 `}
               >
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${option === 'All' ? 'bg-gray-400' : 'bg-green-500'}`} />
-                <span className={`flex-1 ${isSelected ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-                  {label}
+                <span className="w-2 h-2 rounded-full flex-shrink-0 bg-gray-400" />
+                <span className={`flex-1 ${value === 'All' ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                  All Types
                 </span>
-                {isSelected && (
+                {value === 'All' && (
                   <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                   </svg>
                 )}
               </button>
-            );
-          })
+            )}
+            {/* Dynamic company types */}
+            {filteredTypes.map((companyType) => {
+              const isSelected = value === companyType.name;
+              return (
+                <button
+                  key={companyType.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(companyType.name);
+                    setIsOpen(false);
+                  }}
+                  className={`
+                    w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
+                    transition-colors hover:bg-gray-50
+                    ${isSelected ? 'bg-blue-50' : ''}
+                  `}
+                >
+                  <span className="w-2 h-2 rounded-full flex-shrink-0 bg-green-500" />
+                  <span className={`flex-1 ${isSelected ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                    {companyType.name}
+                  </span>
+                  {isSelected && (
+                    <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </>
         )}
       </div>
     </div>,
@@ -188,8 +239,30 @@ export default function CompaniesContent() {
   const searchParams = useSearchParams();
   const { setFullEntityContext } = useFlowChat();
 
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'companies';
+
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
+
+  // Manage Company Types modal state
+  const [showCompanyTypesModal, setShowCompanyTypesModal] = useState(false);
+
+  // Fetch company types from API for display
+  const { data: companyTypesData } = useCompanyTypes();
+  const companyTypes: CompanyType[] = companyTypesData ?? [];
 
   // Selected company type filter (from dropdown)
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('All');
@@ -438,24 +511,9 @@ export default function CompaniesContent() {
     }
   };
 
-  // Helper to normalize company source type - handles all valid types
-  const normalizeCompanySourceType = (value: string | CompanySourceType | undefined): CompanySourceType => {
-    // Handle legacy numeric values
-    if (value === '2' || value === 2 as unknown as string) return 'MANUFACTURER';
-    if (value === '1' || value === 1 as unknown as string) return 'CUSTOMER';
-    // Return valid enum values as-is
-    if (value && typeof value === 'string') {
-      return value as CompanySourceType;
-    }
-    return 'CUSTOMER';
-  };
-
   // Handle save edit
   const handleSaveEdit = async () => {
     if (!selectedCompany) return;
-
-    // Ensure companySourceType is a valid enum value
-    const normalizedSourceType = normalizeCompanySourceType(editFormData.companySourceType);
 
     // Parse tags - handle both string and array formats
     let tagsToSend: string | undefined;
@@ -470,13 +528,17 @@ export default function CompaniesContent() {
     // Ensure name is always provided (required by GraphQL schema)
     const nameToSend = editFormData.name || selectedCompany.name;
 
+    // Get the company type name for display
+    const companyTypeId = editFormData.companyTypeId || selectedCompany.companyTypeId;
+    const companyTypeName = companyTypes.find(t => t.id === companyTypeId)?.name || editFormData.companyTypeName || selectedCompany.companyTypeName;
+
     try {
       // Build update input - handle parentCompanyId to allow clearing
       const updateInput: Record<string, unknown> = {
         name: nameToSend,
         phone: editFormData.phone,
         website: editFormData.website,
-        companySourceType: normalizedSourceType,
+        companyTypeId: companyTypeId,
         tags: tagsToSend,
       };
 
@@ -500,13 +562,14 @@ export default function CompaniesContent() {
         name: updatedName,
         phone: editFormData.phone || selectedCompany.phone,
         website: editFormData.website || selectedCompany.website,
-        companySourceType: normalizedSourceType,
-        type: [COMPANY_SOURCE_TYPE_LABELS[normalizedSourceType] || 'Customer'],
+        companyTypeId: companyTypeId,
+        companyTypeName: companyTypeName,
+        type: [companyTypeName || 'Unknown Type'],
         tags: updatedTags,
         parentCompanyId: editFormData.parentCompanyId ?? selectedCompany.parentCompanyId,
         parentCompanyName: editFormData.parentCompanyName ?? selectedCompany.parentCompanyName,
       });
-      
+
       setIsEditing(false);
       refetch();
     } catch (err) {
@@ -550,7 +613,8 @@ export default function CompaniesContent() {
   }
 
   // Show error state if company fetch failed or company not found
-  if (companyIdFromUrl && !companyDetailLoading && !selectedCompany && (companyDetailError || !fullCompanyData)) {
+  // Skip if intentional clear (navigating back) to prevent flash of error during URL transition
+  if (companyIdFromUrl && !companyDetailLoading && !selectedCompany && !isIntentionalClearRef.current && (companyDetailError || !fullCompanyData)) {
     return (
       <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
         <div className="mb-6">
@@ -664,14 +728,38 @@ export default function CompaniesContent() {
       {/* Header */}
       <div className="mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Companies</h1>
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Building Rise Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="building-rise"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['companies']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Companies
+              </motion.h1>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            {/* Type Filter Dropdown */}
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
+            {/* Type Filter Dropdown - uses dynamic company types */}
             <CompanyTypeFilterDropdown
               value={selectedTypeFilter}
               onChange={handleTypeFilterChange}
+              companyTypes={companyTypes}
+              isLoading={!companyTypesData}
             />
 
             {/* View Mode Toggle */}
@@ -717,6 +805,16 @@ export default function CompaniesContent() {
             />
 
             <button
+              onClick={() => setShowCompanyTypesModal(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+              </svg>
+              <span className="hidden sm:inline">Manage Types</span>
+            </button>
+
+            <button
               onClick={() => router.push('/companies/new')}
               className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
             >
@@ -727,7 +825,7 @@ export default function CompaniesContent() {
               <span className="hidden sm:inline">Add Company</span>
               <span className="sm:hidden">Add</span>
             </button>
-          </div>
+          </motion.div>
         </div>
       </div>
 
@@ -777,6 +875,12 @@ export default function CompaniesContent() {
           )}
         </>
       )}
+
+      {/* Manage Company Types Modal */}
+      <ManageCompanyTypesModal
+        isOpen={showCompanyTypesModal}
+        onClose={() => setShowCompanyTypesModal(false)}
+      />
     </main>
   );
 }

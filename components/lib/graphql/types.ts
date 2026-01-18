@@ -27,6 +27,30 @@ export type SortDirection = 'ASC' | 'DESC';
 
 export type SourceType = 'JOBS' | 'COMPANIES' | 'CONTACTS';
 
+// Landing Source Types - used for findLandingPages query
+export enum LandingSourceType {
+  JOBS = 'JOBS',
+  COMPANIES = 'COMPANIES',
+  CONTACTS = 'CONTACTS',
+  TASKS = 'TASKS',
+  NOTES = 'NOTES',
+  PRE_OPPORTUNITIES = 'PRE_OPPORTUNITIES',
+  CAMPAIGNS = 'CAMPAIGNS',
+  CUSTOMERS = 'CUSTOMERS',
+  FACTORIES = 'FACTORIES',
+  PRODUCTS = 'PRODUCTS',
+  QUOTES = 'QUOTES',
+  ORDERS = 'ORDERS',
+  FILES = 'FILES',
+  FOLDERS = 'FOLDERS',
+  INVOICES = 'INVOICES',
+  CREDITS = 'CREDITS',
+  ADJUSTMENTS = 'ADJUSTMENTS',
+  CHECKS = 'CHECKS',
+  ORDER_ACKNOWLEDGEMENTS = 'ORDER_ACKNOWLEDGEMENTS',
+  PENDING_DOCUMENTS = 'PENDING_DOCUMENTS',
+}
+
 // Related Entities Source Types - used for the generic relatedEntities endpoint
 export type RelatedEntitiesSourceType =
   | 'JOBS'
@@ -254,10 +278,17 @@ export const COMPANY_SOURCE_TYPE_OPTIONS: CompanySourceType[] = [
   'TRADE_ASSOCIATION',
 ];
 
+// CompanyTypeRef - reference to a company type
+export interface CompanyTypeRef {
+  id: string;
+  name: string;
+}
+
 export interface Company {
   id: string;
   name: string;
-  companySourceType: CompanySourceType;
+  companyTypeId?: string | null;      // UUID reference to CompanyType
+  companyType?: CompanyTypeRef | null; // Nested company type object
   parentCompanyId?: string | null;
   phone?: string | null;
   website?: string | null;
@@ -270,7 +301,7 @@ export interface Company {
 
 export interface CompanyInput {
   name: string;
-  companySourceType: CompanySourceType;
+  companyTypeId: string;              // UUID reference to CompanyType
   parentCompanyId?: string;
   phone?: string;
   website?: string;
@@ -281,7 +312,7 @@ export interface CompanyInput {
 
 export interface UpdateCompanyInput {
   name?: string;
-  companySourceType?: CompanySourceType;
+  companyTypeId?: string;             // UUID reference to CompanyType
   parentCompanyId?: string;
   phone?: string;
   website?: string;
@@ -293,7 +324,9 @@ export interface UpdateCompanyInput {
 export interface CompanyLandingPage {
   id: string;
   name: string;
-  companySourceType: CompanySourceType;
+  companySourceType?: string;         // Type name from landing page
+  companyTypeId?: string;             // UUID reference to CompanyType (detail view only)
+  companyType?: CompanyTypeRef;       // Nested company type object (detail view only)
   phone?: string;
   website?: string;
   standardCommissionRate?: number;

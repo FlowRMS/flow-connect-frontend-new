@@ -1,5 +1,5 @@
 /**
- * 
+ *
  * OrdersListContent Component
  * Main container for the orders list
  *
@@ -7,15 +7,21 @@
 
 'use client';
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
+import SortButton from '@/components/SortButton';
 import { useOrdersListState } from './hooks/useOrdersListState';
-import { getOrderFilterOptions } from './config/filterConfig';
+import { getOrderFilterOptions, getOrderSortOptions } from './config/filterConfig';
 import { OrdersTable } from './components/table/OrdersTable';
+import { OrdersEmptyState } from './components/table/OrdersEmptyState';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { OrderDetailPanel } from './components/sidebar/OrderDetailPanel';
-import { BulkDeleteModal, BulkActionsToolbar } from '../../shared';
 import {
   CreditModal,
   AcknowledgementModal,
@@ -25,19 +31,53 @@ export default function OrdersListContent() {
   const router = useRouter();
   const state = useOrdersListState();
 
-  const filterOptions = getOrderFilterOptions();
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
 
-  // Loading state
-  if (state.isLoading) {
-    return (
-      <main className="flex-1 overflow-hidden bg-[var(--background)] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
-          <p className="text-sm text-[var(--muted-foreground)]">Loading orders...</p>
-        </div>
-      </main>
-    );
-  }
+  // Register header target on mount
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'orders';
+
+  const filterOptions = getOrderFilterOptions();
+  const sortOptions = getOrderSortOptions();
+  
+  // Map sortField and sortDirection to ActiveSort format for SortButton
+  // The columnName should match API field names directly
+  const activeSort = state.sortField && state.sortDirection
+    ? {
+        columnName: (() => {
+          const fieldMap: Record<string, string> = {
+            orderNumber: 'orderNumber',
+            customerName: 'soldToCustomerName',
+            manufacturerName: 'factoryName',
+            orderDate: 'entityDate',
+            total: 'total',
+            totalCommission: 'commission',
+            status: 'status',
+          };
+          return fieldMap[state.sortField] || 'entityDate';
+        })(),
+        direction: state.sortDirection.toUpperCase() as 'ASC' | 'DESC',
+      }
+    : undefined;
+
+  // Determine if we're loading (only initial load, not when fetching more pages)
+  const isLoading = state.isLoading;
+
+  // Check if there are any filters applied (advanced filters, quick date filter, column filters, or search)
+  const hasFilters = state.activeFilters.length > 0 || 
+                     state.quickDatePreset !== 'all' || 
+                     Object.keys(state.columnFilters || {}).length > 0 ||
+                     (state.searchQuery.length >= 2);
 
   // Error state
   if (state.error) {
@@ -71,17 +111,42 @@ export default function OrdersListContent() {
         {/* Header */}
         <div className="p-6 pb-0">
           <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-semibold text-[var(--foreground)]">
-                Orders
-              </h1>
-              <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                {state.searchQuery.length >= 2
-                  ? `${state.filteredOrders.length} results for "${state.searchQuery}"`
-                  : `Showing ${state.filteredOrders.length} of ${state.totalCount} orders`}
-              </p>
+            <div className="flex items-start gap-4">
+              {/* Morphing Icon Target - Package Reveal Animation */}
+              <HeaderIconAnimation
+                isReceivingAnimation={isReceivingAnimation}
+                animationStyle="package-reveal"
+                headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+              >
+                {iconMap['orders']}
+              </HeaderIconAnimation>
+              <div className="overflow-hidden">
+                <motion.h1
+                  className="text-2xl font-semibold text-[var(--foreground)]"
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+                >
+                  Orders
+                </motion.h1>
+                <motion.p
+                  className="text-sm text-[var(--muted-foreground)] mt-1"
+                  initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+                >
+                  {state.searchQuery.length >= 2
+                    ? `${state.filteredOrders.length} results for "${state.searchQuery}"`
+                    : `Showing ${state.filteredOrders.length} of ${state.totalCount} orders`}
+                </motion.p>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
+            <motion.div
+              className="flex items-center gap-3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+            >
               {/* Search Bar */}
               <div className="relative">
                 <svg
@@ -120,7 +185,18 @@ export default function OrdersListContent() {
                 )}
               </div>
 
-              <AdvancedFilters filterOptions={filterOptions} />
+              <AdvancedFilters
+                filterOptions={filterOptions}
+                onFiltersChange={state.handleServerFiltersChange}
+                activeFilters={state.activeFilters}
+              />
+              
+              <SortButton
+                sortOptions={sortOptions}
+                onSortChange={state.handleSortChange}
+                activeSort={activeSort}
+              />
+              
               <button
                 onClick={() => router.push('/orders/new')}
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
@@ -138,63 +214,51 @@ export default function OrdersListContent() {
                 </svg>
                 New Order
               </button>
-            </div>
+            </motion.div>
           </div>
 
           {/* Quick Date Filter */}
-          <QuickDateFilter
-            quickDatePreset={state.quickDatePreset}
-            setQuickDatePreset={state.setQuickDatePreset}
-            quickDateField={state.quickDateField}
-            setQuickDateField={state.setQuickDateField}
-            showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
-            setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
-          />
-
-          {/* Bulk Actions Toolbar */}
-          <BulkActionsToolbar
-            entityType="ORDERS"
-            selectedCount={state.selectedCount}
-            totalCount={state.totalCount}
-            loadedCount={state.filteredOrders.length}
-            selectAllMode={state.selectAllMode}
-            onClearSelection={state.clearSelection}
-            onDelete={() => state.setShowBulkDeleteModal(true)}
-          />
+          <div className="mt-4">
+            <QuickDateFilter
+              quickDatePreset={state.quickDatePreset}
+              setQuickDatePreset={state.setQuickDatePreset}
+              quickDateField={state.quickDateField}
+              setQuickDateField={state.setQuickDateField}
+              showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
+              setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
+            />
+          </div>
         </div>
 
         {/* Orders Table */}
-        <div className="flex-1 overflow-auto p-6 pt-4" onScroll={state.handleScroll}>
+        <div className="flex-1 overflow-auto p-6 pt-4">
           <OrdersTable
             filteredOrders={state.filteredOrders}
+            isLoading={isLoading}
+            hasFilters={hasFilters}
             selectedOrderIds={state.selectedOrderIds}
             toggleOrderSelection={state.toggleOrderSelection}
             selectAllOrders={state.selectAllOrders}
             clearSelection={state.clearSelection}
             areAllEligibleSelected={state.areAllEligibleSelected}
-            isItemSelected={state.isItemSelected}
-            isAllSelected={state.isAllSelected}
-            isPartiallySelected={state.isPartiallySelected}
-            handleSelectAll={state.handleSelectAll}
-            handleSelectOne={state.handleSelectOne}
-            sortField={state.sortField}
-            sortDirection={state.sortDirection}
-            handleSort={state.handleSort}
-            columnFilters={state.columnFilters}
-            setColumnFilters={state.setColumnFilters}
-            openFilter={state.openFilter}
-            setOpenFilter={state.setOpenFilter}
-            uniqueCustomers={state.uniqueCustomers}
-            uniqueManufacturers={state.uniqueManufacturers}
-            uniqueStatuses={state.uniqueStatuses}
-            uniqueTotals={state.uniqueTotals}
-            uniqueCommissions={state.uniqueCommissions}
             showBulkActionsMenu={state.showBulkActionsMenu}
             setShowBulkActionsMenu={state.setShowBulkActionsMenu}
             bulkSetStatus={state.bulkSetStatus}
             bulkDelete={state.bulkDelete}
             setSelectedOrder={state.setSelectedOrder}
+            onColumnFiltersChange={state.handleColumnFiltersChange}
+            filterOptions={state.orderFilterOptionsWithValues}
+            columnFilters={state.columnFilters}
+            hasNextPage={state.hasNextPage}
+            isFetchingNextPage={state.isFetchingNextPage}
+            fetchNextPage={state.fetchNextPage}
+            searchQuery={state.searchQuery}
           />
+
+          {/* Empty State - shown outside table when no data */}
+          {!isLoading && state.filteredOrders.length === 0 && (
+            <OrdersEmptyState hasFilters={hasFilters} />
+          )}
 
           {/* Loading indicator for infinite scroll */}
           {state.isFetchingNextPage && (
@@ -259,17 +323,6 @@ export default function OrdersListContent() {
         ackLineItems={state.ackLineItems}
         setAckLineItems={state.setAckLineItems}
         onSubmit={state.saveAcknowledgement}
-      />
-
-      {/* Bulk Delete Modal */}
-      <BulkDeleteModal
-        isOpen={state.showBulkDeleteModal}
-        entityType="ORDERS"
-        selectedCount={state.selectedCount}
-        getAllSelectedIds={state.getAllSelectedIds}
-        onClose={() => state.setShowBulkDeleteModal(false)}
-        onSuccess={state.handleBulkDeleteSuccess}
-        queryKeysToInvalidate={[['orders']]}
       />
     </main>
   );

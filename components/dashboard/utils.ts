@@ -91,6 +91,47 @@ export function capitalize(str: string): string {
 }
 
 /**
+ * Get date range for quick date filter presets
+ * Returns Date objects (not strings) to match orders pattern
+ */
+export function getQuickDateRange(
+  preset: 'today' | 'this_week' | 'last_week'
+): { start: Date | null; end: Date | null } {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  switch (preset) {
+    case 'today':
+      return {
+        start: today,
+        end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1),
+      };
+    case 'this_week': {
+      const dayOfWeek = today.getDay();
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - dayOfWeek);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+      return { start: startOfWeek, end: endOfWeek };
+    }
+    case 'last_week': {
+      const dayOfWeek = today.getDay();
+      const startOfThisWeek = new Date(today);
+      startOfThisWeek.setDate(today.getDate() - dayOfWeek);
+      const startOfLastWeek = new Date(startOfThisWeek);
+      startOfLastWeek.setDate(startOfThisWeek.getDate() - 7);
+      const endOfLastWeek = new Date(startOfLastWeek);
+      endOfLastWeek.setDate(startOfLastWeek.getDate() + 6);
+      endOfLastWeek.setHours(23, 59, 59, 999);
+      return { start: startOfLastWeek, end: endOfLastWeek };
+    }
+    default:
+      return { start: null, end: null };
+  }
+}
+
+/**
  * Format relative time from date string
  */
 export function formatRelativeTime(dateString: string): string {
@@ -202,7 +243,7 @@ function transformJob(job: JobLandingPage): Activity {
  * Transform Company to Activity
  */
 function transformCompany(company: CompanyLandingPage): Activity {
-  const sourceTypeLabel = company.companySourceType === 'CUSTOMER' ? 'Customer' : 'Manufacturer';
+  const sourceTypeLabel = company.companySourceType || 'Company';
   const companyTags = parseTags(company.tags);
 
   return {
@@ -218,7 +259,7 @@ function transformCompany(company: CompanyLandingPage): Activity {
     tags: [sourceTypeLabel, ...companyTags],
     assignedTo: company.createdBy || 'System',
     mentions: [],
-    status: company.companySourceType,
+    status: company.companySourceType || 'Company',
     activityStatus: 'completed',
     link: `/companies?id=${company.id}`,
     metadata: {

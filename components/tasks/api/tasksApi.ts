@@ -89,6 +89,11 @@ export interface TaskAssignee {
   email?: string;
 }
 
+export interface TaskCategoryRef {
+  id: string;
+  name: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -100,6 +105,8 @@ export interface Task {
   tags: string;
   assigneeIds?: string[];
   assignees?: TaskAssignee[]; // Array of user objects
+  categoryId?: string;
+  category?: TaskCategoryRef;
   createdBy: string;
   createdAt: string;
 }
@@ -119,6 +126,7 @@ export interface TaskLandingPage {
   reminderDate: string;
   tags: string[];
   assignees: string[]; // Array of assignee names from findLandingPages
+  category?: string; // Category name as string from landing page
   createdBy: string;
   createdAt: string;
 }
@@ -161,6 +169,7 @@ export interface CreateTaskInput {
   reminderDate?: string;
   tags?: string;
   assigneeIds?: string[];
+  categoryId?: string;
 }
 
 export interface UpdateTaskInput {
@@ -172,6 +181,7 @@ export interface UpdateTaskInput {
   reminderDate?: string;
   tags?: string;
   assigneeIds?: string[];
+  categoryId?: string;
 }
 
 // Task relation types
@@ -239,6 +249,7 @@ const FIND_TASKS_LANDING_PAGES = `
         ... on TaskLandingPage {
           id
           assignees
+          category
           createdAt
           createdBy
           description
@@ -286,6 +297,11 @@ const GET_TASK = `
       status
       tags
       title
+      categoryId
+      category {
+        id
+        name
+      }
     }
   }
 `;
@@ -316,6 +332,11 @@ const CREATE_TASK = `
       status
       tags
       title
+      categoryId
+      category {
+        id
+        name
+      }
     }
   }
 `;
@@ -346,6 +367,11 @@ const UPDATE_TASK = `
       status
       tags
       title
+      categoryId
+      category {
+        id
+        name
+      }
     }
   }
 `;
