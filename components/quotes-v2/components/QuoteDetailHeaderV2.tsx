@@ -653,7 +653,7 @@ export function QuoteDetailHeaderV2({
   }, []);
 
   return (
-    <div className="flex-shrink-0">
+    <div className="sticky top-0 z-50 flex-shrink-0 bg-white">
       {/* Top Header Row */}
       <div className="flex items-center justify-between pt-6 pb-4 px-6 border-b border-gray-200">
         <div className="flex items-center gap-4">

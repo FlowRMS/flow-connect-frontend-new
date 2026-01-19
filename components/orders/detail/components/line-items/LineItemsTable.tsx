@@ -888,9 +888,9 @@ export function LineItemsTable({
       )}
 
       {/* Line Items Table */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full">
         {/* Add Line Button - at top */}
-        <div className="border-b border-[var(--border)]">
+        <div className="border-b border-[var(--border)] flex-shrink-0">
           <button
             onClick={addLineItem}
             className="w-full px-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
@@ -902,7 +902,9 @@ export function LineItemsTable({
           </button>
         </div>
 
-        <table className="w-full min-w-[1200px]">
+        {/* Scrollable table container - both horizontal and vertical scroll */}
+        <div className="flex-1 overflow-auto min-h-0 max-h-[60vh] scrollbar-always-visible">
+          <table className="w-full min-w-[1200px]">
           <LineItemsTableHeader
             lineItems={order.lineItems || []}
             selectedLineItems={selectedLineItems}
@@ -1237,6 +1239,7 @@ export function LineItemsTable({
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Dropdown Portal for Search */}
