@@ -874,7 +874,7 @@ export function FactoryGroupedLineItemsView({
                 </td>
               </tr>
             ) : (
-              preOpp.details.map((detail) => (
+              [...preOpp.details].sort((a, b) => a.itemNumber - b.itemNumber).map((detail) => (
                 <tr key={detail.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm text-gray-900">{detail.itemNumber}</td>
                   <td className="px-4 py-3">
