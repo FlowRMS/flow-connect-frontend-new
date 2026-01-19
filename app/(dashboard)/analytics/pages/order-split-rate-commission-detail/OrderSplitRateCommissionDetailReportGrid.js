@@ -32,14 +32,15 @@ import {
 } from "@/lib/analytics/lib/detailReportTemplateUtils";
 import { FullScreenModal, ExpandButton } from "@/components/analytics/ui/FullScreenModal";
 import { RefreshButton } from "@/components/analytics/ui/RefreshButton";
+import { getDefault2YearRange } from "@/lib/analytics/utils/relativeDateUtils";
 
 const REPORT_TYPE = "ORDER_SPLIT_RATE_COMMISSION_REPORT";
 const TABLE_ID = "order-split-rate-commission-detail";
 
 export function OrderSplitRateCommissionDetailReportGrid() {
-  // Date range state
-  const [startDate, setStartDate] = React.useState("");
-  const [endDate, setEndDate] = React.useState("");
+  // Date range state - defaults to last 2 years
+  const [startDate, setStartDate] = React.useState(() => getDefault2YearRange().startDate);
+  const [endDate, setEndDate] = React.useState(() => getDefault2YearRange().endDate);
   const [filterByDate, setFilterByDate] = React.useState("ENTITY_DATE");
   
   // Advanced filter state
