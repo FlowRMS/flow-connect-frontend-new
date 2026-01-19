@@ -19,6 +19,8 @@ import { AdjustmentModal } from '@/components/orders/detail/components/modals/ad
 import { AdjustmentDetailModal } from '@/components/orders/detail/components/modals/adjustments/AdjustmentDetailModal';
 import { DeleteConfirmModal } from '@/components/orders/detail/components/modals/utility/DeleteConfirmModal';
 import { AdjustmentsTable } from './components/table/AdjustmentsTable';
+import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
+import { getAdjustmentFilterOptions } from './config/filterConfig';
 
 // Status Configuration (kept for filter buttons)
 const STATUS_CONFIG: Record<AdjustmentStatus, { label: string; color: string; bgColor: string }> = {
@@ -72,6 +74,9 @@ export default function AdjustmentsListContent() {
     // Quick filters
     statusFilter,
     setStatusFilter,
+    // Advanced filters
+    activeFilters,
+    handleAdvancedFiltersChange,
     // Modals
     showAdjustmentModal,
     showAdjustmentDetailModal,
@@ -94,6 +99,11 @@ export default function AdjustmentsListContent() {
     isSavingAdjustment,
     isDeletingAdjustment,
   } = useAdjustmentsListState();
+
+  // Check if any filters are applied
+  const hasFilters = useMemo(() => {
+    return statusFilter !== 'ALL' || searchQuery.length > 0 || activeFilters.length > 0;
+  }, [statusFilter, searchQuery, activeFilters]);
 
   // Wrapped close function that also clears URL
   const closeAdjustmentDetailModal = useCallback(() => {
@@ -206,18 +216,28 @@ export default function AdjustmentsListContent() {
             </div>
           </div>
 
-          <motion.button
-            onClick={openCreateAdjustmentModal}
-            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm"
+          <motion.div
+            className="flex items-center gap-3"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
           >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
-            </svg>
-            Add Adjustment
-          </motion.button>
+            <AdvancedFilters
+              filterOptions={getAdjustmentFilterOptions()}
+              onFiltersChange={handleAdvancedFiltersChange}
+              activeFilters={activeFilters}
+            />
+
+            <button
+              onClick={openCreateAdjustmentModal}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
+              </svg>
+              Add Adjustment
+            </button>
+          </motion.div>
         </div>
       </div>
 
@@ -319,27 +339,50 @@ export default function AdjustmentsListContent() {
         {/* Empty State */}
         {!isLoadingAdjustments && !adjustmentsError && filteredAdjustments.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 bg-[var(--card)] rounded-xl border-2 border-dashed border-[var(--border)]">
-            <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center mb-6">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-600">
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-              </svg>
-            </div>
-            <h4 className="text-xl font-semibold text-[var(--foreground)] mb-2">No Adjustments Yet</h4>
-            <p className="text-sm text-[var(--muted-foreground)] mb-6 text-center max-w-md">
-              {searchQuery || statusFilter !== 'ALL'
-                ? 'No adjustments match your current filters. Try adjusting your search or filter criteria.'
-                : 'Create your first commission adjustment to get started.'}
-            </p>
-            {!searchQuery && statusFilter === 'ALL' && (
-              <button
-                onClick={openCreateAdjustmentModal}
-                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-              >
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
-                </svg>
-                Add Adjustment
-              </button>
+            {hasFilters ? (
+              <>
+                <div className="w-16 h-16 bg-[var(--muted)]/30 rounded-full flex items-center justify-center mb-4">
+                  <svg
+                    width="32"
+                    height="32"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="text-[var(--muted-foreground)]"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                </div>
+                <h3 className="text-sm font-medium text-[var(--foreground)] mb-1">
+                  No data found for the applied filters
+                </h3>
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Try adjusting your filters to see more results
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center mb-6">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-600">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                  </svg>
+                </div>
+                <h4 className="text-xl font-semibold text-[var(--foreground)] mb-2">No Adjustments Yet</h4>
+                <p className="text-sm text-[var(--muted-foreground)] mb-6 text-center max-w-md">
+                  Create your first commission adjustment to get started.
+                </p>
+                <button
+                  onClick={openCreateAdjustmentModal}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
+                  </svg>
+                  Add Adjustment
+                </button>
+              </>
             )}
           </div>
         )}

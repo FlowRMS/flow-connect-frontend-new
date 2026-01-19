@@ -64,49 +64,51 @@ export function AdjustmentsTable({
   };
 
   return (
-    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm flex flex-col flex-1 min-h-0">
-      {!isLoading && adjustments.length === 0 ? (
-        // Empty state - don't show table structure
-        null
-      ) : (
-        <div 
-          ref={scrollContainerRef}
-          className="overflow-auto scrollbar-always-visible flex-1"
-          style={{ maxHeight: 'calc(100vh - 280px)' }}
-        >
-            <table className="w-full min-w-[1200px]">
-              <AdjustmentsTableHeader
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={onSort}
-              />
-              <tbody className="divide-y divide-[var(--border)]">
-                {isLoading ? (
-                  <AdjustmentsTableSkeleton rowCount={8} />
-                ) : (
-                  adjustments.map((adjustment) => (
-                    <AdjustmentRow
-                      key={adjustment.id}
-                      adjustment={adjustment}
-                      onView={onView}
-                      onEdit={onEdit}
-                      onDelete={onDelete}
-                    />
-                  ))
+    <>
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm flex flex-col flex-1 min-h-0">
+        {!isLoading && adjustments.length === 0 ? (
+          // Empty state - don't show table structure
+          null
+        ) : (
+          <div 
+            ref={scrollContainerRef}
+            className="overflow-auto scrollbar-always-visible flex-1"
+            style={{ maxHeight: 'calc(100vh - 280px)' }}
+          >
+              <table className="w-full min-w-[1200px]">
+                <AdjustmentsTableHeader
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSort={onSort}
+                />
+                <tbody className="divide-y divide-[var(--border)]">
+                  {isLoading ? (
+                    <AdjustmentsTableSkeleton rowCount={8} />
+                  ) : (
+                    adjustments.map((adjustment) => (
+                      <AdjustmentRow
+                        key={adjustment.id}
+                        adjustment={adjustment}
+                        onView={onView}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                      />
+                    ))
+                  )}
+                </tbody>
+                {adjustments.length > 0 && totalAmount !== undefined && (
+                  <tfoot className="bg-[var(--muted)]/20 border-t border-[var(--border)]">
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-right font-semibold text-sm">Total:</td>
+                      <td className="px-4 py-3 text-right font-bold text-indigo-600">{formatCurrency(totalAmount)}</td>
+                      <td colSpan={4}></td>
+                    </tr>
+                  </tfoot>
                 )}
-              </tbody>
-              {adjustments.length > 0 && totalAmount !== undefined && (
-                <tfoot className="bg-[var(--muted)]/20 border-t border-[var(--border)]">
-                  <tr>
-                    <td colSpan={3} className="px-4 py-3 text-right font-semibold text-sm">Total:</td>
-                    <td className="px-4 py-3 text-right font-bold text-indigo-600">{formatCurrency(totalAmount)}</td>
-                    <td colSpan={4}></td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-        </div>
-      )}
+              </table>
+          </div>
+        )}
+      </div>
 
       {/* Loading indicator for infinite scroll */}
       {isFetchingNextPage && (
@@ -117,6 +119,6 @@ export function AdjustmentsTable({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

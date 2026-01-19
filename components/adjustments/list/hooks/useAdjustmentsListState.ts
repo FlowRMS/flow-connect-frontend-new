@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
+import type { ActiveFilter } from '@/components/advancedFilters/AdvancedFilters';
 import {
   type Adjustment,
   type AdjustmentLandingPage,
@@ -25,10 +26,13 @@ export function useAdjustmentsListState() {
   
   // Quick filter state (status filter)
   const [statusFilter, setStatusFilter] = useState<AdjustmentStatus | 'ALL'>('ALL');
+  
+  // Advanced filters state
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
 
-  // Build filters for API based on quick filters
+  // Build filters for API - combine quick filters and advanced filters
   const apiFilters = useMemo(() => {
-    const filters: Array<{ columnName: string; operator: string; value: string }> = [];
+    const filters: Array<{ columnName: string; operator: string; value?: string; values?: string[] }> = [];
     
     // Add status filter if not 'ALL'
     if (statusFilter !== 'ALL') {
@@ -39,8 +43,25 @@ export function useAdjustmentsListState() {
       });
     }
     
+    // Add advanced filters
+    activeFilters.forEach((filter) => {
+      if (filter.values && filter.values.length > 0) {
+        filters.push({
+          columnName: filter.columnName,
+          operator: filter.operator,
+          values: filter.values,
+        });
+      } else if (filter.value) {
+        filters.push({
+          columnName: filter.columnName,
+          operator: filter.operator,
+          value: filter.value,
+        });
+      }
+    });
+    
     return filters;
-  }, [statusFilter]);
+  }, [statusFilter, activeFilters]);
 
   // Fetch adjustments from API with infinite scroll
   const {
@@ -251,6 +272,11 @@ export function useAdjustmentsListState() {
     }
   }, [selectedAdjustment, handleDeleteAdjustment]);
 
+  // Handler for advanced filters changes
+  const handleAdvancedFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+  }, []);
+
   return {
     // Data
     adjustments,
@@ -273,6 +299,10 @@ export function useAdjustmentsListState() {
     // Quick filters
     statusFilter,
     setStatusFilter,
+    
+    // Advanced filters
+    activeFilters,
+    handleAdvancedFiltersChange,
 
     // Modal states
     showAdjustmentModal,

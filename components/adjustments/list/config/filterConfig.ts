@@ -11,7 +11,6 @@ import type { AdjustmentStatus } from '@/components/orders/api/adjustmentsApi';
 export const ADJUSTMENT_STATUSES: AdjustmentStatus[] = [
   'PENDING',
   'POSTED',
-  'VOID',
 ];
 
 /**
@@ -70,13 +69,6 @@ export function getAdjustmentFilterOptions(): FilterOption[] {
       label: 'Created Date', 
       type: 'date' as const, 
       columnName: 'createdAt', 
-      available: true 
-    },
-    { 
-      id: 'reason', 
-      label: 'Reason', 
-      type: 'text' as const, 
-      columnName: 'reason', 
       available: true 
     },
     { 
