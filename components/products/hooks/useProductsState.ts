@@ -101,12 +101,13 @@ export function useProductsState() {
     return filters.length > 0 ? filters : undefined;
   }, [activeFilters, columnFiltersToServer]);
 
-  const serverOrderBy: ProductLandingPageOrderBy | undefined = useMemo(() => {
+  const serverOrderBy: ProductLandingPageOrderBy[] | undefined = useMemo(() => {
     if (clientSortColumns.length === 0) return undefined;
-    return {
-      columnName: clientSortColumns[0].columnName,
-      direction: clientSortColumns[0].direction,
-    };
+    // Convert all sort columns to server format
+    return clientSortColumns.map(sort => ({
+      columnName: sort.columnName,
+      direction: sort.direction,
+    }));
   }, [clientSortColumns]);
 
   // Fetch data with infinite query

@@ -768,7 +768,7 @@ const DELETE_PRODUCT_QUANTITY_PRICING = `
  */
 export async function fetchProductsWithPagination(
   filters?: ProductLandingPageFilter[],
-  orderBy?: ProductLandingPageOrderBy,
+  orderBy?: ProductLandingPageOrderBy[],
   pagination?: PaginationParams
 ): Promise<PaginatedProductsResult> {
   const response = await crmGraphQLRequest<{
@@ -1343,7 +1343,7 @@ export async function deleteProductQuantityPricing(id: string): Promise<boolean>
  */
 export async function fetchAllProductIds(
   filters?: ProductLandingPageFilter[],
-  orderBy?: ProductLandingPageOrderBy
+  orderBy?: ProductLandingPageOrderBy[]
 ): Promise<string[]> {
   // First, get total count
   const initialResult = await fetchProductsWithPagination(filters, orderBy, { limit: 1, offset: 0 });

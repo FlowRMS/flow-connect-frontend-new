@@ -70,7 +70,7 @@ export const productQueryKeys = {
 
   // Products
   products: () => [...productQueryKeys.all, 'list'] as const,
-  productLandingPages: (filters?: ProductLandingPageFilter[], orderBy?: ProductLandingPageOrderBy) =>
+  productLandingPages: (filters?: ProductLandingPageFilter[], orderBy?: ProductLandingPageOrderBy[]) =>
     [...productQueryKeys.all, 'landingPages', { filters, orderBy }] as const,
   product: (id: string) => [...productQueryKeys.all, 'detail', id] as const,
   productSearch: (searchTerm?: string, factoryId?: string, categoryIds?: string[]) =>
@@ -112,7 +112,7 @@ const DEFAULT_PAGE_SIZE = 50;
  */
 export function useProductsInfinite(
   filters?: ProductLandingPageFilter[],
-  orderBy?: ProductLandingPageOrderBy,
+  orderBy?: ProductLandingPageOrderBy[],
   pageSize: number = DEFAULT_PAGE_SIZE
 ) {
   return useInfiniteQuery<PaginatedProductsResult, Error>({
@@ -139,7 +139,7 @@ export function useProductsInfinite(
  */
 export function useProducts(
   filters?: ProductLandingPageFilter[],
-  orderBy?: ProductLandingPageOrderBy
+  orderBy?: ProductLandingPageOrderBy[]
 ) {
   return useQuery<ProductLandingPage[], Error>({
     queryKey: productQueryKeys.productLandingPages(filters, orderBy),

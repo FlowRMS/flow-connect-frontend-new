@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
@@ -15,7 +15,8 @@ import { ManageUomsModal } from '../modals/ManageUomsModal';
 import { BulkDeleteModal, BulkActionsToolbar } from '../../shared';
 import type { ProductLandingPage } from '../api/useProductsApi';
 import { ProductsTable } from './components/table/ProductsTable';
-import { getProductFilterOptions } from '../config/filterConfig';
+import { getProductFilterOptions, getProductSortOptions } from '../config/filterConfig';
+import SortButton from '@/components/SortButton';
 
 export default function ProductsContent() {
   const router = useRouter();
@@ -45,8 +46,13 @@ export default function ProductsContent() {
     // Sort state
     sortState,
     handleSort,
+    clientSortColumns,
+    handleMultiSortChange,
     columnFilters,
     handleColumnFiltersChange,
+    // Advanced filters
+    activeFilters,
+    setActiveFilters,
     // Modal state
     showCreateModal,
     setShowCreateModal,
@@ -93,11 +99,25 @@ export default function ProductsContent() {
     [uniqueFactories, uniqueCategories, uniqueUoms]
   );
 
-  // Check if there are any filters applied (column filters or search)
+  // Get sort options
+  const sortOptions = useMemo(() => getProductSortOptions(), []);
+
+  // Check if there are any filters applied (search, column filters, sort, or advanced filters)
   const hasFilters = useMemo(() => 
-    Object.keys(columnFilters || {}).length > 0 || searchQuery.length >= 2,
-    [columnFilters, searchQuery]
+    searchQuery.length >= 2 ||
+    Object.keys(columnFilters || {}).length > 0 ||
+    (clientSortColumns && clientSortColumns.length > 0) ||
+    (activeFilters && activeFilters.length > 0),
+    [searchQuery, columnFilters, clientSortColumns, activeFilters]
   );
+
+  // Clear all filters handler
+  const handleClearAllFilters = useCallback(() => {
+    setSearchQuery('');
+    handleColumnFiltersChange({});
+    handleMultiSortChange([]);
+    setActiveFilters([]);
+  }, [setSearchQuery, handleColumnFiltersChange, handleMultiSortChange, setActiveFilters]);
 
   // Product to delete
   const productToDelete = useMemo(() => {
@@ -271,6 +291,36 @@ export default function ProductsContent() {
                 className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               />
             </div>
+            <SortButton
+              sortOptions={sortOptions}
+              onMultiSortChange={handleMultiSortChange}
+              activeSorts={clientSortColumns}
+            />
+            <button
+              onClick={handleClearAllFilters}
+              disabled={!hasFilters}
+              className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md transition-colors ${
+                hasFilters
+                  ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                  : 'border-[var(--border)] text-[var(--muted-foreground)] opacity-50 cursor-not-allowed'
+              }`}
+              title={hasFilters ? 'Clear all filters' : 'No filters to clear'}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              Clear Filters
+            </button>
             <button
               onClick={() => refetch()}
               disabled={isLoading}
