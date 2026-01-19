@@ -1,19 +1,19 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
 import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
 import { iconMap } from '@/components/Sidebar';
 import type { RefObject } from 'react';
-import { useProductsState } from './hooks/useProductsState';
-import { CreateProductModal } from './modals/CreateProductModal';
-import { DeleteProductModal } from './modals/DeleteProductModal';
-import { ManageCategoriesModal } from './modals/ManageCategoriesModal';
-import { ManageUomsModal } from './modals/ManageUomsModal';
-import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
-import type { ProductLandingPage } from './api/useProductsApi';
+import { useProductsState } from '../hooks/useProductsState';
+import { CreateProductModal } from '../modals/CreateProductModal';
+import { DeleteProductModal } from '../modals/DeleteProductModal';
+import { ManageCategoriesModal } from '../modals/ManageCategoriesModal';
+import { ManageUomsModal } from '../modals/ManageUomsModal';
+import { BulkDeleteModal, BulkActionsToolbar } from '../../shared';
+import type { ProductLandingPage } from '../api/useProductsApi';
 
 // Sort direction type
 type SortDirection = 'asc' | 'desc' | null;
@@ -293,12 +293,12 @@ export default function ProductsContent() {
   }
 
   return (
-    <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
-      <div className="flex-1 flex flex-col min-h-0">
+    <main className="flex-1 overflow-auto bg-[var(--background)] flex">
+      <div className="flex-1 flex flex-col min-h-0 w-full">
         {/* Header */}
-        <div className="p-6 pb-0">
-          <div className="flex items-center justify-between mb-6 overflow-visible">
-            <div className="flex items-start gap-4 overflow-visible">
+        <div className="p-6 pb-0 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <div className="flex items-start gap-4 flex-shrink-0">
               {/* Morphing Icon Target - Cube Rotate Animation */}
               <HeaderIconAnimation
                 isReceivingAnimation={isReceivingAnimation}
@@ -327,44 +327,47 @@ export default function ProductsContent() {
               </div>
             </div>
             <motion.div
-              className="flex items-center gap-3"
+              className="flex items-center gap-2 sm:gap-3 flex-wrap"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
             >
               <button
                 onClick={() => setShowUomsModal(true)}
-                className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-[var(--border)] rounded-lg text-xs sm:text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors whitespace-nowrap"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
                 </svg>
-                Manage UOMs
+                <span className="hidden sm:inline">Manage UOMs</span>
+                <span className="sm:hidden">UOMs</span>
               </button>
               <button
                 onClick={() => setShowCategoriesModal(true)}
-                className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-[var(--border)] rounded-lg text-xs sm:text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors whitespace-nowrap"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
-                Manage Categories
+                <span className="hidden sm:inline">Manage Categories</span>
+                <span className="sm:hidden">Categories</span>
               </button>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors whitespace-nowrap"
               >
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="10" cy="10" r="7"/>
                   <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
                 </svg>
-                Add Product
+                <span className="hidden sm:inline">Add Product</span>
+                <span className="sm:hidden">Add</span>
               </button>
             </motion.div>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
               <div className="text-sm text-[var(--muted-foreground)]">Total Products</div>
               <div className="text-2xl font-semibold text-[var(--foreground)] mt-1">{totalCount}</div>
@@ -445,8 +448,8 @@ export default function ProductsContent() {
         </div>
 
         {/* Products Table */}
-        <div className="flex-1 overflow-auto p-6 pt-0" onScroll={handleScroll}>
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+        <div className="flex-1 p-6 pt-4 min-h-0">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden flex flex-col h-full min-h-[300px] max-h-[calc(100vh-320px)]">
             {isLoading && filteredProducts.length === 0 ? (
               <div className="p-12 text-center">
                 <svg className="animate-spin h-8 w-8 mx-auto text-[var(--primary)]" fill="none" viewBox="0 0 24 24">
@@ -478,10 +481,14 @@ export default function ProductsContent() {
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1200px]">
-                  <thead>
-                    <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
+              <div className="flex flex-col h-full">
+                <div 
+                  className="overflow-auto scrollbar-always-visible flex-1"
+                  onScroll={handleScroll}
+                >
+                  <table className="w-full min-w-[1400px]">
+                  <thead className="bg-white border-b border-[var(--border)] sticky top-0 z-10">
+                    <tr>
                       <th className="px-4 py-3 text-left w-12">
                         <input
                           type="checkbox"
@@ -681,6 +688,7 @@ export default function ProductsContent() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 
