@@ -101,7 +101,7 @@ export default function LocationNode({
     <div ref={setNodeRef} style={style}>
       {/* Location Row */}
       <div
-        className="flex items-center gap-1 py-0.5 px-1 rounded hover:bg-[var(--accent)] group"
+        className="flex items-center gap-1 py-0.5 px-1 rounded hover:bg-[var(--muted)]/50 group"
         style={{ paddingLeft: `${depth * 16 + 4}px` }}
       >
         {/* Drag Handle */}

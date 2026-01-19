@@ -511,8 +511,25 @@ export function LineItemsTable({
       )}
 
       {/* Line Items Table */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
-        <table className="w-full min-w-[1200px]">
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full">
+        {/* Add Line Button - at top */}
+        {isEditable && (
+          <div className="border-b border-[var(--border)] flex-shrink-0">
+            <button
+              onClick={onAddLine}
+              className="w-full px-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 6v8M6 10h8" strokeLinecap="round" />
+              </svg>
+              Add Line
+            </button>
+          </div>
+        )}
+
+        {/* Scrollable table container - both horizontal and vertical scroll */}
+        <div className="flex-1 overflow-auto min-h-0 max-h-[60vh] scrollbar-always-visible">
+          <table className="w-full min-w-[1200px]">
           <LineItemsTableHeader
             lineItems={invoice.lineItems}
             selectedLineItems={selectedLineItems}
@@ -680,7 +697,7 @@ export function LineItemsTable({
                     {/* Sell Total */}
                     {visibleColumns.has('sellTotal') && (
                       <td className="px-3 py-2 text-sm text-right font-medium">
-                        {formatCurrency(item.amount)}
+                        {formatCurrency(item.amount - (item.discount || 0))}
                       </td>
                     )}
 
@@ -694,14 +711,14 @@ export function LineItemsTable({
                     {/* Commission */}
                     {visibleColumns.has('commission') && (
                       <td className="px-3 py-2 text-sm text-right text-purple-600">
-                        {formatCurrency(item.commissionAmount || item.amount * ((item.commissionRate ?? 8) / 100))}
+                        {formatCurrency((item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100)) - (item.commissionDiscount || 0))}
                       </td>
                     )}
 
                     {/* Commission Total */}
                     {visibleColumns.has('commissionTotal') && (
                       <td className="px-3 py-2 text-sm text-right text-purple-600 font-medium">
-                        {formatCurrency(item.commissionAmount || item.amount * ((item.commissionRate ?? 8) / 100))}
+                        {formatCurrency((item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100)) - (item.commissionDiscount || 0))}
                       </td>
                     )}
 
@@ -720,7 +737,7 @@ export function LineItemsTable({
                     {/* Commission Amount */}
                     {visibleColumns.has('commissionAmount') && (
                       <td className="px-3 py-2 text-sm text-right text-purple-600">
-                        {formatCurrency(item.commissionAmount || item.amount * ((item.commissionRate ?? 8) / 100))}
+                        {formatCurrency((item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100)) - (item.commissionDiscount || 0))}
                       </td>
                     )}
 
@@ -805,21 +822,7 @@ export function LineItemsTable({
             )}
           </tbody>
         </table>
-
-        {/* Add Line Button */}
-        {isEditable && (
-          <div className="border-t border-[var(--border)]">
-            <button
-              onClick={onAddLine}
-              className="w-full px-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
-            >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M10 6v8M6 10h8" strokeLinecap="round" />
-              </svg>
-              Add Line
-            </button>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Dropdown Portal for Search */}

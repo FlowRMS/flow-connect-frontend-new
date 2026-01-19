@@ -6,10 +6,16 @@
 
 'use client';
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
+import SortButton from '@/components/SortButton';
 import { useInvoicesListState } from './hooks/useInvoicesListState';
-import { getInvoiceFilterOptions } from './config/filterConfig';
+import { getInvoiceFilterOptions, getInvoiceSortOptions } from './config/filterConfig';
 import { InvoicesTable } from './components/table/InvoicesTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { InvoiceDetailPanel } from './components/sidebar/InvoiceDetailPanel';
@@ -18,11 +24,49 @@ import {
   CreateInvoiceModal,
 } from './components/modals';
 import { BulkDeleteModal, BulkActionsToolbar } from '../../shared';
+import { InvoicesEmptyState } from './components/table';
 
 export default function InvoicesListContent() {
   const state = useInvoicesListState();
 
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'invoices';
+
   const filterOptions = getInvoiceFilterOptions();
+  const sortOptions = getInvoiceSortOptions();
+  
+  // Map sortField and sortDirection to ActiveSort format for SortButton
+  // The columnName should match API field names directly
+  const activeSort = state.sortField && state.sortDirection
+    ? {
+        columnName: (() => {
+          const fieldMap: Record<string, string> = {
+            invoiceNumber: 'invoiceNumber',
+            status: 'status',
+            invoiceDate: 'entityDate',
+            dueDate: 'dueDate',
+            total: 'total',
+            balance: 'total', // Note: balance not in API, use total as fallback
+            customerName: 'soldToCustomerName', // Not available yet
+            manufacturerName: 'factoryName', // Not available yet
+          };
+          return fieldMap[state.sortField] || 'entityDate';
+        })(),
+        direction: state.sortDirection.toUpperCase() as 'ASC' | 'DESC',
+      }
+    : undefined;
 
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
@@ -31,20 +75,44 @@ export default function InvoicesListContent() {
         {/* Header */}
         <div className="p-6 pb-0">
           <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-semibold text-[var(--foreground)]">
-                Invoices
-              </h1>
-              <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                Manage invoices and track payments
-                {state.totalCount > 0 && (
-                  <span className="ml-2 text-[var(--muted-foreground)]">
-                    ({state.totalCount} total)
-                  </span>
-                )}
-              </p>
+            <div className="flex items-start gap-4">
+              {/* Morphing Icon Target - Receipt Slide Animation */}
+              <HeaderIconAnimation
+                isReceivingAnimation={isReceivingAnimation}
+                animationStyle="receipt-slide"
+                headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+              >
+                {iconMap['invoices']}
+              </HeaderIconAnimation>
+              <div className="overflow-hidden">
+                <motion.h1
+                  className="text-2xl font-semibold text-[var(--foreground)]"
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+                >
+                  Invoices
+                </motion.h1>
+                <motion.p
+                  className="text-sm text-[var(--muted-foreground)] mt-1"
+                  initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+                >
+                  Manage invoices and track payments
+                  {' • '}
+                  {state.searchQuery.length >= 2
+                    ? `${state.filteredInvoices.length} results for "${state.searchQuery}"`
+                    : `Showing ${state.filteredInvoices.length} of ${state.totalCount} invoices`}
+                </motion.p>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
+            <motion.div
+              className="flex items-center gap-3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+            >
               {/* Search Input */}
               <div className="relative">
                 <svg
@@ -72,7 +140,18 @@ export default function InvoicesListContent() {
                   </div>
                 )}
               </div>
-              <AdvancedFilters filterOptions={filterOptions} />
+              <AdvancedFilters
+                filterOptions={filterOptions}
+                onFiltersChange={state.handleServerFiltersChange}
+                activeFilters={state.activeFilters}
+              />
+              
+              <SortButton
+                sortOptions={sortOptions}
+                onSortChange={state.handleSortChange}
+                activeSort={activeSort}
+              />
+              
               <button
                 onClick={() => state.setShowCreateModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
@@ -90,38 +169,34 @@ export default function InvoicesListContent() {
                 </svg>
                 New Invoice
               </button>
-            </div>
+            </motion.div>
           </div>
 
           {/* Quick Date Filter */}
-          <QuickDateFilter
-            quickDatePreset={state.quickDatePreset}
-            setQuickDatePreset={state.setQuickDatePreset}
-            quickDateField={state.quickDateField}
-            setQuickDateField={state.setQuickDateField}
-            showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
-            setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
-          />
-
-          {/* Bulk Actions Toolbar */}
-          <BulkActionsToolbar
-            entityType="INVOICES"
-            selectedCount={state.selectedCount}
-            totalCount={state.totalCount}
-            loadedCount={state.filteredInvoices.length}
-            selectAllMode={state.selectAllMode}
-            onClearSelection={state.clearSelection}
-            onDelete={() => state.setShowBulkDeleteModal(true)}
-          />
+          <div className="mt-4">
+            <QuickDateFilter
+              quickDatePreset={state.quickDatePreset}
+              setQuickDatePreset={state.setQuickDatePreset}
+              quickDateField={state.quickDateField}
+              setQuickDateField={state.setQuickDateField}
+              showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
+              setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
+            />
+          </div>
         </div>
 
-        {/* Loading State */}
-        {state.isLoading && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)] mx-auto mb-2" />
-              <p className="text-sm text-[var(--muted-foreground)]">Loading invoices...</p>
-            </div>
+        {/* Bulk Actions Toolbar */}
+        {state.selectedCount > 0 && (
+          <div className="px-6 py-2 bg-white border-b border-gray-200">
+            <BulkActionsToolbar
+              entityType="INVOICES"
+              selectedCount={state.selectedCount}
+              totalCount={state.totalCount}
+              loadedCount={state.filteredInvoices.length}
+              selectAllMode={state.selectAllMode}
+              onClearSelection={state.clearSelection}
+              onDelete={() => state.setShowBulkDeleteModal(true)}
+            />
           </div>
         )}
 
@@ -141,13 +216,10 @@ export default function InvoicesListContent() {
         )}
 
         {/* Invoices Table with infinite scroll */}
-        {!state.isLoading && !state.error && (
-          <div
-            className="flex-1 overflow-auto p-6 pt-4"
-            onScroll={state.handleScroll}
-          >
-            <InvoicesTable
+        <div className="flex-1 overflow-auto p-6 pt-4">
+          <InvoicesTable
             filteredInvoices={state.filteredInvoices}
+            isLoading={state.isLoading}
             selectedInvoiceIds={state.selectedInvoiceIds}
             toggleInvoiceSelection={state.toggleInvoiceSelection}
             selectAllInvoices={state.selectAllInvoices}
@@ -158,35 +230,35 @@ export default function InvoicesListContent() {
             isPartiallySelected={state.isPartiallySelected}
             handleSelectAll={state.handleSelectAll}
             handleSelectOne={state.handleSelectOne}
-            sortField={state.sortField}
-            sortDirection={state.sortDirection}
-            handleSort={state.handleSort}
+            onColumnFiltersChange={state.handleColumnFiltersChange}
+            filterOptions={state.invoiceFilterOptionsWithValues}
             columnFilters={state.columnFilters}
-            setColumnFilters={state.setColumnFilters}
-            openFilter={state.openFilter}
-            setOpenFilter={state.setOpenFilter}
-            uniqueCustomers={state.uniqueCustomers}
-            uniqueManufacturers={state.uniqueManufacturers}
-            uniqueStatuses={state.uniqueStatuses}
-            uniqueTotals={state.uniqueTotals}
-            uniqueBalances={state.uniqueBalances}
             showBulkActionsMenu={state.showBulkActionsMenu}
             setShowBulkActionsMenu={state.setShowBulkActionsMenu}
             bulkSetStatus={state.bulkSetStatus}
             bulkDelete={state.bulkDelete}
             setSelectedInvoice={state.setSelectedInvoice}
+            hasNextPage={state.hasNextPage}
+            isFetchingNextPage={state.isFetchingNextPage}
+            fetchNextPage={state.fetchNextPage}
+            searchQuery={state.searchQuery}
           />
-            {/* Loading more indicator */}
-            {state.isFetchingNextPage && (
-              <div className="flex items-center justify-center py-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)]" />
-                <span className="ml-2 text-sm text-[var(--muted-foreground)]">
-                  Loading more...
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+
+          {/* Empty State - shown outside table when no data */}
+          {!state.isLoading && state.filteredInvoices.length === 0 && (
+            <InvoicesEmptyState />
+          )}
+
+          {/* Loading more indicator */}
+          {state.isFetchingNextPage && (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)]" />
+              <span className="ml-2 text-sm text-[var(--muted-foreground)]">
+                Loading more...
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Sidebar */}

@@ -1,8 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useRef } from 'react';
 
 import { useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import { FileStack, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/flow-ai/ui/badge';
 import { TemplatesGallery } from '@/components/flow-ai/flowrms/TemplatesGallery';
@@ -29,6 +34,21 @@ function TemplatesPageContent() {
   const [loading, setLoading] = useState(true);
   const [selectedCluster, setSelectedCluster] = useState<Cluster | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'flow-ai-templates';
 
   // Capture realm from URL and set tenant
   useEffect(() => {
@@ -81,23 +101,47 @@ function TemplatesPageContent() {
   return (
     <div className="min-h-full bg-background flex flex-col">
       {/* Page Header */}
-      <div className="border-b bg-card/50 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <FileStack className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Templates</h1>
-              <p className="text-sm text-muted-foreground">Manage document processing templates</p>
+      <div className="border-b bg-card/50 px-6 py-4 overflow-visible">
+        <div className="flex items-center justify-between overflow-visible">
+          <div className="flex items-center gap-3 overflow-visible">
+            {/* Morphing Icon Target - Template Stack Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="template-stack"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['flow-ai-templates']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl font-bold"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Templates
+              </motion.h1>
+              <motion.p
+                className="text-sm text-muted-foreground"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                Manage document processing templates
+              </motion.p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <motion.div
+            className="flex items-center gap-2"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             <Badge variant="outline" className="border-primary/20 bg-primary/5">
               {clusters.length} cluster{clusters.length !== 1 ? 's' : ''}
             </Badge>
             <AdminSettingsDialog />
-          </div>
+          </motion.div>
         </div>
       </div>
 

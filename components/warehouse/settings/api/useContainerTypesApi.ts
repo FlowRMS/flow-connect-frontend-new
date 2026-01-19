@@ -56,82 +56,41 @@ export function useContainerTypeQuery(id: string) {
 
 /**
  * Create a new container type
+ * Note: Query invalidation is handled by useContainerTypes hook after all creates complete
+ * to prevent mid-batch refetches that would lose pending containers.
  */
 export function useCreateContainerType() {
-  const queryClient = useQueryClient();
-
   return useMutation<ContainerType, Error, CreateContainerTypeInput>({
     mutationFn: createContainerType,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: containerTypesQueryKeys.all });
-    },
+    // No onSuccess - handled by useContainerTypes hook
   });
 }
 
 /**
- * Update an existing container type with optimistic updates
+ * Update an existing container type
+ * Note: Optimistic updates and query invalidation are handled by useContainerTypes hook
+ * to support debounced updates without causing re-renders during typing.
  */
 export function useUpdateContainerType() {
-  const queryClient = useQueryClient();
-
   return useMutation<
     ContainerType,
     Error,
-    { id: string; input: UpdateContainerTypeInput },
-    { previousData: ContainerType[] | undefined }
+    { id: string; input: UpdateContainerTypeInput }
   >({
     mutationFn: ({ id, input }) => updateContainerType(id, input),
-    onMutate: async ({ id, input }) => {
-      await queryClient.cancelQueries({ queryKey: containerTypesQueryKeys.list() });
-
-      const previousData = queryClient.getQueryData<ContainerType[]>(
-        containerTypesQueryKeys.list()
-      );
-
-      if (previousData) {
-        queryClient.setQueryData<ContainerType[]>(
-          containerTypesQueryKeys.list(),
-          previousData.map((ct) =>
-            ct.id === id
-              ? {
-                  ...ct,
-                  name: input.name ?? ct.name,
-                  length: input.length ?? ct.length,
-                  width: input.width ?? ct.width,
-                  height: input.height ?? ct.height,
-                  weight: input.weight ?? ct.weight,
-                  position: input.position ?? ct.position,
-                }
-              : ct
-          )
-        );
-      }
-
-      return { previousData };
-    },
-    onError: (_err, _variables, context) => {
-      if (context?.previousData) {
-        queryClient.setQueryData(containerTypesQueryKeys.list(), context.previousData);
-      }
-    },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: containerTypesQueryKeys.list() });
-      queryClient.invalidateQueries({ queryKey: containerTypesQueryKeys.detail(variables.id) });
-    },
+    // No onMutate, onError, or onSettled - all handled by useContainerTypes hook
+    // This prevents query cache updates that would interfere with debounced typing
   });
 }
 
 /**
  * Delete a container type
+ * Note: Query invalidation is handled by useContainerTypes hook after all deletes complete.
  */
 export function useDeleteContainerType() {
-  const queryClient = useQueryClient();
-
   return useMutation<boolean, Error, string>({
     mutationFn: deleteContainerType,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: containerTypesQueryKeys.list() });
-    },
+    // No onSuccess - handled by useContainerTypes hook
   });
 }
 

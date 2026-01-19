@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { X, Trash2, FolderOpen, Filter, BarChart3, Table2, FileText } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useApolloClient } from "@apollo/client/react";
 import { 
   fetchReportTemplates, 
@@ -14,67 +14,67 @@ const REPORT_TYPE_INFO = {
   "DASHBOARD_REPORT": {
     name: "Order Dashboard",
     icon: BarChart3,
-    route: "/order-dashboard",
+    route: "/analytics/order-dashboard",
     color: "bg-purple-100 text-purple-700",
   },
   "PIVOT_ORDER_REPORT": {
-    name: "Orders Pivot", 
+    name: "Orders Pivot",
     icon: Table2,
-    route: "/orders-pivot",
+    route: "/analytics/orders-pivot",
     color: "bg-blue-100 text-blue-700",
   },
   "COMMISSION_BY_STATE_REPORT": {
     name: "Commission by State Pivot",
     icon: Table2,
-    route: "/commission-by-state-pivot", 
+    route: "/analytics/commission-by-state-pivot",
     color: "bg-green-100 text-green-700",
   },
   "PIVOT_CHECK_REPORT": {
     name: "Check Pivot",
     icon: Table2,
-    route: "/check-pivot",
+    route: "/analytics/check-pivot",
     color: "bg-amber-100 text-amber-700",
   },
   "PIVOT_QUOTE_REPORT": {
     name: "Quote Pivot",
     icon: Table2,
-    route: "/quote-pivot",
+    route: "/analytics/quote-pivot",
     color: "bg-indigo-100 text-indigo-700",
   },
   "PIVOT_INVOICE_REPORT": {
     name: "Invoice Pivot",
     icon: Table2,
-    route: "/invoice-pivot",
+    route: "/analytics/invoice-pivot",
     color: "bg-pink-100 text-pink-700",
   },
   "CHECK_DETAIL_REPORT": {
     name: "Check Detail",
     icon: FileText,
-    route: "/check-detail",
+    route: "/analytics/check-detail",
     color: "bg-cyan-100 text-cyan-700",
   },
   "INVOICE_DETAIL_REPORT": {
     name: "Invoice Detail",
     icon: FileText,
-    route: "/invoice-detail",
+    route: "/analytics/invoice-detail",
     color: "bg-rose-100 text-rose-700",
   },
   "ORDER_DETAIL_REPORT": {
     name: "Orders Detail",
     icon: FileText,
-    route: "/orders-report",
+    route: "/analytics/orders-report",
     color: "bg-teal-100 text-teal-700",
   },
   "QUOTE_DETAIL_REPORT": {
     name: "Quote Detail",
     icon: FileText,
-    route: "/quote-detail",
+    route: "/analytics/quote-detail",
     color: "bg-violet-100 text-violet-700",
   },
   "ORDER_SPLIT_RATE_COMMISSION_REPORT": {
     name: "Order Split Rate Commission",
     icon: FileText,
-    route: "/order-split-rate-commission-detail",
+    route: "/analytics/order-split-rate-commission-detail",
     color: "bg-orange-100 text-orange-700",
   },
 };
@@ -86,6 +86,7 @@ const REPORT_TYPE_INFO = {
  */
 export function GlobalConfigManager({ isOpen, onClose }) {
   const router = useRouter();
+  const pathname = usePathname();
   const client = useApolloClient();
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [deleteConfirmReportType, setDeleteConfirmReportType] = useState(null);
@@ -189,14 +190,29 @@ export function GlobalConfigManager({ isOpen, onClose }) {
       console.error("No route found for config:", config);
       return;
     }
-    
+
     // Store the config ID to load in sessionStorage
     sessionStorage.setItem("pendingConfigLoad", JSON.stringify({
       reportType: config.reportType,
       configId: config.id,
     }));
-    
-    router.push(route);
+
+    // Check if we're already on the target page
+    const isOnSamePage = pathname === route;
+
+    if (isOnSamePage) {
+      // Dispatch a custom event to notify the current page to load the config
+      // This handles the case where router.push to the same route doesn't trigger re-render
+      window.dispatchEvent(new CustomEvent("loadPendingConfig", {
+        detail: {
+          reportType: config.reportType,
+          configId: config.id,
+        }
+      }));
+    } else {
+      router.push(route);
+    }
+
     onClose();
   };
 

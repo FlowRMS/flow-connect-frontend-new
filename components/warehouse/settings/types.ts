@@ -51,10 +51,11 @@ export interface ShippingCarrier {
   apiEndpoint?: string;
   trackingUrlTemplate?: string; // e.g., https://www.fedex.com/track?trknbr={tracking_number}
   // Contact Information (linked Contact entity)
+  primaryContactId?: string; // ID of linked Contact entity
   contactName?: string; // Formatted display name (firstName + lastName)
   contactPhone?: string;
   contactEmail?: string;
-  contactId?: string; // ID of linked Contact entity
+  contactId?: string; // Alias for primaryContactId (legacy)
   contactData?: ContactData; // Structured contact data
   // Service Configuration
   serviceTypes?: string[]; // e.g., ['Ground', 'Express', '2-Day', 'Overnight']

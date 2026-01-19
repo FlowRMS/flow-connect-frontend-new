@@ -161,7 +161,7 @@ function SearchableDropdown<T>({
 
       {/* Dropdown Panel */}
       {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+        <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
           {/* Search Input */}
           <div className="p-2 border-b border-gray-100">
             <div className="relative">
@@ -305,9 +305,9 @@ function AssignmentModal({ isOpen, onClose, onSave, editData, isSaving }: Assign
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-visible">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-white rounded-t-xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
               <svg className="w-5 h-5 text-[var(--primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -334,7 +334,7 @@ function AssignmentModal({ isOpen, onClose, onSave, editData, isSaving }: Assign
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="p-6">
           <div className="space-y-6">
             {/* Customer Selection */}
             <SearchableDropdown
@@ -419,7 +419,7 @@ function AssignmentModal({ isOpen, onClose, onSave, editData, isSaving }: Assign
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50">
+        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50 rounded-b-xl">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"

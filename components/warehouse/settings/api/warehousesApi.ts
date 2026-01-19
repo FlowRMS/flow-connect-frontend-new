@@ -3,7 +3,7 @@
  * GraphQL API for warehouse CRUD operations
  */
 
-import { crmGraphQLRequest } from '../../../lib/graphql/client';
+import { crmGraphQLRequest } from "../../../lib/graphql/client";
 
 // ============================================================================
 // Types
@@ -29,7 +29,7 @@ export interface WarehouseMember {
   id: string;
   warehouseId: string;
   userId: string;
-  role: number | 'WORKER' | 'MANAGER'; // Backend may return number (1=WORKER, 2=MANAGER) or string enum
+  role: number | "WORKER" | "MANAGER"; // Backend may return number (1=WORKER, 2=MANAGER) or string enum
   createdAt: string;
 }
 
@@ -76,15 +76,14 @@ export interface WarehouseStructureLevelInput {
 }
 
 // Address types
-export type AddressSourceType = 'CUSTOMER' | 'FACTORY' | 'SHIPPING_CARRIER';
-export type AddressType = 'BILLING' | 'SHIPPING' | 'MAILING' | 'OTHER';
+export type AddressSourceType = "CUSTOMER" | "FACTORY" | "SHIPPING_CARRIER";
+export type AddressType = "BILLING" | "SHIPPING" | "MAILING" | "OTHER";
 
 export interface WarehouseAddress {
   id: string;
   sourceId: string;
   sourceType: AddressSourceType;
   addressType: AddressType;
-  addressTypes?: AddressType[];
   line1: string;
   line2?: string | null;
   city: string;
@@ -97,17 +96,19 @@ export interface WarehouseAddress {
 }
 
 // Helper to normalize API response - converts addressTypes array to addressType
-function normalizeWarehouseAddress(address: WarehouseAddress & { addressTypes?: AddressType[] }): WarehouseAddress {
+function normalizeWarehouseAddress(
+  address: WarehouseAddress & { addressTypes?: AddressType[] },
+): WarehouseAddress {
   return {
     ...address,
-    addressType: address.addressTypes?.[0] || address.addressType || 'OTHER',
+    addressType: address.addressTypes?.[0] || address.addressType || "OTHER",
   };
 }
 
 export interface AddressInput {
   sourceId: string;
   sourceType: AddressSourceType;
-  addressType?: AddressType;
+  addressTypes?: AddressType[];
   line1: string;
   line2?: string | null;
   city: string;
@@ -364,7 +365,9 @@ export async function fetchWarehouses(): Promise<Warehouse[]> {
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to fetch warehouses');
+    throw new Error(
+      response.errors[0]?.message || "Failed to fetch warehouses",
+    );
   }
 
   return response.data?.warehouses || [];
@@ -373,14 +376,16 @@ export async function fetchWarehouses(): Promise<Warehouse[]> {
 /**
  * Fetch a single warehouse by ID
  */
-export async function fetchWarehouseById(id: string): Promise<Warehouse | null> {
+export async function fetchWarehouseById(
+  id: string,
+): Promise<Warehouse | null> {
   const response = await crmGraphQLRequest<{ warehouse: Warehouse }>({
     query: GET_WAREHOUSE,
     variables: { id },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to fetch warehouse');
+    throw new Error(response.errors[0]?.message || "Failed to fetch warehouse");
   }
 
   return response.data?.warehouse || null;
@@ -389,18 +394,22 @@ export async function fetchWarehouseById(id: string): Promise<Warehouse | null> 
 /**
  * Create a new warehouse
  */
-export async function createWarehouse(input: CreateWarehouseInput): Promise<Warehouse> {
+export async function createWarehouse(
+  input: CreateWarehouseInput,
+): Promise<Warehouse> {
   const response = await crmGraphQLRequest<{ createWarehouse: Warehouse }>({
     query: CREATE_WAREHOUSE,
     variables: { input },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to create warehouse');
+    throw new Error(
+      response.errors[0]?.message || "Failed to create warehouse",
+    );
   }
 
   if (!response.data?.createWarehouse) {
-    throw new Error('No warehouse returned from create mutation');
+    throw new Error("No warehouse returned from create mutation");
   }
 
   return response.data.createWarehouse;
@@ -409,18 +418,23 @@ export async function createWarehouse(input: CreateWarehouseInput): Promise<Ware
 /**
  * Update an existing warehouse
  */
-export async function updateWarehouse(id: string, input: UpdateWarehouseInput): Promise<Warehouse> {
+export async function updateWarehouse(
+  id: string,
+  input: UpdateWarehouseInput,
+): Promise<Warehouse> {
   const response = await crmGraphQLRequest<{ updateWarehouse: Warehouse }>({
     query: UPDATE_WAREHOUSE,
     variables: { id, input },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to update warehouse');
+    throw new Error(
+      response.errors[0]?.message || "Failed to update warehouse",
+    );
   }
 
   if (!response.data?.updateWarehouse) {
-    throw new Error('No warehouse returned from update mutation');
+    throw new Error("No warehouse returned from update mutation");
   }
 
   return response.data.updateWarehouse;
@@ -436,7 +450,9 @@ export async function deleteWarehouse(id: string): Promise<boolean> {
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to delete warehouse');
+    throw new Error(
+      response.errors[0]?.message || "Failed to delete warehouse",
+    );
   }
 
   return true;
@@ -448,19 +464,21 @@ export async function deleteWarehouse(id: string): Promise<boolean> {
 export async function assignWorkerToWarehouse(
   warehouseId: string,
   userId: string,
-  role: number
+  role: number,
 ): Promise<WarehouseMember> {
-  const response = await crmGraphQLRequest<{ assignWorkerToWarehouse: WarehouseMember }>({
+  const response = await crmGraphQLRequest<{
+    assignWorkerToWarehouse: WarehouseMember;
+  }>({
     query: ASSIGN_WORKER,
     variables: { warehouseId, userId, role },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to assign worker');
+    throw new Error(response.errors[0]?.message || "Failed to assign worker");
   }
 
   if (!response.data?.assignWorkerToWarehouse) {
-    throw new Error('No member returned from assign mutation');
+    throw new Error("No member returned from assign mutation");
   }
 
   return response.data.assignWorkerToWarehouse;
@@ -472,19 +490,23 @@ export async function assignWorkerToWarehouse(
 export async function updateWorkerRole(
   warehouseId: string,
   userId: string,
-  role: number
+  role: number,
 ): Promise<WarehouseMember> {
-  const response = await crmGraphQLRequest<{ updateWorkerRole: WarehouseMember }>({
+  const response = await crmGraphQLRequest<{
+    updateWorkerRole: WarehouseMember;
+  }>({
     query: UPDATE_WORKER_ROLE,
     variables: { warehouseId, userId, role },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to update worker role');
+    throw new Error(
+      response.errors[0]?.message || "Failed to update worker role",
+    );
   }
 
   if (!response.data?.updateWorkerRole) {
-    throw new Error('No member returned from update role mutation');
+    throw new Error("No member returned from update role mutation");
   }
 
   return response.data.updateWorkerRole;
@@ -495,15 +517,17 @@ export async function updateWorkerRole(
  */
 export async function removeWorkerFromWarehouse(
   warehouseId: string,
-  userId: string
+  userId: string,
 ): Promise<boolean> {
-  const response = await crmGraphQLRequest<{ removeWorkerFromWarehouse: boolean }>({
+  const response = await crmGraphQLRequest<{
+    removeWorkerFromWarehouse: boolean;
+  }>({
     query: REMOVE_WORKER,
     variables: { warehouseId, userId },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to remove worker');
+    throw new Error(response.errors[0]?.message || "Failed to remove worker");
   }
 
   return true;
@@ -513,19 +537,23 @@ export async function removeWorkerFromWarehouse(
  * Update warehouse settings
  */
 export async function updateWarehouseSettings(
-  input: WarehouseSettingsInput
+  input: WarehouseSettingsInput,
 ): Promise<WarehouseSettings> {
-  const response = await crmGraphQLRequest<{ updateWarehouseSettings: WarehouseSettings }>({
+  const response = await crmGraphQLRequest<{
+    updateWarehouseSettings: WarehouseSettings;
+  }>({
     query: UPDATE_WAREHOUSE_SETTINGS,
     variables: { input },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to update warehouse settings');
+    throw new Error(
+      response.errors[0]?.message || "Failed to update warehouse settings",
+    );
   }
 
   if (!response.data?.updateWarehouseSettings) {
-    throw new Error('No settings returned from update mutation');
+    throw new Error("No settings returned from update mutation");
   }
 
   return response.data.updateWarehouseSettings;
@@ -533,12 +561,12 @@ export async function updateWarehouseSettings(
 
 // Map numeric codes to GraphQL enum string values
 const CODE_TO_ENUM: Record<number, string> = {
-  1: 'SECTION',
-  2: 'AISLE',
-  3: 'SHELF',
-  4: 'BAY',
-  5: 'ROW',
-  6: 'BIN',
+  1: "SECTION",
+  2: "AISLE",
+  3: "SHELF",
+  4: "BAY",
+  5: "ROW",
+  6: "BIN",
 };
 
 /**
@@ -546,7 +574,7 @@ const CODE_TO_ENUM: Record<number, string> = {
  */
 export async function updateWarehouseStructure(
   warehouseId: string,
-  levels: WarehouseStructureLevelInput[]
+  levels: WarehouseStructureLevelInput[],
 ): Promise<WarehouseStructure[]> {
   // Convert numeric codes to GraphQL enum string values
   const graphqlLevels = levels.map((level) => ({
@@ -554,13 +582,17 @@ export async function updateWarehouseStructure(
     levelOrder: level.levelOrder,
   }));
 
-  const response = await crmGraphQLRequest<{ updateWarehouseStructure: WarehouseStructure[] }>({
+  const response = await crmGraphQLRequest<{
+    updateWarehouseStructure: WarehouseStructure[];
+  }>({
     query: UPDATE_WAREHOUSE_STRUCTURE,
     variables: { warehouseId, levels: graphqlLevels },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to update warehouse structure');
+    throw new Error(
+      response.errors[0]?.message || "Failed to update warehouse structure",
+    );
   }
 
   return response.data?.updateWarehouseStructure || [];
@@ -573,17 +605,25 @@ export async function updateWarehouseStructure(
 /**
  * Fetch addresses for a warehouse (source type = FACTORY)
  */
-export async function fetchWarehouseAddresses(warehouseId: string): Promise<WarehouseAddress[]> {
-  const response = await crmGraphQLRequest<{ addressesBySource: WarehouseAddress[] }>({
+export async function fetchWarehouseAddresses(
+  warehouseId: string,
+): Promise<WarehouseAddress[]> {
+  const response = await crmGraphQLRequest<{
+    addressesBySource: WarehouseAddress[];
+  }>({
     query: GET_ADDRESSES_BY_SOURCE,
-    variables: { sourceType: 'FACTORY', sourceId: warehouseId },
+    variables: { sourceType: "FACTORY", sourceId: warehouseId },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to fetch warehouse addresses');
+    throw new Error(
+      response.errors[0]?.message || "Failed to fetch warehouse addresses",
+    );
   }
 
-  return (response.data?.addressesBySource || []).map(normalizeWarehouseAddress);
+  return (response.data?.addressesBySource || []).map(
+    normalizeWarehouseAddress,
+  );
 }
 
 /**
@@ -591,28 +631,32 @@ export async function fetchWarehouseAddresses(warehouseId: string): Promise<Ware
  */
 export async function createWarehouseAddress(
   warehouseId: string,
-  address: Omit<AddressInput, 'sourceId' | 'sourceType'>
+  address: Omit<AddressInput, "sourceId" | "sourceType">,
 ): Promise<WarehouseAddress> {
   // Transform addressType to addressTypes array for the API
   const { addressType, ...restAddress } = address;
   const input = {
     ...restAddress,
     sourceId: warehouseId,
-    sourceType: 'FACTORY' as const,
-    addressTypes: [addressType || 'OTHER'],
+    sourceType: "FACTORY",
+    addressType: address.addressType || "OTHER",
   };
 
-  const response = await crmGraphQLRequest<{ createAddress: WarehouseAddress }>({
-    query: CREATE_ADDRESS,
-    variables: { input },
-  });
+  const response = await crmGraphQLRequest<{ createAddress: WarehouseAddress }>(
+    {
+      query: CREATE_ADDRESS,
+      variables: { input },
+    },
+  );
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to create warehouse address');
+    throw new Error(
+      response.errors[0]?.message || "Failed to create warehouse address",
+    );
   }
 
   if (!response.data?.createAddress) {
-    throw new Error('No address returned from create mutation');
+    throw new Error("No address returned from create mutation");
   }
 
   return normalizeWarehouseAddress(response.data.createAddress);
@@ -624,28 +668,32 @@ export async function createWarehouseAddress(
 export async function updateWarehouseAddress(
   addressId: string,
   warehouseId: string,
-  address: Omit<AddressInput, 'sourceId' | 'sourceType'>
+  address: Omit<AddressInput, "sourceId" | "sourceType">,
 ): Promise<WarehouseAddress> {
   // Transform addressType to addressTypes array for the API
   const { addressType, ...restAddress } = address;
   const input = {
     ...restAddress,
     sourceId: warehouseId,
-    sourceType: 'FACTORY' as const,
-    addressTypes: [addressType || 'OTHER'],
+    sourceType: "FACTORY",
+    addressType: address.addressType || "OTHER",
   };
 
-  const response = await crmGraphQLRequest<{ updateAddress: WarehouseAddress }>({
-    query: UPDATE_ADDRESS,
-    variables: { id: addressId, input },
-  });
+  const response = await crmGraphQLRequest<{ updateAddress: WarehouseAddress }>(
+    {
+      query: UPDATE_ADDRESS,
+      variables: { id: addressId, input },
+    },
+  );
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to update warehouse address');
+    throw new Error(
+      response.errors[0]?.message || "Failed to update warehouse address",
+    );
   }
 
   if (!response.data?.updateAddress) {
-    throw new Error('No address returned from update mutation');
+    throw new Error("No address returned from update mutation");
   }
 
   return normalizeWarehouseAddress(response.data.updateAddress);
@@ -654,14 +702,18 @@ export async function updateWarehouseAddress(
 /**
  * Delete a warehouse address
  */
-export async function deleteWarehouseAddress(addressId: string): Promise<boolean> {
+export async function deleteWarehouseAddress(
+  addressId: string,
+): Promise<boolean> {
   const response = await crmGraphQLRequest<{ deleteAddress: boolean }>({
     query: DELETE_ADDRESS,
     variables: { id: addressId },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to delete warehouse address');
+    throw new Error(
+      response.errors[0]?.message || "Failed to delete warehouse address",
+    );
   }
 
   return true;

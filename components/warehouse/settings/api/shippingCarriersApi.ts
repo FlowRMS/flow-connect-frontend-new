@@ -13,8 +13,7 @@ export interface Address {
   id: string;
   sourceId: string;
   sourceType: string;
-  addressType: string;
-  addressTypes?: string[];
+  addressTypes: string[];
   line1: string;
   line2?: string | null;
   city: string;
@@ -25,11 +24,11 @@ export interface Address {
   isPrimary: boolean;
 }
 
-// Helper to normalize API response - converts addressTypes array to addressType
+// Helper to normalize API response - ensures addressTypes array exists
 function normalizeCarrierAddress(address: Address & { addressTypes?: string[] }): Address {
   return {
     ...address,
-    addressType: address.addressTypes?.[0] || address.addressType || 'BILLING',
+    addressTypes: address.addressTypes || ['BILLING'],
   };
 }
 
@@ -163,6 +162,43 @@ const GET_SHIPPING_CARRIER = `
   }
 `;
 
+// Separate queries for linked entities (avoids N+1 on list queries)
+const GET_CARRIER_ADDRESSES = `
+  query GetCarrierAddresses($sourceId: UUID!, $sourceType: AddressSourceTypeEnum!) {
+    addressesBySource(sourceId: $sourceId, sourceType: $sourceType) {
+      id
+      line1
+      line2
+      city
+      state
+      zipCode
+      country
+      isPrimary
+    }
+  }
+`;
+
+const GET_CARRIER_CONTACT_LINKS = `
+  query GetCarrierContactLinks($sourceType: EntityType!, $sourceId: UUID!) {
+    linksFromSource(sourceType: $sourceType, sourceId: $sourceId) {
+      targetEntityType
+      targetEntityId
+    }
+  }
+`;
+
+const GET_CONTACT = `
+  query GetContact($id: UUID!) {
+    contact(id: $id) {
+      id
+      firstName
+      lastName
+      email
+      phone
+    }
+  }
+`;
+
 const SEARCH_SHIPPING_CARRIERS = `
   query SearchShippingCarriers($searchTerm: String!, $limit: Int) {
     shippingCarrierSearch(searchTerm: $searchTerm, limit: $limit) {
@@ -287,6 +323,64 @@ export async function fetchShippingCarrierById(id: string): Promise<ShippingCarr
   }
 
   return response.data?.shippingCarrier || null;
+}
+
+/**
+ * Fetch billing address for a shipping carrier using separate query
+ */
+export async function fetchCarrierBillingAddress(carrierId: string): Promise<Address | null> {
+  const response = await crmGraphQLRequest<{ addressesBySource: Address[] }>({
+    query: GET_CARRIER_ADDRESSES,
+    variables: { sourceId: carrierId, sourceType: 'SHIPPING_CARRIER' },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch carrier address');
+  }
+
+  // Return the first (billing) address if exists
+  return response.data?.addressesBySource?.[0] || null;
+}
+
+interface LinkRelation {
+  targetEntityType: string;
+  targetEntityId: string;
+}
+
+/**
+ * Fetch primary contact for a shipping carrier using separate queries
+ */
+export async function fetchCarrierPrimaryContact(carrierId: string): Promise<Contact | null> {
+  // First get the link to find the contact ID
+  const linksResponse = await crmGraphQLRequest<{ linksFromSource: LinkRelation[] }>({
+    query: GET_CARRIER_CONTACT_LINKS,
+    variables: { sourceType: 'SHIPPING_CARRIER', sourceId: carrierId },
+  });
+
+  if (linksResponse.errors) {
+    throw new Error(linksResponse.errors[0]?.message || 'Failed to fetch carrier contact links');
+  }
+
+  // Find the contact link
+  const contactLink = linksResponse.data?.linksFromSource?.find(
+    link => link.targetEntityType === 'CONTACT'
+  );
+
+  if (!contactLink) {
+    return null;
+  }
+
+  // Fetch the contact details
+  const contactResponse = await crmGraphQLRequest<{ contact: Contact }>({
+    query: GET_CONTACT,
+    variables: { id: contactLink.targetEntityId },
+  });
+
+  if (contactResponse.errors) {
+    throw new Error(contactResponse.errors[0]?.message || 'Failed to fetch contact');
+  }
+
+  return contactResponse.data?.contact || null;
 }
 
 /**
@@ -478,13 +572,11 @@ export async function createCarrierAddress(
   carrierId: string,
   address: Omit<AddressInput, 'sourceId' | 'sourceType'>
 ): Promise<Address> {
-  // Transform addressType to addressTypes array for the API
-  const { addressType, ...restAddress } = address;
   const input = {
-    ...restAddress,
+    ...address,
     sourceId: carrierId,
-    sourceType: 'SHIPPING_CARRIER' as const,
-    addressTypes: [addressType || 'BILLING'],
+    sourceType: 'SHIPPING_CARRIER',
+    addressTypes: address.addressTypes || ['BILLING'],
   };
 
   const response = await crmGraphQLRequest<{ createAddress: Address }>({
@@ -511,13 +603,11 @@ export async function updateCarrierAddress(
   carrierId: string,
   address: Omit<AddressInput, 'sourceId' | 'sourceType'>
 ): Promise<Address> {
-  // Transform addressType to addressTypes array for the API
-  const { addressType, ...restAddress } = address;
   const input = {
-    ...restAddress,
+    ...address,
     sourceId: carrierId,
-    sourceType: 'SHIPPING_CARRIER' as const,
-    addressTypes: [addressType || 'BILLING'],
+    sourceType: 'SHIPPING_CARRIER',
+    addressTypes: address.addressTypes || ['BILLING'],
   };
 
   const response = await crmGraphQLRequest<{ updateAddress: Address }>({
@@ -534,4 +624,203 @@ export async function updateCarrierAddress(
   }
 
   return normalizeCarrierAddress(response.data.updateAddress);
+}
+
+// ============================================================================
+// Contact Mutations for Shipping Carriers
+// ============================================================================
+
+export interface ContactInput {
+  firstName: string;
+  lastName: string;
+  email?: string | null;
+  phone?: string | null;
+  role?: string | null;
+}
+
+export interface LinkRelationInput {
+  sourceEntityType: string;
+  sourceEntityId: string;
+  targetEntityType: string;
+  targetEntityId: string;
+}
+
+const CREATE_CONTACT = `
+  mutation CreateContact($input: ContactInput!) {
+    createContact(input: $input) {
+      id
+      firstName
+      lastName
+      email
+      phone
+      role
+    }
+  }
+`;
+
+const UPDATE_CONTACT = `
+  mutation UpdateContact($id: UUID!, $input: ContactInput!) {
+    updateContact(id: $id, input: $input) {
+      id
+      firstName
+      lastName
+      email
+      phone
+      role
+    }
+  }
+`;
+
+const CREATE_LINK = `
+  mutation CreateLink($input: LinkRelationInput!) {
+    createLink(input: $input) {
+      id
+      sourceEntityType
+      sourceEntityId
+      targetEntityType
+      targetEntityId
+    }
+  }
+`;
+
+const DELETE_LINK_BY_ENTITIES = `
+  mutation DeleteLinkByEntities($input: DeleteLinkByEntitiesInput!) {
+    deleteLinkByEntities(input: $input)
+  }
+`;
+
+/**
+ * Create a contact for a shipping carrier
+ */
+export async function createCarrierContact(
+  carrierId: string,
+  contact: ContactInput
+): Promise<Contact> {
+  // First create the contact
+  const contactResponse = await crmGraphQLRequest<{ createContact: Contact }>({
+    query: CREATE_CONTACT,
+    variables: { input: contact },
+  });
+
+  if (contactResponse.errors) {
+    throw new Error(contactResponse.errors[0]?.message || 'Failed to create contact');
+  }
+
+  if (!contactResponse.data?.createContact) {
+    throw new Error('No contact returned from create mutation');
+  }
+
+  const createdContact = contactResponse.data.createContact;
+
+  // Then link it to the carrier
+  const linkInput: LinkRelationInput = {
+    sourceEntityType: 'SHIPPING_CARRIER',
+    sourceEntityId: carrierId,
+    targetEntityType: 'CONTACT',
+    targetEntityId: createdContact.id,
+  };
+
+  const linkResponse = await crmGraphQLRequest<{ createLink: { id: string } }>({
+    query: CREATE_LINK,
+    variables: { input: linkInput },
+  });
+
+  if (linkResponse.errors) {
+    throw new Error(linkResponse.errors[0]?.message || 'Failed to link contact to carrier');
+  }
+
+  return createdContact;
+}
+
+/**
+ * Update an existing contact for a shipping carrier
+ */
+export async function updateCarrierContact(
+  contactId: string,
+  contact: ContactInput
+): Promise<Contact> {
+  const response = await crmGraphQLRequest<{ updateContact: Contact }>({
+    query: UPDATE_CONTACT,
+    variables: { id: contactId, input: contact },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update contact');
+  }
+
+  if (!response.data?.updateContact) {
+    throw new Error('No contact returned from update mutation');
+  }
+
+  return response.data.updateContact;
+}
+
+/**
+ * Link an existing contact to a shipping carrier
+ * This will first unlink any existing contact, then create a new link
+ */
+export async function linkCarrierContact(
+  carrierId: string,
+  contactId: string,
+  previousContactId?: string
+): Promise<void> {
+  // If there was a previous contact, unlink it first
+  if (previousContactId) {
+    try {
+      await crmGraphQLRequest<{ deleteLinkByEntities: boolean }>({
+        query: DELETE_LINK_BY_ENTITIES,
+        variables: {
+          input: {
+            sourceEntityType: 'SHIPPING_CARRIER',
+            sourceEntityId: carrierId,
+            targetEntityType: 'CONTACT',
+            targetEntityId: previousContactId,
+          },
+        },
+      });
+    } catch {
+      // Ignore errors when unlinking - the link may not exist
+    }
+  }
+
+  // Create the new link
+  const linkInput: LinkRelationInput = {
+    sourceEntityType: 'SHIPPING_CARRIER',
+    sourceEntityId: carrierId,
+    targetEntityType: 'CONTACT',
+    targetEntityId: contactId,
+  };
+
+  const linkResponse = await crmGraphQLRequest<{ createLink: { id: string } }>({
+    query: CREATE_LINK,
+    variables: { input: linkInput },
+  });
+
+  if (linkResponse.errors) {
+    throw new Error(linkResponse.errors[0]?.message || 'Failed to link contact to carrier');
+  }
+}
+
+/**
+ * Unlink a contact from a shipping carrier
+ */
+export async function unlinkCarrierContact(
+  carrierId: string,
+  contactId: string
+): Promise<void> {
+  const response = await crmGraphQLRequest<{ deleteLinkByEntities: boolean }>({
+    query: DELETE_LINK_BY_ENTITIES,
+    variables: {
+      input: {
+        sourceEntityType: 'SHIPPING_CARRIER',
+        sourceEntityId: carrierId,
+        targetEntityType: 'CONTACT',
+        targetEntityId: contactId,
+      },
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to unlink contact from carrier');
+  }
 }

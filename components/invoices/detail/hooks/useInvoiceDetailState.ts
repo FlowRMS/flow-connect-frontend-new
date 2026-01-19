@@ -5,13 +5,14 @@
  * Uses real API data and supports order population
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import type { Invoice, OrderSplitRate, InvoiceStatus, InvoiceLineItem as RmsInvoiceLineItem } from '@/lib/types/rms';
 import type { TabType, ViewMode, LineItemCredit, OrderTooltipState, VersionInfo, RepSplit, ProductToConvert, ColumnKey, InvoiceLineItem, EditableInvoice } from '../types';
 import { mockSalesReps } from '@/lib/data/rms-mock';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import { calculateInvoiceTotals } from '../utils';
+import { useInvoiceSettings } from '@/contexts/UserSettingsContext';
 import {
   useInvoice,
   useCreateInvoice,
@@ -65,7 +66,19 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
   const order = apiInvoice.order as any;
 
   // Transform details to extended line items for editing
-  const extendedLineItems: InvoiceLineItem[] = (apiInvoice.details || []).map((detail, index) => ({
+  const extendedLineItems: InvoiceLineItem[] = (apiInvoice.details || []).map((detail, index) => {
+    // Parse base values first
+    const quantity = parseFloat(detail.quantity || '0');
+    const unitPrice = parseFloat(detail.unitPrice || '0');
+    const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
+    const commissionRate = parseFloat(detail.commissionRate || '0');
+
+    // Always calculate derived values from base fields (like quotes does)
+    // Don't rely on API total/commission as they may not be populated
+    const sellTotal = quantity * unitPrice / divisor;
+    const commissionAmount = sellTotal * (commissionRate / 100);
+
+    return {
     id: detail.id,
     orderLineItemId: detail.orderDetailId || '',
     lineNumber: detail.itemNumber || index + 1,
@@ -73,17 +86,17 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     partNumber: detail.product?.factoryPartNumber || detail.productNameAdhoc || '',
     custPartNumber: '',
     description: detail.product?.description || detail.productDescriptionAdhoc || '',
-    quantity: parseFloat(detail.quantity || '0'),
-    unitPrice: parseFloat(detail.unitPrice || '0'),
+    quantity,
+    unitPrice,
     uom: detail.uom?.title || null,
     uomId: detail.uom?.id || detail.uomId || null,
-    divisor: detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1'),
-    total: detail.total || 0,
-    amount: detail.total || 0,
-    commissionPercent: parseFloat(detail.commissionRate || '0'),
-    commissionRate: parseFloat(detail.commissionRate || '0'),
-    commission: detail.commission || 0,
-    commissionAmount: detail.commission || 0,
+    divisor,
+    total: sellTotal,
+    amount: sellTotal,
+    commissionPercent: commissionRate,
+    commissionRate: commissionRate,
+    commission: commissionAmount,
+    commissionAmount: commissionAmount,
     discountPercent: parseFloat(detail.discountRate || '0'),
     discount: detail.discount || 0,
     commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
@@ -92,6 +105,7 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     leadTime: detail.leadTime || '',
     note: detail.note || '',
     endUserId: detail.endUserId || '',
+    endUserName: detail.endUser?.companyName || '', // Use embedded endUser from API response
     orderDetailId: detail.orderDetailId || '',
     invoicedBalance: detail.invoicedBalance || 0,
     outsideSplitRates: (detail.outsideSplitRates || []).map(s => ({
@@ -106,7 +120,8 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
       splitRate: parseFloat(s.splitRate || '0'),
       position: s.position || 0,
     })),
-  }));
+  };
+  });
 
   // Get per-line-item flags from order
   const endUserPerLineItem = order?.endUserPerLineItem || false;
@@ -116,6 +131,7 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
   // If NOT per-line-item, grab from first line item for header display
   const firstDetail = apiInvoice.details?.[0];
   const headerEndUserId = !endUserPerLineItem ? (firstDetail?.endUserId || '') : '';
+  const headerEndUserName = !endUserPerLineItem ? (firstDetail?.endUser?.companyName || '') : '';
 
   // Get header-level outside split rates (when NOT per-line-item)
   const headerOutsideSplitRates = !outsidePerLineItem && firstDetail?.outsideSplitRates
@@ -187,9 +203,9 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     endUserPerLineItem,
     outsidePerLineItem,
     insidePerLineItem,
-    // Header-level end user (when not per-line-item)
+    // Header-level end user (when not per-line-item) - use embedded endUser from API
     endUserId: headerEndUserId,
-    endUserName: '', // Will be populated from customer lookup if needed (for end user specifically)
+    endUserName: headerEndUserName, // Use embedded endUser from API response
     // Header-level reps (when not per-line-item, grabbed from first line item)
     outsideRepId: headerOutsideRepId,
     outsideRepName: headerOutsideRepName,
@@ -215,9 +231,12 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
   const quantity = parseFloat(detail.quantity || '0');
   const unitPrice = parseFloat(detail.unitPrice || '0');
   const divisor = parseFloat(detail.divisionFactor || '1');
-  const total = detail.total || (quantity * unitPrice / divisor);
   const commissionRate = parseFloat(detail.commissionRate || '0');
-  const commissionAmount = detail.commission || 0;
+
+  // Always calculate derived values from base fields (like quotes does)
+  // Don't rely on API total/commission as they may not be populated
+  const total = quantity * unitPrice / divisor;
+  const commissionAmount = total * (commissionRate / 100);
 
   return {
     id: detail.id,
@@ -248,6 +267,7 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
     leadTime: detail.leadTime || '',
     note: detail.note || '',
     endUserId: detail.endUserId || '',
+    endUserName: detail.endUser?.companyName || '', // Use embedded endUser from API response
     orderDetailId: detail.orderDetailId || '',
     invoicedBalance: detail.invoicedBalance || 0,
     outsideSplitRates: (detail.outsideSplitRates || []).map(s => ({
@@ -296,6 +316,12 @@ function createEmptyInvoice(): EditableInvoice {
 export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceDetailStateProps) {
   const isCreateMode = invoiceId === 'new';
 
+  // Get saved invoice settings from context (already cached, no extra API calls)
+  const { settings: savedInvoiceSettings, isInitialized: settingsInitialized } = useInvoiceSettings();
+
+  // Track if we've applied column settings to avoid re-applying on every render
+  const hasAppliedColumnSettings = useRef(false);
+
   // Fetch invoice from API
   const {
     data: apiInvoice,
@@ -339,9 +365,9 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   const factoryIdToFetch = needsSeparateOrderFetch ? linkedOrder?.factoryId : null;
   const { data: linkedFactory } = useFactory(factoryIdToFetch || '');
 
-  // Fetch end user customer details when we have an endUserId
-  // This is still needed because end user is not in the invoice.order nested data
-  const endUserIdToFetch = localInvoice?.endUserId || null;
+  // Fetch end user customer details when we have an endUserId but no endUserName
+  // With embedded endUser in the API response, this should rarely be needed
+  const endUserIdToFetch = (localInvoice?.endUserId && !localInvoice?.endUserName) ? localInvoice.endUserId : null;
   const { data: endUserCustomer } = useCustomer(endUserIdToFetch || undefined);
 
   // Fetch bill to customer details when we have a billToCustomerId that differs from soldToCustomerId
@@ -745,6 +771,21 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   );
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
 
+  // Apply saved column configuration when settings are loaded
+  // This runs once when settings are initialized and applies to ALL invoices (new and existing)
+  useEffect(() => {
+    if (settingsInitialized && !hasAppliedColumnSettings.current) {
+      if (savedInvoiceSettings?.columnConfig && savedInvoiceSettings.columnConfig.length > 0) {
+        // Use saved settings - only include columns marked as visible
+        const visibleKeys = savedInvoiceSettings.columnConfig
+          .filter(col => col.visible)
+          .map(col => col.key as ColumnKey);
+        setVisibleColumns(new Set(visibleKeys));
+      }
+      hasAppliedColumnSettings.current = true;
+    }
+  }, [settingsInitialized, savedInvoiceSettings?.columnConfig]);
+
   // Header dropdowns
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
@@ -951,6 +992,31 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     setSelectedLineItemForDetails(null);
   };
 
+  // Live update additional details for a line item (without closing modal)
+  const liveUpdateAdditionalDetails = (updates: Partial<InvoiceLineItem>) => {
+    // Update the selected line item so the modal stays in sync
+    setSelectedLineItemForDetails((prev) => prev ? { ...prev, ...updates } : prev);
+
+    // Use functional update pattern to avoid stale closure issues
+    // This reads from prev instead of the closure-captured selectedLineItemForDetails
+    setLocalInvoice((prevInvoice) => {
+      if (!prevInvoice) return prevInvoice;
+
+      // Get the line item ID from the current selectedLineItemForDetails state
+      const lineItemIdToUpdate = selectedLineItemForDetails?.id;
+      if (!lineItemIdToUpdate) return prevInvoice;
+
+      return {
+        ...prevInvoice,
+        lineItems: prevInvoice.lineItems.map((li) =>
+          li.id === lineItemIdToUpdate ? { ...li, ...updates } : li
+        ),
+      };
+    });
+
+    if (!isCreateMode) setHasLocalEdits(true);
+  };
+
   if (!invoice && !isLoading) {
     return null;
   }
@@ -1084,6 +1150,7 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     setSelectedLineItemForDetails,
     openAdditionalDetails,
     saveAdditionalDetails,
+    liveUpdateAdditionalDetails,
 
     // Computed values
     isConnectedToOrder,

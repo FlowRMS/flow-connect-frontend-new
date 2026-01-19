@@ -22,10 +22,8 @@ function ManufacturersLoading() {
 
 export default function ManufacturersPage() {
   return (
-    <div className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
-      <Suspense fallback={<ManufacturersLoading />}>
-        <ManufacturerProfilesContent basePath="/manufacturers" />
-      </Suspense>
-    </div>
+    <Suspense fallback={<ManufacturersLoading />}>
+      <ManufacturerProfilesContent basePath="/manufacturers" />
+    </Suspense>
   );
 }

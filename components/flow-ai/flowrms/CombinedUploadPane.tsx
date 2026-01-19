@@ -49,7 +49,7 @@ const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: L
   { value: 'orders', label: 'Order', icon: ClipboardList },
   { value: 'order_acknowledgements', label: 'Order Acknowledgement', icon: FileCheck },
   { value: 'invoices', label: 'Invoice', icon: Receipt },
-  { value: 'checks', label: 'Checks', icon: DollarSign },
+  { value: 'checks', label: 'Statements', icon: DollarSign },
   { value: 'products', label: 'Products', icon: Package },
   { value: 'factories', label: 'Factories', icon: Building2 },
   { value: 'customers', label: 'Customers', icon: Users },
@@ -61,8 +61,9 @@ const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType =
     case 'quotes':
       return 'QUOTES';
     case 'orders':
-    case 'order_acknowledgements':
       return 'ORDERS';
+    case 'order_acknowledgements':
+      return 'ORDER_ACKNOWLEDGEMENTS';
     case 'invoices':
       return 'INVOICES';
     case 'checks':

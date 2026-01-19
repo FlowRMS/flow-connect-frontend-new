@@ -1,7 +1,7 @@
 // Shipping carriers management hook with backend API integration
 // Updates are batched locally and only saved when saveChanges() is called
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   useShippingCarriersQuery,
   useCreateShippingCarrier,
@@ -9,7 +9,15 @@ import {
   useDeleteShippingCarrier,
   type ShippingCarrier as ApiShippingCarrier,
 } from '../api';
-import { createCarrierAddress, updateCarrierAddress } from '../api/shippingCarriersApi';
+import {
+  createCarrierAddress,
+  updateCarrierAddress,
+  linkCarrierContact,
+  unlinkCarrierContact,
+  fetchCarrierBillingAddress,
+  fetchCarrierPrimaryContact,
+  type Address,
+} from '../api/shippingCarriersApi';
 
 // Carrier type - matches backend enum
 export type CarrierType = 'PARCEL' | 'FREIGHT';
@@ -37,7 +45,8 @@ export interface ShippingCarrier {
   apiKey?: string;
   apiEndpoint?: string;
   trackingUrlTemplate?: string;
-  // Contact info - simple form fields for now
+  // Contact info - stored as linked Contact entity
+  primaryContactId?: string; // ID of the linked contact
   contactName?: string;
   contactPhone?: string;
   contactEmail?: string;
@@ -87,7 +96,7 @@ const objectToArray = (obj: Record<string, boolean> | string[] | string | null |
 };
 
 // Format address for display
-const formatAddress = (addr: ApiShippingCarrier['billingAddress']): string | undefined => {
+const formatAddress = (addr: Address | null | undefined): string | undefined => {
   if (!addr) return undefined;
   const parts = [addr.line1];
   if (addr.line2) parts.push(addr.line2);
@@ -97,6 +106,7 @@ const formatAddress = (addr: ApiShippingCarrier['billingAddress']): string | und
 };
 
 // Convert API response to local format
+// Note: billingAddress and primaryContact are fetched separately when accordion expands
 const toLocalFormat = (carrier: ApiShippingCarrier): ShippingCarrier => ({
   id: carrier.id,
   name: carrier.name,
@@ -104,27 +114,11 @@ const toLocalFormat = (carrier: ApiShippingCarrier): ShippingCarrier => ({
   carrierType: carrier.carrierType ?? undefined,
   isActive: carrier.isActive ?? true,
   accountNumber: carrier.accountNumber ?? undefined,
-  // Billing address from linked entity
-  billingAddress: formatAddress(carrier.billingAddress),
-  billingAddressId: carrier.billingAddress?.id,
-  billingAddressData: carrier.billingAddress ? {
-    line1: carrier.billingAddress.line1,
-    line2: carrier.billingAddress.line2 ?? undefined,
-    city: carrier.billingAddress.city,
-    state: carrier.billingAddress.state ?? undefined,
-    zipCode: carrier.billingAddress.zipCode ?? undefined,
-    country: carrier.billingAddress.country,
-  } : undefined,
+  // Billing address and contact are lazy-loaded via fetchedDetails when accordion expands
   paymentTerms: carrier.paymentTerms ?? undefined,
   apiKey: carrier.apiKey ?? undefined,
   apiEndpoint: carrier.apiEndpoint ?? undefined,
   trackingUrlTemplate: carrier.trackingUrlTemplate ?? undefined,
-  // Contact from linked entity (read-only for display)
-  contactName: carrier.primaryContact
-    ? `${carrier.primaryContact.firstName} ${carrier.primaryContact.lastName}`.trim()
-    : undefined,
-  contactPhone: carrier.primaryContact?.phone ?? undefined,
-  contactEmail: carrier.primaryContact?.email ?? undefined,
   serviceTypes: objectToArray(carrier.serviceTypes as Record<string, boolean> | string[] | null),
   defaultServiceType: carrier.defaultServiceType ?? undefined,
   maxWeight: carrier.maxWeight ?? undefined,
@@ -179,24 +173,94 @@ export function useShippingCarriers() {
   // Track which carriers have been deleted locally (not yet saved)
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
+  // Track newly created carriers (before query refetch)
+  // This ensures we can save changes to newly created carriers immediately
+  const [newlyCreatedCarriers, setNewlyCreatedCarriers] = useState<Map<string, ApiShippingCarrier>>(new Map());
+
   // UI state
   const [expandedCarrierId, setExpandedCarrierId] = useState<string | null>(null);
   const [newCarrierName, setNewCarrierName] = useState('');
   const [newCarrierAccount, setNewCarrierAccount] = useState('');
   const [newCarrierRemarks, setNewCarrierRemarks] = useState('');
 
-  // Derive local carriers from API data + local modifications
-  const localCarriers = useMemo(() => {
-    if (!apiCarriers) return [];
+  // Track fetched carrier details (contact, address) - lazy loaded on expand
+  const [fetchedDetails, setFetchedDetails] = useState<Map<string, Partial<ShippingCarrier>>>(new Map());
+  const [fetchingDetailsFor, setFetchingDetailsFor] = useState<string | null>(null);
 
-    return apiCarriers
+  // Fetch carrier details when expanded (lazy load contact & address using separate queries)
+  useEffect(() => {
+    if (!expandedCarrierId) return;
+    // Skip if already fetched or currently fetching
+    if (fetchedDetails.has(expandedCarrierId) || fetchingDetailsFor === expandedCarrierId) return;
+
+    const fetchDetails = async () => {
+      setFetchingDetailsFor(expandedCarrierId);
+      try {
+        const details: Partial<ShippingCarrier> = {};
+
+        // Fetch address and contact in parallel using separate queries
+        const [billingAddress, primaryContact] = await Promise.all([
+          fetchCarrierBillingAddress(expandedCarrierId),
+          fetchCarrierPrimaryContact(expandedCarrierId),
+        ]);
+
+        // Extract contact details
+        if (primaryContact) {
+          details.primaryContactId = primaryContact.id;
+          details.contactName = `${primaryContact.firstName} ${primaryContact.lastName}`.trim();
+          details.contactPhone = primaryContact.phone ?? undefined;
+          details.contactEmail = primaryContact.email ?? undefined;
+        }
+
+        // Extract address details
+        if (billingAddress) {
+          details.billingAddressId = billingAddress.id;
+          details.billingAddress = formatAddress(billingAddress);
+          details.billingAddressData = {
+            line1: billingAddress.line1,
+            line2: billingAddress.line2 ?? undefined,
+            city: billingAddress.city,
+            state: billingAddress.state ?? undefined,
+            zipCode: billingAddress.zipCode ?? undefined,
+            country: billingAddress.country,
+          };
+        }
+
+        setFetchedDetails(prev => new Map(prev).set(expandedCarrierId, details));
+      } catch (err) {
+        console.error('Failed to fetch carrier details:', err);
+      } finally {
+        setFetchingDetailsFor(null);
+      }
+    };
+
+    fetchDetails();
+  }, [expandedCarrierId, fetchedDetails, fetchingDetailsFor]);
+
+  // Derive local carriers from API data + newly created + fetched details + local modifications
+  const localCarriers = useMemo(() => {
+    // Start with API carriers or empty array
+    const apiList = apiCarriers || [];
+
+    // Merge API carriers with newly created ones (avoid duplicates)
+    const apiIds = new Set(apiList.map(c => c.id));
+    const newCarriersNotInApi = Array.from(newlyCreatedCarriers.values())
+      .filter(c => !apiIds.has(c.id));
+
+    const allCarriers = [...apiList, ...newCarriersNotInApi];
+
+    return allCarriers
       .map(toLocalFormat)
       .filter(c => !deletedIds.has(c.id))
       .map(carrier => {
+        // First apply fetched details (contact, address from lazy load)
+        const details = fetchedDetails.get(carrier.id);
+        const withDetails = details ? { ...carrier, ...details } : carrier;
+        // Then apply local modifications (user edits)
         const mods = localModifications.get(carrier.id);
-        return mods ? { ...carrier, ...mods } : carrier;
+        return mods ? { ...withDetails, ...mods } : withDetails;
       });
-  }, [apiCarriers, deletedIds, localModifications]);
+  }, [apiCarriers, newlyCreatedCarriers, deletedIds, fetchedDetails, localModifications]);
 
   // Track if there are unsaved changes
   const hasChanges = localModifications.size > 0 || deletedIds.size > 0;
@@ -215,6 +279,14 @@ export function useShippingCarriers() {
         isActive: true,
         accountNumber: newCarrierAccount.trim() || null,
         remarks: newCarrierRemarks.trim() || null,
+      });
+
+      // Track the newly created carrier locally so we can save changes immediately
+      // (before the query refetches)
+      setNewlyCreatedCarriers(prev => {
+        const next = new Map(prev);
+        next.set(created.id, created);
+        return next;
       });
 
       // Clear form fields
@@ -262,9 +334,9 @@ export function useShippingCarriers() {
       }
     }
 
-    // Process updates - need to merge with current API data
+    // Process updates - need to merge with current API data or newly created carriers
     for (const [id, mods] of localModifications) {
-      const apiCarrier = apiCarriers?.find(c => c.id === id);
+      const apiCarrier = apiCarriers?.find(c => c.id === id) || newlyCreatedCarriers.get(id);
       if (apiCarrier) {
         const merged = { ...toLocalFormat(apiCarrier), ...mods };
         try {
@@ -317,7 +389,113 @@ export function useShippingCarriers() {
     // Clear modification tracking
     setLocalModifications(new Map());
     setDeletedIds(new Set());
-  }, [apiCarriers, localModifications, deletedIds, updateMutation, deleteMutation]);
+  }, [apiCarriers, newlyCreatedCarriers, localModifications, deletedIds, updateMutation, deleteMutation]);
+
+  // Save changes for a single carrier
+  const saveCarrier = useCallback(async (carrierId: string) => {
+    const mods = localModifications.get(carrierId);
+    if (!mods) return;
+
+    // Look in both API carriers and newly created carriers
+    const apiCarrier = apiCarriers?.find(c => c.id === carrierId) || newlyCreatedCarriers.get(carrierId);
+    if (!apiCarrier) return;
+
+    // Get previously fetched details (contact, address)
+    const prevDetails = fetchedDetails.get(carrierId);
+    const merged = { ...toLocalFormat(apiCarrier), ...prevDetails, ...mods };
+
+    try {
+      await updateMutation.mutateAsync({
+        id: carrierId,
+        input: toApiInput(merged),
+      });
+
+      // Update billing address if any address fields changed
+      const addressFieldsChanged = mods.billingAddressData !== undefined;
+
+      if (addressFieldsChanged && mods.billingAddressData) {
+        const addressData = {
+          line1: mods.billingAddressData.line1 || '',
+          line2: mods.billingAddressData.line2 || null,
+          city: mods.billingAddressData.city || '',
+          state: mods.billingAddressData.state || null,
+          zipCode: mods.billingAddressData.zipCode || null,
+          country: mods.billingAddressData.country || 'USA',
+          isPrimary: true,
+        };
+
+        const hasAddressData = addressData.line1 || addressData.city;
+
+        if (hasAddressData) {
+          // Use billingAddressId from fetched details or mods
+          const existingAddressId = prevDetails?.billingAddressId || mods.billingAddressId;
+          if (existingAddressId) {
+            await updateCarrierAddress(existingAddressId, carrierId, addressData);
+          } else {
+            await createCarrierAddress(carrierId, addressData);
+          }
+        }
+      }
+
+      // Update contact link if primaryContactId changed
+      const contactChanged = mods.primaryContactId !== undefined;
+
+      if (contactChanged) {
+        // Get previous contact from fetched details
+        const previousContactId = prevDetails?.primaryContactId;
+        const newContactId = merged.primaryContactId;
+
+        if (newContactId && newContactId !== previousContactId) {
+          // Link new contact (will unlink previous if exists)
+          await linkCarrierContact(carrierId, newContactId, previousContactId);
+        } else if (!newContactId && previousContactId) {
+          // Contact was cleared - unlink it
+          await unlinkCarrierContact(carrierId, previousContactId);
+        }
+      }
+
+      // Update fetched details with new values after save
+      if (mods.primaryContactId !== undefined || mods.billingAddressData !== undefined) {
+        setFetchedDetails(prev => {
+          const next = new Map(prev);
+          const current = next.get(carrierId) || {};
+          next.set(carrierId, { ...current, ...mods });
+          return next;
+        });
+      }
+
+      // Clear modifications for this carrier only
+      setLocalModifications(prev => {
+        const next = new Map(prev);
+        next.delete(carrierId);
+        return next;
+      });
+    } catch (err) {
+      console.error(`Failed to save carrier ${merged.name}:`, err);
+      throw err;
+    }
+  }, [apiCarriers, newlyCreatedCarriers, localModifications, fetchedDetails, updateMutation]);
+
+  // Delete carrier immediately with API call
+  const deleteCarrierImmediately = useCallback(async (carrierId: string) => {
+    try {
+      await deleteMutation.mutateAsync(carrierId);
+      // Clear from local modifications if any
+      setLocalModifications(prev => {
+        const next = new Map(prev);
+        next.delete(carrierId);
+        return next;
+      });
+    } catch (err) {
+      console.error('Failed to delete carrier:', err);
+      throw err;
+    }
+  }, [deleteMutation]);
+
+  // Check if a specific carrier has unsaved changes
+  const hasCarrierChanges = useCallback((carrierId: string) => {
+    return localModifications.has(carrierId);
+  }, [localModifications]);
 
   const markChanged = useCallback(() => {
     // No-op - changes are tracked automatically
@@ -337,6 +515,7 @@ export function useShippingCarriers() {
     newCarrierRemarks,
     hasChanges,
     isLoading,
+    isLoadingDetails: fetchingDetailsFor !== null,
     error,
 
     // Setters
@@ -351,6 +530,9 @@ export function useShippingCarriers() {
     handleAddCarrier,
     handleUpdateCarrier,
     handleDeleteCarrier,
+    saveCarrier,
+    deleteCarrierImmediately,
+    hasCarrierChanges,
     saveChanges,
     markChanged,
     resetChanges,

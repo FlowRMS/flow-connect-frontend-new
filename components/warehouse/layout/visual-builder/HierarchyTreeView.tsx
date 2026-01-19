@@ -32,7 +32,7 @@ export default function HierarchyTreeView({
               ? 'bg-blue-100 dark:bg-blue-900/30 ring-1 ring-blue-400'
               : isInPath
                 ? 'bg-blue-50 dark:bg-blue-900/10'
-                : 'hover:bg-[var(--accent)]'
+                : 'hover:bg-[var(--muted)]/50'
           }`}
           style={{ paddingLeft: `${depth * 12 + 6}px` }}
           onClick={() => onElementSelect(location.id)}

@@ -39,6 +39,7 @@ interface HeaderTopBarProps {
   handleGeneratePDF?: () => void;
   handleSave?: () => void;
   handleSaveAsNew?: () => void;
+  onDelete?: () => void;
   // Unsaved changes
   isCreateMode?: boolean;
   hasChanges?: boolean;
@@ -79,6 +80,7 @@ export function HeaderTopBar({
   handleGeneratePDF,
   handleSave,
   handleSaveAsNew,
+  onDelete,
   isCreateMode = false,
   hasChanges = false,
   isSaving = false,
@@ -120,7 +122,7 @@ export function HeaderTopBar({
   ];
 
   return (
-    <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
+    <div className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
@@ -242,7 +244,7 @@ export function HeaderTopBar({
                       <div className="border-t border-[var(--border)]" />
                       <button
                         disabled
-                        className="w-full px-4 py-2 text-left text-sm rounded-b-lg flex items-center justify-between opacity-50 cursor-not-allowed text-gray-500"
+                        className="w-full px-4 py-2 text-left text-sm flex items-center justify-between opacity-50 cursor-not-allowed text-gray-500"
                       >
                         <span className="flex items-center gap-2">
                           <svg
@@ -269,6 +271,31 @@ export function HeaderTopBar({
                         <span className="text-[9px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
                           Coming Soon
                         </span>
+                      </button>
+                      <div className="border-t border-[var(--border)]" />
+                      <button
+                        onClick={() => {
+                          setShowActionsDropdown(false);
+                          onDelete?.();
+                        }}
+                        disabled={isCreateMode || !invoice.id}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors rounded-b-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path
+                            d="M5 5h10M8 5V3h4v2M6 8v8a1 1 0 001 1h6a1 1 0 001-1V8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        Delete Invoice
                       </button>
                     </>
                   ) : (
@@ -324,7 +351,7 @@ export function HeaderTopBar({
                       <div className="border-t border-[var(--border)]" />
                       <button
                         disabled
-                        className="w-full px-4 py-2 text-left text-sm rounded-b-lg flex items-center justify-between opacity-50 cursor-not-allowed text-gray-500"
+                        className="w-full px-4 py-2 text-left text-sm flex items-center justify-between opacity-50 cursor-not-allowed text-gray-500"
                       >
                         <span className="flex items-center gap-2">
                           <svg
@@ -351,6 +378,31 @@ export function HeaderTopBar({
                         <span className="text-[9px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
                           Coming Soon
                         </span>
+                      </button>
+                      <div className="border-t border-[var(--border)]" />
+                      <button
+                        onClick={() => {
+                          setShowActionsDropdown(false);
+                          onDelete?.();
+                        }}
+                        disabled={isCreateMode || !invoice.id}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors rounded-b-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path
+                            d="M5 5h10M8 5V3h4v2M6 8v8a1 1 0 001 1h6a1 1 0 001-1V8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        Delete Invoice
                       </button>
                     </>
                   )}

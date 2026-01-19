@@ -3,7 +3,7 @@
  * Centralized toast notification functions using Sonner
  */
 
-import { toast } from 'sonner';
+import { toast } from "sonner";
 
 // ============================================================================
 // Toast Configuration Types
@@ -76,7 +76,7 @@ export const showLoadingToast = <T>(
     loading: string;
     success: string | ((data: T) => string);
     error: string | ((error: Error) => string);
-  }
+  },
 ) => {
   return toast.promise(promise, {
     loading: messages.loading,
@@ -92,37 +92,37 @@ export const showLoadingToast = <T>(
 // Pre-Opportunity Toasts
 export const preOpportunityToasts = {
   createSuccess: (entityNumber: string) =>
-    showSuccessToast('Pre-Opportunity Created', {
+    showSuccessToast("Pre-Opportunity Created", {
       description: `${entityNumber} has been created successfully`,
     }),
-  
+
   createError: (error?: string) =>
-    showErrorToast('Failed to Create Pre-Opportunity', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create Pre-Opportunity", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   updateSuccess: (entityNumber: string) =>
-    showSuccessToast('Pre-Opportunity Updated', {
+    showSuccessToast("Pre-Opportunity Updated", {
       description: `${entityNumber} has been updated successfully`,
     }),
-  
+
   updateError: (error?: string) =>
-    showErrorToast('Failed to Update Pre-Opportunity', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Update Pre-Opportunity", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   deleteSuccess: (entityNumber: string) =>
-    showSuccessToast('Pre-Opportunity Deleted', {
+    showSuccessToast("Pre-Opportunity Deleted", {
       description: `${entityNumber} has been removed`,
     }),
-  
+
   deleteError: (error?: string) =>
-    showErrorToast('Failed to Delete Pre-Opportunity', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Delete Pre-Opportunity", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   statusChanged: (entityNumber: string, newStatus: string) =>
-    showSuccessToast('Status Updated', {
+    showSuccessToast("Status Updated", {
       description: `${entityNumber} moved to ${newStatus}`,
     }),
 };
@@ -130,554 +130,518 @@ export const preOpportunityToasts = {
 // Contact Toasts
 export const contactToasts = {
   createSuccess: (name: string) =>
-    showSuccessToast('Contact Created', {
+    showSuccessToast("Contact Created", {
       description: `${name} has been added to your contacts`,
     }),
-  
+
   createError: (error?: string) =>
-    showErrorToast('Failed to Create Contact', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create Contact", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   updateSuccess: (name: string) =>
-    showSuccessToast('Contact Updated', {
+    showSuccessToast("Contact Updated", {
       description: `${name}'s information has been updated`,
     }),
-  
+
   updateError: (error?: string) =>
-    showErrorToast('Failed to Update Contact', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Update Contact", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   deleteSuccess: (name: string) =>
-    showSuccessToast('Contact Deleted', {
+    showSuccessToast("Contact Deleted", {
       description: `${name} has been removed from your contacts`,
     }),
-  
+
   deleteError: (error?: string) =>
-    showErrorToast('Failed to Delete Contact', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Delete Contact", {
+      description: error || "Please try again or contact support",
     }),
 };
 
 // Company Toasts
 export const companyToasts = {
   createSuccess: (name: string) =>
-    showSuccessToast('Company Created', {
+    showSuccessToast("Company Created", {
       description: `${name} has been added successfully`,
     }),
-  
+
   createError: (error?: string) =>
-    showErrorToast('Failed to Create Company', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create Company", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   updateSuccess: (name: string) =>
-    showSuccessToast('Company Updated', {
+    showSuccessToast("Company Updated", {
       description: `${name}'s information has been updated`,
     }),
-  
+
   updateError: (error?: string) =>
-    showErrorToast('Failed to Update Company', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Update Company", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   deleteSuccess: (name: string) =>
-    showSuccessToast('Company Deleted', {
+    showSuccessToast("Company Deleted", {
       description: `${name} has been removed`,
     }),
-  
+
   deleteError: (error?: string) =>
-    showErrorToast('Failed to Delete Company', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Delete Company", {
+      description: error || "Please try again or contact support",
     }),
 };
 
 // Job Toasts
 export const jobToasts = {
   createSuccess: (name: string) =>
-    showSuccessToast('Job Created', {
+    showSuccessToast("Job Created", {
       description: `${name} has been created successfully`,
     }),
-  
+
   createError: (error?: string) =>
-    showErrorToast('Failed to Create Job', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create Job", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   updateSuccess: (name: string) =>
-    showSuccessToast('Job Updated', {
+    showSuccessToast("Job Updated", {
       description: `${name} has been updated successfully`,
     }),
-  
+
   updateError: (error?: string) =>
-    showErrorToast('Failed to Update Job', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Update Job", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   deleteSuccess: (name: string) =>
-    showSuccessToast('Job Deleted', {
+    showSuccessToast("Job Deleted", {
       description: `${name} has been removed`,
     }),
-  
+
   deleteError: (error?: string) =>
-    showErrorToast('Failed to Delete Job', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Delete Job", {
+      description: error || "Please try again or contact support",
     }),
 };
 
 // Task Toasts
 export const taskToasts = {
   createSuccess: (title: string) =>
-    showSuccessToast('Task Created', {
+    showSuccessToast("Task Created", {
       description: `"${title}" has been added to your tasks`,
     }),
-  
+
   createError: (error?: string) =>
-    showErrorToast('Failed to Create Task', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create Task", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   updateSuccess: (title: string) =>
-    showSuccessToast('Task Updated', {
+    showSuccessToast("Task Updated", {
       description: `"${title}" has been updated`,
     }),
-  
+
   updateError: (error?: string) =>
-    showErrorToast('Failed to Update Task', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Update Task", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   deleteSuccess: () =>
-    showSuccessToast('Task Deleted', {
-      description: 'Task has been removed from your list',
+    showSuccessToast("Task Deleted", {
+      description: "Task has been removed from your list",
     }),
-  
+
   deleteError: (error?: string) =>
-    showErrorToast('Failed to Delete Task', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Delete Task", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   completedSuccess: (title: string) =>
-    showSuccessToast('Task Completed', {
+    showSuccessToast("Task Completed", {
       description: `"${title}" marked as complete`,
     }),
-  
+
   commentAdded: () =>
-    showSuccessToast('Comment Added', {
-      description: 'Your comment has been posted',
+    showSuccessToast("Comment Added", {
+      description: "Your comment has been posted",
     }),
-  
+
   commentError: (error?: string) =>
-    showErrorToast('Failed to Add Comment', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Add Comment", {
+      description: error || "Please try again or contact support",
     }),
 };
 
 // Note Toasts
 export const noteToasts = {
   createSuccess: () =>
-    showSuccessToast('Note Created', {
-      description: 'Your note has been saved',
+    showSuccessToast("Note Created", {
+      description: "Your note has been saved",
     }),
-  
+
   createError: (error?: string) =>
-    showErrorToast('Failed to Create Note', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create Note", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   updateSuccess: () =>
-    showSuccessToast('Note Updated', {
-      description: 'Your note has been saved',
+    showSuccessToast("Note Updated", {
+      description: "Your note has been saved",
     }),
-  
+
   updateError: (error?: string) =>
-    showErrorToast('Failed to Update Note', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Update Note", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   deleteSuccess: () =>
-    showSuccessToast('Note Deleted', {
-      description: 'Note has been removed',
+    showSuccessToast("Note Deleted", {
+      description: "Note has been removed",
     }),
-  
+
   deleteError: (error?: string) =>
-    showErrorToast('Failed to Delete Note', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Delete Note", {
+      description: error || "Please try again or contact support",
     }),
 };
 
 // Link Operation Toasts
 export const linkToasts = {
   createSuccess: (linkType: string) =>
-    showSuccessToast('Link Created', {
+    showSuccessToast("Link Created", {
       description: `${linkType} has been linked successfully`,
     }),
-  
+
   alreadyExists: (linkType: string) =>
-    showWarningToast('Link Already Exists', {
+    showWarningToast("Link Already Exists", {
       description: `This ${linkType} is already linked`,
       duration: 4000,
     }),
-  
+
   createError: (error?: string) =>
-    showErrorToast('Failed to Create Link', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create Link", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   deleteSuccess: (linkType: string) =>
-    showSuccessToast('Link Removed', {
+    showSuccessToast("Link Removed", {
       description: `${linkType} has been unlinked`,
     }),
-  
+
   deleteError: (error?: string) =>
-    showErrorToast('Failed to Remove Link', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Remove Link", {
+      description: error || "Please try again or contact support",
     }),
 };
 
 // Campaign Toasts
 export const campaignToasts = {
   createSuccess: (name: string) =>
-    showSuccessToast('Campaign Created', {
+    showSuccessToast("Campaign Created", {
       description: `"${name}" has been created successfully`,
     }),
 
   createError: (error?: string) =>
-    showErrorToast('Failed to Create Campaign', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create Campaign", {
+      description: error || "Please try again or contact support",
     }),
 
   updateSuccess: (name: string) =>
-    showSuccessToast('Campaign Updated', {
+    showSuccessToast("Campaign Updated", {
       description: `"${name}" has been updated successfully`,
     }),
 
   updateError: (error?: string) =>
-    showErrorToast('Failed to Update Campaign', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Update Campaign", {
+      description: error || "Please try again or contact support",
     }),
 
   deleteSuccess: (name: string) =>
-    showSuccessToast('Campaign Deleted', {
+    showSuccessToast("Campaign Deleted", {
       description: `"${name}" has been removed`,
     }),
 
   deleteError: (error?: string) =>
-    showErrorToast('Failed to Delete Campaign', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Delete Campaign", {
+      description: error || "Please try again or contact support",
     }),
 
   startSuccess: (name: string) =>
-    showSuccessToast('Campaign Started', {
+    showSuccessToast("Campaign Started", {
       description: `"${name}" is now sending emails`,
     }),
 
   startError: (error?: string) =>
-    showErrorToast('Failed to Start Campaign', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Start Campaign", {
+      description: error || "Please try again or contact support",
     }),
 
   pauseSuccess: (name: string) =>
-    showSuccessToast('Campaign Paused', {
+    showSuccessToast("Campaign Paused", {
       description: `"${name}" has been paused`,
     }),
 
   pauseError: (error?: string) =>
-    showErrorToast('Failed to Pause Campaign', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Pause Campaign", {
+      description: error || "Please try again or contact support",
     }),
 
   resumeSuccess: (name: string) =>
-    showSuccessToast('Campaign Resumed', {
+    showSuccessToast("Campaign Resumed", {
       description: `"${name}" is now sending again`,
     }),
 
   resumeError: (error?: string) =>
-    showErrorToast('Failed to Resume Campaign', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Resume Campaign", {
+      description: error || "Please try again or contact support",
     }),
 
   cloneSuccess: (name: string) =>
-    showSuccessToast('Campaign Cloned', {
+    showSuccessToast("Campaign Cloned", {
       description: `"${name}" has been created as a copy`,
     }),
 
   cloneError: (error?: string) =>
-    showErrorToast('Failed to Clone Campaign', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Clone Campaign", {
+      description: error || "Please try again or contact support",
     }),
 
   testEmailSuccess: (email: string) =>
-    showSuccessToast('Test Email Sent', {
+    showSuccessToast("Test Email Sent", {
       description: `Test email sent to ${email}`,
     }),
 
   testEmailError: (error?: string) =>
-    showErrorToast('Failed to Send Test Email', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Send Test Email", {
+      description: error || "Please try again or contact support",
     }),
 
   savedAsDraft: (name: string) =>
-    showSuccessToast('Saved as Draft', {
+    showSuccessToast("Saved as Draft", {
       description: `"${name}" has been saved as a draft`,
     }),
 
   noEmailProvider: () =>
-    showWarningToast('Email Provider Required', {
-      description: 'Please connect O365 or Gmail in Settings > Integrations',
+    showWarningToast("Email Provider Required", {
+      description: "Please connect O365 or Gmail in Settings > Integrations",
     }),
 
   validationError: (message: string) =>
-    showWarningToast('Validation Error', {
+    showWarningToast("Validation Error", {
       description: message,
     }),
 };
 
 // Generic Operation Toasts
 export const genericToasts = {
-  loading: (message: string) =>
-    showInfoToast(message),
-  
+  loading: (message: string) => showInfoToast(message),
+
   saveSuccess: () =>
-    showSuccessToast('Changes Saved', {
-      description: 'Your changes have been saved successfully',
+    showSuccessToast("Changes Saved", {
+      description: "Your changes have been saved successfully",
     }),
-  
+
   saveError: (error?: string) =>
-    showErrorToast('Failed to Save', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Save", {
+      description: error || "Please try again or contact support",
     }),
-  
+
   copySuccess: (item: string) =>
-    showSuccessToast('Copied to Clipboard', {
+    showSuccessToast("Copied to Clipboard", {
       description: `${item} has been copied`,
     }),
-  
+
   networkError: () =>
-    showErrorToast('Network Error', {
-      description: 'Please check your connection and try again',
+    showErrorToast("Network Error", {
+      description: "Please check your connection and try again",
     }),
-  
+
   sessionExpired: () =>
-    showWarningToast('Session Expired', {
-      description: 'Please log in again to continue',
+    showWarningToast("Session Expired", {
+      description: "Please log in again to continue",
     }),
 };
 
 // Order Toasts
 export const orderToasts = {
   createSuccess: (orderNumber: string) =>
-    showSuccessToast('Order Created', {
+    showSuccessToast("Order Created", {
       description: `${orderNumber} has been created successfully`,
     }),
 
   createError: (error?: string) =>
-    showErrorToast('Failed to Create Order', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create Order", {
+      description: error || "Please try again or contact support",
     }),
 
   updateSuccess: (orderNumber: string) =>
-    showSuccessToast('Order Saved', {
+    showSuccessToast("Order Saved", {
       description: `${orderNumber} has been updated successfully`,
     }),
 
   updateError: (error?: string) =>
-    showErrorToast('Failed to Save Order', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Save Order", {
+      description: error || "Please try again or contact support",
     }),
 
   deleteSuccess: (orderNumber: string) =>
-    showSuccessToast('Order Deleted', {
+    showSuccessToast("Order Deleted", {
       description: `${orderNumber} has been removed`,
     }),
 
   deleteError: (error?: string) =>
-    showErrorToast('Failed to Delete Order', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Delete Order", {
+      description: error || "Please try again or contact support",
     }),
 
   invoiceCreatedFromOrder: (invoiceNumber: string) =>
-    showSuccessToast('Invoice Created', {
+    showSuccessToast("Invoice Created", {
       description: `Invoice ${invoiceNumber} has been created from order`,
     }),
 
   invoiceCreationError: (error?: string) =>
-    showErrorToast('Failed to Create Invoice', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create Invoice", {
+      description: error || "Please try again or contact support",
     }),
 
   duplicateSuccess: (orderNumber: string) =>
-    showSuccessToast('Order Duplicated', {
+    showSuccessToast("Order Duplicated", {
       description: `${orderNumber} has been created successfully`,
     }),
 
   duplicateError: (error?: string) =>
-    showErrorToast('Failed to Duplicate Order', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Duplicate Order", {
+      description: error || "Please try again or contact support",
     }),
 };
 
 // Team Member Toasts
 export const teamMemberToasts = {
   createSuccess: (name: string) =>
-    showSuccessToast('User Created', {
+    showSuccessToast("User Created", {
       description: `${name} has been added to your team`,
     }),
 
   createError: (error?: string) =>
-    showErrorToast('Failed to Create User', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create User", {
+      description: error || "Please try again or contact support",
     }),
 
   updateSuccess: (name: string) =>
-    showSuccessToast('User Updated', {
+    showSuccessToast("User Updated", {
       description: `${name}'s information has been updated`,
     }),
 
   updateError: (error?: string) =>
-    showErrorToast('Failed to Update User', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Update User", {
+      description: error || "Please try again or contact support",
     }),
 
   deleteSuccess: (name: string) =>
-    showSuccessToast('User Deleted', {
+    showSuccessToast("User Deleted", {
       description: `${name} has been removed from your team`,
     }),
 
   deleteError: (error?: string) =>
-    showErrorToast('Failed to Delete User', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Delete User", {
+      description: error || "Please try again or contact support",
     }),
 
   statusChanged: (name: string, enabled: boolean) =>
-    showSuccessToast(enabled ? 'User Activated' : 'User Deactivated', {
-      description: `${name} has been ${enabled ? 'activated' : 'deactivated'}`,
-    }),
-};
-
-// Fulfillment Order Toasts
-export const fulfillmentToasts = {
-  saveSuccess: (foNumber: string) =>
-    showSuccessToast('Fulfillment Order Saved', {
-      description: `${foNumber} has been updated successfully`,
-    }),
-
-  saveError: (error?: string) =>
-    showErrorToast('Failed to Save', {
-      description: error || 'Please try again or contact support',
-    }),
-
-  releaseSuccess: (foNumber: string) =>
-    showSuccessToast('Released to Warehouse', {
-      description: `${foNumber} is now ready for picking`,
-    }),
-
-  releaseError: (error?: string) =>
-    showErrorToast('Failed to Release', {
-      description: error || 'Please try again or contact support',
-    }),
-
-  startPickingSuccess: (foNumber: string) =>
-    showSuccessToast('Picking Started', {
-      description: `${foNumber} is now in picking`,
-    }),
-
-  startPickingError: (error?: string) =>
-    showErrorToast('Failed to Start Picking', {
-      description: error || 'Please try again or contact support',
-    }),
-
-  completePickingSuccess: (foNumber: string) =>
-    showSuccessToast('Picking Complete', {
-      description: `${foNumber} is ready for packing`,
-    }),
-
-  completePickingError: (error?: string) =>
-    showErrorToast('Failed to Complete Picking', {
-      description: error || 'Please try again or contact support',
-    }),
-
-  completePackingSuccess: (foNumber: string) =>
-    showSuccessToast('Packing Complete', {
-      description: `${foNumber} is ready for shipping`,
-    }),
-
-  completePackingError: (error?: string) =>
-    showErrorToast('Failed to Complete Packing', {
-      description: error || 'Please try again or contact support',
-    }),
-
-  shipmentConfirmed: (foNumber: string) =>
-    showSuccessToast('Shipment Confirmed', {
-      description: `${foNumber} has been shipped`,
-    }),
-
-  shipmentError: (error?: string) =>
-    showErrorToast('Failed to Confirm Shipment', {
-      description: error || 'Please try again or contact support',
-    }),
-
-  backorderReported: () =>
-    showSuccessToast('Backorder Reported', {
-      description: 'Items have been marked as backordered',
-    }),
-
-  backorderError: (error?: string) =>
-    showErrorToast('Failed to Report Backorder', {
-      description: error || 'Please try again or contact support',
+    showSuccessToast(enabled ? "User Activated" : "User Deactivated", {
+      description: `${name} has been ${enabled ? "activated" : "deactivated"}`,
     }),
 };
 
 // Quote Toasts
 export const quoteToasts = {
   createSuccess: (quoteNumber: string) =>
-    showSuccessToast('Quote Created', {
+    showSuccessToast("Quote Created", {
       description: `${quoteNumber} has been created successfully`,
     }),
 
   createError: (error?: string) =>
-    showErrorToast('Failed to Create Quote', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Create Quote", {
+      description: error || "Please try again or contact support",
     }),
 
   updateSuccess: (quoteNumber: string) =>
-    showSuccessToast('Quote Saved', {
+    showSuccessToast("Quote Saved", {
       description: `${quoteNumber} has been updated successfully`,
     }),
 
   updateError: (error?: string) =>
-    showErrorToast('Failed to Save Quote', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Save Quote", {
+      description: error || "Please try again or contact support",
     }),
 
   deleteSuccess: (quoteNumber: string) =>
-    showSuccessToast('Quote Deleted', {
+    showSuccessToast("Quote Deleted", {
       description: `${quoteNumber} has been removed`,
     }),
 
   deleteError: (error?: string) =>
-    showErrorToast('Failed to Delete Quote', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Delete Quote", {
+      description: error || "Please try again or contact support",
     }),
 
   duplicateSuccess: (quoteNumber: string) =>
-    showSuccessToast('Quote Duplicated', {
+    showSuccessToast("Quote Duplicated", {
       description: `${quoteNumber} has been created as a copy`,
     }),
 
   duplicateError: (error?: string) =>
-    showErrorToast('Failed to Duplicate Quote', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Duplicate Quote", {
+      description: error || "Please try again or contact support",
     }),
 
   stageChanged: (quoteNumber: string, newStage: string) =>
-    showSuccessToast('Stage Updated', {
+    showSuccessToast("Stage Updated", {
       description: `${quoteNumber} moved to ${newStage}`,
     }),
 
   stageChangeError: (error?: string) =>
-    showErrorToast('Failed to Update Stage', {
-      description: error || 'Please try again or contact support',
+    showErrorToast("Failed to Update Stage", {
+      description: error || "Please try again or contact support",
+    }),
+};
+
+// Invoice Toasts
+export const invoiceToasts = {
+  createSuccess: (invoiceNumber: string) =>
+    showSuccessToast("Invoice Created", {
+      description: `${invoiceNumber} has been created successfully`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast("Failed to Create Invoice", {
+      description: error || "Please try again or contact support",
+    }),
+
+  updateSuccess: (invoiceNumber: string) =>
+    showSuccessToast("Invoice Saved", {
+      description: `${invoiceNumber} has been updated successfully`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast("Failed to Save Invoice", {
+      description: error || "Please try again or contact support",
+    }),
+
+  deleteSuccess: (invoiceNumber: string) =>
+    showSuccessToast("Invoice Deleted", {
+      description: `${invoiceNumber} has been removed`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast("Failed to Delete Invoice", {
+      description: error || "Please try again or contact support",
+    }),
+
+  statusChanged: (invoiceNumber: string, newStatus: string) =>
+    showSuccessToast("Status Updated", {
+      description: `${invoiceNumber} status changed to ${newStatus}`,
     }),
 };

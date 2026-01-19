@@ -174,7 +174,8 @@ export function useDeleteShippingCarrier() {
   return useMutation<boolean, Error, string>({
     mutationFn: deleteShippingCarrier,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: shippingCarriersQueryKeys.list() });
+      // Use 'all' key to invalidate all list variants regardless of activeOnly parameter
+      queryClient.invalidateQueries({ queryKey: shippingCarriersQueryKeys.all });
     },
   });
 }

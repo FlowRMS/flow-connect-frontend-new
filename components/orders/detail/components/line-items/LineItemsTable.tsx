@@ -71,6 +71,8 @@ interface LineItemsTableProps {
   // Current reps for inheriting to new line items
   currentOutsideReps?: RepSplitRateInfo[];
   currentInsideReps?: RepSplitRateInfo[];
+  // Invoice modal callback
+  onViewInvoice?: (invoice: { id: string; invoiceNumber?: string; status?: string; entityDate?: string; dueDate?: string; creationType?: string; locked?: boolean }) => void;
 }
 
 export function LineItemsTable({
@@ -107,6 +109,7 @@ export function LineItemsTable({
   onOpenAdditionalDetails,
   currentOutsideReps,
   currentInsideReps,
+  onViewInvoice,
 }: LineItemsTableProps) {
   // Editable state
   const [editingCell, setEditingCell] = useState<{ itemId: string; column: EditableColumnKey } | null>(null);
@@ -885,8 +888,23 @@ export function LineItemsTable({
       )}
 
       {/* Line Items Table */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
-        <table className="w-full min-w-[1200px]">
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full">
+        {/* Add Line Button - at top */}
+        <div className="border-b border-[var(--border)] flex-shrink-0">
+          <button
+            onClick={addLineItem}
+            className="w-full px-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+            </svg>
+            Add Line
+          </button>
+        </div>
+
+        {/* Scrollable table container - both horizontal and vertical scroll */}
+        <div className="flex-1 overflow-auto min-h-0 max-h-[60vh] scrollbar-always-visible">
+          <table className="w-full min-w-[1200px]">
           <LineItemsTableHeader
             lineItems={order.lineItems || []}
             selectedLineItems={selectedLineItems}
@@ -1033,7 +1051,7 @@ export function LineItemsTable({
                   {/* Sell Total */}
                   {visibleColumns.has('sellTotal') && (
                     <td className={`px-3 py-2 text-sm text-right font-medium ${item.isCredit ? 'text-red-600' : ''}`}>
-                      {formatCurrency(item.extendedPrice)}
+                      {formatCurrency(item.extendedPrice - ((item as any).lineDiscountAmount || 0))}
                     </td>
                   )}
 
@@ -1047,14 +1065,14 @@ export function LineItemsTable({
                   {/* Commission */}
                   {visibleColumns.has('commission') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100))}
+                      {formatCurrency((item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}
                     </td>
                   )}
 
                   {/* Commission Total */}
                   {visibleColumns.has('commissionTotal') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100))}
+                      {formatCurrency((item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}
                     </td>
                   )}
 
@@ -1068,7 +1086,14 @@ export function LineItemsTable({
                   {/* Invoice # */}
                   {visibleColumns.has('linkedInvoice') && (
                     <td className="px-3 py-2 text-sm min-w-[120px]">
-                      {linkedInvoices.length > 0 ? (
+                      {item.invoice ? (
+                        <button
+                          className="text-blue-600 hover:underline font-medium"
+                          onClick={() => onViewInvoice?.(item.invoice!)}
+                        >
+                          {item.invoice.invoiceNumber || `INV-${item.invoice.id.substring(0, 8)}`}
+                        </button>
+                      ) : linkedInvoices.length > 0 ? (
                         <button
                           className="text-blue-600 hover:underline"
                           onMouseEnter={(e) => {
@@ -1214,18 +1239,6 @@ export function LineItemsTable({
             )}
           </tbody>
         </table>
-
-        {/* Add Line Button */}
-        <div className="border-t border-[var(--border)]">
-          <button
-            onClick={addLineItem}
-            className="w-full px-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
-            </svg>
-            Add Line
-          </button>
         </div>
       </div>
 

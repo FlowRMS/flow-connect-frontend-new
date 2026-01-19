@@ -566,8 +566,9 @@ export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: s
     discountRate: detail.discountRate,
     discount: detail.discount,
 
-    // End user
+    // End user - use embedded endUser object from API
     endUserId: detail.endUserId,
+    endUserName: detail.endUser?.companyName || '',
 
     // Additional details
     commissionDiscountPercent: commissionDiscountRate,

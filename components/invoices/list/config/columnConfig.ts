@@ -23,6 +23,7 @@ export const INVOICE_TABLE_COLUMNS: ColumnConfig[] = [
   { id: 'createdBy', width: '140px', label: 'Created By', sortable: false, filterable: false },
   { id: 'dueDate', width: '90px', label: 'Due Date', sortable: true, filterable: true },
   { id: 'paid', width: '60px', label: 'Paid', sortable: false, filterable: false, align: 'center' },
+  { id: 'locked', width: '60px', label: 'Locked', sortable: false, filterable: false, align: 'center' },
 ];
 
 /**

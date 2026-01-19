@@ -147,6 +147,7 @@ export interface InvoiceDetail {
   discountRate?: string;
   divisionFactor?: string;
   endUserId?: string;
+  endUser?: InvoiceOrderCustomer;
   invoiceId?: string;
   invoicedBalance?: number;
   itemNumber?: number;
@@ -358,6 +359,14 @@ const FIND_INVOICE_BY_ID = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
@@ -503,6 +512,10 @@ const INVOICE_SEARCH = `
       createdAt
       createdById
       balanceId
+      order {
+        id
+        orderNumber
+      }
     }
   }
 `;
@@ -554,6 +567,14 @@ const CREATE_INVOICE = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
@@ -633,15 +654,6 @@ const CREATE_INVOICE = `
           buyingGroupId
         }
         billToCustomerId
-        billToCustomer {
-          published
-          parentId
-          isParent
-          id
-          companyName
-          buyingGroupId
-        }
-        customerPo
         shipDate
         shippingTerms
         quoteId
@@ -734,6 +746,14 @@ const UPDATE_INVOICE = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
@@ -813,15 +833,6 @@ const UPDATE_INVOICE = `
           buyingGroupId
         }
         billToCustomerId
-        billToCustomer {
-          published
-          parentId
-          isParent
-          id
-          companyName
-          buyingGroupId
-        }
-        customerPo
         shipDate
         shippingTerms
         quoteId
@@ -882,15 +893,15 @@ const CREATE_INVOICE_FROM_ORDER = `
     $factoryId: UUID!
     $invoiceNumber: String!
     $orderId: UUID!
-    $dueDate: Date!
-    $orderDetailIds: [UUID!]
+    $dueDate: Date
+    $orderDetailsInputs: [OrderDetailToInvoiceDetailInput!] = null
   ) {
     createInvoiceFromOrder(
       factoryId: $factoryId
       invoiceNumber: $invoiceNumber
       orderId: $orderId
       dueDate: $dueDate
-      orderDetailIds: $orderDetailIds
+      orderDetailsInputs: $orderDetailsInputs
     ) {
       id
       invoiceNumber
@@ -940,6 +951,14 @@ const CREATE_INVOICE_FROM_ORDER = `
         discountRate
         divisionFactor
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         id
         invoiceId
         invoicedBalance
@@ -1182,21 +1201,27 @@ export async function deleteInvoice(id: string): Promise<boolean> {
 // Create Invoice from Order
 // ============================================================================
 
+export interface OrderDetailInputForInvoice {
+  orderDetailId: string;
+  quantity: string;
+  unitPrice: string;
+}
+
 export interface CreateInvoiceFromOrderInput {
   factoryId: string;
   invoiceNumber: string;
   orderId: string;
   dueDate: string;
-  orderDetailIds?: string[];
+  orderDetailsInputs?: OrderDetailInputForInvoice[];
 }
 
 /**
  * Create an invoice from an order
  */
 export async function createInvoiceFromOrder(input: CreateInvoiceFromOrderInput): Promise<Invoice> {
-  // Pass array of IDs directly (backend expects [UUID!])
-  const orderDetailIds = input.orderDetailIds?.length
-    ? input.orderDetailIds
+  // Pass array of order detail inputs (with quantity and unitPrice overrides)
+  const orderDetailsInputs = input.orderDetailsInputs?.length
+    ? input.orderDetailsInputs
     : undefined;
 
   const response = await crmGraphQLRequest<{ createInvoiceFromOrder: Invoice }>({
@@ -1206,7 +1231,7 @@ export async function createInvoiceFromOrder(input: CreateInvoiceFromOrderInput)
       invoiceNumber: input.invoiceNumber,
       orderId: input.orderId,
       dueDate: input.dueDate,
-      orderDetailIds,
+      orderDetailsInputs,
     },
   });
 

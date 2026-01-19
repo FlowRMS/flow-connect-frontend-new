@@ -479,34 +479,47 @@ export function CheckDetailReportGrid() {
   React.useEffect(() => {
     if (typeof window === "undefined") return;
 
-    try {
-      const pendingLoadRaw = sessionStorage.getItem("pendingConfigLoad");
-      if (!pendingLoadRaw) return;
-
-      const pendingLoad = JSON.parse(pendingLoadRaw);
-      
+    const handlePendingLoad = async (pendingData) => {
       // Handle both old format (tableId) and new format (reportType)
-      const isMatch = (pendingLoad.tableId === TABLE_ID) || (pendingLoad.reportType === REPORT_TYPE);
+      const isMatch = (pendingData.tableId === TABLE_ID) || (pendingData.reportType === REPORT_TYPE);
       if (!isMatch) return;
 
-      const configId = pendingLoad.configId;
+      const configId = pendingData.configId;
       const entry = savedConfigs.find((item) => item.id === configId);
       if (!entry) return;
 
       sessionStorage.removeItem("pendingConfigLoad");
 
-      const loadPending = async () => {
-        const loaded = await loadConfig(configId);
-        if (loaded) {
-          handleLoadConfig(loaded);
-        }
-      };
+      const loaded = await loadConfig(configId);
+      if (loaded) {
+        handleLoadConfig(loaded);
+      }
+    };
 
-      void loadPending();
+    // Check sessionStorage on mount (for cross-page navigation)
+    try {
+      const pendingLoadRaw = sessionStorage.getItem("pendingConfigLoad");
+      if (pendingLoadRaw) {
+        const pendingLoad = JSON.parse(pendingLoadRaw);
+        handlePendingLoad(pendingLoad);
+      }
     } catch (error) {
       console.error("[CheckDetailReportGrid] Error loading pending config:", error);
       sessionStorage.removeItem("pendingConfigLoad");
     }
+
+    // Listen for custom event (for same-page config loading from GlobalConfigManager)
+    const handleLoadPendingConfigEvent = (event) => {
+      if (event.detail) {
+        handlePendingLoad(event.detail);
+      }
+    };
+
+    window.addEventListener("loadPendingConfig", handleLoadPendingConfigEvent);
+
+    return () => {
+      window.removeEventListener("loadPendingConfig", handleLoadPendingConfigEvent);
+    };
   }, [savedConfigs, loadConfig, handleLoadConfig]);
 
   // Handle sorting changes from the modal

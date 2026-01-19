@@ -44,7 +44,7 @@ const mapFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse }>(item
 export interface CompanySearchResult {
   id: string;
   name: string;
-  companySourceType: string;
+  companyType?: { id: string; name?: string } | null;
   createdAt: string;
   createdBy: string;
   parentCompanyId: string;
@@ -349,7 +349,10 @@ export interface ProductUomResult {
 const COMPANY_SEARCH = `
   query CompanySearch($searchTerm: String!, $limit: Int) {
     companySearch(searchTerm: $searchTerm, limit: $limit) {
-      companySourceType
+      companyType {
+        id
+        name
+      }
       createdAt
       createdBy {
         email
@@ -700,7 +703,7 @@ const PRODUCT_SEARCH = `
 `;
 
 const PRODUCT_SEARCH_WITH_FACTORY = `
-  query ProductSearchWithFactory($searchTerm: String!, $factoryId: String!, $limit: Int) {
+  query ProductSearchWithFactory($searchTerm: String!, $factoryId: UUID!, $limit: Int) {
     productSearch(searchTerm: $searchTerm, factoryId: $factoryId, limit: $limit) {
       approvalComments
       approvalDate

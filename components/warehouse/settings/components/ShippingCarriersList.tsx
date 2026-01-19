@@ -1,5 +1,9 @@
+'use client';
+
+import { useState, useCallback } from 'react';
 import type { ShippingCarrier } from '../types';
 import ShippingCarrierAccordionItem from './ShippingCarrierAccordionItem';
+import { DeleteConfirmModal } from '@/components/quotes-v2/modals/DeleteConfirmModal';
 
 interface ShippingCarriersListProps {
   shippingCarriers: ShippingCarrier[];
@@ -14,6 +18,9 @@ interface ShippingCarriersListProps {
   setNewCarrierName: (name: string) => void;
   setNewCarrierAccount: (account: string) => void;
   setNewCarrierRemarks: (remarks: string) => void;
+  saveCarrier?: (id: string) => Promise<void>;
+  deleteCarrierImmediately?: (id: string) => Promise<void>;
+  hasCarrierChanges?: (id: string) => boolean;
 }
 
 export default function ShippingCarriersList({
@@ -25,21 +32,57 @@ export default function ShippingCarriersList({
   handleDeleteCarrier,
   handleAddCarrier,
   setNewCarrierName,
+  saveCarrier,
+  deleteCarrierImmediately,
+  hasCarrierChanges,
 }: ShippingCarriersListProps) {
+  // Delete confirmation state
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteClick = useCallback((carrierId: string) => {
+    setDeleteConfirmId(carrierId);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteConfirmId) return;
+
+    setIsDeleting(true);
+    try {
+      if (deleteCarrierImmediately) {
+        await deleteCarrierImmediately(deleteConfirmId);
+      } else {
+        handleDeleteCarrier(deleteConfirmId);
+      }
+      setDeleteConfirmId(null);
+    } catch (error) {
+      console.error('Failed to delete carrier:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deleteConfirmId, deleteCarrierImmediately, handleDeleteCarrier]);
+
+  const carrierToDelete = deleteConfirmId
+    ? shippingCarriers.find(c => c.id === deleteConfirmId)
+    : null;
+
   return (
     <div className="space-y-4">
       {/* Carriers List - Accordion Style */}
       {shippingCarriers.map((carrier) => {
         const isExpanded = expandedCarrierId === carrier.id;
+        const hasChanges = hasCarrierChanges ? hasCarrierChanges(carrier.id) : false;
 
         return (
           <ShippingCarrierAccordionItem
             key={carrier.id}
             carrier={carrier}
             isExpanded={isExpanded}
+            hasChanges={hasChanges}
             onToggleExpansion={() => toggleCarrierExpansion(carrier.id)}
             onUpdateCarrier={(updates) => handleUpdateCarrier(carrier.id, updates)}
-            onDeleteCarrier={() => handleDeleteCarrier(carrier.id)}
+            onDeleteCarrier={() => handleDeleteClick(carrier.id)}
+            onSaveCarrier={saveCarrier ? () => saveCarrier(carrier.id) : undefined}
           />
         );
       })}
@@ -77,7 +120,7 @@ export default function ShippingCarriersList({
             value={newCarrierName}
             onChange={(e) => setNewCarrierName(e.target.value)}
             placeholder="Enter carrier name to add..."
-            className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && newCarrierName.trim()) {
                 handleAddCarrier();
@@ -89,8 +132,8 @@ export default function ShippingCarriersList({
             disabled={!newCarrierName.trim()}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
               newCarrierName.trim()
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
+                ? 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]'
+                : 'bg-[var(--muted)] text-[var(--muted-foreground)] cursor-not-allowed'
             }`}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -100,6 +143,17 @@ export default function ShippingCarriersList({
           </button>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteConfirmId}
+        title="Delete Shipping Carrier"
+        message="Are you sure you want to delete this shipping carrier"
+        itemName={carrierToDelete?.name}
+        isPending={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirmId(null)}
+      />
     </div>
   );
 }

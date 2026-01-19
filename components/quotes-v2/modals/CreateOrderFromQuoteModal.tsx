@@ -7,8 +7,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCreateOrderFromQuote, useFactorySearch } from '../../orders/api';
-import { SearchableDropdownV2 } from '../components/SearchableDropdownV2';
+import { useCreateOrderFromQuote } from '../../orders/api';
 import type { Order } from '../../orders/api/ordersApi';
 import type { LineItemV2 } from '../types';
 
@@ -43,8 +42,6 @@ export function CreateOrderFromQuoteModal({
   const [step, setStep] = useState<ModalStep>(lineItems.length > 0 ? 'select-items' : 'input');
   const [orderNumber, setOrderNumber] = useState('');
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
-  const [factoryId, setFactoryId] = useState(initialFactoryId);
-  const [factoryName, setFactoryName] = useState(initialFactoryName);
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Use initialSelectedItemIds if provided (from detail page selection), otherwise default to all items
@@ -64,19 +61,6 @@ export function CreateOrderFromQuoteModal({
       );
     }
   }, [isOpen, initialSelectedItemIds, lineItems]);
-
-  // Factory search
-  const [factorySearchTerm, setFactorySearchTerm] = useState('');
-  const { data: factoryResults, isLoading: isFactoryLoading } = useFactorySearch(factorySearchTerm, true);
-
-  // Transform factory results to dropdown options
-  const factoryOptions = useMemo(() => {
-    return (factoryResults || []).map(f => ({
-      id: f.id,
-      label: f.title,
-      sublabel: f.accountNumber,
-    }));
-  }, [factoryResults]);
 
   // Calculate totals for selected items
   const selectedTotal = useMemo(() => {
@@ -124,10 +108,6 @@ export function CreateOrderFromQuoteModal({
       setError('Order number is required');
       return;
     }
-    if (!factoryId) {
-      setError('Factory is required');
-      return;
-    }
     if (!dueDate) {
       setError('Due date is required');
       return;
@@ -144,7 +124,7 @@ export function CreateOrderFromQuoteModal({
       const order = await createOrderMutation.mutateAsync({
         quoteId,
         orderNumber: orderNumber.trim(),
-        factoryId,
+        factoryId: initialFactoryId,
         dueDate,
         quoteDetailIds,
       });
@@ -172,8 +152,6 @@ export function CreateOrderFromQuoteModal({
     setStep(lineItems.length > 0 ? 'select-items' : 'input');
     setOrderNumber('');
     setDueDate(new Date().toISOString().split('T')[0]);
-    setFactoryId(initialFactoryId);
-    setFactoryName(initialFactoryName);
     setCreatedOrder(null);
     setError(null);
     // Reset to initial selection if provided, otherwise all items
@@ -420,25 +398,17 @@ export function CreateOrderFromQuoteModal({
                 />
               </div>
 
-              {/* Factory */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Factory <span className="text-red-500">*</span>
-                </label>
-                <SearchableDropdownV2
-                  value={factoryId}
-                  displayValue={factoryName}
-                  onChange={(id, label) => {
-                    setFactoryId(id);
-                    setFactoryName(label);
-                    setError(null);
-                  }}
-                  options={factoryOptions}
-                  onSearch={(term) => setFactorySearchTerm(term)}
-                  isLoading={isFactoryLoading}
-                  placeholder="Search factories..."
-                />
-              </div>
+              {/* Factory - Read-only display from quote */}
+              {initialFactoryName && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Factory
+                  </label>
+                  <div className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-700">
+                    {initialFactoryName}
+                  </div>
+                </div>
+              )}
 
               {/* Due Date */}
               <div className="mb-4">
@@ -499,7 +469,7 @@ export function CreateOrderFromQuoteModal({
                 </button>
                 <button
                   onClick={handleCreate}
-                  disabled={createOrderMutation.isPending || !orderNumber.trim() || !factoryId || !dueDate}
+                  disabled={createOrderMutation.isPending || !orderNumber.trim() || !dueDate}
                   className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {createOrderMutation.isPending ? (

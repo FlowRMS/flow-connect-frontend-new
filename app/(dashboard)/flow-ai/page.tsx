@@ -322,6 +322,7 @@ function FlowRMSPageContent() {
     updateExtractedDataSets,
     isApplyingTemplate,
     applyTemplate: applyTemplateFromTemplate,
+    activeTemplateName,
   } = usePendingReview(refreshHistory);
 
   // Update temp values when real values change
@@ -1581,11 +1582,16 @@ function FlowRMSPageContent() {
   return (
     <div className="min-h-full bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
       {/* Document info bar */}
-      {documentLabel && (
+      {(documentLabel || activeTemplateName) && (
         <div className="border-b bg-card/50 px-4 py-2 flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Active document: <span className="font-medium text-foreground">{documentLabel}</span>
           </div>
+          {activeTemplateName && (
+            <div className="text-sm text-muted-foreground flex items-center gap-2">
+              Active template: <span className="font-medium text-foreground">{activeTemplateName}</span>
+            </div>
+           )}
           <div className="flex items-center gap-2">
             {convertedDocumentUrl && (
               <Button variant="outline" size="sm" asChild>
@@ -1678,26 +1684,42 @@ function FlowRMSPageContent() {
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <LayoutToggle activeLayout={activeLayout} onChange={setActiveLayout} />
-              <Button
-                variant="outline"
-                className="justify-center lg:w-auto"
-                disabled={
-                  !pendingId || isHydrating || isInstructionRunning || isApplyingTemplate
-                }
-                onClick={() => setIsSelectTemplateOpen(true)}
-              >
-                {isApplyingTemplate ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Applying Template...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Select Template
-                  </>
-                )}
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  className={`justify-center lg:w-auto ${
+                    activeTemplateName 
+                      ? 'bg-primary/5 border-primary/30 text-primary hover:bg-primary/10' 
+                      : 'opacity-60'
+                  }`}
+                  disabled={true}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Active Template: <span className="font-semibold ml-1">
+                    {activeTemplateName || 'None'}
+                  </span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="justify-center lg:w-auto"
+                  disabled={
+                    !pendingId || isHydrating || isInstructionRunning || isApplyingTemplate
+                  }
+                  onClick={() => setIsSelectTemplateOpen(true)}
+                >
+                  {isApplyingTemplate ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Applying Template...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Select Template
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
             <div>

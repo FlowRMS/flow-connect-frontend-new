@@ -20,6 +20,7 @@ import { FilesTab } from '@/components/shared/FilesTab';
 import { ColumnsConfigModalV2 } from './modals/ColumnsConfigModalV2';
 import { AdditionalDetailsModalV2 } from './modals/AdditionalDetailsModalV2';
 import { DuplicateQuoteModal } from './modals/DuplicateQuoteModal';
+import { DeleteConfirmModal } from './modals/DeleteConfirmModal';
 import { ConnectedEntitiesSection } from '@/components/shared/ConnectedEntitiesSection';
 import {
   defaultQuoteSettingsV2,
@@ -39,6 +40,7 @@ import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/use
 import { quoteToasts } from '../lib/toast';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
+import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 
 type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings' | 'files';
 
@@ -50,12 +52,15 @@ interface QuoteDetailV2PageProps {
 
 export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetailV2PageProps) {
   // API hooks
-  const { data: apiQuote, isLoading, error } = useQuoteV2(quoteId);
+  const { data: apiQuote, isLoading, error, refetch } = useQuoteV2(quoteId);
   const { setFullEntityContext } = useFlowChat();
   const createQuoteMutation = useCreateQuoteV2();
   const updateQuoteMutation = useUpdateQuoteV2();
   const deleteQuoteMutation = useDeleteQuoteV2();
   const duplicateQuoteMutation = useDuplicateQuoteV2();
+
+  // User settings hook for applying saved defaults on new quotes
+  const { settings: savedQuoteSettings, isInitialized: settingsInitialized } = useQuoteSettings();
 
   // Quote state
   const [quote, setQuote] = useState<QuoteV2>(createEmptyQuoteV2());
@@ -74,16 +79,47 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
   const [currentInsideReps, setCurrentInsideReps] = useState<RepSplitRate[]>([]);
 
-  // Settings state
+  // Settings state - initialize with defaults, will be updated from API or user settings
   const [settings, setSettings] = useState<QuoteSettingsV2>(defaultQuoteSettingsV2);
 
-  // Column configuration
+  // Column configuration - initialize with defaults, will be updated from API or user settings
   const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(defaultColumnConfigV2);
+
+  // Track if we've applied column settings to avoid re-applying
+  const hasAppliedColumnSettings = React.useRef(false);
+
+  // Apply saved user settings when creating a new quote (for behavioral settings like specifyEndUserPerLine)
+  useEffect(() => {
+    if (isNew && settingsInitialized && savedQuoteSettings) {
+      // Apply saved settings from user preferences
+      setSettings(prev => ({
+        ...prev,
+        specifyEndUserPerLine: savedQuoteSettings.specifyEndUserPerLine ?? prev.specifyEndUserPerLine,
+        outsideRepAtLineLevel: savedQuoteSettings.outsideRepAtLineLevel ?? prev.outsideRepAtLineLevel,
+        insideRepAtLineLevel: savedQuoteSettings.insideRepAtLineLevel ?? prev.insideRepAtLineLevel,
+        factoryPerLineItem: savedQuoteSettings.factoryPerLineItem ?? prev.factoryPerLineItem,
+        customerPartNumberSource: savedQuoteSettings.customerPartNumberSource ?? prev.customerPartNumberSource,
+      }));
+    }
+  }, [isNew, settingsInitialized, savedQuoteSettings]);
+
+  // Apply saved column configuration for ALL quotes (new AND existing)
+  // This runs once when settings are initialized, regardless of isNew
+  useEffect(() => {
+    if (settingsInitialized && !hasAppliedColumnSettings.current) {
+      if (savedQuoteSettings?.columnConfig && savedQuoteSettings.columnConfig.length > 0) {
+        setColumnConfig(savedQuoteSettings.columnConfig);
+      }
+      hasAppliedColumnSettings.current = true;
+    }
+  }, [settingsInitialized, savedQuoteSettings?.columnConfig]);
 
   // Modal states
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showAdditionalDetailsModal, setShowAdditionalDetailsModal] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedLineItem, setSelectedLineItem] = useState<LineItemV2 | null>(null);
 
   // Saving state
@@ -324,6 +360,19 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [selectedLineItem]);
 
+  // Live update handler - updates both lineItems AND selectedLineItem without closing modal
+  const handleLiveUpdateAdditionalDetails = useCallback((updates: Partial<LineItemV2>) => {
+    if (selectedLineItem) {
+      // Update the selected line item so the modal stays in sync
+      setSelectedLineItem((prev) => prev ? { ...prev, ...updates } : prev);
+      // Update the line items array
+      setLineItems((prev) =>
+        prev.map((li) => (li.id === selectedLineItem.id ? { ...li, ...updates } : li))
+      );
+      setHasChanges(true);
+    }
+  }, [selectedLineItem]);
+
   const handleRevertToVersion = useCallback((versionNumber: number) => {
     // Coming soon - no API endpoint for version revert
     console.log('Reverting to version:', versionNumber);
@@ -429,11 +478,11 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (): Promise<boolean> => {
     if (!quote.quoteNumber || !quote.soldToCustomerId) {
       setSaveError('Quote Number and Sold To Customer are required');
       quoteToasts.updateError('Quote Number and Sold To Customer are required');
-      return;
+      return false;
     }
 
     // Validate End User based on settings (REQUIRED field)
@@ -456,7 +505,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         console.error('❌ VALIDATION FAILED: Header End User is missing');
         setSaveError('End User is required. Please select an End User at the header level.');
         quoteToasts.updateError('End User is required. Please select an End User at the header level.');
-        return;
+        return false;
       }
     } else {
       // When toggle is ON, EACH line item MUST have End User
@@ -464,7 +513,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         console.error('❌ VALIDATION FAILED: No line items');
         setSaveError('Please add at least one line item.');
         quoteToasts.updateError('Please add at least one line item.');
-        return;
+        return false;
       }
 
       const lineItemsWithoutEndUser = lineItems.filter(li => !li.endUserId || li.endUserId.trim() === '');
@@ -479,7 +528,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         console.error('❌ VALIDATION FAILED: Line items missing End User');
         setSaveError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
         quoteToasts.updateError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
-        return;
+        return false;
       }
     }
 
@@ -515,10 +564,13 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         }
 
         setHasChanges(false);
+        // Refetch quote data to get fresh UUIDs for any newly created line items
+        await refetch();
         // Trigger refresh of linked entities section
         setLinkedEntitiesRefreshKey(prev => prev + 1);
         quoteToasts.updateSuccess(quote.quoteNumber);
       }
+      return true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save quote';
       setSaveError(errorMessage);
@@ -527,16 +579,21 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       } else {
         quoteToasts.updateError(errorMessage);
       }
+      return false;
     } finally {
       setIsSaving(false);
     }
-  }, [quote, isNew, buildQuoteInput, createQuoteMutation, updateQuoteMutation, manageJobLink]);
+  }, [quote, isNew, buildQuoteInput, createQuoteMutation, updateQuoteMutation, manageJobLink, refetch]);
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
+    if (!quote.id) return;
+    setShowDeleteModal(true);
+  }, [quote.id]);
+
+  const handleConfirmDelete = useCallback(async () => {
     if (!quote.id) return;
 
-    if (!confirm('Are you sure you want to delete this quote?')) return;
-
+    setIsDeleting(true);
     try {
       await deleteQuoteMutation.mutateAsync(quote.id);
       quoteToasts.deleteSuccess(quote.quoteNumber);
@@ -545,6 +602,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete quote';
       setSaveError(errorMessage);
       quoteToasts.deleteError(errorMessage);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
     }
   }, [quote.id, quote.quoteNumber, deleteQuoteMutation, onBack]);
 
@@ -1023,6 +1083,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         onClose={() => setShowAdditionalDetailsModal(false)}
         lineItem={selectedLineItem}
         onSave={handleSaveAdditionalDetails}
+        onLiveUpdate={handleLiveUpdateAdditionalDetails}
         settings={settings}
       />
 
@@ -1032,6 +1093,16 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         isPending={duplicateQuoteMutation.isPending}
         onClose={() => setShowDuplicateModal(false)}
         onDuplicate={handleDuplicateConfirm}
+      />
+
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        title="Delete Quote?"
+        message="Are you sure you want to delete quote"
+        itemName={quote.quoteNumber}
+        isPending={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteModal(false)}
       />
     </div>
   );

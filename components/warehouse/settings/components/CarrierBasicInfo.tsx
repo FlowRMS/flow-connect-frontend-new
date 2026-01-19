@@ -28,7 +28,7 @@ export default function CarrierBasicInfo({ carrier, onUpdate }: CarrierBasicInfo
               type="text"
               value={carrier.name}
               onChange={(e) => onUpdate({ name: e.target.value })}
-              className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
             />
           </div>
           <div>
@@ -38,7 +38,7 @@ export default function CarrierBasicInfo({ carrier, onUpdate }: CarrierBasicInfo
               value={carrier.code || ''}
               onChange={(e) => onUpdate({ code: e.target.value })}
               placeholder="e.g., FEDX"
-              className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 font-mono"
             />
           </div>
         </div>
@@ -114,7 +114,7 @@ export default function CarrierBasicInfo({ carrier, onUpdate }: CarrierBasicInfo
               onChange={(e) => onUpdate({ isActive: e.target.checked })}
               className="sr-only peer"
             />
-            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            <div className="w-9 h-5 bg-[var(--muted)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[var(--border)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--primary)]"></div>
           </label>
         </div>
       </div>

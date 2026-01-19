@@ -31,7 +31,7 @@ import {
   useCustomerSearch,
   useProductSearch,
 } from '../api';
-import { crmQueryKeys } from '../../hooks/useCRMApi';
+import { crmQueryKeys, useTaskCategories, type TaskCategory } from '../../hooks/useCRMApi';
 import { RelatedEntityHoverCard } from '../../shared/RelatedEntityHoverCard';
 import { useQueryClient } from '@tanstack/react-query';
 import { taskToasts } from '../../lib/toast';
@@ -65,6 +65,7 @@ export default function TaskModal({
   const [editReminderDate, setEditReminderDate] = useState(task.reminderDate || '');
   const [editTags, setEditTags] = useState<string[]>(task.tags || []);
   const [customTag, setCustomTag] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState<string>(task.categoryId || '');
 
   // Local task state for immediate UI updates
   const [localTask, setLocalTask] = useState(task);
@@ -125,7 +126,11 @@ export default function TaskModal({
   
   // Fetch task related entities
   const { data: relatedEntities } = useTaskRelatedEntities(task.id);
-  
+
+  // Fetch task categories for dropdown
+  const { data: categoriesData } = useTaskCategories();
+  const categories: TaskCategory[] = categoriesData ?? [];
+
   // Entity search queries - use debounced values to prevent focus loss
   const { data: searchedJobs = [], isLoading: isLoadingJobs } = useJobSearch(debouncedEntitySearch, isEditMode && addEntityType === 'JOB');
   const { data: searchedContacts = [], isLoading: isLoadingContacts } = useContactSearch(debouncedEntitySearch, isEditMode && addEntityType === 'CONTACT');
@@ -160,7 +165,7 @@ export default function TaskModal({
     setLocalTask(task);
   }, [task]);
 
-  // Update edit state when full task loads (for tags, reminderDate, and assignees)
+  // Update edit state when full task loads (for tags, reminderDate, assignees, and category)
   useEffect(() => {
     if (fullTask) {
       if (fullTask.tags) {
@@ -168,6 +173,10 @@ export default function TaskModal({
       }
       if (fullTask.reminderDate) {
         setEditReminderDate(fullTask.reminderDate);
+      }
+      // Update category from fullTask
+      if (fullTask.categoryId) {
+        setEditCategoryId(fullTask.categoryId);
       }
       // Update assignees from fullTask (assignees are now user objects)
       if (fullTask.assignees && fullTask.assignees.length > 0) {
@@ -296,6 +305,7 @@ export default function TaskModal({
           reminderDate: editReminderDate || undefined,
           tags: editTags.join(','),
           assigneeIds: assigneeIds,
+          categoryId: editCategoryId || undefined,
         }
       });
 
@@ -303,6 +313,9 @@ export default function TaskModal({
       const assignedToDisplay = editAssignees.length > 0
         ? (editAssignees.length === 1 ? editAssignees[0].name : `${editAssignees[0].name} +${editAssignees.length - 1}`)
         : 'Unassigned';
+
+      // Find the selected category name for local state update
+      const selectedCategory = categories.find(c => c.id === editCategoryId);
 
       // Update local state immediately for UI feedback
       setLocalTask(prev => ({
@@ -319,6 +332,8 @@ export default function TaskModal({
         assignedTo: assignedToDisplay,
         // Convert editAssignees back to TaskAssignee format for local state
         assignees: editAssignees.map(a => ({ id: a.id, fullName: a.name })),
+        categoryId: editCategoryId || undefined,
+        category: selectedCategory?.name || undefined, // Category is now a string
       }));
 
       setIsEditMode(false);
@@ -338,6 +353,7 @@ export default function TaskModal({
     setEditDueDate(localTask.dueDate);
     setEditReminderDate(fullTask?.reminderDate || localTask.reminderDate || '');
     setEditTags(fullTask?.tags ? parseTagsString(fullTask.tags) : localTask.tags);
+    setEditCategoryId(fullTask?.categoryId || localTask.categoryId || '');
     // Reset assignees from fullTask (user objects) or localTask (may have assigneeNames as strings)
     if (fullTask?.assignees && fullTask.assignees.length > 0) {
       setEditAssignees(fullTask.assignees.map(assignee => ({
@@ -616,6 +632,14 @@ export default function TaskModal({
                       options={priorityOptions}
                       onChange={(val) => setEditPriority(val as TaskPriorityAPI)}
                     />
+                    <CustomSelect
+                      value={editCategoryId}
+                      options={[
+                        { value: '', label: 'No Category' },
+                        ...categories.filter(c => c.isActive).map(c => ({ value: c.id, label: c.name }))
+                      ]}
+                      onChange={(val) => setEditCategoryId(val)}
+                    />
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 flex-wrap">
@@ -625,6 +649,11 @@ export default function TaskModal({
                     <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getPriorityColor(localTask.priority)}`}>
                       {localTask.priority}
                     </span>
+                    {localTask.category && (
+                      <span className="px-3 py-1 bg-violet-100 text-violet-700 border border-violet-200 rounded-lg text-xs font-medium">
+                        {localTask.category}
+                      </span>
+                    )}
                     <span className="px-3 py-1 bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-medium">
                       {localTask.taskType}
                     </span>

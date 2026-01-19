@@ -3,12 +3,14 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2, QuoteV2Status } from '../types';
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
+import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
 import { useCustomerSearch, useUserSearch, useJobSearch, useFactorySearch } from '../../quotes/api/useQuotesApi';
 import { searchUsers } from '../../quotes/api/quotesApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import { UnsavedChangesModal } from '@/components/shared/modals/UnsavedChangesModal';
 
 // Quote status options using API enum values
 const quoteStatusOptions: QuoteV2Status[] = [
@@ -53,7 +55,7 @@ interface QuoteDetailHeaderV2Props {
   quote: QuoteV2;
   onQuoteChange: (updates: Partial<QuoteV2>) => void;
   onBack: () => void;
-  onSave?: () => void;
+  onSave?: () => Promise<boolean> | boolean;
   onDelete?: () => void;
   onDuplicate?: () => void;
   isSaving?: boolean;
@@ -160,6 +162,7 @@ export function QuoteDetailHeaderV2({
   const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [viewMode, setViewMode] = useState<'simple' | 'overage'>('simple');
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
+  const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
   const [showQuoteDetails, setShowQuoteDetails] = useState(true);
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
 
@@ -652,7 +655,7 @@ export function QuoteDetailHeaderV2({
   }, []);
 
   return (
-    <div className="flex-shrink-0">
+    <div className="sticky top-0 z-50 flex-shrink-0 bg-white">
       {/* Top Header Row */}
       <div className="flex items-center justify-between pt-6 pb-4 px-6 border-b border-gray-200">
         <div className="flex items-center gap-4">
@@ -706,7 +709,12 @@ export function QuoteDetailHeaderV2({
                   <button
                     onClick={() => {
                       setShowActionsMenu(false);
-                      setShowCreateOrderModal(true);
+                      // Check for unsaved changes before opening the modal
+                      if (hasChanges) {
+                        setShowUnsavedChangesModal(true);
+                      } else {
+                        setShowCreateOrderModal(true);
+                      }
                     }}
                     disabled={isNew || !quote.id}
                     className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
@@ -1072,20 +1080,20 @@ export function QuoteDetailHeaderV2({
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Quote Date*</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.quoteDate)}
-              onChange={(e) => handleDateChange('quoteDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.quoteDate)}
+              onChange={(date) => handleDateChange('quoteDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Expiration Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.expirationDate)}
-              onChange={(e) => handleDateChange('expirationDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.expirationDate)}
+              onChange={(date) => handleDateChange('expirationDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>
@@ -1404,20 +1412,20 @@ export function QuoteDetailHeaderV2({
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Revised Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.revisedDate || '')}
-              onChange={(e) => handleDateChange('revisedDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.revisedDate || '')}
+              onChange={(date) => handleDateChange('revisedDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Accept Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.acceptDate || '')}
-              onChange={(e) => handleDateChange('acceptDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            <StyledDatePicker
+              selected={parseDateString(quote.acceptDate || '')}
+              onChange={(date) => handleDateChange('acceptDate', formatDateToString(date))}
+              placeholder="Select date..."
+              className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
           <div>
@@ -1782,6 +1790,27 @@ export function QuoteDetailHeaderV2({
         entityType="QUOTES"
         isOpen={showPDFBuilder}
         onClose={() => setShowPDFBuilder(false)}
+      />
+
+      {/* Unsaved Changes Modal */}
+      <UnsavedChangesModal
+        isOpen={showUnsavedChangesModal}
+        title="Unsaved Changes"
+        message="You have unsaved changes to this quote. Please save before creating an order."
+        actionLabel="Save Quote"
+        isSaving={isSaving}
+        onClose={() => setShowUnsavedChangesModal(false)}
+        onSave={async () => {
+          if (onSave) {
+            const success = await onSave();
+            if (success) {
+              setShowUnsavedChangesModal(false);
+              // After saving successfully, open the create order modal
+              setShowCreateOrderModal(true);
+            }
+            // If save failed, keep the modal open so user can cancel or try again after fixing issues
+          }
+        }}
       />
     </div>
   );

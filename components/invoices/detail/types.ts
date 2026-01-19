@@ -35,6 +35,7 @@ export interface InvoiceLineItem {
   leadTime?: string;
   note?: string;
   endUserId?: string;
+  endUserName?: string;
   orderDetailId?: string;
   // Link to order line item if invoice was created from an order
   orderLineItemId?: string;
