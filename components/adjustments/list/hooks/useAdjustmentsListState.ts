@@ -4,9 +4,11 @@
  * with infinite scroll pagination and search functionality
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import type { ActiveFilter } from '@/components/advancedFilters/AdvancedFilters';
+import { useFilterSync } from '@/components/advancedFilters/hooks/useFilterSync';
+import { getAdjustmentFilterOptions } from '../config/filterConfig';
 import {
   type Adjustment,
   type AdjustmentLandingPage,
@@ -29,12 +31,60 @@ export function useAdjustmentsListState() {
   
   // Advanced filters state
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  
+  // Column filters state
+  const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+  
+  // Refs to prevent infinite loops when syncing
+  const isSyncingFromAdvanced = useRef(false);
+  const isSyncingFromColumn = useRef(false);
+  
+  // Map from UI column keys to filter option IDs
+  const columnKeyToFilterId: Record<string, string> = useMemo(() => ({
+    adjustmentNumber: 'adjustment-number',
+    entityDate: 'adjustment-date',
+    amount: 'amount',
+    status: 'status',
+    locked: 'locked',
+  }), []);
+  
+  // Filter options for sync
+  const adjustmentFilterOptionsForSync = useMemo(() => {
+    return getAdjustmentFilterOptions();
+  }, []);
+  
+  // Hook for synchronizing filters between AdvancedFilters and ColumnFilters
+  const { syncAdvancedToColumn, syncColumnToAdvanced } = useFilterSync({
+    filterOptions: adjustmentFilterOptionsForSync,
+    columnKeyToFilterId,
+  });
 
-  // Build filters for API - combine quick filters and advanced filters
+  // Convert ActiveFilter to API filter format
+  const toServerFilters = useCallback((filters: ActiveFilter[]): Array<{ columnName: string; operator: string; value?: string; values?: string[] }> => {
+    return filters.map(f => {
+      // Only include value OR values, not both - check which one exists
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
+  }, []);
+
+  // Build filters for API - combine quick filters, advanced filters, and column filters
   const apiFilters = useMemo(() => {
     const filters: Array<{ columnName: string; operator: string; value?: string; values?: string[] }> = [];
     
     // Add status filter if not 'ALL'
+    // Note: We add it from statusFilter OR from columnFilters, but not both to avoid duplicates
+    // Since they're synced, we prefer statusFilter for consistency
     if (statusFilter !== 'ALL') {
       filters.push({
         columnName: 'status',
@@ -44,24 +94,19 @@ export function useAdjustmentsListState() {
     }
     
     // Add advanced filters
-    activeFilters.forEach((filter) => {
-      if (filter.values && filter.values.length > 0) {
-        filters.push({
-          columnName: filter.columnName,
-          operator: filter.operator,
-          values: filter.values,
-        });
-      } else if (filter.value) {
-        filters.push({
-          columnName: filter.columnName,
-          operator: filter.operator,
-          value: filter.value,
-        });
-      }
+    const advancedFilters = toServerFilters(activeFilters);
+    filters.push(...advancedFilters);
+    
+    // Add column filters - flatten all column filters into a single array
+    const allColumnFilters: ActiveFilter[] = [];
+    Object.values(columnFilters).forEach((filters) => {
+      allColumnFilters.push(...filters);
     });
+    const columnFiltersForApi = toServerFilters(allColumnFilters);
+    filters.push(...columnFiltersForApi);
     
     return filters;
-  }, [statusFilter, activeFilters]);
+  }, [statusFilter, activeFilters, columnFilters, toServerFilters]);
 
   // Fetch adjustments from API with infinite scroll
   const {
@@ -272,10 +317,47 @@ export function useAdjustmentsListState() {
     }
   }, [selectedAdjustment, handleDeleteAdjustment]);
 
-  // Handler for advanced filters changes
+  // Handler for advanced filters changes (from AdvancedFilters component)
   const handleAdvancedFiltersChange = useCallback((filters: ActiveFilter[]) => {
     setActiveFilters(filters);
-  }, []);
+    
+    // Sync to ColumnFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from column filters to avoid infinite loop
+    if (!isSyncingFromColumn.current) {
+      isSyncingFromAdvanced.current = true;
+      const syncedColumnFilters = syncAdvancedToColumn(filters);
+      
+      setColumnFilters((prev) => {
+        // If filters array is empty, clear all column filters
+        // Otherwise, merge: new filters from AdvancedFilters replace old ones for same columns
+        if (filters.length === 0) {
+          return {};
+        }
+        return { ...prev, ...syncedColumnFilters };
+      });
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromAdvanced.current = false;
+      }, 0);
+    }
+  }, [syncAdvancedToColumn]);
+  
+  // Handler for column filters changes (from ColumnFilters component)
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ActiveFilter[]>) => {
+    setColumnFilters(filters);
+
+    // Sync to AdvancedFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from advanced filters to avoid infinite loop
+    if (!isSyncingFromAdvanced.current) {
+      isSyncingFromColumn.current = true;
+      const syncedActiveFilters = syncColumnToAdvanced(filters);
+      setActiveFilters(syncedActiveFilters);
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromColumn.current = false;
+      }, 0);
+    }
+  }, [syncColumnToAdvanced]);
 
   return {
     // Data
@@ -303,6 +385,10 @@ export function useAdjustmentsListState() {
     // Advanced filters
     activeFilters,
     handleAdvancedFiltersChange,
+    
+    // Column filters
+    columnFilters,
+    handleColumnFiltersChange,
 
     // Modal states
     showAdjustmentModal,

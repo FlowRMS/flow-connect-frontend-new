@@ -77,6 +77,10 @@ export default function AdjustmentsListContent() {
     // Advanced filters
     activeFilters,
     handleAdvancedFiltersChange,
+    
+    // Column filters
+    columnFilters,
+    handleColumnFiltersChange,
     // Modals
     showAdjustmentModal,
     showAdjustmentDetailModal,
@@ -403,6 +407,8 @@ export default function AdjustmentsListContent() {
             fetchNextPage={fetchNextPage}
             searchQuery={searchQuery}
             totalAmount={totals.adjustmentAmount}
+            onColumnFiltersChange={handleColumnFiltersChange}
+            columnFilters={columnFilters}
           />
         ) : null}
 

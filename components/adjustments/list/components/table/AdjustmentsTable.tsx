@@ -9,6 +9,8 @@ import { AdjustmentsTableHeader } from './AdjustmentsTableHeader';
 import { AdjustmentRow } from './AdjustmentRow';
 import { AdjustmentsTableSkeleton } from './AdjustmentsTableSkeleton';
 import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { getAdjustmentFilterOptions } from '../../config/filterConfig';
 
 interface AdjustmentsTableProps {
   adjustments: AdjustmentLandingPage[];
@@ -26,6 +28,9 @@ interface AdjustmentsTableProps {
   searchQuery?: string;
   // Totals for footer
   totalAmount?: number;
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  columnFilters?: Record<string, ActiveFilter[]>;
 }
 
 export function AdjustmentsTable({
@@ -42,6 +47,8 @@ export function AdjustmentsTable({
   fetchNextPage,
   searchQuery = '',
   totalAmount,
+  onColumnFiltersChange,
+  columnFilters,
 }: AdjustmentsTableProps) {
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -75,12 +82,15 @@ export function AdjustmentsTable({
             className="overflow-auto scrollbar-always-visible flex-1"
             style={{ maxHeight: 'calc(100vh - 280px)' }}
           >
-              <table className="w-full min-w-[1200px]">
-                <AdjustmentsTableHeader
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
+            <table className="w-full min-w-[1200px]">
+              <AdjustmentsTableHeader
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                onColumnFiltersChange={onColumnFiltersChange}
+                filterOptions={getAdjustmentFilterOptions()}
+                columnFilters={columnFilters}
+              />
                 <tbody className="divide-y divide-[var(--border)]">
                   {isLoading ? (
                     <AdjustmentsTableSkeleton rowCount={8} />
