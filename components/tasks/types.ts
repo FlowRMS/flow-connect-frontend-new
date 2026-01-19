@@ -113,6 +113,8 @@ export interface Task {
   comments?: number;
   createdBy?: string;
   createdAt?: string;
+  categoryId?: string; // Category ID for editing
+  category?: string; // Category name for display (from landing page)
 }
 
 // Connected entities for tasks

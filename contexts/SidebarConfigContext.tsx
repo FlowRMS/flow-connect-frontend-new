@@ -90,7 +90,8 @@ const defaultConfig: SidebarConfig = {
       items: [
         { id: 'orders', name: 'Orders', href: '/orders', enabled: true },
         { id: 'invoices', name: 'Invoices', href: '/invoices', enabled: true },
-        { id: 'commissions', name: 'Commissions', href: '/commissions', enabled: true },
+        { id: 'statements', name: 'Statements', href: '/statements', enabled: true },
+        { id: 'commissions', name: 'Checks', href: '/commissions', enabled: true },
         { id: 'credits', name: 'Credits', href: '/credits', enabled: true },
         { id: 'adjustments', name: 'Adjustments', href: '/adjustments', enabled: true },
         { id: 'acknowledgements', name: 'Acknowledgements', href: '/acknowledgements', enabled: true },
@@ -167,7 +168,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 29; // Increment this to force a reset of cached sidebar config (fix warehouse-settings enabled state)
+const CONFIG_VERSION = 33; // Increment this to force a reset of cached sidebar config
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

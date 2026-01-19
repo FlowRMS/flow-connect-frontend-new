@@ -471,3 +471,41 @@ export {
   type OverageTypeEnum,
   type OverageCalculationInput,
 } from './overage';
+
+// Company Types module
+export {
+  fetchCompanyTypes,
+  fetchCompanyType,
+  createCompanyType,
+  updateCompanyType,
+  deleteCompanyType,
+  type CompanyType,
+  type CreateCompanyTypeInput,
+  type UpdateCompanyTypeInput,
+} from './company-types';
+
+// Task Categories module
+export {
+  fetchTaskCategories,
+  fetchTaskCategory,
+  createTaskCategory,
+  updateTaskCategory,
+  deleteTaskCategory,
+  type TaskCategory,
+  type CreateTaskCategoryInput,
+  type UpdateTaskCategoryInput,
+} from './task-categories';
+
+// Job Company Links module
+export {
+  fetchJobCompanyLinks,
+  fetchJobSpecifiers,
+  fetchJobAwardees,
+  addCompanyToJob,
+  removeCompanyFromJob,
+  type JobCompanyRole,
+  type JobCompanyLink,
+  type JobCompanyLinkCompany,
+  type AddCompanyToJobInput,
+  type RemoveCompanyFromJobInput,
+} from './job-company-links';

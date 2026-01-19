@@ -2,7 +2,7 @@
  * Contacts State Management Hook
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   useCRMContactLandingPagesInfinite,
   useCRMContact,
@@ -13,10 +13,11 @@ import {
 
 import { mapLandingPageToUIContact } from '../types';
 import { contactToasts } from '../../lib/toast';
-import { applyFilter } from '../../lib/filter-utils';
 import type { Contact, ViewMode } from '../types';
-import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
+import type { ActiveFilter, ActiveSort } from '../../advancedFilters/types';
 import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
+import { useFilterSync } from '../../advancedFilters/hooks/useFilterSync';
+import { getContactFilterOptions } from '../config/filterConfig';
 
 export function useContactsState() {
   // Hydration-safe mounted state
@@ -28,7 +29,6 @@ export function useContactsState() {
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [selectedType, setSelectedType] = useState<string>('All');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
 
@@ -62,9 +62,14 @@ export function useContactsState() {
   // Filter and sort state (client-side for backward compatibility)
   const [activeFilter, setActiveFilter] = useState<ActiveFilter | undefined>(undefined);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
   const [clientSortColumn, setClientSortColumn] = useState<string | undefined>(undefined);
   const [clientSortDirection, setClientSortDirection] = useState<'ASC' | 'DESC'>('ASC');
   const [clientSortColumns, setClientSortColumns] = useState<ActiveSort[]>([]);
+
+  // Refs to prevent infinite loops during synchronization
+  const isSyncingFromAdvanced = useRef(false);
+  const isSyncingFromColumn = useRef(false);
 
   // Server-side filters - defined BEFORE API hook so they can be passed to the query
   const [serverFilters, setServerFilters] = useState<LandingPageFilter[]>([]);
@@ -108,57 +113,16 @@ export function useContactsState() {
     setSelectedContactId(contact?.id || null);
   }, []);
 
-  // Map and filter contacts
+  // Map contacts from API (filtering and sorting now done server-side)
   const contacts = useMemo(() => {
     if (!landingPageContacts) return [];
-    let filtered = landingPageContacts.map(mapLandingPageToUIContact);
+    return landingPageContacts.map(mapLandingPageToUIContact);
+  }, [landingPageContacts]);
 
-    // Apply advanced filters (multi-select)
-    if (activeFilters.length > 0) {
-      filtered = filtered.filter((contact) =>
-        activeFilters.every((filter) => applyFilter(contact as unknown as Record<string, unknown>, filter))
-      );
-    } else if (activeFilter) {
-      // Backward compatibility for single filter
-      filtered = filtered.filter((contact) => applyFilter(contact as unknown as Record<string, unknown>, activeFilter));
-    }
-
-    // Apply advanced sorting (multi-sort)
-    if (clientSortColumns.length > 0) {
-      filtered = [...filtered].sort((a, b) => {
-        for (const sort of clientSortColumns) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const aVal = String((a as any)[sort.columnName] || '');
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const bVal = String((b as any)[sort.columnName] || '');
-          const comparison = aVal.localeCompare(bVal);
-          if (comparison !== 0) {
-            return sort.direction === 'ASC' ? comparison : -comparison;
-          }
-        }
-        return 0;
-      });
-    } else if (clientSortColumn) {
-      // Single sort fallback
-      filtered = [...filtered].sort((a, b) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const aVal = String((a as any)[clientSortColumn] || '');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const bVal = String((b as any)[clientSortColumn] || '');
-        const comparison = aVal.localeCompare(bVal);
-        return clientSortDirection === 'ASC' ? comparison : -comparison;
-      });
-    }
-
-    return filtered;
-  }, [landingPageContacts, activeFilter, activeFilters, clientSortColumn, clientSortDirection, clientSortColumns]);
-
-  // Filtered contacts by type
+  // Filtered contacts (same as contacts since filtering is done server-side)
   const filteredContacts = useMemo(() => {
-    return selectedType === 'All'
-      ? contacts
-      : contacts.filter(contact => contact.contactType.includes(selectedType));
-  }, [contacts, selectedType]);
+    return contacts;
+  }, [contacts]);
 
   // Get total count from first page
   const totalCount = useMemo(() => {
@@ -205,12 +169,103 @@ export function useContactsState() {
     }
   }, [toServerFilters]);
 
-  // Handle multi-filter change
+  // Filter options for sync (static, no dependencies)
+  const contactFilterOptionsForSync = useMemo(() => {
+    return getContactFilterOptions();
+  }, []);
+
+  // Map from UI column keys to filter option IDs (for sync)
+  // Note: 'name' column uses 'first-name' filter which maps to 'firstName' columnName
+  const columnKeyToFilterId: Record<string, string> = useMemo(() => ({
+    name: 'first-name', // Name column filters by firstName
+    company: 'company',
+    role: 'role',
+    createdAt: 'created-at',
+    createdBy: 'created-by',
+  }), []);
+
+  // Hook for synchronizing filters between AdvancedFilters and ColumnFilters
+  const { syncAdvancedToColumn, syncColumnToAdvanced } = useFilterSync({
+    filterOptions: contactFilterOptionsForSync,
+    columnKeyToFilterId,
+  });
+
+  // Handle multi-filter change (from AdvancedFilters)
   const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
     setActiveFilters(filters);
     setActiveFilter(filters.length > 0 ? filters[0] : undefined);
-    setServerFilters(toServerFilters(filters)); // Server-side filters
-  }, [toServerFilters]);
+    
+    // Convert ActiveFilter to LandingPageFilter for server-side filtering
+    const apiFilters: LandingPageFilter[] = filters.map(f => {
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
+    setServerFilters(apiFilters);
+
+    // Sync to ColumnFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from column filters to avoid infinite loop
+    if (!isSyncingFromColumn.current) {
+      isSyncingFromAdvanced.current = true;
+      const syncedColumnFilters = syncAdvancedToColumn(filters);
+      
+      setColumnFilters((prev) => {
+        // If filters array is empty, clear all column filters
+        // Otherwise, merge: new filters from AdvancedFilters replace old ones for same columns
+        if (filters.length === 0) {
+          return {};
+        }
+        return { ...prev, ...syncedColumnFilters };
+      });
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromAdvanced.current = false;
+      }, 0);
+    }
+  }, [syncAdvancedToColumn]);
+
+  // Handler for column filter changes (from ColumnFilters)
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ActiveFilter[]>) => {
+    setColumnFilters(filters);
+
+    // Sync to AdvancedFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from advanced filters to avoid infinite loop
+    if (!isSyncingFromAdvanced.current) {
+      isSyncingFromColumn.current = true;
+      const syncedActiveFilters = syncColumnToAdvanced(filters);
+      setActiveFilters(syncedActiveFilters);
+      
+      // Also update serverFilters to trigger API call
+      const apiFilters: LandingPageFilter[] = syncedActiveFilters.map(f => {
+        if (f.values && f.values.length > 0) {
+          return {
+            operator: f.operator,
+            columnName: f.columnName,
+            values: f.values,
+          };
+        }
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          value: f.value,
+        };
+      });
+      setServerFilters(apiFilters);
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromColumn.current = false;
+      }, 0);
+    }
+  }, [syncColumnToAdvanced]);
 
   // Handle sort change (single - backward compatibility)
   const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
@@ -330,8 +385,6 @@ export function useContactsState() {
     // State
     viewMode,
     setViewMode,
-    selectedType,
-    setSelectedType,
     selectedContact,
     setSelectedContact: handleSelectContact,
     showCreateModal,
@@ -346,6 +399,7 @@ export function useContactsState() {
     setDeleteConfirmId,
     activeFilter,
     activeFilters,
+    columnFilters,
     clientSortColumn,
     clientSortDirection,
     clientSortColumns,
@@ -372,6 +426,7 @@ export function useContactsState() {
     // Handlers
     handleFilterChange,
     handleFiltersChange,
+    handleColumnFiltersChange,
     handleSortChange,
     handleMultiSortChange,
     handleStartEdit,

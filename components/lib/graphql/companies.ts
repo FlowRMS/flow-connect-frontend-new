@@ -27,7 +27,11 @@ const GET_COMPANIES = `
     companies {
       id
       name
-      companySourceType
+      companyTypeId
+      companyType {
+        id
+        name
+      }
       parentCompanyId
       phone
       website
@@ -49,7 +53,11 @@ const GET_COMPANY = `
     company(id: $id) {
       id
       name
-      companySourceType
+      companyTypeId
+      companyType {
+        id
+        name
+      }
       parentCompanyId
       phone
       website
@@ -71,7 +79,11 @@ const GET_COMPANIES_BY_JOB_ID = `
     companiesByJobId(jobId: $jobId) {
       id
       name
-      companySourceType
+      companyTypeId
+      companyType {
+        id
+        name
+      }
       parentCompanyId
       phone
       website
@@ -93,7 +105,11 @@ const CREATE_COMPANY = `
     createCompany(input: $input) {
       id
       name
-      companySourceType
+      companyTypeId
+      companyType {
+        id
+        name
+      }
       parentCompanyId
       phone
       website
@@ -115,7 +131,11 @@ const UPDATE_COMPANY = `
     updateCompany(id: $id, input: $input) {
       id
       name
-      companySourceType
+      companyTypeId
+      companyType {
+        id
+        name
+      }
       parentCompanyId
       phone
       website
