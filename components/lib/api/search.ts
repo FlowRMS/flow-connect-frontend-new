@@ -703,7 +703,7 @@ const PRODUCT_SEARCH = `
 `;
 
 const PRODUCT_SEARCH_WITH_FACTORY = `
-  query ProductSearchWithFactory($searchTerm: String!, $factoryId: String!, $limit: Int) {
+  query ProductSearchWithFactory($searchTerm: String!, $factoryId: UUID!, $limit: Int) {
     productSearch(searchTerm: $searchTerm, factoryId: $factoryId, limit: $limit) {
       approvalComments
       approvalDate
