@@ -20,7 +20,8 @@ import { AdjustmentDetailModal } from '@/components/orders/detail/components/mod
 import { DeleteConfirmModal } from '@/components/orders/detail/components/modals/utility/DeleteConfirmModal';
 import { AdjustmentsTable } from './components/table/AdjustmentsTable';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
-import { getAdjustmentFilterOptions } from './config/filterConfig';
+import SortButton from '@/components/SortButton';
+import { getAdjustmentFilterOptions, getAdjustmentSortOptions } from './config/filterConfig';
 
 // Status Configuration (kept for filter buttons)
 const STATUS_CONFIG: Record<AdjustmentStatus, { label: string; color: string; bgColor: string }> = {
@@ -81,6 +82,12 @@ export default function AdjustmentsListContent() {
     // Column filters
     columnFilters,
     handleColumnFiltersChange,
+    
+    // Sorting
+    serverOrderBy,
+    handleSortChange,
+    handleMultiSortChange,
+    
     // Modals
     showAdjustmentModal,
     showAdjustmentDetailModal,
@@ -140,29 +147,25 @@ export default function AdjustmentsListContent() {
     }
   }, [adjustmentIdFromUrl, adjustments, viewAdjustment]);
 
-  // Local sort state (sorting is still client-side for now, will be moved to backend in later step)
-  const [sortField, setSortField] = useState<'date' | 'amount' | 'number'>('date');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  // Sort options for SortButton
+  const sortOptions = getAdjustmentSortOptions();
+  
+  // Map serverOrderBy to ActiveSort[] format for SortButton (supports multiple sorts)
+  const activeSorts = useMemo(() => {
+    if (serverOrderBy && serverOrderBy.length > 0) {
+      return serverOrderBy.map(sort => ({
+        columnName: sort.columnName,
+        direction: sort.direction,
+      }));
+    }
+    return [];
+  }, [serverOrderBy]);
+  
+  // Also provide single sort for backwards compatibility
+  const activeSort = activeSorts.length > 0 ? activeSorts[0] : undefined;
 
-  // Filter and sort adjustments (status filter is now server-side, only sorting is client-side)
-  const filteredAdjustments = useMemo(() => {
-    return (adjustments || [])
-      .sort((a, b) => {
-        let comparison = 0;
-        switch (sortField) {
-          case 'date':
-            comparison = new Date(a.entityDate || '').getTime() - new Date(b.entityDate || '').getTime();
-            break;
-          case 'amount':
-            comparison = parseFloat(a.amount || '0') - parseFloat(b.amount || '0');
-            break;
-          case 'number':
-            comparison = (a.adjustmentNumber || '').localeCompare(b.adjustmentNumber || '');
-            break;
-        }
-        return sortDirection === 'asc' ? comparison : -comparison;
-      });
-  }, [adjustments, sortField, sortDirection]);
+  // Adjustments are now sorted server-side, no client-side sorting needed
+  const filteredAdjustments = adjustments;
 
   // Calculate totals
   const totals = useMemo(() => ({
@@ -170,14 +173,6 @@ export default function AdjustmentsListContent() {
     count: filteredAdjustments.length,
   }), [filteredAdjustments]);
 
-  const toggleSort = (field: 'date' | 'amount' | 'number') => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('desc');
-    }
-  };
 
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -230,6 +225,12 @@ export default function AdjustmentsListContent() {
               filterOptions={getAdjustmentFilterOptions()}
               onFiltersChange={handleAdvancedFiltersChange}
               activeFilters={activeFilters}
+            />
+
+            <SortButton
+              sortOptions={sortOptions}
+              onMultiSortChange={handleMultiSortChange}
+              activeSorts={activeSorts}
             />
 
             <button
@@ -393,23 +394,20 @@ export default function AdjustmentsListContent() {
 
         {/* Table */}
         {(!isLoadingAdjustments && !adjustmentsError && filteredAdjustments.length > 0) || isLoadingAdjustments ? (
-          <AdjustmentsTable
-            adjustments={filteredAdjustments}
-            isLoading={isLoadingAdjustments}
-            sortField={sortField}
-            sortDirection={sortDirection}
-            onSort={toggleSort}
-            onView={handleViewAdjustment}
-            onEdit={openEditAdjustmentModal}
-            onDelete={handleDeleteAdjustment}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            fetchNextPage={fetchNextPage}
-            searchQuery={searchQuery}
-            totalAmount={totals.adjustmentAmount}
-            onColumnFiltersChange={handleColumnFiltersChange}
-            columnFilters={columnFilters}
-          />
+                <AdjustmentsTable
+                  adjustments={filteredAdjustments}
+                  isLoading={isLoadingAdjustments}
+                  onView={handleViewAdjustment}
+                  onEdit={openEditAdjustmentModal}
+                  onDelete={handleDeleteAdjustment}
+                  hasNextPage={hasNextPage}
+                  isFetchingNextPage={isFetchingNextPage}
+                  fetchNextPage={fetchNextPage}
+                  searchQuery={searchQuery}
+                  totalAmount={totals.adjustmentAmount}
+                  onColumnFiltersChange={handleColumnFiltersChange}
+                  columnFilters={columnFilters}
+                />
         ) : null}
 
         {/* End of list indicator */}

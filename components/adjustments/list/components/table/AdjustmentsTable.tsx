@@ -15,9 +15,6 @@ import { getAdjustmentFilterOptions } from '../../config/filterConfig';
 interface AdjustmentsTableProps {
   adjustments: AdjustmentLandingPage[];
   isLoading?: boolean;
-  sortField?: 'date' | 'amount' | 'number';
-  sortDirection?: 'asc' | 'desc';
-  onSort?: (field: 'date' | 'amount' | 'number') => void;
   onView: (adjustment: AdjustmentLandingPage) => void;
   onEdit: (adjustment: AdjustmentLandingPage) => void;
   onDelete: (adjustment: AdjustmentLandingPage) => void;
@@ -36,9 +33,6 @@ interface AdjustmentsTableProps {
 export function AdjustmentsTable({
   adjustments,
   isLoading = false,
-  sortField,
-  sortDirection,
-  onSort,
   onView,
   onEdit,
   onDelete,
@@ -84,9 +78,6 @@ export function AdjustmentsTable({
           >
             <table className="w-full min-w-[1200px]">
               <AdjustmentsTableHeader
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={onSort}
                 onColumnFiltersChange={onColumnFiltersChange}
                 filterOptions={getAdjustmentFilterOptions()}
                 columnFilters={columnFilters}

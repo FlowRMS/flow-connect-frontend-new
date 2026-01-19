@@ -11,9 +11,6 @@ import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { getAdjustmentFilterOptions } from '../../config/filterConfig';
 
 interface AdjustmentsTableHeaderProps {
-  sortField?: 'date' | 'amount' | 'number';
-  sortDirection?: 'asc' | 'desc';
-  onSort?: (field: 'date' | 'amount' | 'number') => void;
   // Column filters
   onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
   filterOptions?: ReturnType<typeof getAdjustmentFilterOptions>;
@@ -21,9 +18,6 @@ interface AdjustmentsTableHeaderProps {
 }
 
 export function AdjustmentsTableHeader({
-  sortField,
-  sortDirection,
-  onSort,
   onColumnFiltersChange,
   filterOptions = getAdjustmentFilterOptions(),
   columnFilters: parentColumnFilters,
@@ -113,34 +107,22 @@ export function AdjustmentsTableHeader({
     <thead className="bg-white border-b-2 border-[var(--border)] sticky top-0 z-10 shadow-sm">
       <tr>
         <th
-          className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
-          onClick={() => handleSort('number')}
+          className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs"
           style={{ minWidth: '180px' }}
         >
           <div className="flex items-center gap-1.5">
             <span className="whitespace-nowrap">Adjustment #</span>
-            {sortField === 'number' && (
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className={sortDirection === 'asc' ? 'rotate-180' : ''}>
-                <path d="M5 8l5 5 5-5"/>
-              </svg>
-            )}
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('adjustmentNumber')}
             </div>
           </div>
         </th>
         <th
-          className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
-          onClick={() => handleSort('date')}
+          className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs"
           style={{ minWidth: '130px' }}
         >
           <div className="flex items-center gap-1.5">
             <span className="whitespace-nowrap">Date</span>
-            {sortField === 'date' && (
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className={sortDirection === 'asc' ? 'rotate-180' : ''}>
-                <path d="M5 8l5 5 5-5"/>
-              </svg>
-            )}
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('entityDate')}
             </div>
@@ -153,17 +135,11 @@ export function AdjustmentsTableHeader({
           Reason
         </th>
         <th
-          className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
-          onClick={() => handleSort('amount')}
+          className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs"
           style={{ minWidth: '120px' }}
         >
           <div className="flex items-center justify-end gap-1.5">
             <span className="whitespace-nowrap">Amount</span>
-            {sortField === 'amount' && (
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className={sortDirection === 'asc' ? 'rotate-180' : ''}>
-                <path d="M5 8l5 5 5-5"/>
-              </svg>
-            )}
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('amount')}
             </div>

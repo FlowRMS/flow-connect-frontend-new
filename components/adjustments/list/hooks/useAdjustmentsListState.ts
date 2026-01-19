@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import type { ActiveFilter } from '@/components/advancedFilters/AdvancedFilters';
 import { useFilterSync } from '@/components/advancedFilters/hooks/useFilterSync';
 import { getAdjustmentFilterOptions } from '../config/filterConfig';
+
+const DEFAULT_PAGE_SIZE = 50;
 import {
   type Adjustment,
   type AdjustmentLandingPage,
@@ -34,6 +36,14 @@ export function useAdjustmentsListState() {
   
   // Column filters state
   const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+  
+  // Server-side sorting state
+  const [serverOrderBy, setServerOrderBy] = useState<Array<{ columnName: string; direction: 'ASC' | 'DESC' }>>(() => {
+    return [{
+      columnName: 'createdAt',
+      direction: 'DESC',
+    }];
+  });
   
   // Refs to prevent infinite loops when syncing
   const isSyncingFromAdvanced = useRef(false);
@@ -117,7 +127,11 @@ export function useAdjustmentsListState() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useAdjustmentsInfinite(apiFilters.length > 0 ? apiFilters : undefined);
+  } = useAdjustmentsInfinite(
+    apiFilters.length > 0 ? apiFilters : undefined,
+    DEFAULT_PAGE_SIZE,
+    serverOrderBy
+  );
 
   // Search adjustments - only when search query has 2+ characters
   const { data: searchResults, isLoading: isSearching } = useAdjustmentSearch(
@@ -358,6 +372,32 @@ export function useAdjustmentsListState() {
       }, 0);
     }
   }, [syncColumnToAdvanced]);
+  
+  // Handler for multiple sorts (from SortButton - onMultiSortChange)
+  // This is the primary handler for all sort changes
+  const handleMultiSortChange = useCallback((sorts: Array<{ columnName: string; direction: 'ASC' | 'DESC' }>) => {
+    if (sorts.length > 0) {
+      // Update server-side sort with all sorts
+      setServerOrderBy(sorts);
+    } else {
+      // Reset to default sort if no sorts
+      setServerOrderBy([{
+        columnName: 'createdAt',
+        direction: 'DESC',
+      }]);
+    }
+  }, []);
+  
+  // Handler for server-side sort changes (from SortButton - single sort for backwards compatibility)
+  // This is kept for backwards compatibility but should not be used when onMultiSortChange is available
+  const handleSortChange = useCallback((sort: { columnName: string; direction: 'ASC' | 'DESC' } | undefined) => {
+    // Convert single sort to array format and use handleMultiSortChange
+    if (sort) {
+      handleMultiSortChange([sort]);
+    } else {
+      handleMultiSortChange([]);
+    }
+  }, [handleMultiSortChange]);
 
   return {
     // Data
@@ -389,6 +429,11 @@ export function useAdjustmentsListState() {
     // Column filters
     columnFilters,
     handleColumnFiltersChange,
+    
+    // Sorting
+    serverOrderBy,
+    handleSortChange,
+    handleMultiSortChange,
 
     // Modal states
     showAdjustmentModal,

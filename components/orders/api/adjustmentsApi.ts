@@ -85,14 +85,16 @@ export function useAdjustmentsLandingPage(
  */
 export function useAdjustmentsInfinite(
   filters?: Array<{ columnName: string; operator: string; value: string }>,
-  pageSize: number = DEFAULT_PAGE_SIZE
+  pageSize: number = DEFAULT_PAGE_SIZE,
+  orderBy?: Array<{ columnName: string; direction: 'ASC' | 'DESC' }>
 ) {
   return useInfiniteQuery<PaginatedAdjustmentsResult, Error>({
-    queryKey: ['adjustmentsLandingPage', filters, 'infinite'],
+    queryKey: ['adjustmentsLandingPage', filters, orderBy, 'infinite'],
     queryFn: async ({ pageParam = 0 }) => {
       return _fetchAdjustmentsWithPagination(filters, {
         limit: pageSize,
         offset: pageParam as number,
+        orderBy,
       });
     },
     initialPageParam: 0,
