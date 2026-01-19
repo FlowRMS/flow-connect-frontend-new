@@ -18,9 +18,9 @@ import type { AdjustmentLandingPage, AdjustmentStatus } from '@/components/order
 import { AdjustmentModal } from '@/components/orders/detail/components/modals/adjustments/AdjustmentModal';
 import { AdjustmentDetailModal } from '@/components/orders/detail/components/modals/adjustments/AdjustmentDetailModal';
 import { DeleteConfirmModal } from '@/components/orders/detail/components/modals/utility/DeleteConfirmModal';
-import { AvatarInline } from '@/components/ui/CreatedByBadge';
+import { AdjustmentsTable } from './components/table/AdjustmentsTable';
 
-// Status Configuration
+// Status Configuration (kept for filter buttons)
 const STATUS_CONFIG: Record<AdjustmentStatus, { label: string; color: string; bgColor: string }> = {
   PENDING: { label: 'Pending', color: 'text-yellow-700', bgColor: 'bg-yellow-100' },
   POSTED: { label: 'Posted', color: 'text-green-700', bgColor: 'bg-green-100' },
@@ -32,15 +32,6 @@ const formatCurrency = (amount: number): string => {
     style: 'currency',
     currency: 'USD',
   }).format(amount);
-};
-
-const formatDate = (dateString?: string) => {
-  if (!dateString) return '-';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
 };
 
 export default function AdjustmentsListContent() {
@@ -73,7 +64,7 @@ export default function AdjustmentsListContent() {
     totalCount,
     hasNextPage,
     isFetchingNextPage,
-    handleScroll,
+    fetchNextPage,
     // Search
     searchQuery,
     setSearchQuery,
@@ -312,24 +303,11 @@ export default function AdjustmentsListContent() {
         </div>
       </div>
 
-      {/* Content Area with scroll handler for infinite scroll */}
-      <div className="flex-1 overflow-auto p-6 bg-[var(--background)]" onScroll={handleScroll}>
-        {/* Loading State */}
-        {isLoadingAdjustments && (
-          <div className="flex items-center justify-center py-16">
-            <div className="flex flex-col items-center gap-3">
-              <svg className="animate-spin h-10 w-10 text-indigo-600" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-              </svg>
-              <span className="text-sm text-[var(--muted-foreground)]">Loading adjustments...</span>
-            </div>
-          </div>
-        )}
-
+      {/* Content Area */}
+      <div className="flex-1 overflow-hidden px-6 pt-3 bg-[var(--background)] flex flex-col">
         {/* Error State */}
         {adjustmentsError && (
-          <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
               <circle cx="10" cy="10" r="8"/>
               <path d="M10 6v4M10 14v.01"/>
@@ -367,186 +345,26 @@ export default function AdjustmentsListContent() {
         )}
 
         {/* Table */}
-        {!isLoadingAdjustments && !adjustmentsError && filteredAdjustments.length > 0 && (
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
-            <table className="w-full">
-              <thead className="bg-[var(--muted)]/30">
-                <tr>
-                  <th
-                    className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
-                    onClick={() => toggleSort('number')}
-                  >
-                    <div className="flex items-center gap-1">
-                      Adjustment #
-                      {sortField === 'number' && (
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className={sortDirection === 'asc' ? 'rotate-180' : ''}>
-                          <path d="M5 8l5 5 5-5"/>
-                        </svg>
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
-                    onClick={() => toggleSort('date')}
-                  >
-                    <div className="flex items-center gap-1">
-                      Date
-                      {sortField === 'date' && (
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className={sortDirection === 'asc' ? 'rotate-180' : ''}>
-                          <path d="M5 8l5 5 5-5"/>
-                        </svg>
-                      )}
-                    </div>
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Reason</th>
-                  <th
-                    className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
-                    onClick={() => toggleSort('amount')}
-                  >
-                    <div className="flex items-center justify-end gap-1">
-                      Amount
-                      {sortField === 'amount' && (
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className={sortDirection === 'asc' ? 'rotate-180' : ''}>
-                          <path d="M5 8l5 5 5-5"/>
-                        </svg>
-                      )}
-                    </div>
-                  </th>
-                  <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Status</th>
-                  <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Locked</th>
-                  <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Created By</th>
-                  <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {filteredAdjustments.map((adjustment) => {
-                  const statusConfig = adjustment.status ? STATUS_CONFIG[adjustment.status] : null;
-
-                  return (
-                    <tr
-                      key={adjustment.id}
-                      className="hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
-                      onClick={() => handleViewAdjustment(adjustment)}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-600">
-                              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"/>
-                            </svg>
-                          </div>
-                          <div>
-                            <p className="font-medium text-[var(--foreground)]">
-                              {adjustment.adjustmentNumber || `#${adjustment.id.substring(0, 8)}`}
-                            </p>
-                            {adjustment.locked && (
-                              <span className="text-xs text-[var(--muted-foreground)] flex items-center gap-1">
-                                <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/>
-                                </svg>
-                                Locked
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
-                        {formatDate(adjustment.entityDate)}
-                      </td>
-                      <td className="px-4 py-3 text-[var(--muted-foreground)] max-w-[250px] truncate" title={adjustment.reason || ''}>
-                        {adjustment.reason || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-indigo-600">
-                        {formatCurrency(parseFloat(adjustment.amount || '0'))}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {statusConfig && (
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color}`}>
-                            {statusConfig.label}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {adjustment.locked ? (
-                          <span title="Locked">
-                            <svg className="w-5 h-5 text-amber-500 mx-auto" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/>
-                            </svg>
-                          </span>
-                        ) : (
-                          <span title="Unlocked">
-                            <svg className="w-5 h-5 text-gray-300 mx-auto" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
-                            </svg>
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <AvatarInline name={(adjustment as any).createdBy} size="sm" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleViewAdjustment(adjustment)}
-                            className="p-1.5 hover:bg-[var(--muted)] rounded-lg transition-colors"
-                            title="View"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                              <circle cx="10" cy="10" r="3"/>
-                              <path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z"/>
-                            </svg>
-                          </button>
-                          {!adjustment.locked && (
-                            <>
-                              <button
-                                onClick={() => openEditAdjustmentModal(adjustment)}
-                                className="p-1.5 hover:bg-[var(--muted)] rounded-lg transition-colors"
-                                title="Edit"
-                              >
-                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-9 9-3.5 1 1-3.5 9-9z"/>
-                                </svg>
-                              </button>
-                              <button
-                                onClick={() => handleDeleteAdjustment(adjustment)}
-                                className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-red-600"
-                                title="Delete"
-                              >
-                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M4 6h12M6 6V4a2 2 0 012-2h4a2 2 0 012 2v2M8 10v5M12 10v5M5 6l1 11a2 2 0 002 2h4a2 2 0 002-2l1-11"/>
-                                </svg>
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              {filteredAdjustments.length > 0 && (
-                <tfoot className="bg-[var(--muted)]/20 border-t border-[var(--border)]">
-                  <tr>
-                    <td colSpan={3} className="px-4 py-3 text-right font-semibold text-sm">Total:</td>
-                    <td className="px-4 py-3 text-right font-bold text-indigo-600">{formatCurrency(totals.adjustmentAmount)}</td>
-                    <td colSpan={4}></td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        )}
-
-        {/* Loading indicator for infinite scroll */}
-        {isFetchingNextPage && (
-          <div className="flex items-center justify-center py-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" />
-            <span className="ml-2 text-sm text-[var(--muted-foreground)]">Loading more adjustments...</span>
-          </div>
-        )}
+        {(!isLoadingAdjustments && !adjustmentsError && filteredAdjustments.length > 0) || isLoadingAdjustments ? (
+          <AdjustmentsTable
+            adjustments={filteredAdjustments}
+            isLoading={isLoadingAdjustments}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSort={toggleSort}
+            onView={handleViewAdjustment}
+            onEdit={openEditAdjustmentModal}
+            onDelete={handleDeleteAdjustment}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            fetchNextPage={fetchNextPage}
+            searchQuery={searchQuery}
+            totalAmount={totals.adjustmentAmount}
+          />
+        ) : null}
 
         {/* End of list indicator */}
-        {!hasNextPage && filteredAdjustments.length > 0 && !searchQuery && (
+        {!hasNextPage && filteredAdjustments.length > 0 && !searchQuery && !isLoadingAdjustments && (
           <div className="text-center py-4 text-sm text-[var(--muted-foreground)]">
             All {totalCount} adjustments loaded
           </div>
