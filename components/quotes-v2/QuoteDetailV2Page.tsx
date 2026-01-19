@@ -52,7 +52,7 @@ interface QuoteDetailV2PageProps {
 
 export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetailV2PageProps) {
   // API hooks
-  const { data: apiQuote, isLoading, error } = useQuoteV2(quoteId);
+  const { data: apiQuote, isLoading, error, refetch } = useQuoteV2(quoteId);
   const { setFullEntityContext } = useFlowChat();
   const createQuoteMutation = useCreateQuoteV2();
   const updateQuoteMutation = useUpdateQuoteV2();
@@ -478,11 +478,11 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (): Promise<boolean> => {
     if (!quote.quoteNumber || !quote.soldToCustomerId) {
       setSaveError('Quote Number and Sold To Customer are required');
       quoteToasts.updateError('Quote Number and Sold To Customer are required');
-      return;
+      return false;
     }
 
     // Validate End User based on settings (REQUIRED field)
@@ -505,7 +505,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         console.error('❌ VALIDATION FAILED: Header End User is missing');
         setSaveError('End User is required. Please select an End User at the header level.');
         quoteToasts.updateError('End User is required. Please select an End User at the header level.');
-        return;
+        return false;
       }
     } else {
       // When toggle is ON, EACH line item MUST have End User
@@ -513,7 +513,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         console.error('❌ VALIDATION FAILED: No line items');
         setSaveError('Please add at least one line item.');
         quoteToasts.updateError('Please add at least one line item.');
-        return;
+        return false;
       }
 
       const lineItemsWithoutEndUser = lineItems.filter(li => !li.endUserId || li.endUserId.trim() === '');
@@ -528,7 +528,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         console.error('❌ VALIDATION FAILED: Line items missing End User');
         setSaveError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
         quoteToasts.updateError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
-        return;
+        return false;
       }
     }
 
@@ -564,10 +564,13 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         }
 
         setHasChanges(false);
+        // Refetch quote data to get fresh UUIDs for any newly created line items
+        await refetch();
         // Trigger refresh of linked entities section
         setLinkedEntitiesRefreshKey(prev => prev + 1);
         quoteToasts.updateSuccess(quote.quoteNumber);
       }
+      return true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save quote';
       setSaveError(errorMessage);
@@ -576,10 +579,11 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       } else {
         quoteToasts.updateError(errorMessage);
       }
+      return false;
     } finally {
       setIsSaving(false);
     }
-  }, [quote, isNew, buildQuoteInput, createQuoteMutation, updateQuoteMutation, manageJobLink]);
+  }, [quote, isNew, buildQuoteInput, createQuoteMutation, updateQuoteMutation, manageJobLink, refetch]);
 
   const handleDelete = useCallback(() => {
     if (!quote.id) return;
