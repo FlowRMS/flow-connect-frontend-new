@@ -47,11 +47,12 @@ export interface Contact {
   company: string;
   companyId?: string;
   role: string;
-  contactType: string[];
+  contactType: string[]; // Deprecated: kept for UI compatibility, always empty
   tags: string[];
-  lists: string[];
+  lists: string[]; // Deprecated: kept for UI compatibility, always empty
   territory: string;
-  lastActivity: string;
+  lastActivity: string; // Deprecated: use createdAt instead
+  createdAt: string;
   firstName: string;
   lastName: string;
   createdBy: string;
@@ -85,19 +86,6 @@ export type MergeStrategy = 'keep' | 'combine';
 const CONTACT_ROLES = ['GC', 'EC', 'ARCHITECT', 'ENGINEER', 'DISTRIBUTOR', 'OWNER'] as const;
 
 /**
- * Helper to extract contact types from role
- */
-function extractContactTypes(role: string): string[] {
-  const contactType: string[] = [];
-  for (const roleType of CONTACT_ROLES) {
-    if (role.toUpperCase().includes(roleType)) {
-      contactType.push(roleType);
-    }
-  }
-  return contactType;
-}
-
-/**
  * Parse tags from API format to string array
  * API may return: string "tag1, tag2" | string[] ["tag1, tag2"] | string[] ["tag1", "tag2"]
  */
@@ -124,8 +112,6 @@ function parseTags(apiTags: string | string[] | null | undefined): string[] {
  * Mapper function to convert Landing Page data to UI format
  */
 export function mapLandingPageToUIContact(landingPage: ContactLandingPage): Contact {
-  const role = landingPage.role || '';
-
   return {
     id: landingPage.id,
     name: `${landingPage.firstName} ${landingPage.lastName}`,
@@ -135,11 +121,12 @@ export function mapLandingPageToUIContact(landingPage: ContactLandingPage): Cont
     phone: landingPage.phone || '',
     company: landingPage.companyName || '',
     role: landingPage.role || '',
-    contactType: extractContactTypes(role),
+    contactType: [], // Deprecated: no longer exists in backend, kept for UI compatibility
     tags: parseTags(landingPage.tags), // Parse tags from landing page
-    lists: [],
+    lists: [], // Deprecated: no longer exists in backend, kept for UI compatibility
     territory: '',
-    lastActivity: landingPage.createdAt || new Date().toISOString(),
+    lastActivity: landingPage.createdAt || new Date().toISOString(), // Deprecated
+    createdAt: landingPage.createdAt || new Date().toISOString(),
     createdBy: landingPage.createdBy || '',
   };
 }
@@ -162,11 +149,12 @@ export function mapAPIContactToUIContact(apiContact: APIContact): Contact {
     company: '', // Will be fetched separately if needed
     companyId: undefined,
     role: role,
-    contactType: role ? [role] : [], // Use role directly as contactType
+    contactType: [], // Deprecated: no longer exists in backend, kept for UI compatibility
     tags,
-    lists: [],
+    lists: [], // Deprecated: no longer exists in backend, kept for UI compatibility
     territory: apiContact.territory || '',
-    lastActivity: apiContact.createdAt || new Date().toISOString(),
+    lastActivity: apiContact.createdAt || new Date().toISOString(), // Deprecated
+    createdAt: apiContact.createdAt || new Date().toISOString(),
     createdBy: apiContact.createdBy || '',
     notes: apiContact.notes || '',
     addresses: [],

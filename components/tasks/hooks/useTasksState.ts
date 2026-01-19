@@ -60,6 +60,12 @@ export function useTasksState() {
       return true;
     });
   }, [tasksData]);
+
+  // Get total count from first page
+  const totalCount = useMemo(() => {
+    if (!tasksData?.pages || tasksData.pages.length === 0) return 0;
+    return tasksData.pages[0].total;
+  }, [tasksData]);
   
   // Note: assignees are now UUIDs - user lookup can be added if needed for display
   
@@ -731,6 +737,7 @@ export function useTasksState() {
     // Task data
     tasks,
     filteredTasks,
+    totalCount,
     
     // Search and category
     selectedCategory,

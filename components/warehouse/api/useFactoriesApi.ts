@@ -38,7 +38,7 @@ export const factoriesQueryKeys = {
 // Factory Hooks
 // ============================================================================
 
-const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 200;
 
 /**
  * Fetch all factories using landing pages endpoint

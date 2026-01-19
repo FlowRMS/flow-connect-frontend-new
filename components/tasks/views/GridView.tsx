@@ -90,15 +90,22 @@ export default function GridView({
                   className="flex-1 font-semibold text-[var(--foreground)] text-base px-2 py-1 border border-[var(--primary)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 />
               ) : (
-                <h3
-                  className={`font-semibold text-[var(--foreground)] text-base cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded ${task.completed ? 'line-through opacity-60' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onStartEditing(task.id, 'title', task.title);
-                  }}
-                >
-                  {task.title}
-                </h3>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <h3
+                    className={`font-semibold text-[var(--foreground)] text-base cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded truncate ${task.completed ? 'line-through opacity-60' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStartEditing(task.id, 'title', task.title);
+                    }}
+                  >
+                    {task.title}
+                  </h3>
+                  {task.category && (
+                    <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-xs font-medium flex-shrink-0">
+                      {task.category}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
             {dropdowns.priority === task.id ? (

@@ -46,7 +46,7 @@ const RESULT_TYPE_CONFIG: Record<string, {
         <path d="M9 6h2M9 10h2M9 14h2M13 6h2M13 10h2"/>
       </svg>
     ),
-    href: (id) => `/companies/${id}/edit`,
+    href: (id) => `/companies?id=${id}`,
   },
   CONTACT: {
     color: 'text-green-700',
@@ -199,13 +199,69 @@ function formatResultType(resultType: string): string {
     .replace(/\b\w/g, l => l.toUpperCase());
 }
 
+// Recent searches localStorage helpers
+const RECENT_SEARCHES_KEY = 'universal-search-recent';
+const MAX_RECENT_SEARCHES = 5;
+
+interface RecentSearch {
+  id: string;
+  resultType: string;
+  title: string;
+  alias?: string;
+  extraInfo?: string;
+  timestamp: number;
+}
+
+function getRecentSearches(): RecentSearch[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+    if (!stored) return [];
+    const searches = JSON.parse(stored) as RecentSearch[];
+    // Sort by most recent first
+    return searches.sort((a, b) => b.timestamp - a.timestamp);
+  } catch {
+    return [];
+  }
+}
+
+function addRecentSearch(result: UniversalSearchResult): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const searches = getRecentSearches();
+    // Remove if already exists (to move it to top)
+    const filtered = searches.filter(
+      s => !(s.id === result.id && s.resultType === result.resultType)
+    );
+    // Add new search at the beginning
+    const newSearch: RecentSearch = {
+      id: result.id,
+      resultType: result.resultType,
+      title: result.title,
+      alias: result.alias ?? undefined,
+      extraInfo: result.extraInfo ?? undefined,
+      timestamp: Date.now(),
+    };
+    const updated = [newSearch, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
 export default function UniversalSearch() {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isMounted, setIsMounted] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load recent searches on mount
+  useEffect(() => {
+    setRecentSearches(getRecentSearches());
+  }, []);
 
   // Fetch results - trigger on every keystroke, also fetch on empty string (initial load)
   const { data: results = [], isLoading, isFetching } = useQuery({
@@ -286,7 +342,11 @@ export default function UniversalSearch() {
     updatePosition();
   };
 
-  const handleResultClick = () => {
+  const handleResultClick = (result: UniversalSearchResult | RecentSearch) => {
+    // Save to recent searches
+    addRecentSearch(result as UniversalSearchResult);
+    // Update local state immediately
+    setRecentSearches(getRecentSearches());
     setIsOpen(false);
     setSearchTerm('');
   };
@@ -340,6 +400,103 @@ export default function UniversalSearch() {
 
       {/* Results */}
       <div className="overflow-y-auto" style={{ maxHeight: 'calc(480px - 80px)' }}>
+        {/* Recent searches section - show at top when no search term */}
+        <AnimatePresence>
+          {!searchTerm && recentSearches.length > 0 && (
+            <motion.div
+              key="recent-searches"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.15, ease: morphEase }}
+            >
+              {/* Recent searches header */}
+              <div className="px-4 py-2 flex items-center gap-2 border-b border-gray-100">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Recent</span>
+              </div>
+              {recentSearches.map((recent, index) => {
+                const config = getResultConfig(recent.resultType);
+                return (
+                  <motion.div
+                    key={`recent-${recent.resultType}-${recent.id}-${index}`}
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{
+                      duration: 0.25,
+                      ease: morphEase,
+                      delay: index * 0.03,
+                    }}
+                  >
+                    <Link
+                      href={config.href(recent.id)}
+                      onClick={() => handleResultClick(recent)}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group"
+                    >
+                      {/* Icon */}
+                      <motion.div
+                        className={`flex-shrink-0 w-10 h-10 rounded-lg ${config.bgColor} ${config.color} flex items-center justify-center border ${config.borderColor}`}
+                        whileHover={{ scale: 1.05 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                      >
+                        {config.icon}
+                      </motion.div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                            {recent.title}
+                          </span>
+                          {/* Recent badge */}
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                            Recent
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
+                            {formatResultType(recent.resultType)}
+                          </span>
+                          {recent.alias && (
+                            <span className="text-xs text-gray-400 truncate">
+                              {recent.alias}
+                            </span>
+                          )}
+                          {recent.extraInfo && (
+                            <span className="text-xs text-gray-500 truncate">
+                              • {recent.extraInfo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Arrow */}
+                      <motion.svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="flex-shrink-0 text-gray-300 group-hover:text-blue-500"
+                        initial={{ x: 0 }}
+                        whileHover={{ x: 4 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                      >
+                        <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                      </motion.svg>
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main results section */}
         <AnimatePresence mode="wait">
           {results.length === 0 && !isLoading && (
             <motion.div
@@ -394,7 +551,7 @@ export default function UniversalSearch() {
                   >
                     <Link
                       href={config.href(result.id)}
-                      onClick={handleResultClick}
+                      onClick={() => handleResultClick(result)}
                       className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group"
                     >
                       {/* Icon */}
@@ -469,12 +626,17 @@ export default function UniversalSearch() {
         </div>
         <motion.span
           className="text-xs text-gray-400"
-          key={results.length}
+          key={`${results.length}-${recentSearches.length}-${searchTerm}`}
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.15, ease: morphEase }}
         >
-          {results.length} result{results.length !== 1 ? 's' : ''}
+          {results.length > 0
+            ? `${results.length} result${results.length !== 1 ? 's' : ''}`
+            : !searchTerm && recentSearches.length > 0
+              ? `${recentSearches.length} recent`
+              : '0 results'
+          }
         </motion.span>
       </motion.div>
     </motion.div>

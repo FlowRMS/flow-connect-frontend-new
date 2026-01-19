@@ -10,9 +10,10 @@ interface QRCodeGridProps {
   locations: LocationWithPath[];
   format: PrintFormat;
   printRef: React.RefObject<HTMLDivElement | null>;
+  warehouseName?: string;
 }
 
-export default function QRCodeGrid({ locations, format, printRef }: QRCodeGridProps) {
+export default function QRCodeGrid({ locations, format, printRef, warehouseName }: QRCodeGridProps) {
   if (locations.length === 0) {
     return <EmptyState />;
   }
@@ -21,7 +22,7 @@ export default function QRCodeGrid({ locations, format, printRef }: QRCodeGridPr
     <div className="flex-1 overflow-y-auto p-5" ref={printRef}>
       <div id="qr-print-content" className={`grid gap-3 ${getPreviewGridClasses(format)}`}>
         {locations.map((location) => (
-          <QRCodeCard key={location.id} location={location} format={format} />
+          <QRCodeCard key={location.id} location={location} format={format} warehouseName={warehouseName} />
         ))}
       </div>
     </div>

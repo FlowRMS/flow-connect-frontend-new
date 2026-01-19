@@ -11,264 +11,11 @@ import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection'
 import DeleteConfirmModal from './DeleteConfirmModal';
 import type { Contact, ContactAddress, AddressType } from '../types';
 import type { RelatedEntityCompany, RelatedEntityJob } from '../../lib/crm-graphql';
-import type { Company } from '../../lib/graphql/types';
+import type { CompanyLandingPage } from '../../lib/graphql/types';
 import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
-import { useCRMCompanies } from '../../hooks/useCRMApi';
+import { useCRMCompanyLandingPages } from '../../hooks/useCRMApi';
 
 type TabId = 'overview' | 'sales-reps' | 'addresses' | 'emails' | 'meetings' | 'connected-entities';
-
-// Default contact type options
-const DEFAULT_CONTACT_TYPES = [
-  { value: 'GC', label: 'GC (General Contractor)', color: { bg: 'bg-blue-100', text: 'text-blue-700', dot: 'bg-blue-500' } },
-  { value: 'EC', label: 'EC (Electrical Contractor)', color: { bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-500' } },
-  { value: 'ARCHITECT', label: 'Architect', color: { bg: 'bg-purple-100', text: 'text-purple-700', dot: 'bg-purple-500' } },
-  { value: 'ENGINEER', label: 'Engineer', color: { bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-500' } },
-  { value: 'DISTRIBUTOR', label: 'Distributor', color: { bg: 'bg-orange-100', text: 'text-orange-700', dot: 'bg-orange-500' } },
-  { value: 'OWNER', label: 'Owner', color: { bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-500' } },
-];
-
-// Contact Type Single-Select Dropdown with "Add Type" option
-function ContactTypeSelect({
-  value,
-  onChange,
-  customTypes = [],
-  onAddCustomType,
-  disabled,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  customTypes?: string[];
-  onAddCustomType?: (type: string) => void;
-  disabled: boolean;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newTypeName, setNewTypeName] = useState('');
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // All options: defaults + custom
-  const allOptions = [
-    ...DEFAULT_CONTACT_TYPES,
-    ...customTypes.map(t => ({
-      value: t,
-      label: t,
-      color: { bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-500' },
-      isCustom: true,
-    })),
-  ];
-
-  const selectedOption = allOptions.find(opt => opt.value === value) || null;
-
-  useEffect(() => {
-    setPortalTarget(document.body);
-  }, []);
-
-  useEffect(() => {
-    if (isOpen && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const dropdownHeight = 300;
-      const spaceBelow = window.innerHeight - rect.bottom;
-
-      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
-        setPosition({
-          top: rect.top + window.scrollY - dropdownHeight - 4,
-          left: rect.left + window.scrollX,
-          width: rect.width,
-        });
-      } else {
-        setPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-          width: rect.width,
-        });
-      }
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const isInsideTrigger = triggerRef.current?.contains(target);
-      const isInsideDropdown = dropdownRef.current?.contains(target);
-
-      if (!isInsideTrigger && !isInsideDropdown) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleAddType = () => {
-    if (newTypeName.trim() && onAddCustomType) {
-      const trimmed = newTypeName.trim();
-      if (!allOptions.some(opt => opt.value.toLowerCase() === trimmed.toLowerCase())) {
-        onAddCustomType(trimmed);
-        onChange(trimmed);
-      }
-    }
-    setNewTypeName('');
-    setShowAddModal(false);
-    setIsOpen(false);
-  };
-
-  if (disabled) {
-    return (
-      <div className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 flex items-center gap-2">
-        {selectedOption ? (
-          <>
-            <span className={`w-2.5 h-2.5 rounded-full ${selectedOption.color.dot}`} />
-            <span className="text-gray-900">{selectedOption.label}</span>
-          </>
-        ) : (
-          <span className="text-gray-400">No type selected</span>
-        )}
-      </div>
-    );
-  }
-
-  const dropdownContent = isOpen && portalTarget && createPortal(
-    <div
-      ref={dropdownRef}
-      className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
-      style={{ top: position.top, left: position.left, width: position.width }}
-    >
-      <div className="py-1 max-h-[300px] overflow-y-auto">
-        {/* Clear option */}
-        <button
-          type="button"
-          onClick={() => {
-            onChange('');
-            setIsOpen(false);
-          }}
-          className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors text-gray-500"
-        >
-          No type selected
-        </button>
-        {allOptions.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => {
-              onChange(option.value);
-              setIsOpen(false);
-            }}
-            className={`
-              w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
-              transition-colors hover:bg-gray-50
-              ${value === option.value ? 'bg-blue-50' : ''}
-            `}
-          >
-            <span className={`w-2.5 h-2.5 rounded-full ${option.color.dot} flex-shrink-0`} />
-            <span className={`flex-1 ${value === option.value ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-              {option.label}
-            </span>
-            {value === option.value && (
-              <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </button>
-        ))}
-
-        {/* Add Type Option */}
-        <div className="border-t border-gray-100 mt-1 pt-1">
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Add contact type</span>
-          </button>
-        </div>
-      </div>
-    </div>,
-    portalTarget
-  );
-
-  // Add Type Modal
-  const addModal = showAddModal && portalTarget && createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddModal(false)} />
-      <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Contact Type</h3>
-        <input
-          type="text"
-          value={newTypeName}
-          onChange={(e) => setNewTypeName(e.target.value)}
-          placeholder="Enter type name..."
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleAddType();
-            if (e.key === 'Escape') setShowAddModal(false);
-          }}
-        />
-        <div className="flex justify-end gap-3 mt-4">
-          <button
-            type="button"
-            onClick={() => setShowAddModal(false)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleAddType}
-            disabled={!newTypeName.trim()}
-            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            Add
-          </button>
-        </div>
-      </div>
-    </div>,
-    portalTarget
-  );
-
-  return (
-    <div className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`
-          w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-left
-          flex items-center justify-between gap-2 transition-all
-          hover:border-blue-300 hover:shadow-sm cursor-pointer
-          ${isOpen ? 'ring-2 ring-blue-500 border-transparent shadow-sm' : ''}
-        `}
-      >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {selectedOption ? (
-            <>
-              <span className={`w-2.5 h-2.5 rounded-full ${selectedOption.color.dot}`} />
-              <span className="text-gray-900">{selectedOption.label}</span>
-            </>
-          ) : (
-            <span className="text-gray-400">Select contact type...</span>
-          )}
-        </div>
-        <svg
-          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {dropdownContent}
-      {addModal}
-    </div>
-  );
-}
 
 // US States for dropdown
 const US_STATES = [
@@ -617,8 +364,8 @@ function CompanySearchSelect({ value, companyId, onChange, disabled }: CompanySe
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch companies from API
-  const { data: companies = [], isLoading } = useCRMCompanies();
+  // Fetch companies from API using landing pages endpoint
+  const { data: companies = [], isLoading } = useCRMCompanyLandingPages();
 
   // Filter companies based on search term
   const filteredCompanies = useMemo(() => {
@@ -677,7 +424,7 @@ function CompanySearchSelect({ value, companyId, onChange, disabled }: CompanySe
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelect = (company: Company) => {
+  const handleSelect = (company: CompanyLandingPage) => {
     onChange(company.id, company.name);
     setIsOpen(false);
     setSearchTerm('');
@@ -755,9 +502,9 @@ function CompanySearchSelect({ value, companyId, onChange, disabled }: CompanySe
                   <span className={`block truncate ${companyId === company.id ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
                     {company.name}
                   </span>
-                  {company.companySourceType && (
+                  {company.companyType?.name && (
                     <span className="text-xs text-gray-400">
-                      {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
+                      {company.companyType.name}
                     </span>
                   )}
                 </div>
@@ -834,8 +581,6 @@ export default function ContactDetailView({
 }: ContactDetailViewProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
-  const [showAddListModal, setShowAddListModal] = useState(false);
-  const [newListName, setNewListName] = useState('');
 
   // Local state for addresses (since they're managed locally until save)
   const [localAddresses, setLocalAddresses] = useState<ContactAddress[]>(contact.addresses || []);
@@ -988,15 +733,6 @@ export default function ContactDetailView({
                       Contact details and related entities
                     </div>
                   </div>
-                  {/* Contact Types */}
-                  {contact.contactType.map((type, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700"
-                    >
-                      {type}
-                    </span>
-                  ))}
                 </div>
                 <p className="text-sm text-gray-500">{contact.email || contact.phone || 'No contact info'}</p>
               </div>
@@ -1229,29 +965,10 @@ export default function ContactDetailView({
                   )}
                 </div>
 
-                {/* Contact Type */}
-                <div>
-                  <label className={labelClass}>
-                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    Contact Type
-                  </label>
-                  <ContactTypeSelect
-                    value={isEditing ? (editFormData.contactType?.[0] ?? contact.contactType[0] ?? '') : (contact.contactType[0] ?? '')}
-                    onChange={(value) => onFieldChange('contactType', value ? [value] : [])}
-                    customTypes={[]}
-                    onAddCustomType={(newType) => {
-                      onFieldChange('contactType', [newType]);
-                    }}
-                    disabled={!isEditing}
-                  />
-                </div>
               </div>
 
-              {/* Tags & Lists Section */}
-              <div className="mt-6 pt-5 border-t border-gray-100 space-y-5">
-                {/* Tags */}
+              {/* Tags Section */}
+              <div className="mt-6 pt-5 border-t border-gray-100">
                 <div>
                   <label className={labelClass}>
                     <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1286,58 +1003,6 @@ export default function ContactDetailView({
                       )}
                     </div>
                   )}
-                </div>
-
-                {/* Lists */}
-                <div>
-                  <label className={labelClass}>
-                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                    </svg>
-                    Lists
-                  </label>
-                  <div className="flex flex-wrap gap-2 min-h-[42px] p-3 border border-gray-200 rounded-lg bg-gray-50">
-                    {(() => {
-                      const currentLists = isEditing ? (editFormData.lists ?? contact.lists) : contact.lists;
-                      return currentLists && currentLists.length > 0 ? (
-                        <>
-                          {currentLists.map((list, idx) => (
-                            <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                              </svg>
-                              {list}
-                              {isEditing && (
-                                <button
-                                  onClick={() => {
-                                    onFieldChange('lists', currentLists.filter((_, i) => i !== idx));
-                                  }}
-                                  className="ml-1 text-purple-500 hover:text-purple-700"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                                  </svg>
-                                </button>
-                              )}
-                            </span>
-                          ))}
-                        </>
-                      ) : (
-                        <span className="text-gray-400 text-sm">No lists assigned</span>
-                      );
-                    })()}
-                    {isEditing && (
-                      <button
-                        onClick={() => setShowAddListModal(true)}
-                        className="inline-flex items-center gap-1 px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                        </svg>
-                        Add to list
-                      </button>
-                    )}
-                  </div>
                 </div>
 
                 {/* Warehouse Contact Settings */}
@@ -1586,66 +1251,6 @@ export default function ContactDetailView({
         />
       )}
 
-      {/* Add List Modal */}
-      {showAddListModal && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddListModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Add to List</h3>
-            <input
-              type="text"
-              value={newListName}
-              onChange={(e) => setNewListName(e.target.value)}
-              placeholder="Enter list name..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && newListName.trim()) {
-                  const currentLists = isEditing ? (editFormData.lists ?? contact.lists) : contact.lists;
-                  if (!currentLists.includes(newListName.trim())) {
-                    onFieldChange('lists', [...currentLists, newListName.trim()]);
-                  }
-                  setNewListName('');
-                  setShowAddListModal(false);
-                }
-                if (e.key === 'Escape') {
-                  setNewListName('');
-                  setShowAddListModal(false);
-                }
-              }}
-            />
-            <div className="flex justify-end gap-3 mt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setNewListName('');
-                  setShowAddListModal(false);
-                }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (newListName.trim()) {
-                    const currentLists = isEditing ? (editFormData.lists ?? contact.lists) : contact.lists;
-                    if (!currentLists.includes(newListName.trim())) {
-                      onFieldChange('lists', [...currentLists, newListName.trim()]);
-                    }
-                    setNewListName('');
-                    setShowAddListModal(false);
-                  }
-                }}
-                disabled={!newListName.trim()}
-                className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </main>
   );

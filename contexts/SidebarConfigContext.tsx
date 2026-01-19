@@ -76,10 +76,9 @@ const defaultConfig: SidebarConfig = {
       label: 'Quotes',
       collapsed: false,
       items: [
-        // { id: 'take-offs', name: 'Take-Offs', href: '/take-offs', enabled: true },
-        // { id: 'product-crosses', name: 'Product Crosses', href: '/product-crosses', enabled: true },
+        { id: 'take-offs', name: 'Take-Offs', href: '/take-offs', enabled: true },
+        { id: 'product-crosses', name: 'Product Crosses', href: '/product-crosses', enabled: true },
         { id: 'quotes', name: 'Quotes', href: '/quotes-v2', enabled: true },
-        // { id: 'quotes-v2', name: 'Quotes V2', href: '/quotes-v2', enabled: true },
       ]
     },
     {
@@ -89,7 +88,9 @@ const defaultConfig: SidebarConfig = {
       items: [
         { id: 'orders', name: 'Orders', href: '/orders', enabled: true },
         { id: 'invoices', name: 'Invoices', href: '/invoices', enabled: true },
-        { id: 'commissions', name: 'Commissions', href: '/commissions', enabled: true },
+        { id: 'statements', name: 'Statements', href: '/statements', enabled: true },
+        { id: 'commissions', name: 'Checks', href: '/commissions', enabled: true },
+        { id: 'credits', name: 'Credits', href: '/credits', enabled: true },
         { id: 'adjustments', name: 'Adjustments', href: '/adjustments', enabled: true },
         { id: 'acknowledgements', name: 'Acknowledgements', href: '/acknowledgements', enabled: true },
         // { id: 'buysell', name: 'Buy/Sell', href: '/buysell', enabled: true },
@@ -165,7 +166,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 26; // Increment this to force a reset of cached sidebar config (added Flow Agents preview)
+const CONFIG_VERSION = 33; // Increment this to force a reset of cached sidebar config
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 
@@ -194,12 +195,15 @@ function mergeConfigWithDefaults(stored: SidebarConfig): SidebarConfig {
       const newItems = defaultGroup.items.filter(i => !group.items.some(gi => gi.id === i.id));
 
       // Filter out items that no longer exist in defaults, and update names/hrefs for existing ones
+      // Also ensure items that are enabled by default get re-enabled if they were somehow disabled
       const updatedItems = group.items
         .filter(item => defaultItemIds.has(item.id))
         .map(item => {
           const defaultItem = defaultGroup.items.find(i => i.id === item.id);
           if (defaultItem) {
-            return { ...item, name: defaultItem.name, href: defaultItem.href };
+            // If the default has it enabled, ensure it stays enabled (user can disable manually after)
+            const enabled = defaultItem.enabled ? true : item.enabled;
+            return { ...item, name: defaultItem.name, href: defaultItem.href, enabled };
           }
           return item;
         });

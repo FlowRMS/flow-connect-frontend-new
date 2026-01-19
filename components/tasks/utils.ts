@@ -237,6 +237,7 @@ export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
     comments: 0,
     createdBy: taskLanding.createdBy,
     createdAt: taskLanding.createdAt,
+    category: taskLanding.category, // Category name from landing page
   };
 }
 

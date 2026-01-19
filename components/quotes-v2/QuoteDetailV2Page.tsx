@@ -85,7 +85,10 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   // Column configuration - initialize with defaults, will be updated from API or user settings
   const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(defaultColumnConfigV2);
 
-  // Apply saved user settings when creating a new quote
+  // Track if we've applied column settings to avoid re-applying
+  const hasAppliedColumnSettings = React.useRef(false);
+
+  // Apply saved user settings when creating a new quote (for behavioral settings like specifyEndUserPerLine)
   useEffect(() => {
     if (isNew && settingsInitialized && savedQuoteSettings) {
       // Apply saved settings from user preferences
@@ -97,13 +100,19 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         factoryPerLineItem: savedQuoteSettings.factoryPerLineItem ?? prev.factoryPerLineItem,
         customerPartNumberSource: savedQuoteSettings.customerPartNumberSource ?? prev.customerPartNumberSource,
       }));
-
-      // Apply saved column configuration
-      if (savedQuoteSettings.columnConfig && savedQuoteSettings.columnConfig.length > 0) {
-        setColumnConfig(savedQuoteSettings.columnConfig);
-      }
     }
   }, [isNew, settingsInitialized, savedQuoteSettings]);
+
+  // Apply saved column configuration for ALL quotes (new AND existing)
+  // This runs once when settings are initialized, regardless of isNew
+  useEffect(() => {
+    if (settingsInitialized && !hasAppliedColumnSettings.current) {
+      if (savedQuoteSettings?.columnConfig && savedQuoteSettings.columnConfig.length > 0) {
+        setColumnConfig(savedQuoteSettings.columnConfig);
+      }
+      hasAppliedColumnSettings.current = true;
+    }
+  }, [settingsInitialized, savedQuoteSettings?.columnConfig]);
 
   // Modal states
   const [showColumnsModal, setShowColumnsModal] = useState(false);

@@ -53,7 +53,7 @@ export function EntityStepNavigation({
   const allSteps = [
     { key: 'factories' as EntityStep, label: 'Factories', count: factoriesCount },
     { key: 'customers' as EntityStep, label: 'Sold to Customers', count: customersCount },
-    { key: 'billtocustomers' as EntityStep, label: 'Bill to Customers', count: billToCustomersCount },
+    { key: 'billtocustomers' as EntityStep, label: 'Bill to Customers (Optional)', count: billToCustomersCount },
     { key: 'endusers' as EntityStep, label: 'End Users', count: endUsersCount },
     { key: 'products' as EntityStep, label: 'Products', count: productsCount },
     { key: 'orders' as EntityStep, label: 'Orders', count: ordersCount },

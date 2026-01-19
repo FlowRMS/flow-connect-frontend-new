@@ -26,6 +26,7 @@ interface LocationTreeViewProps {
   showProductSearch: string | null;
   productSearchQuery: string;
   filteredProducts: AvailableProduct[];
+  isSearchingProducts?: boolean;
   enabledLevels: WarehouseLocationLevel[];
   onToggle: (id: string) => void;
   onStartEdit: (id: string | null) => void;
@@ -53,6 +54,7 @@ export default function LocationTreeView({
   showProductSearch,
   productSearchQuery,
   filteredProducts,
+  isSearchingProducts = false,
   enabledLevels,
   onToggle,
   onStartEdit,
@@ -143,6 +145,7 @@ export default function LocationTreeView({
                   showProductSearch={showProductSearch}
                   productSearchQuery={productSearchQuery}
                   filteredProducts={filteredProducts}
+                  isSearchingProducts={isSearchingProducts}
                   onToggle={onToggle}
                   onStartEdit={onStartEdit}
                   onRename={onRename}

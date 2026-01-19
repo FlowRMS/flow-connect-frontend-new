@@ -25,6 +25,7 @@ import SpreadsheetView from './tasks/views/SpreadsheetView';
 import CalendarView from './tasks/views/CalendarView';
 import TaskModal from './tasks/modals/TaskModal';
 import { CreateTaskModal } from './tasks/modals';
+import { ManageTaskCategoriesModal } from './tasks/modals/ManageTaskCategoriesModal';
 import AdvancedFilters from './advancedFilters/AdvancedFilters';
 import SortButton from './SortButton';
 
@@ -33,6 +34,9 @@ export default function TasksContent() {
   const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Manage Task Categories modal state
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
 
   // Animation key to re-trigger header animations on each navigation
   const [animationKey] = useState(() => Date.now());
@@ -66,6 +70,7 @@ export default function TasksContent() {
     // Task data
     tasks,
     filteredTasks,
+    totalCount,
 
     // Search and category
     selectedCategory,
@@ -267,7 +272,7 @@ export default function TasksContent() {
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
               >
-                {isLoading ? 'Loading...' : `${filteredTasks.length} tasks • Organize and track your work`}
+                {isLoading ? 'Loading...' : `Showing ${filteredTasks.length} of ${totalCount} tasks • Organize and track your work`}
               </motion.p>
             </div>
           </div>
@@ -480,6 +485,15 @@ export default function TasksContent() {
               Summarize with FlowChat
             </button>
             <button
+              onClick={() => setShowCategoriesModal(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span className="hidden sm:inline">Manage Categories</span>
+            </button>
+            <button
               onClick={() => setShowCreateTaskModal(true)}
               className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
             >
@@ -518,29 +532,24 @@ export default function TasksContent() {
       </div>
 
       {/* Category Filters and Bulk Select */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 flex-1 -mx-1 px-1">
-          {TASK_CATEGORIES.map((category) => (
-            <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
-                selectedCategory === category
-                  ? 'bg-[var(--primary)] text-white'
-                  : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
-              }`}
-            >
-              {category}
-              {category !== 'All' && (
-                <span className="ml-1 sm:ml-2 text-xs opacity-75">
-                  ({getTasksByStatus(category)})
-                </span>
-              )}
-              {category === 'All' && (
-                <span className="ml-1 sm:ml-2 text-xs opacity-75">({tasks.length})</span>
-              )}
-            </button>
-          ))}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6 pb-2">
+        <div className="flex items-center gap-3 flex-1">
+          <span className="text-sm text-[var(--muted-foreground)] leading-none">Quick filters:</span>
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto -mx-1 px-1 items-center">
+            {TASK_CATEGORIES.map((category) => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
+                  selectedCategory === category
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="hidden sm:flex items-center gap-2">
           <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
@@ -681,6 +690,12 @@ export default function TasksContent() {
           }}
         />
       )}
+
+      {/* Manage Task Categories Modal */}
+      <ManageTaskCategoriesModal
+        isOpen={showCategoriesModal}
+        onClose={() => setShowCategoriesModal(false)}
+      />
     </main>
   );
 }

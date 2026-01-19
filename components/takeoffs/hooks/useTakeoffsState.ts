@@ -1,38 +1,36 @@
 /**
  * Custom Hook for Take-Offs State Management
+ * Orchestrates all takeoff operations using modular sub-hooks
  */
 
-import { useState, useMemo, useCallback } from 'react';
-import type { 
-  Takeoff, 
-  TakeoffDocument, 
-  ParsedItem, 
-  TakeoffViewMode, 
-  TakeoffStep,
-  DocumentClassification 
-} from '../types';
-import type { ActiveFilter } from '../../advancedFilters/AdvancedFilters';
-import { mockTakeoffs, mockDocuments, mockParsedItems } from '../mockData';
-import { 
-  abridgeDocument, 
-  abridgeAllDocuments, 
-  classifyDocument, 
-  crossItem, 
-  crossItems, 
-  crossAllItems,
-  getInitialStep,
-  createNewTakeoff 
-} from '../utils';
+import { useState, useCallback } from 'react';
+import type { TakeoffDocument, ParsedItem, TakeoffViewMode, TakeoffStep } from '../types';
+import { statusApiMap } from '../types';
+import { useUser } from '../../providers/user-provider';
+import { updateTakeoff as apiUpdateTakeoff, type TakeoffStatusEnum } from '../../lib/graphql/takeoffs';
+import {
+  useClassification,
+  useAbridgement,
+  useParsing,
+  useProductCross,
+  useUpload,
+  useDownload,
+  useNavigation,
+  useListManagement,
+} from './operations';
+
+export type { FileUploadProgress } from './types';
 
 export function useTakeoffsState() {
-  // View state
-  const [viewMode, setViewMode] = useState<TakeoffViewMode>('list');
-  const [selectedTakeoff, setSelectedTakeoff] = useState<Takeoff | null>(null);
-  const [currentStep, setCurrentStep] = useState<TakeoffStep>('classification');
+  const user = useUser();
+  const currentUserName = user
+    ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown User'
+    : 'Unknown User';
 
-  // Filter state
-  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  // Core view state
+  const [viewMode, setViewMode] = useState<TakeoffViewMode>('list');
+  const [selectedTakeoff, setSelectedTakeoff] = useState<import('../types').Takeoff | null>(null);
+  const [currentStep, setCurrentStep] = useState<TakeoffStep>('classification');
 
   // Modal state
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -40,140 +38,95 @@ export function useTakeoffsState() {
   const [selectedDocument, setSelectedDocument] = useState<TakeoffDocument | null>(null);
 
   // Data state
-  const [documents, setDocuments] = useState<TakeoffDocument[]>(mockDocuments);
-  const [parsedItems, setParsedItems] = useState<ParsedItem[]>(mockParsedItems);
+  const [documents, setDocuments] = useState<TakeoffDocument[]>([]);
+  const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [shouldAutoClassify, setShouldAutoClassify] = useState(false);
 
-  // Takeoffs list (from mock data) with filtering
-  const takeoffs = useMemo(() => {
-    let result = mockTakeoffs;
-    
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(t => 
-        t.title.toLowerCase().includes(query) ||
-        t.source.toLowerCase().includes(query) ||
-        t.createdBy.toLowerCase().includes(query)
-      );
-    }
-    
-    // Apply advanced filters
-    activeFilters.forEach(filter => {
-      if (filter.columnName === 'status' && filter.values && filter.values.length > 0) {
-        result = result.filter(t => filter.values!.includes(t.status));
-      }
-    });
-    
-    return result;
-  }, [searchQuery, activeFilters]);
+  // List management hook
+  const listManagement = useListManagement();
 
-  // Document handlers
-  const handleClassifyDocument = useCallback((docId: string, classification: DocumentClassification) => {
-    setDocuments(docs => classifyDocument(docs, docId, classification));
-  }, []);
+  // Operation hooks
+  const classification = useClassification({ documents, setDocuments });
 
-  const handleAbridgeDocument = useCallback((docId: string) => {
-    setDocuments(docs => 
-      docs.map(doc => doc.id === docId ? abridgeDocument(doc) : doc)
-    );
-  }, []);
+  const abridgement = useAbridgement({
+    documents,
+    setDocuments,
+    selectedTakeoff,
+    setSelectedTakeoff,
+    setTakeoffsData: listManagement.setTakeoffsData,
+  });
 
-  const handleAbridgeAll = useCallback(() => {
-    setDocuments(docs => abridgeAllDocuments(docs));
-  }, []);
+  const parsing = useParsing({
+    documents,
+    setDocuments,
+    selectedTakeoff,
+    setSelectedTakeoff,
+    setTakeoffsData: listManagement.setTakeoffsData,
+    setParsedItems,
+  });
 
-  // Parsed items handlers
-  const handleCrossItem = useCallback((itemId: string) => {
-    setParsedItems(items => 
-      items.map(item => item.id === itemId ? crossItem(item) : item)
-    );
-  }, []);
+  const productCross = useProductCross({
+    documents,
+    parsedItems,
+    setParsedItems,
+    selectedTakeoff,
+    setSelectedTakeoff,
+    setTakeoffsData: listManagement.setTakeoffsData,
+  });
 
-  const handleCrossSelected = useCallback(() => {
-    setParsedItems(items => crossItems(items, selectedItems));
-    setSelectedItems(new Set());
-  }, [selectedItems]);
+  const upload = useUpload({
+    setTakeoffsData: listManagement.setTakeoffsData,
+    setSelectedTakeoff,
+    setDocuments,
+    setViewMode,
+    setCurrentStep,
+    setShowUploadModal,
+    setShouldAutoClassify,
+    setError: () => {},
+    currentUserName,
+  });
 
-  const handleCrossAll = useCallback(() => {
-    setParsedItems(items => crossAllItems(items));
-  }, []);
+  const download = useDownload({ documents, selectedTakeoff });
 
+  const navigation = useNavigation({
+    selectedTakeoff,
+    setSelectedTakeoff,
+    setTakeoffsData: listManagement.setTakeoffsData,
+    setViewMode,
+    setCurrentStep,
+    setDocuments,
+    setParsedItems,
+    setSelectedItems,
+    documents,
+    parsedItems,
+  });
+
+  // Item selection handlers
   const handleToggleSelectItem = useCallback((itemId: string) => {
     setSelectedItems(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(itemId)) {
-        newSet.delete(itemId);
-      } else {
-        newSet.add(itemId);
-      }
+      if (newSet.has(itemId)) newSet.delete(itemId);
+      else newSet.add(itemId);
       return newSet;
     });
   }, []);
 
   const handleSelectAllItems = useCallback((checked: boolean) => {
     if (checked) {
-      const selectableIds = parsedItems
-        .filter(item => !item.isOurManufacturer && !item.isCrossed)
-        .map(item => item.id);
-      setSelectedItems(new Set(selectableIds));
+      const ids = parsedItems.filter(i => !i.isOurManufacturer && !i.isCrossed).map(i => i.id);
+      setSelectedItems(new Set(ids));
     } else {
       setSelectedItems(new Set());
     }
   }, [parsedItems]);
 
-  // File upload handlers
-  const handleFileSelect = useCallback((files: FileList | null) => {
-    if (files) {
-      const fileArray = Array.from(files).slice(0, 20);
-      setUploadedFiles(fileArray);
-    }
-  }, []);
-
-  const handleRemoveFile = useCallback((index: number) => {
-    setUploadedFiles(files => files.filter((_, i) => i !== index));
-  }, []);
-
-  const handleClearFiles = useCallback(() => {
-    setUploadedFiles([]);
-  }, []);
-
-  // Navigation handlers
-  const handleUploadStart = useCallback(() => {
-    setShowUploadModal(false);
-    setViewMode('detail');
-    setCurrentStep('classification');
-    setSelectedTakeoff(createNewTakeoff());
-    setUploadedFiles([]);
-  }, []);
-
-  const handleSelectTakeoff = useCallback((takeoff: Takeoff) => {
-    setSelectedTakeoff(takeoff);
-    setViewMode('detail');
-    setCurrentStep(getInitialStep(takeoff.status));
-  }, []);
-
-  const handleBackToList = useCallback(() => {
-    setViewMode('list');
-    setSelectedTakeoff(null);
-  }, []);
-
-  const handleCreateQuote = useCallback(() => {
-    alert('Quote created successfully! You can view it on the Quotes page.');
-    setViewMode('list');
-    setSelectedTakeoff(null);
-  }, []);
-
   // Modal handlers
-  const handleOpenUploadModal = useCallback(() => {
-    setShowUploadModal(true);
-  }, []);
-
+  const handleOpenUploadModal = useCallback(() => setShowUploadModal(true), []);
   const handleCloseUploadModal = useCallback(() => {
     setShowUploadModal(false);
-    setUploadedFiles([]);
-  }, []);
+    upload.handleClearFiles();
+  }, [upload]);
 
   const handleOpenAbridgmentReport = useCallback((doc: TakeoffDocument) => {
     setSelectedDocument(doc);
@@ -185,58 +138,140 @@ export function useTakeoffsState() {
     setSelectedDocument(null);
   }, []);
 
+  // Step change with status update
+  const handleStepChange = useCallback(async (newStep: TakeoffStep) => {
+    setCurrentStep(newStep);
+    if (!selectedTakeoff) return;
+
+    const stepStatusMap: Record<TakeoffStep, TakeoffStatusEnum | null> = {
+      classification: 'CLASSIFICATION',
+      parsing: 'PARSING',
+    };
+
+    const newStatus = stepStatusMap[newStep];
+    if (newStatus && statusApiMap[selectedTakeoff.status] !== newStatus) {
+      try {
+        await apiUpdateTakeoff(selectedTakeoff.id, { status: newStatus });
+        const displayStatus = {
+          CLASSIFICATION: 'Classification',
+          ABRIDGMENT: 'Abridgment',
+          PARSING: 'Parsing',
+          COMPLETE: 'Complete',
+        }[newStatus] as typeof selectedTakeoff.status;
+
+        setSelectedTakeoff(prev => prev ? { ...prev, status: displayStatus } : null);
+        listManagement.setTakeoffsData(prev =>
+          prev.map(t => t.id === selectedTakeoff.id ? { ...t, status: displayStatus } : t)
+        );
+      } catch (error) {
+        console.error('Failed to update takeoff status:', error);
+      }
+    }
+  }, [selectedTakeoff, listManagement]);
+
   return {
     // View state
     viewMode,
     selectedTakeoff,
     currentStep,
     setCurrentStep,
-    
+
     // Filter state
-    activeFilters,
-    setActiveFilters,
-    searchQuery,
-    setSearchQuery,
-    
+    activeFilters: listManagement.activeFilters,
+    setActiveFilters: listManagement.setActiveFilters,
+    searchQuery: listManagement.searchQuery,
+    setSearchQuery: listManagement.setSearchQuery,
+
     // Data
-    takeoffs,
+    takeoffs: listManagement.takeoffs,
     documents,
     parsedItems,
     selectedItems,
-    uploadedFiles,
-    
+    uploadedFiles: upload.uploadedFiles,
+
+    // Upload state
+    uploadProgress: upload.uploadProgress,
+    isUploading: upload.isUploading,
+
+    // Auto-classification
+    shouldAutoClassify,
+    setShouldAutoClassify,
+
+    // AI Processing states
+    classificationState: classification.classificationState,
+    abridgementState: abridgement.abridgementState,
+    productCrossState: productCross.productCrossState,
+    documentAbridgementProgress: abridgement.documentAbridgementProgress,
+    documentAbridgeState: abridgement.documentAbridgeState,
+    itemCrossingState: productCross.itemCrossingState,
+
+    // Product cross data
+    productCrossResults: productCross.productCrossResults,
+    selectedCrossTypes: productCross.selectedCrossTypes,
+
+    // Loading/Error
+    isLoading: listManagement.isLoading,
+    error: listManagement.error,
+    totalCount: listManagement.totalCount,
+
     // Modal state
     showUploadModal,
     showAbridgmentReportModal,
     selectedDocument,
-    
-    // Document handlers
-    handleClassifyDocument,
-    handleAbridgeDocument,
-    handleAbridgeAll,
-    
-    // Parsed items handlers
-    handleCrossItem,
-    handleCrossSelected,
-    handleCrossAll,
+
+    // Classification handlers
+    handleClassifyDocument: classification.handleClassifyDocument,
+    handleBulkClassifyDocuments: classification.handleBulkClassifyDocuments,
+    handleChangeDiscipline: classification.handleChangeDiscipline,
+
+    // Abridgement handlers
+    handleAbridgeDocument: abridgement.handleAbridgeDocument,
+    handleAbridgeAll: abridgement.handleAbridgeAll,
+
+    // Parsing handlers
+    handleParseSchedules: parsing.handleParseSchedules,
+    parsingState: parsing.parsingState,
+
+    // Product cross handlers
+    handleCrossItem: productCross.handleCrossItem,
+    handleCrossAll: productCross.handleCrossAll,
+    handleCrossTypesChange: productCross.handleCrossTypesChange,
+    handleSelectAlternative: productCross.handleSelectAlternative,
+    handleCrossSelected: productCross.handleCrossAll,
+
+    // Item selection handlers
     handleToggleSelectItem,
     handleSelectAllItems,
-    
+
     // File handlers
-    handleFileSelect,
-    handleRemoveFile,
-    handleClearFiles,
-    
+    handleFileSelect: upload.handleFileSelect,
+    handleRemoveFile: upload.handleRemoveFile,
+    handleClearFiles: upload.handleClearFiles,
+
     // Navigation handlers
-    handleUploadStart,
-    handleSelectTakeoff,
-    handleBackToList,
-    handleCreateQuote,
-    
+    handleUploadStart: upload.handleUploadStart,
+    handleSelectTakeoff: navigation.handleSelectTakeoff,
+    handleBackToList: navigation.handleBackToList,
+    handleCreateQuote: navigation.handleCreateQuote,
+    handleDeleteTakeoff: navigation.handleDeleteTakeoff,
+    handleRefresh: listManagement.handleRefresh,
+
     // Modal handlers
     handleOpenUploadModal,
     handleCloseUploadModal,
     handleOpenAbridgmentReport,
     handleCloseAbridgmentReport,
+
+    // Download handlers
+    handleDownloadDocument: download.handleDownloadDocument,
+    handleDownloadAllDocuments: download.handleDownloadAllDocuments,
+
+    // Step change
+    handleStepChange,
+
+    // Stubs for unused handlers (maintain API compatibility)
+    handleSaveSelectedCrosses: async () => {},
+    handleDeleteCrossAlternative: () => {},
+    handleRerunCross: async () => {},
   };
 }
