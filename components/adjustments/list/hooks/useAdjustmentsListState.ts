@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import {
   type Adjustment,
   type AdjustmentLandingPage,
+  type AdjustmentStatus,
   type CreateAdjustmentInput,
   useAdjustmentsInfinite,
   useAdjustmentSearch,
@@ -21,6 +22,25 @@ import {
 export function useAdjustmentsListState() {
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Quick filter state (status filter)
+  const [statusFilter, setStatusFilter] = useState<AdjustmentStatus | 'ALL'>('ALL');
+
+  // Build filters for API based on quick filters
+  const apiFilters = useMemo(() => {
+    const filters: Array<{ columnName: string; operator: string; value: string }> = [];
+    
+    // Add status filter if not 'ALL'
+    if (statusFilter !== 'ALL') {
+      filters.push({
+        columnName: 'status',
+        operator: 'EQ',
+        value: statusFilter,
+      });
+    }
+    
+    return filters;
+  }, [statusFilter]);
 
   // Fetch adjustments from API with infinite scroll
   const {
@@ -31,7 +51,7 @@ export function useAdjustmentsListState() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useAdjustmentsInfinite();
+  } = useAdjustmentsInfinite(apiFilters.length > 0 ? apiFilters : undefined);
 
   // Search adjustments - only when search query has 2+ characters
   const { data: searchResults, isLoading: isSearching } = useAdjustmentSearch(
@@ -249,6 +269,10 @@ export function useAdjustmentsListState() {
     searchQuery,
     setSearchQuery,
     isSearching,
+    
+    // Quick filters
+    statusFilter,
+    setStatusFilter,
 
     // Modal states
     showAdjustmentModal,

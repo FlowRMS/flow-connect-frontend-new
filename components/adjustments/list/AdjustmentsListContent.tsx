@@ -69,6 +69,9 @@ export default function AdjustmentsListContent() {
     searchQuery,
     setSearchQuery,
     isSearching,
+    // Quick filters
+    statusFilter,
+    setStatusFilter,
     // Modals
     showAdjustmentModal,
     showAdjustmentDetailModal,
@@ -123,18 +126,13 @@ export default function AdjustmentsListContent() {
     }
   }, [adjustmentIdFromUrl, adjustments, viewAdjustment]);
 
-  // Local filter/sort state (status filter and sorting are client-side)
-  const [statusFilter, setStatusFilter] = useState<AdjustmentStatus | 'ALL'>('ALL');
+  // Local sort state (sorting is still client-side for now, will be moved to backend in later step)
   const [sortField, setSortField] = useState<'date' | 'amount' | 'number'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  // Filter and sort adjustments (status filter is client-side on the fetched/searched results)
+  // Filter and sort adjustments (status filter is now server-side, only sorting is client-side)
   const filteredAdjustments = useMemo(() => {
     return (adjustments || [])
-      .filter((adj) => {
-        const matchesStatus = statusFilter === 'ALL' || adj.status === statusFilter;
-        return matchesStatus;
-      })
       .sort((a, b) => {
         let comparison = 0;
         switch (sortField) {
@@ -150,7 +148,7 @@ export default function AdjustmentsListContent() {
         }
         return sortDirection === 'asc' ? comparison : -comparison;
       });
-  }, [adjustments, statusFilter, sortField, sortDirection]);
+  }, [adjustments, sortField, sortDirection]);
 
   // Calculate totals
   const totals = useMemo(() => ({
@@ -268,7 +266,7 @@ export default function AdjustmentsListContent() {
           <div className="flex items-center gap-2">
             <span className="text-sm text-[var(--muted-foreground)]">Status:</span>
             <div className="flex gap-1">
-              {(['ALL', 'PENDING', 'POSTED', 'VOID'] as const).map((status) => {
+              {(['ALL', 'PENDING', 'POSTED'] as const).map((status) => {
                 const isActive = statusFilter === status;
                 const config = status !== 'ALL' ? STATUS_CONFIG[status] : null;
                 return (
@@ -293,11 +291,13 @@ export default function AdjustmentsListContent() {
           {/* Refresh Button */}
           <button
             onClick={() => refetchAdjustments()}
-            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+            className="flex items-center justify-center w-9 h-9 hover:bg-[var(--muted)] rounded-lg transition-colors text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
             title="Refresh"
           >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 10a7 7 0 1114 0M3 10V4m0 6h6"/>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 4v6h-6"/>
+              <path d="M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
             </svg>
           </button>
         </div>
