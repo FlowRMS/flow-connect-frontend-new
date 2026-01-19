@@ -1,7 +1,7 @@
 import { enhanceColumnsWithIdLinks } from "@/lib/analytics/utils/idColumnLinks";
 
 const baseColumns = [
-  { prop: "commission", name: "Commission", sortable: true, size: 120 },
+  { prop: "commission", name: "Detail Total Commission", sortable: true, size: 120 },
   { prop: "customerTitle", name: "Customer Title", sortable: true, size: 180 },
   { prop: "endUser", name: "End User", sortable: true, size: 150 },
   { prop: "entityDate", name: "Entity Date", sortable: true, size: 120 },
@@ -14,13 +14,13 @@ const baseColumns = [
   { prop: "orderId", name: "Order ID", sortable: true, size: 220 },
   { prop: "orderNumber", name: "Order Number", sortable: true, size: 120 },
   { prop: "outsideRep", name: "Outside Rep", sortable: true, size: 130 },
-  { prop: "outsideRepCommission", name: "Commissions", sortable: true, size: 180 },
+  { prop: "outsideRepCommission", name: "Outside Rep Commission", sortable: true, size: 180 },
   { prop: "outsideRepSplitRate", name: "Outside Rep Split Rate", sortable: true, size: 170 },
-  { prop: "outsideRepTotalPortion", name: "Sales", sortable: true, size: 190 },
+  { prop: "outsideRepTotalPortion", name: "Outside Rep Sales", sortable: true, size: 190 },
   { prop: "quantityOrdered", name: "Quantity Ordered", sortable: true, size: 140 },
   { prop: "quantityShipped", name: "Quantity Shipped", sortable: true, size: 140 },
   { prop: "status", name: "Status", sortable: true, size: 90 },
-  { prop: "total", name: "Total", sortable: true, size: 100 },
+  { prop: "total", name: "Detail Total Sales", sortable: true, size: 100 },
   { prop: "unitPrice", name: "Unit Price", sortable: true, size: 100 },
 ];
 

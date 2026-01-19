@@ -19,7 +19,7 @@ const baseColumns = [
     size: 200,
   },
   { prop: "customerId", name: "Customer ID", sortable: true, size: 220 },
-  { prop: "detailTotal", name: "Detail Total", sortable: true, size: 120 },
+  { prop: "detailTotal", name: "Detail Total Sales", sortable: true, size: 120 },
   { prop: "discount", name: "Discount", sortable: true, size: 90 },
   { prop: "dueDate", name: "Due Date", sortable: true, size: 120 },
   {
@@ -57,7 +57,7 @@ const baseColumns = [
   { prop: "outsideRep", name: "Outside Rep", sortable: true, size: 130 },
   {
     prop: "outsideRepCommission",
-    name: "Detail Total Commissions",
+    name: "Outside Rep Commission",
     sortable: true,
     size: 180,
   },
@@ -70,7 +70,7 @@ const baseColumns = [
   },
   {
     prop: "outsideRepTotalPortion",
-    name: "Detail Total Sales",
+    name: "Outside Rep Sales",
     sortable: true,
     size: 170,
   },
