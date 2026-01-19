@@ -1,17 +1,10 @@
 /**
  * Products Filter Configuration
  * Defines filter and sort options for the products page
+ * Note: columnName should match the API ProductLandingPage field names
  */
 
-export interface FilterOption {
-  id?: string;
-  columnName: string;
-  label: string;
-  type: 'text' | 'select' | 'number' | 'date' | 'dropdown';
-  operators?: string[];
-  options?: { value: string; label: string }[] | string[];
-  available?: boolean;
-}
+import type { FilterOption } from '../../../advancedFilters/types';
 
 export interface SortOption {
   columnName: string;
@@ -20,87 +13,88 @@ export interface SortOption {
 
 /**
  * Get filter options for products
+ * Note: columnName should match the API ProductLandingPage field names
  */
 export function getProductFilterOptions(
-  uniqueFactories: string[],
-  uniqueCategories: string[],
-  uniqueUoms: string[]
+  uniqueFactories: string[] = [],
+  uniqueCategories: string[] = [],
+  uniqueUoms: string[] = []
 ): FilterOption[] {
   return [
-    {
-      id: 'factoryPartNumber',
-      columnName: 'factoryPartNumber',
-      label: 'Part Number',
-      type: 'text',
-      operators: ['ILIKE', 'EQ', 'BEGINS_WITH', 'ENDS_WITH'],
+    { 
+      id: 'part-number', 
+      label: 'Part Number', 
+      type: 'text' as const, 
+      columnName: 'factoryPartNumber', 
+      available: true 
     },
-    {
-      id: 'description',
-      columnName: 'description',
-      label: 'Description',
-      type: 'text',
-      operators: ['ILIKE', 'EQ', 'BEGINS_WITH'],
+    { 
+      id: 'factory', 
+      label: 'Factory', 
+      type: 'factory' as const, 
+      columnName: 'factoryTitle', 
+      available: true
+      // No options needed - uses dynamic search via FactoryFilter
     },
-    {
-      id: 'factoryTitle',
-      columnName: 'factoryTitle',
-      label: 'Factory',
-      type: 'dropdown',
-      operators: ['EQ', 'NE', 'IN'],
-      options: uniqueFactories,
+    { 
+      id: 'category', 
+      label: 'Category', 
+      type: 'category' as const, 
+      columnName: 'categoryTitle', 
+      available: true
+      // No options needed - uses dynamic search via CategoryFilter
     },
-    {
-      id: 'categoryTitle',
-      columnName: 'categoryTitle',
-      label: 'Category',
-      type: 'dropdown',
-      operators: ['EQ', 'NE', 'IN'],
-      options: uniqueCategories,
+    { 
+      id: 'uom', 
+      label: 'UOM', 
+      type: 'dropdown' as const, 
+      columnName: 'uomTitle', 
+      available: true, 
+      options: uniqueUoms 
     },
-    {
-      id: 'uomTitle',
-      columnName: 'uomTitle',
-      label: 'UOM',
-      type: 'dropdown',
-      operators: ['EQ', 'NE'],
-      options: uniqueUoms,
+    { 
+      id: 'unit-price', 
+      label: 'Unit Price', 
+      type: 'number' as const, 
+      columnName: 'unitPrice', 
+      available: true,
+      numberFormat: 'currency' as const
     },
-    {
-      id: 'unitPrice',
-      columnName: 'unitPrice',
-      label: 'Unit Price',
-      type: 'number',
-      operators: ['EQ', 'GT', 'GTE', 'LT', 'LTE'],
+    { 
+      id: 'commission-rate', 
+      label: 'Commission Rate', 
+      type: 'number' as const, 
+      columnName: 'defaultCommissionRate', 
+      available: true,
+      numberFormat: 'percentage' as const
     },
-    {
-      id: 'defaultCommissionRate',
-      columnName: 'defaultCommissionRate',
-      label: 'Commission Rate',
-      type: 'number',
-      operators: ['EQ', 'GT', 'GTE', 'LT', 'LTE'],
+    { 
+      id: 'published', 
+      label: 'Published', 
+      type: 'boolean' as const, 
+      columnName: 'published', 
+      available: true 
     },
-    {
-      id: 'published',
-      columnName: 'published',
-      label: 'Published',
-      type: 'dropdown',
-      operators: ['EQ'],
-      options: ['true', 'false'],
+    { 
+      id: 'approval-needed', 
+      label: 'Approval Needed', 
+      type: 'boolean' as const, 
+      columnName: 'approvalNeeded', 
+      available: true 
     },
-    {
-      id: 'approvalNeeded',
-      columnName: 'approvalNeeded',
-      label: 'Approval Needed',
-      type: 'dropdown',
-      operators: ['EQ'],
-      options: ['true', 'false'],
+    { 
+      id: 'created-date', 
+      label: 'Created Date', 
+      type: 'date' as const, 
+      columnName: 'createdAt', 
+      available: true 
     },
-    {
-      id: 'createdAt',
-      columnName: 'createdAt',
-      label: 'Created Date',
-      type: 'date',
-      operators: ['EQ', 'GT', 'GTE', 'LT', 'LTE'],
+    { 
+      id: 'tags', 
+      label: 'Tags', 
+      type: 'text' as const, 
+      columnName: 'tags', 
+      available: true 
     },
   ];
 }

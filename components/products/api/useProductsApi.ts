@@ -314,14 +314,37 @@ export function useProductCategories(factoryId?: string, parentId?: string, gran
 
 /**
  * Search product categories
+ * @param searchTerm - Search term for filtering categories
+ * @param factoryId - Factory ID (optional, if not provided will fetch all categories)
+ * @param limit - Maximum number of results
  */
-export function useProductCategorySearch(searchTerm: string, factoryId: string, limit?: number) {
-  return useQuery<ProductCategory[], Error>({
-    queryKey: productQueryKeys.categorySearch(searchTerm, factoryId),
-    queryFn: () => searchProductCategories(searchTerm, factoryId, limit),
-    enabled: !!searchTerm && !!factoryId,
+export function useProductCategorySearch(searchTerm: string, factoryId?: string, limit?: number) {
+  // If factoryId is provided, use the search endpoint
+  // If not, use the list endpoint and filter client-side
+  const hasFactoryId = !!factoryId;
+  
+  const searchQuery = useQuery<ProductCategory[], Error>({
+    queryKey: productQueryKeys.categorySearch(searchTerm, factoryId!),
+    queryFn: () => searchProductCategories(searchTerm, factoryId!, limit),
+    enabled: hasFactoryId && !!searchTerm,
     staleTime: 30 * 1000,
   });
+
+  const allCategoriesQuery = useProductCategories(factoryId);
+  
+  // If no factoryId, use all categories and filter client-side
+  if (!hasFactoryId) {
+    const filteredCategories = (allCategoriesQuery.data || []).filter(category =>
+      category.title.toLowerCase().includes(searchTerm.toLowerCase())
+    ).slice(0, limit);
+    
+    return {
+      ...allCategoriesQuery,
+      data: filteredCategories,
+    };
+  }
+  
+  return searchQuery;
 }
 
 /**

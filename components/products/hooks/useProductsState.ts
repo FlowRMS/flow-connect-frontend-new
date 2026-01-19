@@ -53,21 +53,33 @@ export function useProductsState() {
   // Sort state
   const [sortState, setSortState] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null);
 
-  // Column filter state
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({
-    factoryPartNumber: '',
-    description: '',
-    factoryTitle: '',
-    categoryTitle: '',
-    published: '',
-    approvalNeeded: '',
-  });
+  // Column filter state - now uses ActiveFilter[] format
+  const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
 
   // Filter & sort state for advanced filters
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [clientSortColumns, setClientSortColumns] = useState<ActiveSort[]>([]);
 
-  // Convert to server format for API
+  // Convert column filters to server format
+  const columnFiltersToServer = useMemo(() => {
+    const filters: ProductLandingPageFilter[] = [];
+    
+    // Convert column filters to server format
+    Object.values(columnFilters).forEach(filterArray => {
+      filterArray.forEach(f => {
+        filters.push({
+          operator: f.operator,
+          columnName: f.columnName,
+          value: f.value,
+          values: f.values,
+        });
+      });
+    });
+
+    return filters;
+  }, [columnFilters]);
+
+  // Convert to server format for API - combine advanced filters and column filters
   const serverFilters: ProductLandingPageFilter[] | undefined = useMemo(() => {
     const filters: ProductLandingPageFilter[] = [];
 
@@ -81,8 +93,13 @@ export function useProductsState() {
       });
     });
 
+    // Add column filters
+    columnFiltersToServer.forEach(f => {
+      filters.push(f);
+    });
+
     return filters.length > 0 ? filters : undefined;
-  }, [activeFilters]);
+  }, [activeFilters, columnFiltersToServer]);
 
   const serverOrderBy: ProductLandingPageOrderBy | undefined = useMemo(() => {
     if (clientSortColumns.length === 0) return undefined;
@@ -143,7 +160,8 @@ export function useProductsState() {
     refetch();
   }, [bulkSelection, refetch]);
 
-  // Apply client-side search and filtering
+  // Products are already filtered by the backend, so we just use them directly
+  // Only apply client-side search for short queries (< 2 chars) as fallback
   const filteredProducts = useMemo(() => {
     // If we have search results from the API, use those
     if (searchQuery.length >= 2 && searchResults) {
@@ -163,12 +181,10 @@ export function useProductsState() {
       })) as ProductLandingPage[];
     }
 
-    let result = products;
-
-    // Apply search query (client-side fallback for short queries)
+    // For short queries, apply client-side filtering as fallback
     if (searchQuery.trim() && searchQuery.length < 2) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(product =>
+      return products.filter(product =>
         product.factoryPartNumber?.toLowerCase().includes(query) ||
         product.description?.toLowerCase().includes(query) ||
         product.factoryTitle?.toLowerCase().includes(query) ||
@@ -176,113 +192,9 @@ export function useProductsState() {
       );
     }
 
-    // Apply factory filter
-    if (selectedFactory !== 'All') {
-      result = result.filter(p => p.factoryTitle === selectedFactory);
-    }
-
-    // Apply published status filter
-    if (selectedPublishedStatus === 'Published') {
-      result = result.filter(p => p.published === true);
-    } else if (selectedPublishedStatus === 'Draft') {
-      result = result.filter(p => p.published === false);
-    }
-
-    // Apply approval status filter
-    if (selectedApprovalStatus === 'Needs Approval') {
-      result = result.filter(p => p.approvalNeeded === true);
-    } else if (selectedApprovalStatus === 'No Approval') {
-      result = result.filter(p => p.approvalNeeded === false);
-    }
-
-    // Apply column filters
-    if (columnFilters.factoryPartNumber) {
-      const query = columnFilters.factoryPartNumber.toLowerCase();
-      result = result.filter(p => p.factoryPartNumber?.toLowerCase().includes(query));
-    }
-    if (columnFilters.description) {
-      const query = columnFilters.description.toLowerCase();
-      result = result.filter(p => p.description?.toLowerCase().includes(query));
-    }
-    if (columnFilters.factoryTitle) {
-      result = result.filter(p => p.factoryTitle === columnFilters.factoryTitle);
-    }
-    if (columnFilters.categoryTitle) {
-      result = result.filter(p => p.categoryTitle === columnFilters.categoryTitle);
-    }
-    if (columnFilters.published) {
-      const isPublished = columnFilters.published === 'Published';
-      result = result.filter(p => p.published === isPublished);
-    }
-    if (columnFilters.approvalNeeded) {
-      const needsApproval = columnFilters.approvalNeeded === 'Yes';
-      result = result.filter(p => p.approvalNeeded === needsApproval);
-    }
-
-    // Apply sorting
-    if (sortState) {
-      result = [...result].sort((a, b) => {
-        let aVal: string | number | boolean | undefined;
-        let bVal: string | number | boolean | undefined;
-
-        switch (sortState.column) {
-          case 'factoryPartNumber':
-            aVal = a.factoryPartNumber;
-            bVal = b.factoryPartNumber;
-            break;
-          case 'description':
-            aVal = a.description;
-            bVal = b.description;
-            break;
-          case 'factoryTitle':
-            aVal = a.factoryTitle;
-            bVal = b.factoryTitle;
-            break;
-          case 'categoryTitle':
-            aVal = a.categoryTitle;
-            bVal = b.categoryTitle;
-            break;
-          case 'unitPrice':
-            aVal = a.unitPrice;
-            bVal = b.unitPrice;
-            break;
-          case 'defaultCommissionRate':
-            aVal = a.defaultCommissionRate;
-            bVal = b.defaultCommissionRate;
-            break;
-          case 'published':
-            aVal = a.published;
-            bVal = b.published;
-            break;
-          case 'approvalNeeded':
-            aVal = a.approvalNeeded;
-            bVal = b.approvalNeeded;
-            break;
-          default:
-            return 0;
-        }
-
-        // Handle numeric values
-        if (typeof aVal === 'number' && typeof bVal === 'number') {
-          return sortState.direction === 'asc' ? aVal - bVal : bVal - aVal;
-        }
-
-        // Handle boolean values
-        if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
-          const cmp = aVal === bVal ? 0 : aVal ? -1 : 1;
-          return sortState.direction === 'asc' ? cmp : -cmp;
-        }
-
-        // Handle string values
-        const aStr = String(aVal ?? '').toLowerCase();
-        const bStr = String(bVal ?? '').toLowerCase();
-        const cmp = aStr.localeCompare(bStr);
-        return sortState.direction === 'asc' ? cmp : -cmp;
-      });
-    }
-
-    return result;
-  }, [products, searchQuery, searchResults, selectedFactory, selectedPublishedStatus, selectedApprovalStatus, columnFilters, sortState]);
+    // Otherwise, return products as-is (already filtered by backend)
+    return products;
+  }, [products, searchQuery, searchResults]);
 
   // Unique values for filter dropdowns
   const uniqueFactories = useMemo(() => getUniqueValues(products, 'factoryTitle'), [products]);
@@ -324,8 +236,9 @@ export function useProductsState() {
     });
   }, []);
 
-  const handleColumnFilterChange = useCallback((column: string, value: string) => {
-    setColumnFilters(prev => ({ ...prev, [column]: value }));
+  // Handler for column filter changes (from ColumnFilters component)
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ActiveFilter[]>) => {
+    setColumnFilters(filters);
   }, []);
 
   const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
@@ -361,7 +274,7 @@ export function useProductsState() {
     sortState,
     handleSort,
     columnFilters,
-    handleColumnFilterChange,
+    handleColumnFiltersChange,
 
     // Modal state
     showCreateModal,
