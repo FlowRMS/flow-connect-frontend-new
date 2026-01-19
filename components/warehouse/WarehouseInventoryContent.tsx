@@ -113,15 +113,15 @@ export default function WarehouseInventoryContent() {
     fulfillmentOrders.forEach(fo => {
       fo.lineItems.forEach(item => {
         if (item.backorderQty > 0) {
-          const id = `${fo.orderNumber}-${item.productId}`;
+          const id = `${fo.order?.orderNumber || fo.id}-${item.productId}`;
           backordered.push({
             id,
             productId: item.productId,
-            productName: item.productName,
-            partNumber: item.partNumber,
+            productName: item.product?.description || item.product?.factoryPartNumber || '',
+            partNumber: item.product?.factoryPartNumber || '',
             backorderQty: item.backorderQty,
-            orderNumber: fo.orderNumber,
-            customerName: fo.customerName,
+            orderNumber: fo.order?.orderNumber || '',
+            customerName: fo.customer?.companyName || '',
           });
         }
       });
