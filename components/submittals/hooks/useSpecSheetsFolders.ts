@@ -7,6 +7,7 @@ import {
 } from '../api/useSpecSheetsApi';
 import type { SpecSheetFolder } from '../../../lib/types/submittals';
 import { fetchFoldersByFactory as fetchFoldersApi, type FolderResponse } from '../../lib/graphql/spec-sheets';
+import { showConfirmToast, showSuccessToast, showErrorToast } from '../../lib/toast';
 
 interface Manufacturer {
   id: string;
@@ -163,16 +164,43 @@ export function useSpecSheetsFolders({
 
   const handleDeleteFolder = async (folder: SpecSheetFolder) => {
     if (!selectedManufacturerId) return;
-    const folderPath = getFolderPath(folder.id);
+    const folderPath = folder.folderPath || getFolderPath(folder.id);
     if (!folderPath) return;
-    if (confirm(`Delete folder "${folder.name}"? This will not delete the spec sheets inside.`)) {
+
+    // Check for subfolders first (before spec sheets, since specSheetCount may include nested counts)
+    // Use the folders array which checks by parentId relationship
+    const hasSubfolders = folders.some(f => f.parentId === folder.id);
+
+    if (hasSubfolders) {
+      showErrorToast('Cannot delete folder', {
+        description: 'This folder contains subfolders. Delete them first.',
+      });
+      return;
+    }
+
+    // Check if folder has direct spec sheets (only relevant after confirming no subfolders)
+    if ((folder.specSheetCount || 0) > 0) {
+      showErrorToast('Cannot delete folder', {
+        description: 'This folder contains spec sheets. Move or delete them first.',
+      });
+      return;
+    }
+
+    const confirmed = await showConfirmToast(`Delete folder "${folder.name}"?`, {
+      confirmLabel: 'Delete',
+    });
+
+    if (confirmed) {
       setFolderError(null);
       try {
         await deleteFolderMutation.mutateAsync({ factoryId: selectedManufacturerId, folderPath });
         if (selectedFolderId === folder.id) setSelectedFolderId(null);
         loadAllManufacturerFolders();
+        showSuccessToast('Folder deleted');
       } catch (error) {
-        setFolderError(error instanceof Error ? error.message : 'Failed to delete folder');
+        const errorMessage = error instanceof Error ? error.message : 'Failed to delete folder';
+        setFolderError(errorMessage);
+        showErrorToast('Failed to delete folder', { description: errorMessage });
       }
     }
   };
@@ -234,8 +262,6 @@ export function useSpecSheetsFolders({
   };
   const handleFolderDragEnd = () => { setDraggedFolderId(null); setDragOverFolderId(null); };
 
-  const getFoldersForManufacturer = (manufacturer: string) => folders.filter(f => f.manufacturer === manufacturer && f.parentId === null);
-
   const getAllFoldersForManufacturer = (manufacturerName: string): SpecSheetFolder[] => {
     const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
     if (!manufacturerData) return [];
@@ -264,6 +290,9 @@ export function useSpecSheetsFolders({
     }
     return Array.from(folderMap.values()).filter(f => f.parentId === null);
   };
+
+  // Uses allManufacturerFolders so it works even when manufacturer is not selected
+  const getFoldersForManufacturer = (manufacturer: string) => getAllFoldersForManufacturer(manufacturer);
 
   const getChildFoldersFromAll = (parentId: string, manufacturerName: string): SpecSheetFolder[] => {
     const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
@@ -379,5 +408,6 @@ export function useSpecSheetsFolders({
     getFolderSpecSheetCount,
     getChildFoldersLocal,
     getFolderCount,
+    loadAllManufacturerFolders,
   };
 }

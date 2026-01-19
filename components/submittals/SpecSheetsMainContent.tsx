@@ -30,6 +30,12 @@ interface SpecSheetsMainContentProps {
   // Modals
   setShowUploadModal: (show: boolean) => void;
   setShowCatalogModal: (show: boolean) => void;
+
+  // Multi-select
+  selectedSpecSheetIds: Set<string>;
+  toggleSpecSheetSelection: (id: string, isCtrlOrCmd: boolean) => void;
+  selectAllVisibleSpecSheets: () => void;
+  clearSpecSheetSelection: () => void;
 }
 
 export function SpecSheetsMainContent({
@@ -47,7 +53,12 @@ export function SpecSheetsMainContent({
   getHighlightCount,
   setShowUploadModal,
   setShowCatalogModal,
+  selectedSpecSheetIds,
+  toggleSpecSheetSelection,
+  selectAllVisibleSpecSheets,
+  clearSpecSheetSelection,
 }: SpecSheetsMainContentProps) {
+  const hasSelection = selectedSpecSheetIds.size > 0;
   return (
     <div className="flex-1 flex flex-col min-w-0">
       {/* Header */}
@@ -126,6 +137,37 @@ export function SpecSheetsMainContent({
         </div>
       </div>
 
+      {/* Selection Bar */}
+      {hasSelection && (
+        <div className="flex-shrink-0 px-6 py-2 border-b border-[var(--border)] bg-blue-50 dark:bg-blue-950/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                {selectedSpecSheetIds.size} selected
+              </span>
+              <button
+                onClick={selectAllVisibleSpecSheets}
+                className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+              >
+                Select all ({filteredSpecSheets.length})
+              </button>
+            </div>
+            <button
+              onClick={clearSpecSheetSelection}
+              className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 flex items-center gap-1"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+              </svg>
+              Clear selection
+            </button>
+          </div>
+          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+            Drag selected items to a folder to move them
+          </p>
+        </div>
+      )}
+
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-6">
         {isLoadingSpecSheets ? (
@@ -201,6 +243,9 @@ export function SpecSheetsMainContent({
                 highlightCount={getHighlightCount(sheet.id)}
                 onClick={() => setSelectedSpecSheet(sheet)}
                 isSelected={selectedSpecSheet?.id === sheet.id}
+                isMultiSelected={selectedSpecSheetIds.has(sheet.id)}
+                onToggleSelect={toggleSpecSheetSelection}
+                selectedIds={selectedSpecSheetIds}
               />
             ))}
           </div>
@@ -213,6 +258,9 @@ export function SpecSheetsMainContent({
                 highlightCount={getHighlightCount(sheet.id)}
                 onClick={() => setSelectedSpecSheet(sheet)}
                 isSelected={selectedSpecSheet?.id === sheet.id}
+                isMultiSelected={selectedSpecSheetIds.has(sheet.id)}
+                onToggleSelect={toggleSpecSheetSelection}
+                selectedIds={selectedSpecSheetIds}
               />
             ))}
           </div>

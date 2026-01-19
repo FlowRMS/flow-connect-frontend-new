@@ -19,6 +19,49 @@ interface ToastOptions {
 }
 
 // ============================================================================
+// Confirmation Toast
+// ============================================================================
+
+interface ConfirmToastOptions {
+  description?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  duration?: number;
+}
+
+/**
+ * Shows a confirmation toast with action buttons.
+ * Returns a promise that resolves to true if confirmed, false if cancelled.
+ */
+export const showConfirmToast = (
+  message: string,
+  options?: ConfirmToastOptions
+): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const toastId = toast(message, {
+      description: options?.description,
+      duration: options?.duration || Infinity,
+      action: {
+        label: options?.confirmLabel || 'OK',
+        onClick: () => {
+          resolve(true);
+        },
+      },
+      cancel: {
+        label: options?.cancelLabel || 'Cancel',
+        onClick: () => {
+          resolve(false);
+        },
+      },
+      onDismiss: () => {
+        resolve(false);
+      },
+    });
+    return toastId;
+  });
+};
+
+// ============================================================================
 // Success Toasts
 // ============================================================================
 

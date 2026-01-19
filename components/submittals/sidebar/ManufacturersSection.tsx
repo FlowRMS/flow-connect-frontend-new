@@ -38,6 +38,10 @@ interface ManufacturersSectionProps {
   getFoldersForManufacturer: (manufacturer: string) => SpecSheetFolder[];
   handleAddRootFolder: (manufacturer: string, manufacturerId?: string) => void;
   setShowManufacturerModal: (show: boolean) => void;
+  // Spec sheet drag & drop
+  specSheetDragOverFolderId?: string | null;
+  setSpecSheetDragOverFolderId?: (id: string | null) => void;
+  onSpecSheetDrop?: (specSheetId: string, folderPath: string) => void;
 }
 
 export function ManufacturersSection({
@@ -68,6 +72,9 @@ export function ManufacturersSection({
   getFoldersForManufacturer,
   handleAddRootFolder,
   setShowManufacturerModal,
+  specSheetDragOverFolderId,
+  setSpecSheetDragOverFolderId,
+  onSpecSheetDrop,
 }: ManufacturersSectionProps) {
   return (
     <div>
@@ -188,6 +195,9 @@ export function ManufacturersSection({
                         selectManufacturerByName={selectManufacturerByName}
                         getFolderCount={getFolderCount}
                         getChildFoldersLocal={getChildFoldersLocal}
+                        specSheetDragOverFolderId={specSheetDragOverFolderId}
+                        setSpecSheetDragOverFolderId={setSpecSheetDragOverFolderId}
+                        onSpecSheetDrop={onSpecSheetDrop}
                       />
                     )}
                     {manufacturerFolders.length === 0 && (

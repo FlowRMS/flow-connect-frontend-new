@@ -8,6 +8,10 @@ interface SpecSheetCardProps {
   highlightCount: number;
   onClick: () => void;
   isSelected: boolean;
+  // Multi-select props
+  isMultiSelected?: boolean;
+  onToggleSelect?: (id: string, isCtrlOrCmd: boolean) => void;
+  selectedIds?: Set<string>;
 }
 
 export function SpecSheetCard({
@@ -15,14 +19,60 @@ export function SpecSheetCard({
   highlightCount,
   onClick,
   isSelected,
+  isMultiSelected = false,
+  onToggleSelect,
+  selectedIds = new Set(),
 }: SpecSheetCardProps) {
+  const handleDragStart = (e: React.DragEvent) => {
+    // If this item is selected and there are multiple selections, drag all selected
+    const idsToMove = isMultiSelected && selectedIds.size > 1
+      ? Array.from(selectedIds)
+      : [specSheet.id];
+
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      type: 'specSheet',
+      ids: idsToMove,
+      id: specSheet.id, // Keep single ID for backward compatibility
+      displayName: specSheet.displayName,
+      count: idsToMove.length,
+    }));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onToggleSelect) {
+      onToggleSelect(specSheet.id, e.ctrlKey || e.metaKey);
+    }
+  };
+
   return (
     <div
       onClick={onClick}
-      className={`bg-[var(--card)] rounded-lg border overflow-hidden cursor-pointer transition-all hover:shadow-md ${
+      draggable
+      onDragStart={handleDragStart}
+      className={`bg-[var(--card)] rounded-lg border overflow-hidden cursor-pointer transition-all hover:shadow-md relative group ${
         isSelected ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20' : 'border-[var(--border)]'
-      }`}
+      } ${isMultiSelected ? 'ring-2 ring-blue-500' : ''}`}
     >
+      {/* Multi-select checkbox */}
+      {onToggleSelect && (
+        <div
+          onClick={handleCheckboxClick}
+          className={`absolute top-2 left-2 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer ${
+            isMultiSelected
+              ? 'bg-blue-500 border-blue-500 text-white'
+              : 'bg-white/80 border-gray-300 hover:border-blue-400 opacity-0 group-hover:opacity-100'
+          } ${isMultiSelected ? 'opacity-100' : ''}`}
+        >
+          {isMultiSelected && (
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="3">
+              <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </div>
+      )}
+
       {/* PDF Preview Placeholder */}
       <div className="aspect-[3/4] bg-[var(--muted)] flex items-center justify-center relative">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[var(--muted-foreground)]">
@@ -81,6 +131,10 @@ interface SpecSheetListItemProps {
   highlightCount: number;
   onClick: () => void;
   isSelected: boolean;
+  // Multi-select props
+  isMultiSelected?: boolean;
+  onToggleSelect?: (id: string, isCtrlOrCmd: boolean) => void;
+  selectedIds?: Set<string>;
 }
 
 export function SpecSheetListItem({
@@ -88,14 +142,60 @@ export function SpecSheetListItem({
   highlightCount,
   onClick,
   isSelected,
+  isMultiSelected = false,
+  onToggleSelect,
+  selectedIds = new Set(),
 }: SpecSheetListItemProps) {
+  const handleDragStart = (e: React.DragEvent) => {
+    // If this item is selected and there are multiple selections, drag all selected
+    const idsToMove = isMultiSelected && selectedIds.size > 1
+      ? Array.from(selectedIds)
+      : [specSheet.id];
+
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      type: 'specSheet',
+      ids: idsToMove,
+      id: specSheet.id, // Keep single ID for backward compatibility
+      displayName: specSheet.displayName,
+      count: idsToMove.length,
+    }));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onToggleSelect) {
+      onToggleSelect(specSheet.id, e.ctrlKey || e.metaKey);
+    }
+  };
+
   return (
     <div
       onClick={onClick}
-      className={`bg-[var(--card)] rounded-lg border p-4 cursor-pointer transition-all hover:shadow-sm flex items-center gap-4 ${
+      draggable
+      onDragStart={handleDragStart}
+      className={`bg-[var(--card)] rounded-lg border p-4 cursor-pointer transition-all hover:shadow-sm flex items-center gap-4 group ${
         isSelected ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20' : 'border-[var(--border)]'
-      }`}
+      } ${isMultiSelected ? 'ring-2 ring-blue-500' : ''}`}
     >
+      {/* Multi-select checkbox */}
+      {onToggleSelect && (
+        <div
+          onClick={handleCheckboxClick}
+          className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer flex-shrink-0 ${
+            isMultiSelected
+              ? 'bg-blue-500 border-blue-500 text-white'
+              : 'bg-white border-gray-300 hover:border-blue-400 opacity-0 group-hover:opacity-100'
+          } ${isMultiSelected ? 'opacity-100' : ''}`}
+        >
+          {isMultiSelected && (
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="3">
+              <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </div>
+      )}
+
       {/* Icon */}
       <div className="w-12 h-12 bg-[var(--muted)] rounded flex items-center justify-center flex-shrink-0">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-red-500">

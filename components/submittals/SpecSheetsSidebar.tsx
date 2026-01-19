@@ -53,6 +53,10 @@ interface SpecSheetsSidebarProps {
   handleAddRootFolder: (manufacturer: string, manufacturerId?: string) => void;
   setShowUploadModal: (show: boolean) => void;
   setShowManufacturerModal: (show: boolean) => void;
+  // Spec sheet drag & drop
+  specSheetDragOverFolderId?: string | null;
+  setSpecSheetDragOverFolderId?: (id: string | null) => void;
+  onSpecSheetDrop?: (specSheetId: string, folderPath: string) => void;
 }
 
 export function SpecSheetsSidebar({
@@ -91,6 +95,9 @@ export function SpecSheetsSidebar({
   handleAddRootFolder,
   setShowUploadModal,
   setShowManufacturerModal,
+  specSheetDragOverFolderId,
+  setSpecSheetDragOverFolderId,
+  onSpecSheetDrop,
 }: SpecSheetsSidebarProps) {
   return (
     <div className="w-72 border-r border-[var(--border)] bg-[var(--card)] flex flex-col flex-shrink-0">
@@ -146,6 +153,9 @@ export function SpecSheetsSidebar({
           getFoldersForManufacturer={getFoldersForManufacturer}
           handleAddRootFolder={handleAddRootFolder}
           setShowManufacturerModal={setShowManufacturerModal}
+          specSheetDragOverFolderId={specSheetDragOverFolderId}
+          setSpecSheetDragOverFolderId={setSpecSheetDragOverFolderId}
+          onSpecSheetDrop={onSpecSheetDrop}
         />
       </div>
 

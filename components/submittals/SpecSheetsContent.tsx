@@ -53,6 +53,9 @@ export default function SpecSheetsContent() {
         handleAddRootFolder={state.handleAddRootFolder}
         setShowUploadModal={state.setShowUploadModal}
         setShowManufacturerModal={state.setShowManufacturerModal}
+        specSheetDragOverFolderId={state.specSheetDragOverFolderId}
+        setSpecSheetDragOverFolderId={state.setSpecSheetDragOverFolderId}
+        onSpecSheetDrop={state.onSpecSheetDrop}
       />
 
       <SpecSheetsMainContent
@@ -70,6 +73,10 @@ export default function SpecSheetsContent() {
         getHighlightCount={state.getHighlightCount}
         setShowUploadModal={state.setShowUploadModal}
         setShowCatalogModal={state.setShowCatalogModal}
+        selectedSpecSheetIds={state.selectedSpecSheetIds}
+        toggleSpecSheetSelection={state.toggleSpecSheetSelection}
+        selectAllVisibleSpecSheets={state.selectAllVisibleSpecSheets}
+        clearSpecSheetSelection={state.clearSpecSheetSelection}
       />
 
       {state.selectedSpecSheet && (

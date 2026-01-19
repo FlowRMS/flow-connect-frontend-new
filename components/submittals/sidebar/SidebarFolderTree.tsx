@@ -19,6 +19,10 @@ interface SidebarFolderTreeProps {
   selectManufacturerByName: (name: string) => void;
   getFolderCount: (folderId: string) => number;
   getChildFoldersLocal: (parentId: string) => SpecSheetFolder[];
+  // Drag & drop for spec sheets
+  specSheetDragOverFolderId?: string | null;
+  setSpecSheetDragOverFolderId?: (id: string | null) => void;
+  onSpecSheetDrop?: (specSheetIdOrIds: string | string[], folderPath: string) => void;
 }
 
 export function SidebarFolderTree({
@@ -37,7 +41,43 @@ export function SidebarFolderTree({
   selectManufacturerByName,
   getFolderCount,
   getChildFoldersLocal,
+  specSheetDragOverFolderId,
+  setSpecSheetDragOverFolderId,
+  onSpecSheetDrop,
 }: SidebarFolderTreeProps) {
+  const handleDragOver = (e: React.DragEvent, folderId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (setSpecSheetDragOverFolderId) {
+      setSpecSheetDragOverFolderId(folderId);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.stopPropagation();
+    if (setSpecSheetDragOverFolderId) {
+      setSpecSheetDragOverFolderId(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, folder: SpecSheetFolder) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (setSpecSheetDragOverFolderId) {
+      setSpecSheetDragOverFolderId(null);
+    }
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'));
+      if (data.type === 'specSheet' && onSpecSheetDrop && folder.folderPath) {
+        // Use ids array if available (multi-select), otherwise fall back to single id
+        const idsToMove = data.ids && Array.isArray(data.ids) ? data.ids : [data.id];
+        onSpecSheetDrop(idsToMove, folder.folderPath);
+      }
+    } catch {
+      // Invalid drag data, ignore
+    }
+  };
+
   return (
     <>
       {folders.map(folder => {
@@ -47,6 +87,7 @@ export function SidebarFolderTree({
         const isSelected = selectedFolderId === folder.id;
         const isEditing = editingFolderId === folder.id;
         const count = hasChildren && isExpanded ? null : getFolderCount(folder.id);
+        const isDragOver = specSheetDragOverFolderId === folder.id;
 
         return (
           <div key={folder.id}>
@@ -59,9 +100,12 @@ export function SidebarFolderTree({
                 }
               }}
               onContextMenu={(e) => handleFolderContextMenu(e, folder)}
+              onDragOver={(e) => handleDragOver(e, folder.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, folder)}
               className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-[var(--muted)]/50 transition-colors cursor-pointer group ${
                 isSelected ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'text-[var(--foreground)]'
-              }`}
+              } ${isDragOver ? 'bg-[var(--primary)]/20 ring-2 ring-[var(--primary)] ring-inset' : ''}`}
               style={{ paddingLeft: `${12 + depth * 16}px` }}
             >
               {hasChildren ? (
@@ -138,6 +182,9 @@ export function SidebarFolderTree({
                 selectManufacturerByName={selectManufacturerByName}
                 getFolderCount={getFolderCount}
                 getChildFoldersLocal={getChildFoldersLocal}
+                specSheetDragOverFolderId={specSheetDragOverFolderId}
+                setSpecSheetDragOverFolderId={setSpecSheetDragOverFolderId}
+                onSpecSheetDrop={onSpecSheetDrop}
               />
             )}
           </div>

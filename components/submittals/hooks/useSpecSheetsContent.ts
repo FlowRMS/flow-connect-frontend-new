@@ -2,9 +2,11 @@ import { useState, useMemo } from 'react';
 import {
   useManufacturersWithSpecSheets,
   useSpecSheetSearch,
+  useUpdateSpecSheet,
 } from '../api/useSpecSheetsApi';
 import type { SpecSheet, SpecSheetCategory } from '../../../lib/types/submittals';
 import { useSpecSheetsFolders } from './useSpecSheetsFolders';
+import { showSuccessToast, showErrorToast } from '../../lib/toast';
 
 export type HighlightFilter = 'all' | 'highlighted' | 'not_highlighted';
 
@@ -13,6 +15,9 @@ export function useSpecSheetsContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Multi-select state for drag & drop
+  const [selectedSpecSheetIds, setSelectedSpecSheetIds] = useState<Set<string>>(new Set());
 
   const [selectedManufacturerId, setSelectedManufacturerId] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -30,6 +35,10 @@ export function useSpecSheetsContent() {
   const [editingManufacturerName, setEditingManufacturerName] = useState('');
   const [draggedManufacturerIndex, setDraggedManufacturerIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Spec sheet drag to folder state
+  const [specSheetDragOverFolderId, setSpecSheetDragOverFolderId] = useState<string | null>(null);
+  const updateSpecSheetMutation = useUpdateSpecSheet();
 
   // API Hooks
   const {
@@ -188,6 +197,68 @@ export function useSpecSheetsContent() {
 
   const hasActiveFilters = selectedTags.length > 0 || highlightFilter !== 'all' || !!folderState.selectedFolderId || !!searchQuery;
 
+  // Multi-select handlers
+  const toggleSpecSheetSelection = (id: string, isCtrlOrCmd: boolean) => {
+    setSelectedSpecSheetIds(prev => {
+      const next = new Set(prev);
+      if (isCtrlOrCmd) {
+        // Toggle individual item
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+      } else {
+        // Single select - clear others and select this one
+        if (next.has(id) && next.size === 1) {
+          next.clear();
+        } else {
+          next.clear();
+          next.add(id);
+        }
+      }
+      return next;
+    });
+  };
+
+  const selectAllVisibleSpecSheets = () => {
+    setSelectedSpecSheetIds(new Set(filteredSpecSheets.map(s => s.id)));
+  };
+
+  const clearSpecSheetSelection = () => {
+    setSelectedSpecSheetIds(new Set());
+  };
+
+  // Handler for dropping spec sheet(s) on a folder - supports single ID or array
+  const handleSpecSheetDrop = async (specSheetIdOrIds: string | string[], folderPath: string) => {
+    const ids = Array.isArray(specSheetIdOrIds) ? specSheetIdOrIds : [specSheetIdOrIds];
+    const count = ids.length;
+
+    try {
+      // Move all spec sheets in parallel
+      await Promise.all(
+        ids.map(id =>
+          updateSpecSheetMutation.mutateAsync({
+            id,
+            input: { folderPath },
+          })
+        )
+      );
+
+      showSuccessToast(
+        count === 1 ? 'Spec sheet moved' : `${count} spec sheets moved`,
+        { description: `Moved to ${folderPath}` }
+      );
+
+      // Clear selection after successful move
+      clearSpecSheetSelection();
+      folderState.loadAllManufacturerFolders(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to move spec sheet(s)';
+      showErrorToast('Failed to move spec sheet(s)', { description: message });
+    }
+  };
+
   const manufacturerCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     allSpecSheets.forEach(s => { counts[s.manufacturer] = (counts[s.manufacturer] || 0) + 1; });
@@ -249,6 +320,17 @@ export function useSpecSheetsContent() {
     handleSaveManufacturerRename,
     handleDeleteManufacturer,
     handleAddManufacturer,
+
+    // Spec sheet drag to folder
+    specSheetDragOverFolderId,
+    setSpecSheetDragOverFolderId,
+    onSpecSheetDrop: handleSpecSheetDrop,
+
+    // Multi-select for spec sheets
+    selectedSpecSheetIds,
+    toggleSpecSheetSelection,
+    selectAllVisibleSpecSheets,
+    clearSpecSheetSelection,
 
     // Folder state (spread from folderState)
     ...folderState,
