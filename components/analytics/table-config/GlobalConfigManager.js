@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { X, Trash2, FolderOpen, Filter, BarChart3, Table2, FileText } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useApolloClient } from "@apollo/client/react";
 import { 
   fetchReportTemplates, 
@@ -86,6 +86,7 @@ const REPORT_TYPE_INFO = {
  */
 export function GlobalConfigManager({ isOpen, onClose }) {
   const router = useRouter();
+  const pathname = usePathname();
   const client = useApolloClient();
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [deleteConfirmReportType, setDeleteConfirmReportType] = useState(null);
@@ -189,14 +190,29 @@ export function GlobalConfigManager({ isOpen, onClose }) {
       console.error("No route found for config:", config);
       return;
     }
-    
+
     // Store the config ID to load in sessionStorage
     sessionStorage.setItem("pendingConfigLoad", JSON.stringify({
       reportType: config.reportType,
       configId: config.id,
     }));
-    
-    router.push(route);
+
+    // Check if we're already on the target page
+    const isOnSamePage = pathname === route;
+
+    if (isOnSamePage) {
+      // Dispatch a custom event to notify the current page to load the config
+      // This handles the case where router.push to the same route doesn't trigger re-render
+      window.dispatchEvent(new CustomEvent("loadPendingConfig", {
+        detail: {
+          reportType: config.reportType,
+          configId: config.id,
+        }
+      }));
+    } else {
+      router.push(route);
+    }
+
     onClose();
   };
 

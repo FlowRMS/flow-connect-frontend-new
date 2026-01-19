@@ -1,12 +1,12 @@
 /**
  * Split Rates Input Component
- * Beautiful, user-friendly component for selecting inside/outside reps with split rates
- * Features trigger-based user search, percentage validation, and smooth animations
+ * Component for selecting inside/outside reps
+ * Percentages are auto-calculated but hidden from user for Inside Reps
  */
 
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { searchUsers, type UserSearchResult, type SplitRateInput, type RepType } from '../api/customersApi';
@@ -28,7 +28,7 @@ interface SplitRatesInputProps {
 }
 
 // Generate unique temp ID
-const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
 export function SplitRatesInput({
   repType,
@@ -46,7 +46,7 @@ export function SplitRatesInput({
   const title = isInside ? 'Inside Reps' : 'Outside Reps';
   const accentColor = isInside ? 'blue' : 'purple';
 
-  // Calculate total percentage for this rep type (each type must independently total 100%)
+  // Calculate total percentage for Outside Reps validation
   const thisTypeTotal = entries.reduce((sum, entry) => {
     const rate = parseFloat(entry.splitRate) || 0;
     return sum + rate;
@@ -186,24 +186,26 @@ export function SplitRatesInput({
       userId: user.id,
       user,
     };
-    onChange(newEntries);
+    // Redistribute after selecting a user
+    const redistributedEntries = redistributeSplitRates(newEntries);
+    onChange(redistributedEntries);
     setActiveSearchIndex(null);
     setSearchTerm('');
   };
 
+  const handleSearchFocus = (index: number) => {
+    setActiveSearchIndex(index);
+    setSearchTerm('');
+  };
+
+  // Handle manual split rate change (for Outside Reps only)
   const handleSplitRateChange = (index: number, value: string) => {
-    // Only allow valid percentage values
     const numValue = parseFloat(value);
     if (value === '' || (numValue >= 0 && numValue <= 100)) {
       const newEntries = [...entries];
       newEntries[index] = { ...newEntries[index], splitRate: value };
       onChange(newEntries);
     }
-  };
-
-  const handleSearchFocus = (index: number) => {
-    setActiveSearchIndex(index);
-    setSearchTerm('');
   };
 
   // Color classes based on rep type
@@ -248,9 +250,12 @@ export function SplitRatesInput({
           </div>
           <div>
             <h4 className={`text-sm font-semibold ${colors.text}`}>{title}</h4>
-            <p className="text-xs text-gray-500">
-              Total: <span className={thisTypeTotal > 0 ? 'font-medium text-gray-700' : ''}>{thisTypeTotal.toFixed(1)}%</span>
-            </p>
+            {/* Show total only for Outside Reps */}
+            {!isInside && (
+              <p className="text-xs text-gray-500">
+                Total: <span className={thisTypeTotal > 0 ? 'font-medium text-gray-700' : ''}>{thisTypeTotal.toFixed(1)}%</span>
+              </p>
+            )}
           </div>
         </div>
 
@@ -314,7 +319,8 @@ export function SplitRatesInput({
                         newEntries[index] = { ...newEntries[index], userId: '', user: undefined };
                         onChange(newEntries);
                       }}
-                      className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600 transition-colors"
+                      disabled={disabled}
+                      className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -329,26 +335,29 @@ export function SplitRatesInput({
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onFocus={() => handleSearchFocus(index)}
                     placeholder="Search for a rep..."
-                    className={`w-full px-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 ${colors.ring} focus:bg-white transition-all placeholder:text-gray-400`}
+                    disabled={disabled}
+                    className={`w-full px-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 ${colors.ring} focus:bg-white transition-all placeholder:text-gray-400 disabled:opacity-50`}
                   />
                 )}
               </div>
 
-              {/* Split Rate Input */}
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={entry.splitRate}
-                  onChange={(e) => handleSplitRateChange(index, e.target.value)}
-                  placeholder="0"
-                  disabled={!entry.userId || disabled}
-                  className={`w-16 px-2 py-1.5 text-sm text-center bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 ${colors.ring} focus:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
-                />
-                <span className="text-sm text-gray-500">%</span>
-              </div>
+              {/* Split Rate Input - Only for Outside Reps */}
+              {!isInside && (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={entry.splitRate}
+                    onChange={(e) => handleSplitRateChange(index, e.target.value)}
+                    placeholder="0"
+                    disabled={!entry.userId || disabled}
+                    className={`w-16 px-2 py-1.5 text-sm text-center bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 ${colors.ring} focus:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+                  />
+                  <span className="text-sm text-gray-500">%</span>
+                </div>
+              )}
 
               {/* Remove Button */}
               <button
@@ -428,8 +437,8 @@ export function SplitRatesInput({
         document.body
       )}
 
-      {/* Validation Message */}
-      {thisTypeTotal > 100 && (
+      {/* Validation Messages - Only for Outside Reps */}
+      {!isInside && thisTypeTotal > 100 && (
         <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
           <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -440,8 +449,7 @@ export function SplitRatesInput({
         </div>
       )}
 
-      {/* Remaining Percentage Info */}
-      {thisTypeTotal <= 100 && remainingPercentage > 0 && entries.length > 0 && (
+      {!isInside && thisTypeTotal <= 100 && remainingPercentage > 0 && entries.length > 0 && (
         <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
           <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

@@ -860,6 +860,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               isLoading={invoicesState.isLoadingInvoices}
               error={invoicesState.invoicesError}
               onViewInvoice={invoicesState.viewInvoice}
+              onDeleteInvoice={invoicesState.openDeleteInvoiceModal}
               onCreateInvoice={() => setShowCreateInvoiceModal(true)}
             />
           )}
@@ -1177,6 +1178,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         invoice={invoicesState.selectedInvoice}
         invoiceDetails={invoicesState.invoiceDetails}
         isLoading={invoicesState.isLoadingInvoiceDetails}
+      />
+
+      {/* Delete Invoice Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={invoicesState.showDeleteInvoiceModal}
+        title="Delete Invoice?"
+        message="Are you sure you want to delete invoice"
+        itemName={invoicesState.invoiceToDelete?.invoiceNumber || ''}
+        isPending={invoicesState.isDeletingInvoice}
+        onConfirm={invoicesState.handleConfirmDeleteInvoice}
+        onCancel={invoicesState.closeDeleteInvoiceModal}
       />
 
       {/* Duplicate Order Modal */}
