@@ -275,26 +275,43 @@ export function QuotePivotGrid() {
   // Check for pending config load from GlobalConfigManager
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
+    const handlePendingLoad = (pendingData) => {
+      // Handle both old format (tableId) and new format (reportType)
+      const isMatch = (pendingData.tableId === "quote-pivot") || (pendingData.reportType === "PIVOT_QUOTE_REPORT");
+      if (isMatch) {
+        // Clear the pending load
+        sessionStorage.removeItem("pendingConfigLoad");
+        // Load the config
+        setTimeout(() => {
+          loadConfig(pendingData.configId);
+        }, 500);
+      }
+    };
+
+    // Check sessionStorage on mount (for cross-page navigation)
     try {
       const pendingLoad = sessionStorage.getItem("pendingConfigLoad");
       if (pendingLoad) {
         const pendingData = JSON.parse(pendingLoad);
-        
-        // Handle both old format (tableId) and new format (reportType)
-        const isMatch = (pendingData.tableId === "quote-pivot") || (pendingData.reportType === "PIVOT_QUOTE_REPORT");
-        if (isMatch) {
-          // Clear the pending load
-          sessionStorage.removeItem("pendingConfigLoad");
-          // Load the config
-          setTimeout(() => {
-            loadConfig(pendingData.configId);
-          }, 500);
-        }
+        handlePendingLoad(pendingData);
       }
     } catch (error) {
       console.error("Error loading pending config:", error);
     }
+
+    // Listen for custom event (for same-page config loading from GlobalConfigManager)
+    const handleLoadPendingConfigEvent = (event) => {
+      if (event.detail) {
+        handlePendingLoad(event.detail);
+      }
+    };
+
+    window.addEventListener("loadPendingConfig", handleLoadPendingConfigEvent);
+
+    return () => {
+      window.removeEventListener("loadPendingConfig", handleLoadPendingConfigEvent);
+    };
   }, [loadConfig]);
 
   // Export functionality
