@@ -4,7 +4,7 @@
  * Note: columnName should match the API ProductLandingPage field names
  */
 
-import type { FilterOption } from '../../../advancedFilters/types';
+import type { FilterOption } from '@/components/advancedFilters/types';
 
 export interface SortOption {
   columnName: string;
