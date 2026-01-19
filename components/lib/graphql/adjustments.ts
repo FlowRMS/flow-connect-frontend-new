@@ -362,7 +362,7 @@ export async function searchAdjustments(
  * Fetch adjustments with pagination using findLandingPages
  */
 export async function fetchAdjustmentsWithPagination(
-  filters?: Array<{ columnName: string; operator: string; value: string }>,
+  filters?: Array<{ columnName: string; operator: string; value?: string; values?: string[] }>,
   options?: { limit?: number; offset?: number; orderBy?: Array<{ columnName: string; direction: 'ASC' | 'DESC' }> }
 ): Promise<PaginatedAdjustmentsResult> {
   const { limit = 50, offset = 0, orderBy } = options || {};

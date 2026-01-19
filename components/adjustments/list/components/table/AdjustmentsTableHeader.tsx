@@ -97,12 +97,6 @@ export function AdjustmentsTableHeader({
     );
   };
 
-  const handleSort = (field: 'date' | 'amount' | 'number') => {
-    if (onSort) {
-      onSort(field);
-    }
-  };
-
   return (
     <thead className="bg-white border-b-2 border-[var(--border)] sticky top-0 z-10 shadow-sm">
       <tr>

@@ -84,7 +84,7 @@ export function useAdjustmentsLandingPage(
  * Hook to fetch adjustments with infinite scroll pagination
  */
 export function useAdjustmentsInfinite(
-  filters?: Array<{ columnName: string; operator: string; value: string }>,
+  filters?: Array<{ columnName: string; operator: string; value?: string; values?: string[] }>,
   pageSize: number = DEFAULT_PAGE_SIZE,
   orderBy?: Array<{ columnName: string; direction: 'ASC' | 'DESC' }>
 ) {
