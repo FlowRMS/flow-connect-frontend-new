@@ -26,6 +26,8 @@ import {
   CreditModal,
   AcknowledgementModal,
 } from './components/modals';
+import { BulkDeleteModal } from '@/components/shared/modals/BulkDeleteModal';
+import { orderQueryKeys } from '../api/useOrdersApi';
 
 export default function OrdersListContent() {
   const router = useRouter();
@@ -323,6 +325,16 @@ export default function OrdersListContent() {
         ackLineItems={state.ackLineItems}
         setAckLineItems={state.setAckLineItems}
         onSubmit={state.saveAcknowledgement}
+      />
+
+      <BulkDeleteModal
+        isOpen={state.showDeleteModal}
+        entityType="ORDERS"
+        selectedCount={state.selectedCount}
+        getAllSelectedIds={state.getAllSelectedIds}
+        onClose={state.closeDeleteModal}
+        onSuccess={state.handleDeleteSuccess}
+        queryKeysToInvalidate={[[...orderQueryKeys.all], [...orderQueryKeys.orders()]]}
       />
     </main>
   );

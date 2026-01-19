@@ -50,18 +50,29 @@ export function useOrderBulkActions({
     [selectedOrderIds, clearSelection, setOrders]
   );
 
-  // Bulk delete
-  const bulkDelete = useCallback(() => {
-    if (
-      confirm(
-        `Are you sure you want to delete ${selectedOrderIds.size} order(s)? This action cannot be undone.`
-      )
-    ) {
-      setOrders((prev) => prev.filter((o) => !selectedOrderIds.has(o.id)));
-      clearSelection();
-      setShowBulkActionsMenu(false);
-    }
-  }, [selectedOrderIds, clearSelection, setOrders]);
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Open delete modal (replaces confirm dialog)
+  const openDeleteModal = useCallback(() => {
+    setShowDeleteModal(true);
+    setShowBulkActionsMenu(false);
+  }, []);
+
+  // Close delete modal
+  const closeDeleteModal = useCallback(() => {
+    setShowDeleteModal(false);
+  }, []);
+
+  // Get all selected IDs for bulk delete
+  const getAllSelectedIds = useCallback(async () => {
+    return Array.from(selectedOrderIds);
+  }, [selectedOrderIds]);
+
+  // Handle successful delete
+  const handleDeleteSuccess = useCallback(() => {
+    clearSelection();
+  }, [clearSelection]);
 
   // Open credit modal
   const openCreditModal = useCallback(() => {
@@ -113,7 +124,13 @@ export function useOrderBulkActions({
     setShowBulkActionsMenu,
     // Actions
     bulkSetStatus,
-    bulkDelete,
+    bulkDelete: openDeleteModal, // Opens modal instead of using confirm()
+    // Delete modal
+    showDeleteModal,
+    closeDeleteModal,
+    getAllSelectedIds,
+    handleDeleteSuccess,
+    selectedCount: selectedOrderIds.size,
     // Credit modal
     showCreditModal,
     openCreditModal,
