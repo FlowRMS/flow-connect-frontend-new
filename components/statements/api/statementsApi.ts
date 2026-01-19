@@ -96,8 +96,15 @@ export interface StatementDetail {
   productNameAdhoc?: string;
   productDescriptionAdhoc?: string;
   orderId?: string;
-  orderDetailId?: string;
+  order?: {
+    id: string;
+    orderNumber?: string;
+  };
   invoiceId?: string;
+  invoice?: {
+    id: string;
+    invoiceNumber?: string;
+  };
   note?: string;
   leadTime?: string;
   divisionFactor?: string;
@@ -199,7 +206,6 @@ export interface StatementDetailInput {
   productNameAdhoc?: string;
   productDescriptionAdhoc?: string;
   orderId?: string;
-  orderDetailId?: string;
   invoiceId?: string;
   note?: string;
   leadTime?: string;
@@ -357,8 +363,15 @@ const GET_STATEMENT = `
         productNameAdhoc
         productDescriptionAdhoc
         orderId
-        orderDetailId
+        order {
+          id
+          orderNumber
+        }
         invoiceId
+        invoice {
+          id
+          invoiceNumber
+        }
         note
         leadTime
         divisionFactor
@@ -419,9 +432,31 @@ const CREATE_STATEMENT = `
       factory {
         id
         title
+        published
+        phone
+        paymentTerms
+        overallDiscountRate
+        logoId
+        leadTime
+        freightTerms
+        freightDiscountType
+        externalPaymentTerms
+        email
+        baseCommissionRate
+        commissionDiscountRate
+        additionalInformation
+        accountNumber
       }
       creationType
       createdAt
+      createdById
+      createdBy {
+        id
+        email
+        firstName
+        lastName
+        fullName
+      }
       balanceId
       balance {
         id
@@ -436,6 +471,99 @@ const CREATE_STATEMENT = `
         total
       }
       url
+      details {
+        id
+        itemNumber
+        quantity
+        unitPrice
+        uomId
+        uom {
+          id
+          title
+          description
+          divisionFactor
+        }
+        soldToCustomerId
+        soldToCustomer {
+          id
+          companyName
+          isParent
+          parentId
+          buyingGroupId
+          published
+          territoryId
+        }
+        endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          buyingGroupId
+          published
+          territoryId
+        }
+        productId
+        product {
+          id
+          factoryPartNumber
+          description
+          unitPrice
+          defaultCommissionRate
+          defaultDivisor
+          approvalNeeded
+          approvalComments
+          approvalDate
+          commissionDiscountRate
+          unitPriceDiscountRate
+          leadTime
+          minOrderQty
+          tags
+          upc
+          published
+        }
+        productNameAdhoc
+        productDescriptionAdhoc
+        orderId
+        order {
+          id
+          orderNumber
+        }
+        invoiceId
+        invoice {
+          id
+          invoiceNumber
+        }
+        note
+        leadTime
+        divisionFactor
+        commissionRate
+        commissionDiscountRate
+        discountRate
+        commission
+        commissionDiscount
+        discount
+        subtotal
+        total
+        totalLineCommission
+        statementId
+        outsideSplitRates {
+          id
+          userId
+          splitRate
+          position
+          statementDetailId
+          user {
+            id
+            fullName
+            firstName
+            lastName
+            email
+            inside
+            outside
+          }
+        }
+      }
     }
   }
 `;
@@ -450,9 +578,31 @@ const UPDATE_STATEMENT = `
       factory {
         id
         title
+        published
+        phone
+        paymentTerms
+        overallDiscountRate
+        logoId
+        leadTime
+        freightTerms
+        freightDiscountType
+        externalPaymentTerms
+        email
+        baseCommissionRate
+        commissionDiscountRate
+        additionalInformation
+        accountNumber
       }
       creationType
       createdAt
+      createdById
+      createdBy {
+        id
+        email
+        firstName
+        lastName
+        fullName
+      }
       balanceId
       balance {
         id
@@ -467,6 +617,99 @@ const UPDATE_STATEMENT = `
         total
       }
       url
+      details {
+        id
+        itemNumber
+        quantity
+        unitPrice
+        uomId
+        uom {
+          id
+          title
+          description
+          divisionFactor
+        }
+        soldToCustomerId
+        soldToCustomer {
+          id
+          companyName
+          isParent
+          parentId
+          buyingGroupId
+          published
+          territoryId
+        }
+        endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          buyingGroupId
+          published
+          territoryId
+        }
+        productId
+        product {
+          id
+          factoryPartNumber
+          description
+          unitPrice
+          defaultCommissionRate
+          defaultDivisor
+          approvalNeeded
+          approvalComments
+          approvalDate
+          commissionDiscountRate
+          unitPriceDiscountRate
+          leadTime
+          minOrderQty
+          tags
+          upc
+          published
+        }
+        productNameAdhoc
+        productDescriptionAdhoc
+        orderId
+        order {
+          id
+          orderNumber
+        }
+        invoiceId
+        invoice {
+          id
+          invoiceNumber
+        }
+        note
+        leadTime
+        divisionFactor
+        commissionRate
+        commissionDiscountRate
+        discountRate
+        commission
+        commissionDiscount
+        discount
+        subtotal
+        total
+        totalLineCommission
+        statementId
+        outsideSplitRates {
+          id
+          userId
+          splitRate
+          position
+          statementDetailId
+          user {
+            id
+            fullName
+            firstName
+            lastName
+            email
+            inside
+            outside
+          }
+        }
+      }
     }
   }
 `;
