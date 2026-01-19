@@ -10,6 +10,8 @@ import {
   useOrderInvoices,
   fetchInvoiceById,
 } from '../../api/invoicesApi';
+import { useDeleteInvoice } from '@/components/invoices/api/useInvoicesApi';
+import { invoiceToasts } from '@/components/lib/toast';
 
 interface UseInvoicesStateProps {
   orderId: string | null;
@@ -29,6 +31,12 @@ export function useInvoicesState({ orderId }: UseInvoicesStateProps) {
   const [selectedInvoice, setSelectedInvoice] = useState<OrderInvoice | null>(null);
   const [invoiceDetails, setInvoiceDetails] = useState<Invoice | null>(null);
   const [isLoadingInvoiceDetails, setIsLoadingInvoiceDetails] = useState(false);
+
+  // Delete modal states
+  const [showDeleteInvoiceModal, setShowDeleteInvoiceModal] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<OrderInvoice | null>(null);
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
+  const deleteInvoiceMutation = useDeleteInvoice();
 
   // Open invoice detail modal - fetches full invoice data
   const openInvoiceDetailModal = useCallback(async (invoice: OrderInvoice) => {
@@ -62,6 +70,35 @@ export function useInvoicesState({ orderId }: UseInvoicesStateProps) {
     openInvoiceDetailModal(invoice);
   }, [openInvoiceDetailModal]);
 
+  // Open delete confirmation modal
+  const openDeleteInvoiceModal = useCallback((invoice: OrderInvoice) => {
+    setInvoiceToDelete(invoice);
+    setShowDeleteInvoiceModal(true);
+  }, []);
+
+  // Close delete confirmation modal
+  const closeDeleteInvoiceModal = useCallback(() => {
+    setShowDeleteInvoiceModal(false);
+    setInvoiceToDelete(null);
+  }, []);
+
+  // Handle invoice deletion
+  const handleConfirmDeleteInvoice = useCallback(async () => {
+    if (!invoiceToDelete?.id) return;
+
+    setIsDeletingInvoice(true);
+    try {
+      await deleteInvoiceMutation.mutateAsync(invoiceToDelete.id);
+      invoiceToasts.deleteSuccess(invoiceToDelete.invoiceNumber || 'Invoice');
+      closeDeleteInvoiceModal();
+      refetchInvoices();
+    } catch (error) {
+      invoiceToasts.deleteError(error instanceof Error ? error.message : 'Failed to delete invoice');
+    } finally {
+      setIsDeletingInvoice(false);
+    }
+  }, [invoiceToDelete, deleteInvoiceMutation, closeDeleteInvoiceModal, refetchInvoices]);
+
   return {
     // Data
     invoices,
@@ -75,9 +112,19 @@ export function useInvoicesState({ orderId }: UseInvoicesStateProps) {
     invoiceDetails,
     isLoadingInvoiceDetails,
 
+    // Delete modal states
+    showDeleteInvoiceModal,
+    invoiceToDelete,
+    isDeletingInvoice,
+
     // Modal actions
     openInvoiceDetailModal,
     closeInvoiceDetailModal,
     viewInvoice,
+
+    // Delete actions
+    openDeleteInvoiceModal,
+    closeDeleteInvoiceModal,
+    handleConfirmDeleteInvoice,
   };
 }
