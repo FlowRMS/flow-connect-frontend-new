@@ -105,13 +105,10 @@ export function getProductFilterOptions(
 export function getProductSortOptions(): SortOption[] {
   return [
     { columnName: 'factoryPartNumber', label: 'Part Number' },
-    { columnName: 'description', label: 'Description' },
     { columnName: 'factoryTitle', label: 'Factory' },
     { columnName: 'categoryTitle', label: 'Category' },
     { columnName: 'unitPrice', label: 'Unit Price' },
     { columnName: 'defaultCommissionRate', label: 'Commission Rate' },
-    { columnName: 'published', label: 'Published Status' },
-    { columnName: 'approvalNeeded', label: 'Approval Status' },
     { columnName: 'createdAt', label: 'Created Date' },
   ];
 }

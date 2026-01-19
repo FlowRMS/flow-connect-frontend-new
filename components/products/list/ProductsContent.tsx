@@ -15,6 +15,7 @@ import { ManageUomsModal } from '../modals/ManageUomsModal';
 import { BulkDeleteModal, BulkActionsToolbar } from '../../shared';
 import type { ProductLandingPage } from '../api/useProductsApi';
 import { ProductsTable } from './components/table/ProductsTable';
+import { ProductsStatsCards } from './components/stats/ProductsStatsCards';
 import { getProductFilterOptions, getProductSortOptions } from '../config/filterConfig';
 import SortButton from '@/components/SortButton';
 
@@ -245,31 +246,14 @@ export default function ProductsContent() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-              <div className="text-sm text-[var(--muted-foreground)]">Total Products</div>
-              <div className="text-2xl font-semibold text-[var(--foreground)] mt-1">{totalCount}</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">In catalog</div>
-            </div>
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-              <div className="text-sm text-[var(--muted-foreground)]">Published</div>
-              <div className="text-2xl font-semibold text-green-600 mt-1">{stats.publishedProducts}</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">Available for use</div>
-            </div>
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-              <div className="text-sm text-[var(--muted-foreground)]">Draft</div>
-              <div className="text-2xl font-semibold text-amber-600 mt-1">{stats.draftProducts}</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">Not published</div>
-            </div>
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-              <div className="text-sm text-[var(--muted-foreground)]">Needs Approval</div>
-              <div className="text-2xl font-semibold text-purple-600 mt-1">{stats.needsApproval}</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">Pending review</div>
-            </div>
-          </div>
+          <ProductsStatsCards />
 
           {/* Search and Filters */}
           <div className="flex items-center gap-4 mb-4">
+            {/* Results count */}
+            <div className="text-sm text-[var(--muted-foreground)] whitespace-nowrap">
+              Showing {filteredProducts.length} of {totalCount} products
+            </div>
             <div className="relative flex-1 max-w-md">
               <svg
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
@@ -336,11 +320,6 @@ export default function ProductsContent() {
               </svg>
               Refresh
             </button>
-          </div>
-
-          {/* Results count */}
-          <div className="text-sm text-[var(--muted-foreground)] mb-4">
-            Showing {filteredProducts.length} of {totalCount} products
           </div>
 
           {/* Bulk Actions Toolbar */}
