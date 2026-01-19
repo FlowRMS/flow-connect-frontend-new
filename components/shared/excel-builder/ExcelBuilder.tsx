@@ -151,6 +151,7 @@ export function ExcelBuilder({ entityId, entityType, isOpen, onClose }: ExcelBui
         showLineNumbers: state.showLineNumbers,
         includeHeader: state.includeHeader,
         includeTotals: state.includeTotals,
+        organizationName: state.organizationName,
       });
 
       // Close modal after successful export
