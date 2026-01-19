@@ -10,6 +10,7 @@ import type { ViewMode, VersionInfo } from '../../types';
 import { orderStatusLabels } from '../../constants';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import { ExcelBuilder } from '@/components/shared/excel-builder';
 
 interface HeaderTopBarProps {
   order: Order;
@@ -95,6 +96,7 @@ export function HeaderTopBar({
 }: HeaderTopBarProps) {
   const router = useRouter();
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
+  const [showExcelBuilder, setShowExcelBuilder] = useState(false);
 
   return (
     <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
@@ -118,9 +120,9 @@ export function HeaderTopBar({
             />
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Actions Dropdown */}
-          <div className="relative">
+          <div className="flex items-center gap-2">
+            {/* Actions Dropdown */}
+            <div className="relative">
             <button
               onClick={() => {
                 setShowActionsDropdown(!showActionsDropdown);
@@ -282,12 +284,27 @@ export function HeaderTopBar({
               Simple View
               <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
             </button>
-          </div>
+            </div>
 
-          {/* Generate PDF Button */}
-          <button
-            onClick={() => setShowPDFBuilder(true)}
-            disabled={isCreateMode || !order.id}
+            {/* Excel Button */}
+            <button
+              onClick={() => setShowExcelBuilder(true)}
+              disabled={isCreateMode || !order.id}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isCreateMode || !order.id
+                  ? 'bg-emerald-600 text-white opacity-50 cursor-not-allowed'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+              }`}
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Excel
+            </button>
+            {/* Generate PDF Button */}
+            <button
+              onClick={() => setShowPDFBuilder(true)}
+              disabled={isCreateMode || !order.id}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               isCreateMode || !order.id
                 ? 'bg-red-600 text-white opacity-50 cursor-not-allowed'
@@ -372,6 +389,14 @@ export function HeaderTopBar({
         entityType="ORDERS"
         isOpen={showPDFBuilder}
         onClose={() => setShowPDFBuilder(false)}
+      />
+
+      {/* Excel Builder */}
+      <ExcelBuilder
+        entityId={order.id}
+        entityType="ORDERS"
+        isOpen={showExcelBuilder}
+        onClose={() => setShowExcelBuilder(false)}
       />
     </div>
   );

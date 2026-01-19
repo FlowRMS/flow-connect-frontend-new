@@ -10,6 +10,7 @@ import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/use
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import { ExcelBuilder } from '@/components/shared/excel-builder';
 
 // Quote status options using API enum values
 const quoteStatusOptions: QuoteV2Status[] = [
@@ -163,6 +164,7 @@ export function QuoteDetailHeaderV2({
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
   const [showQuoteDetails, setShowQuoteDetails] = useState(true);
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
+  const [showExcelBuilder, setShowExcelBuilder] = useState(false);
 
   // Customer search state
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
@@ -861,6 +863,21 @@ export function QuoteDetailHeaderV2({
             </button>
           </div>
 
+          {/* Excel Button */}
+          <button
+            onClick={() => setShowExcelBuilder(true)}
+            disabled={isNew || !quote.id}
+            className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-lg transition-colors ${
+              isNew || !quote.id
+                ? 'text-white bg-emerald-600 opacity-50 cursor-not-allowed'
+                : 'text-white bg-emerald-600 hover:bg-emerald-700'
+            }`}
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            Excel
+          </button>
           {/* PDF Button */}
           <button
             onClick={() => setShowPDFBuilder(true)}
@@ -1783,6 +1800,14 @@ export function QuoteDetailHeaderV2({
         entityType="QUOTES"
         isOpen={showPDFBuilder}
         onClose={() => setShowPDFBuilder(false)}
+      />
+
+      {/* Excel Builder */}
+      <ExcelBuilder
+        entityId={quote.id}
+        entityType="QUOTES"
+        isOpen={showExcelBuilder}
+        onClose={() => setShowExcelBuilder(false)}
       />
     </div>
   );
