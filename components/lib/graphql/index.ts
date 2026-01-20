@@ -486,3 +486,17 @@ export {
   type CreateTaskCategoryInput,
   type UpdateTaskCategoryInput,
 } from './task-categories';
+
+// Job Company Links module
+export {
+  fetchJobCompanyLinks,
+  fetchJobSpecifiers,
+  fetchJobAwardees,
+  addCompanyToJob,
+  removeCompanyFromJob,
+  type JobCompanyRole,
+  type JobCompanyLink,
+  type JobCompanyLinkCompany,
+  type AddCompanyToJobInput,
+  type RemoveCompanyFromJobInput,
+} from './job-company-links';

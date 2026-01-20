@@ -80,45 +80,7 @@ export function InsideRepSplitsModal({
           </button>
         </div>
         <div className="p-6 space-y-4">
-          {(() => {
-            return (
-              <div
-                className={`flex items-center justify-between p-3 rounded-lg ${
-                  isValid
-                    ? 'bg-green-50 border border-green-200'
-                    : 'bg-yellow-50 border border-yellow-200'
-                }`}
-              >
-                <span
-                  className={`text-sm font-medium ${
-                    isValid ? 'text-green-700' : 'text-yellow-700'
-                  }`}
-                >
-                  Total: {totalPercentage}%
-                </span>
-                {!isValid && (
-                  <span className="text-xs text-yellow-600">Must equal 100%</span>
-                )}
-                {isValid && (
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className="text-green-600"
-                  >
-                    <path
-                      d="M5 10l3 3 7-7"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-              </div>
-            );
-          })()}
+          {/* Percentage total validation hidden - percentages are auto-calculated */}
           <div className="space-y-3">
             {localSplits.map((split, index) => (
               <div
@@ -157,46 +119,7 @@ export function InsideRepSplitsModal({
                     ))}
                   </select>
                 </div>
-                <div className="w-24 flex items-center gap-1">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={split.percentage}
-                    onChange={(e) => {
-                      const value = Math.min(
-                        100,
-                        Math.max(0, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0)
-                      );
-                      const otherRepsCount = localSplits.length - 1;
-                      if (otherRepsCount > 0) {
-                        const remaining = 100 - value;
-                        const perRep = Math.floor(remaining / otherRepsCount);
-                        const remainder = remaining - perRep * otherRepsCount;
-                        let extraAssigned = 0;
-                        setLocalSplits((prev) =>
-                          prev.map((s, i) => {
-                            if (i === index) return { ...s, percentage: value };
-                            const extraPercent = extraAssigned < remainder ? 1 : 0;
-                            extraAssigned++;
-                            return {
-                              ...s,
-                              percentage: Math.max(0, perRep + extraPercent),
-                            };
-                          })
-                        );
-                      } else {
-                        setLocalSplits((prev) =>
-                          prev.map((s, i) =>
-                            i === index ? { ...s, percentage: value } : s
-                          )
-                        );
-                      }
-                    }}
-                    onFocus={(e) => e.target.select()}
-                    className="w-16 px-2 py-2 bg-white border border-[var(--border)] rounded-md text-sm text-center"
-                  />
-                  <span className="text-sm text-[var(--muted-foreground)]">%</span>
-                </div>
+                {/* Percentage is auto-calculated, hidden from UI */}
                 {localSplits.length > 1 && (
                   <button
                     onClick={() => {
@@ -287,7 +210,7 @@ export function InsideRepSplitsModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={!isValid}
+            disabled={localSplits.length === 0}
             className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Save

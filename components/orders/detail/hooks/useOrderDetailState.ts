@@ -1022,7 +1022,11 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     isCreateMode,
     // Unsaved changes tracking
     hasChanges: isCreateMode || hasLocalEdits,
-    resetChanges: () => setHasLocalEdits(false),
+    resetChanges: () => {
+      setHasLocalEdits(false);
+      // Also reset hasInitialized so that refetch can update localOrder with fresh data
+      setHasInitialized(false);
+    },
     // Order data
     order,
     orders,

@@ -1358,6 +1358,7 @@ export default function CustomerEditPage() {
             title="Connected Entities"
             showAddLinkButton={true}
             enabledCategories={['contacts', 'companies', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+            readOnlyCategories={['quotes', 'orders', 'invoices', 'checks']}
           />
         </div>
 

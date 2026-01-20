@@ -10,7 +10,6 @@ import { useUpdateCustomer, useCustomer, type CustomerLandingPage } from '../api
 import { toast } from 'sonner';
 import {
   SplitRatesInput,
-  entriesToSplitRateInputs,
   type SplitRateEntry,
 } from '../components/SplitRatesInput';
 
@@ -40,29 +39,20 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
   // Fetch full customer details to get split rates
   const { data: fullCustomer } = useCustomer(customer.id);
 
-  // Calculate totals for validation
-  const insideTotal = useMemo(() =>
-    insideRepEntries.reduce((sum, e) => sum + (parseFloat(e.splitRate) || 0), 0),
-    [insideRepEntries]
-  );
-
+  // Calculate totals for Outside Reps validation only
   const outsideTotal = useMemo(() =>
     outsideRepEntries.reduce((sum, e) => sum + (parseFloat(e.splitRate) || 0), 0),
     [outsideRepEntries]
   );
 
-  // Validation: Each rep type must independently total 100% (if it has entries)
-  const hasInsideReps = insideRepEntries.length > 0;
+  // Validation: Outside Reps must total 100% (if it has entries)
   const hasOutsideReps = outsideRepEntries.length > 0;
-  const isInsideValid = !hasInsideReps || insideTotal === 100;
   const isOutsideValid = !hasOutsideReps || outsideTotal === 100;
-  const isValidSplitRate = isInsideValid && isOutsideValid;
 
-  // Check if any reps have been added but not fully configured
-  const hasIncompleteEntries = useMemo(() => {
-    const allEntries = [...insideRepEntries, ...outsideRepEntries];
-    return allEntries.some(entry => entry.userId && !entry.splitRate);
-  }, [insideRepEntries, outsideRepEntries]);
+  // Check if any outside reps have been added but not fully configured
+  const hasIncompleteOutsideEntries = useMemo(() => {
+    return outsideRepEntries.some(entry => entry.userId && !entry.splitRate);
+  }, [outsideRepEntries]);
 
   // Initialize form with customer data when modal opens
   useEffect(() => {
@@ -117,19 +107,13 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
       return;
     }
 
-    if (!isValidSplitRate) {
-      if (!isInsideValid && !isOutsideValid) {
-        toast.error('Both Inside Reps and Outside Reps must each total exactly 100%');
-      } else if (!isInsideValid) {
-        toast.error('Inside Reps split rate must total exactly 100%');
-      } else {
-        toast.error('Outside Reps split rate must total exactly 100%');
-      }
+    if (!isOutsideValid) {
+      toast.error('Outside Reps split rate must total exactly 100%');
       return;
     }
 
-    if (hasIncompleteEntries) {
-      toast.error('Please enter split rates for all selected reps');
+    if (hasIncompleteOutsideEntries) {
+      toast.error('Please enter split rates for all selected outside reps');
       return;
     }
 
@@ -238,42 +222,12 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
 
             {/* Sales Representatives Section */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs sm:text-sm font-semibold text-[var(--foreground)] uppercase tracking-wider flex items-center gap-2">
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  Sales Representatives
-                </h3>
-
-                {/* Split Rate Summary - Each type must be 100% independently */}
-                <div className="flex items-center gap-2">
-                  {hasInsideReps && (
-                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                      insideTotal === 100
-                        ? 'bg-green-100 text-green-700'
-                        : insideTotal > 100
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                      Inside: {insideTotal.toFixed(1)}%
-                    </div>
-                  )}
-                  {hasOutsideReps && (
-                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                      outsideTotal === 100
-                        ? 'bg-green-100 text-green-700'
-                        : outsideTotal > 100
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                      Outside: {outsideTotal.toFixed(1)}%
-                    </div>
-                  )}
-                </div>
-              </div>
+              <h3 className="text-xs sm:text-sm font-semibold text-[var(--foreground)] uppercase tracking-wider flex items-center gap-2">
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Sales Representatives
+              </h3>
 
               {/* Inside Reps */}
               <SplitRatesInput
@@ -362,7 +316,7 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
               </button>
               <button
                 type="submit"
-                disabled={updateMutation.isPending || !companyName.trim() || !isValidSplitRate}
+                disabled={updateMutation.isPending || !companyName.trim() || !isOutsideValid}
                 className="flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 bg-[var(--primary)] text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {updateMutation.isPending ? (
