@@ -10,6 +10,7 @@ import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/use
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import { ExcelBuilder } from '@/components/shared/excel-builder';
 import { UnsavedChangesModal } from '@/components/shared/modals/UnsavedChangesModal';
 
 // Quote status options using API enum values
@@ -165,6 +166,7 @@ export function QuoteDetailHeaderV2({
   const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
   const [showQuoteDetails, setShowQuoteDetails] = useState(true);
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
+  const [showExcelBuilder, setShowExcelBuilder] = useState(false);
 
   // Customer search state
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
@@ -868,6 +870,21 @@ export function QuoteDetailHeaderV2({
             </button>
           </div>
 
+          {/* Excel Button */}
+          <button
+            onClick={() => setShowExcelBuilder(true)}
+            disabled={isNew || !quote.id}
+            className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-lg transition-colors ${
+              isNew || !quote.id
+                ? 'text-white bg-emerald-600 opacity-50 cursor-not-allowed'
+                : 'text-white bg-emerald-600 hover:bg-emerald-700'
+            }`}
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            Excel
+          </button>
           {/* PDF Button */}
           <button
             onClick={() => setShowPDFBuilder(true)}
@@ -1529,6 +1546,16 @@ export function QuoteDetailHeaderV2({
               type="checkbox"
               checked={quote.blanket || false}
               onChange={(e) => onQuoteChange({ blanket: e.target.checked })}
+              onKeyDown={(e) => {
+                if (e.key === 'Tab' && !e.shiftKey) {
+                  // Move focus to the first line item cell instead of other elements
+                  const firstLineItemCell = document.querySelector('tbody tr[data-item-id] td button:not([title="Remove line item"]):not([title="More options"])');
+                  if (firstLineItemCell) {
+                    e.preventDefault();
+                    (firstLineItemCell as HTMLElement).focus();
+                  }
+                }
+              }}
               className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
             />
             <span className="text-sm text-gray-700">Blanket</span>
@@ -1768,6 +1795,14 @@ export function QuoteDetailHeaderV2({
         entityType="QUOTES"
         isOpen={showPDFBuilder}
         onClose={() => setShowPDFBuilder(false)}
+      />
+
+      {/* Excel Builder */}
+      <ExcelBuilder
+        entityId={quote.id}
+        entityType="QUOTES"
+        isOpen={showExcelBuilder}
+        onClose={() => setShowExcelBuilder(false)}
       />
 
       {/* Unsaved Changes Modal */}

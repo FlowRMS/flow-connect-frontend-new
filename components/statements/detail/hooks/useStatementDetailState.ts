@@ -381,7 +381,8 @@ export function useStatementDetailState({ statementId }: UseStatementDetailState
     setHasChanges(true);
   }, []);
 
-  const updateLineItem = useCallback((tempId: string, updates: Partial<LocalLineItem>) => {
+  // Internal function to update a line item with optional hasChanges flag
+  const updateLineItemInternal = useCallback((tempId: string, updates: Partial<LocalLineItem>, markAsChanged: boolean = true) => {
     setLineItems((prev) =>
       prev.map((item) => {
         if (item.tempId === tempId) {
@@ -414,8 +415,20 @@ export function useStatementDetailState({ statementId }: UseStatementDetailState
         return item;
       })
     );
-    setHasChanges(true);
+    if (markAsChanged) {
+      setHasChanges(true);
+    }
   }, []);
+
+  // Public function - always marks changes
+  const updateLineItem = useCallback((tempId: string, updates: Partial<LocalLineItem>) => {
+    updateLineItemInternal(tempId, updates, true);
+  }, [updateLineItemInternal]);
+
+  // Silent update - for populating derived data (like CPN) without marking as changed
+  const updateLineItemSilent = useCallback((tempId: string, updates: Partial<LocalLineItem>) => {
+    updateLineItemInternal(tempId, updates, false);
+  }, [updateLineItemInternal]);
 
   const removeLineItem = useCallback((tempId: string) => {
     setLineItems((prev) => {
@@ -586,6 +599,7 @@ export function useStatementDetailState({ statementId }: UseStatementDetailState
     updateStatementHeader,
     addLineItem,
     updateLineItem,
+    updateLineItemSilent,
     removeLineItem,
     updateAllLineItems,
 

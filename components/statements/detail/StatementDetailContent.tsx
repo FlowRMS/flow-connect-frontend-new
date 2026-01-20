@@ -25,7 +25,7 @@ interface StatementDetailContentProps {
 export default function StatementDetailContent({ statementId }: StatementDetailContentProps) {
   const router = useRouter();
   const state = useStatementDetailState({ statementId });
-  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+  const { requestNavigation, hasUnsavedChanges, clearUnsavedChanges } = useUnsavedChangesContext();
 
   // Delete mutation
   const deleteStatementMutation = useDeleteStatement();
@@ -148,6 +148,8 @@ export default function StatementDetailContent({ statementId }: StatementDetailC
       if (state.isCreateMode) {
         const result = await state.createMutation.mutateAsync(input);
         state.resetChanges();
+        // Clear unsaved changes before navigation to prevent beforeunload alert
+        clearUnsavedChanges();
         router.push(`/statements/${result.id}`);
       } else {
         await state.updateMutation.mutateAsync(input);
@@ -294,6 +296,7 @@ export default function StatementDetailContent({ statementId }: StatementDetailC
               onToggleAllSelection={state.selectAllLineItems}
               onClearSelection={state.clearLineItemSelection}
               onUpdateLineItem={state.updateLineItem}
+              onUpdateLineItemSilent={state.updateLineItemSilent}
               onRemoveLineItem={state.removeLineItem}
               onAddLineItem={state.addLineItem}
               onOpenAdditionalDetails={setAdditionalDetailsItem}

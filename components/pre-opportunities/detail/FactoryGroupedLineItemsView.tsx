@@ -101,8 +101,9 @@ export function FactoryGroupedLineItemsView({
     customerSearchEnabled && isEditing
   );
 
-  // Fetch all customers for name lookups (view mode)
-  const { data: allCustomers = [] } = useCRMCustomerSearch('', undefined, !isEditing);
+  // Fetch all customers for name lookups (both view and edit mode)
+  // We need customers in edit mode to populate endUserName when initializing items
+  const { data: allCustomers = [] } = useCRMCustomerSearch('', undefined, true);
 
   // Create lookup map for customer names
   const customerNameMap = useMemo(() => {
@@ -118,11 +119,23 @@ export function FactoryGroupedLineItemsView({
 
   // Track if we've initialized groups for this editing session
   const hasInitializedRef = useRef(false);
+  const prevIsEditingRef = useRef(isEditing);
 
   // Initialize factory groups from existing details when entering edit mode
   useEffect(() => {
-    if (isEditing && preOpp.details.length > 0 && !hasInitializedRef.current) {
+    // Only initialize when transitioning from non-editing to editing mode
+    const wasEditing = prevIsEditingRef.current;
+    prevIsEditingRef.current = isEditing;
+
+    if (isEditing && !wasEditing && preOpp.details.length > 0 && !hasInitializedRef.current) {
       hasInitializedRef.current = true;
+
+      // Build customer name map for lookup (use current values from allCustomers and customers)
+      // Note: We intentionally don't include allCustomers/customers in dependencies to avoid
+      // infinite loops. We only use them here for initial population when entering edit mode.
+      const nameMap = new Map<string, string>();
+      allCustomers.forEach(c => nameMap.set(c.id, c.companyName));
+      customers.forEach(c => nameMap.set(c.id, c.companyName));
 
       // Group existing details by their factoryId
       const factoryMap = new Map<string, { factoryId: string; factoryName: string; items: FactoryLineItem[] }>();
@@ -151,7 +164,7 @@ export function FactoryGroupedLineItemsView({
           discountRate: d.discountRate,
           leadTime: d.leadTime || '',
           endUserId: d.endUserId || '',
-          endUserName: '', // Will be populated later via customer lookup
+          endUserName: d.endUserId ? (nameMap.get(d.endUserId) || d.endUserId) : '', // Populate end user name from customer lookup
           isNew: false,
         });
       }
@@ -166,11 +179,17 @@ export function FactoryGroupedLineItemsView({
       }));
 
       setFactoryGroups(groups);
-    } else if (!isEditing) {
+    }
+  }, [isEditing, preOpp.details]);
+
+  // Reset when exiting edit mode
+  useEffect(() => {
+    if (!isEditing) {
       hasInitializedRef.current = false;
       setFactoryGroups([]);
     }
-  }, [isEditing, preOpp.details]);
+  }, [isEditing]);
+
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -855,7 +874,7 @@ export function FactoryGroupedLineItemsView({
                 </td>
               </tr>
             ) : (
-              preOpp.details.map((detail) => (
+              [...preOpp.details].sort((a, b) => a.itemNumber - b.itemNumber).map((detail) => (
                 <tr key={detail.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm text-gray-900">{detail.itemNumber}</td>
                   <td className="px-4 py-3">

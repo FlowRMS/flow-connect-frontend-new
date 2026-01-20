@@ -195,15 +195,14 @@ function mergeConfigWithDefaults(stored: SidebarConfig): SidebarConfig {
       const newItems = defaultGroup.items.filter(i => !group.items.some(gi => gi.id === i.id));
 
       // Filter out items that no longer exist in defaults, and update names/hrefs for existing ones
-      // Also ensure items that are enabled by default get re-enabled if they were somehow disabled
+      // Preserve user's enabled preference from stored config
       const updatedItems = group.items
         .filter(item => defaultItemIds.has(item.id))
         .map(item => {
           const defaultItem = defaultGroup.items.find(i => i.id === item.id);
           if (defaultItem) {
-            // If the default has it enabled, ensure it stays enabled (user can disable manually after)
-            const enabled = defaultItem.enabled ? true : item.enabled;
-            return { ...item, name: defaultItem.name, href: defaultItem.href, enabled };
+            // Keep user's enabled preference, only update name/href from defaults
+            return { ...item, name: defaultItem.name, href: defaultItem.href };
           }
           return item;
         });
@@ -223,6 +222,7 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<SidebarConfig>(defaultConfig);
   const [isLoaded, setIsLoaded] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasInitializedFromApi = useRef(false); // Track if we've already loaded from API
 
   // User settings hook for API persistence
   const { settings: apiSettings, saveSettings, isInitialized: apiInitialized } = useSidebarSettings();
@@ -262,8 +262,13 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Load config from API or localStorage on mount
+  // Load config from API or localStorage on mount (only once)
   useEffect(() => {
+    // Skip if we've already initialized from API - prevents overwriting local changes
+    if (hasInitializedFromApi.current) {
+      return;
+    }
+
     if (apiInitialized) {
       // Check if API has settings
       if (apiSettings && apiSettings.groups && apiSettings.groups.length > 0) {
@@ -277,9 +282,12 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
         } catch (e) {
           console.error('Failed to update localStorage cache:', e);
         }
+        hasInitializedFromApi.current = true;
         setIsLoaded(true);
         return;
       }
+      // API is initialized but has no settings - mark as initialized to prevent future overwrites
+      hasInitializedFromApi.current = true;
     }
 
     // Fallback to localStorage while API loads or if API has no settings

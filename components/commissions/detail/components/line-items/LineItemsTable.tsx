@@ -9,6 +9,7 @@ import React, { useState, useMemo } from 'react';
 import type { LineItem, ColumnKey, CheckStatus } from '../../types';
 import { LineItemsTableHeader } from './LineItemsTableHeader';
 import { LineItemsTableRow } from './LineItemsTableRow';
+import { useLineItemsTabNavigation } from './useLineItemsTabNavigation';
 
 // Sortable column keys
 export type SortableColumnKey = 'number' | 'orderNumber' | 'customer' | 'salesRep' | 'commissionRate' | 'expectedCommission' | 'paidCommission' | 'balance' | 'entityDate';
@@ -24,6 +25,7 @@ interface LineItemsTableProps {
   onRowClick: (item: LineItem) => void;
   onUpdateStatedCommission?: (id: string, amount: number) => void;
   onOrderClick?: (orderId: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 export function LineItemsTable({
@@ -36,10 +38,18 @@ export function LineItemsTable({
   onRowClick,
   onUpdateStatedCommission,
   onOrderClick,
+  onDelete,
 }: LineItemsTableProps) {
   // Sort state - default to entityDate ascending (earliest invoice first)
   const [sortColumn, setSortColumn] = useState<SortableColumnKey>('entityDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  // Tab navigation hook - 1 editable field per row (paidCommission)
+  const { registerInput, handleKeyDown, getTabIndex } = useLineItemsTabNavigation({
+    totalItems: lineItems.length,
+    editableFieldsPerRow: 1,
+    tableContainerSelector: '.line-items-table',
+  });
 
   // Handle column header click for sorting
   const handleSort = (column: SortableColumnKey) => {
@@ -115,7 +125,7 @@ export function LineItemsTable({
   }, [lineItems, sortColumn, sortDirection]);
 
   return (
-    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full">
+    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full line-items-table">
       {/* Add Line Button - at the top */}
       <div className="border-b border-[var(--border)] flex-shrink-0">
         <button
@@ -145,6 +155,8 @@ export function LineItemsTable({
             sortColumn={sortColumn}
             sortDirection={sortDirection}
             onSort={handleSort}
+            status={status}
+            showActionsColumn={!!onDelete}
           />
           <tbody>
             {sortedLineItems.length === 0 ? (
@@ -157,16 +169,21 @@ export function LineItemsTable({
                 </td>
               </tr>
             ) : (
-              sortedLineItems.map((item) => (
+              sortedLineItems.map((item, index) => (
                 <LineItemsTableRow
                   key={item.id}
                   item={item}
+                  rowIndex={index}
                   visibleColumns={visibleColumns}
                   status={status}
                   onTogglePaid={onTogglePaid}
                   onRowClick={onRowClick}
                   onUpdateStatedCommission={onUpdateStatedCommission}
                   onOrderClick={onOrderClick}
+                  onDelete={onDelete}
+                  registerInput={registerInput}
+                  onKeyDown={handleKeyDown}
+                  getTabIndex={getTabIndex}
                 />
               ))
             )}
