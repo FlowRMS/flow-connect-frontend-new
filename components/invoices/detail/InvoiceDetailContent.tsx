@@ -49,7 +49,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
   const router = useRouter();
   const state = useInvoiceDetailState({ invoiceId, initialOrderId });
   const { setFullEntityContext } = useFlowChat();
-  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+  const { requestNavigation, hasUnsavedChanges, clearUnsavedChanges } = useUnsavedChangesContext();
 
   // Set full entity context for global chatbot (type, id, and invoice number)
   useEffect(() => {
@@ -201,6 +201,8 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
     if (success) {
       toast.success('Invoice saved successfully');
       if (state.isCreateMode) {
+        // Clear unsaved changes before navigation to prevent beforeunload alert
+        clearUnsavedChanges();
         router.push('/invoices');
       }
     } else {

@@ -41,6 +41,7 @@ interface LineItemsTableProps {
   onToggleAllSelection: () => void;
   onClearSelection: () => void;
   onUpdateLineItem: (tempId: string, updates: Partial<LocalLineItem>) => void;
+  onUpdateLineItemSilent?: (tempId: string, updates: Partial<LocalLineItem>) => void;
   onRemoveLineItem: (tempId: string) => void;
   onAddLineItem: () => void;
   onOpenAdditionalDetails?: (item: LocalLineItem) => void;
@@ -65,6 +66,7 @@ export function LineItemsTable({
   onToggleAllSelection,
   onClearSelection,
   onUpdateLineItem,
+  onUpdateLineItemSilent,
   onRemoveLineItem,
   onAddLineItem,
   onOpenAdditionalDetails,
@@ -169,8 +171,10 @@ export function LineItemsTable({
       setProductPricingOptions(prev => ({ ...prev, [productId]: options }));
 
       // Update the CPN field on the line item if we found one
+      // Use silent update to avoid marking as changed (this is initial data population)
       if (shouldUpdateCpnField && cpnResult?.customerPartNumber) {
-        onUpdateLineItem(tempId, { custPartNumber: cpnResult.customerPartNumber });
+        const silentUpdate = onUpdateLineItemSilent || onUpdateLineItem;
+        silentUpdate(tempId, { custPartNumber: cpnResult.customerPartNumber });
       }
 
       // Determine pricing source from current unit price (like quotes does)
