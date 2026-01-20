@@ -30,7 +30,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { getPreOppsByStatus, formatCurrency, formatDate, getStatusLabel } from '../utils';
+import { getPreOppsByStatus, formatCurrency, formatDate, getStatusLabel, getOwnerInitials, getOwnerColor } from '../utils';
 import type { PreOpportunityLandingPage, PreOppStage, PreOpportunityStatus } from '../types';
 import { useUpdateCRMPreOpportunity, useDeleteCRMPreOpportunity, crmQueryKeys } from '../../hooks/useCRMApi';
 import { fetchPreOpportunity } from '../../lib/crm-graphql';
@@ -82,8 +82,6 @@ function KanbanCard({ preOpp, onDelete }: { preOpp: PreOpportunityLandingPage; o
     transform: CSS.Transform.toString(transform),
     transition,
   };
-
-  const statusColor = COLUMN_STATUS_COLORS[preOpp.status] || 'bg-gray-400';
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -166,14 +164,6 @@ function KanbanCard({ preOpp, onDelete }: { preOpp: PreOpportunityLandingPage; o
         {formatCurrency(preOpp.total)}
       </div>
 
-      {/* Status Badge */}
-      <div className="flex items-center gap-2 mb-2 md:mb-3">
-        <span className="inline-flex items-center gap-1 md:gap-1.5 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium bg-gray-100">
-          <span className={`w-1.5 md:w-2 h-1.5 md:h-2 rounded-full ${statusColor}`}></span>
-          <span className="truncate">{getStatusLabel(preOpp.status)}</span>
-        </span>
-      </div>
-
       {/* Expiration Date */}
       {preOpp.expDate && (
         <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3 pt-2 md:pt-3 border-t border-gray-100 text-[10px] md:text-xs text-gray-500">
@@ -186,8 +176,8 @@ function KanbanCard({ preOpp, onDelete }: { preOpp: PreOpportunityLandingPage; o
 
       {/* Created By */}
       <div className="flex items-center gap-1.5 md:gap-2 pt-2 border-t border-gray-100">
-        <div className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[10px] md:text-xs font-semibold shadow-sm flex-shrink-0">
-          {preOpp.createdBy?.charAt(0)?.toUpperCase() || '?'}
+        <div className={`w-5 h-5 md:w-6 md:h-6 rounded-full ${getOwnerColor(preOpp.id)} flex items-center justify-center text-white text-[10px] md:text-xs font-semibold shadow-sm flex-shrink-0`}>
+          {getOwnerInitials(preOpp.createdBy)}
         </div>
         <span className="text-[10px] md:text-xs text-gray-500 truncate">{preOpp.createdBy}</span>
       </div>
@@ -207,8 +197,6 @@ function KanbanCard({ preOpp, onDelete }: { preOpp: PreOpportunityLandingPage; o
 // ============================================================================
 
 function CardOverlay({ preOpp }: { preOpp: PreOpportunityLandingPage }) {
-  const statusColor = COLUMN_STATUS_COLORS[preOpp.status] || 'bg-gray-400';
-  
   return (
     <div className="bg-white border-2 border-blue-300 rounded-lg p-4 shadow-xl cursor-grabbing w-64 opacity-90">
       <div className="flex items-start gap-3 mb-3">
@@ -224,10 +212,6 @@ function CardOverlay({ preOpp }: { preOpp: PreOpportunityLandingPage }) {
       <div className="text-lg font-bold text-blue-600 mb-2">
         {formatCurrency(preOpp.total)}
       </div>
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100">
-        <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
-        {getStatusLabel(preOpp.status)}
-      </span>
     </div>
   );
 }
@@ -461,11 +445,7 @@ export function KanbanView({
         billToCustomerAddressId: fullPreOpp.billToCustomerAddressId,
         jobId: fullPreOpp.jobId,
         expDate: fullPreOpp.expDate,
-        acceptDate: fullPreOpp.acceptDate,
-        reviseDate: fullPreOpp.reviseDate,
         customerRef: fullPreOpp.customerRef,
-        paymentTerms: fullPreOpp.paymentTerms,
-        freightTerms: fullPreOpp.freightTerms,
         details: fullPreOpp.details?.map(d => ({
           id: d.id,
           itemNumber: d.itemNumber,

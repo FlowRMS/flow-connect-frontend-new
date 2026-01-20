@@ -324,12 +324,12 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
               return (
                 <div 
                   key={item.id} 
-                  className={`border rounded-lg overflow-hidden ${
+                  className={`border rounded-lg ${
                     isItemEditing ? 'border-blue-300 bg-blue-50/30' : 'border-gray-200'
                   }`}
                 >
                   {/* Item Header */}
-                  <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
+                  <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200 rounded-t-lg">
                     <div className="flex items-center gap-2">
                       <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold">
                         {item.itemNumber}
