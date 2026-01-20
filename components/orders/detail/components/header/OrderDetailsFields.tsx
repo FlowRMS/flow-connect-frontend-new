@@ -795,6 +795,16 @@ export function OrderDetailsFields({
                 type="checkbox"
                 checked={(order as any).published !== false}
                 onChange={(e) => handleFieldUpdate('published' as keyof Order, e.target.checked)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Tab' && !e.shiftKey) {
+                    // Move focus to the first line item cell instead of other elements
+                    const firstLineItemCell = document.querySelector('tbody tr[data-item-id] td button:not([title="Remove line item"]):not([title="More options"])');
+                    if (firstLineItemCell) {
+                      e.preventDefault();
+                      (firstLineItemCell as HTMLElement).focus();
+                    }
+                  }
+                }}
                 className="w-4 h-4 accent-[var(--primary)]"
               />
               <span className="text-sm text-[var(--foreground)]">Published</span>

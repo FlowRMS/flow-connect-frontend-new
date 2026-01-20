@@ -447,6 +447,7 @@ export default function CheckDetailContent({
                 onRowClick={state.openLineItemDetail}
                 onUpdateStatedCommission={state.updateLineItemAmount}
                 onOrderClick={state.openOrderDetail}
+                onDelete={state.deleteLineItem}
               />
             </div>
           )}
