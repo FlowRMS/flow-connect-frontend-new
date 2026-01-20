@@ -71,6 +71,9 @@ export default function SubmittalsContent() {
 
     // PDF generation
     generatePdfMutation,
+
+    // Refetch
+    refetch,
   } = useSubmittalsState();
 
   if (error) {
@@ -125,6 +128,14 @@ export default function SubmittalsContent() {
           window.open(result.pdfUrl, '_blank');
         }
         submittalToasts.pdfSuccess();
+
+        // Update status to "for_approval" if currently in draft
+        if (selectedSubmittalFull.status === 'draft') {
+          await handleSubmittalUpdate({ status: 'for_approval' });
+        }
+
+        // Refetch to show the new revision in the Revisions tab
+        refetch();
       } else if (!result.success) {
         console.error('PDF generation failed:', result.error);
         submittalToasts.pdfError(result.error);

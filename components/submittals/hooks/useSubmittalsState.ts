@@ -158,5 +158,8 @@ export function useSubmittalsState() {
 
     // PDF generation
     generatePdfMutation,
+
+    // Refetch function
+    refetch,
   };
 }
