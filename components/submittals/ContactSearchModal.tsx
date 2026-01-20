@@ -9,7 +9,6 @@ interface ContactSearchModalProps {
   onClose: () => void;
   onSelect: (contact: ContactSearchResult) => void;
   title: string;
-  roleFilter?: string;
 }
 
 export function ContactSearchModal({
@@ -17,7 +16,6 @@ export function ContactSearchModal({
   onClose,
   onSelect,
   title,
-  roleFilter,
 }: ContactSearchModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedTerm, setDebouncedTerm] = useState('');
@@ -42,11 +40,6 @@ export function ContactSearchModal({
     enabled: isOpen && debouncedTerm.length >= 2,
     staleTime: 30 * 1000,
   });
-
-  // Filter by role if specified
-  const filteredContacts = roleFilter
-    ? contacts.filter(c => c.role?.toLowerCase().includes(roleFilter.toLowerCase()))
-    : contacts;
 
   if (!isOpen) return null;
 
@@ -107,13 +100,13 @@ export function ContactSearchModal({
             <div className="text-center py-8 text-sm text-[var(--muted-foreground)]">
               Enter a search term to find contacts
             </div>
-          ) : filteredContacts.length === 0 ? (
+          ) : contacts.length === 0 ? (
             <div className="text-center py-8 text-sm text-[var(--muted-foreground)]">
               No contacts found matching &quot;{debouncedTerm}&quot;
             </div>
           ) : (
             <div className="space-y-1">
-              {filteredContacts.map((contact) => (
+              {contacts.map((contact) => (
                 <button
                   key={contact.id}
                   onClick={() => {

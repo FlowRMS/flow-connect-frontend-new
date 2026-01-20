@@ -189,7 +189,6 @@ export function SubmittalMetaPanel({ submittal, stats, onUpdateArchitect, onUpda
         onClose={() => setShowArchitectSearch(false)}
         onSelect={handleSelectArchitect}
         title="Search Architect"
-        roleFilter="architect"
       />
 
       <ContactSearchModal
@@ -197,7 +196,6 @@ export function SubmittalMetaPanel({ submittal, stats, onUpdateArchitect, onUpda
         onClose={() => setShowEngineerSearch(false)}
         onSelect={handleSelectEngineer}
         title="Search Engineer"
-        roleFilter="engineer"
       />
     </>
   );
