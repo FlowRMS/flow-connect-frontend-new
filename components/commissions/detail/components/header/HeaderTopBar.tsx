@@ -10,6 +10,7 @@ import type { CheckStatus, VersionInfo } from '../../types';
 import { CHECK_STATUS_LABELS, CHECK_STATUS_COLORS } from '../../constants';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import { ExcelBuilder } from '@/components/shared/excel-builder';
 
 interface HeaderTopBarProps {
   check: CommissionCheck;
@@ -89,6 +90,7 @@ export function HeaderTopBar({
 }: HeaderTopBarProps) {
   const router = useRouter();
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
+  const [showExcelBuilder, setShowExcelBuilder] = useState(false);
 
   const handleBack = () => {
     if (onBack) {
@@ -358,6 +360,21 @@ export function HeaderTopBar({
             </button>
           )}
 
+          {/* Excel Button */}
+          <button
+            onClick={() => setShowExcelBuilder(true)}
+            disabled={isCreateMode || !check.id}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isCreateMode || !check.id
+                ? 'bg-emerald-600 text-white opacity-50 cursor-not-allowed'
+                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+            }`}
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            Excel
+          </button>
           {/* PDF Button */}
           <button
             onClick={() => setShowPDFBuilder(true)}
@@ -571,6 +588,14 @@ export function HeaderTopBar({
         entityType="CHECKS"
         isOpen={showPDFBuilder}
         onClose={() => setShowPDFBuilder(false)}
+      />
+
+      {/* Excel Builder */}
+      <ExcelBuilder
+        entityId={check.id}
+        entityType="CHECKS"
+        isOpen={showExcelBuilder}
+        onClose={() => setShowExcelBuilder(false)}
       />
     </div>
   );
