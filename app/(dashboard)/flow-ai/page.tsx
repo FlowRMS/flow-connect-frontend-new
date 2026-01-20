@@ -26,7 +26,7 @@ import { useVersionHistory, type VersionHistoryEntry } from '@/components/flow-a
 import { VersionHistoryTab } from '@/components/flow-ai/flowrms/VersionHistoryTab';
 import { VersionComparisonModal } from '@/components/flow-ai/flowrms/VersionComparisonModal';
 import { buildExtractedFields } from '@/lib/flow-ai/extracted-field-mapper';
-import { M_MANUAL_EDIT_DATA } from '@/lib/flow-ai/gql';
+import { M_MANUAL_EDIT_DATA, M_APPROVE } from '@/lib/flow-ai/gql';
 import { useProcessExtractedDtos } from '@/components/flow-ai/hooks/useProcessExtractedDtos';
 import { SupportSubmissionModal } from '@/components/flow-ai/flowrms/SupportSubmissionModal';
 import { SelectTemplateModal } from '@/components/flow-ai/flowrms/SelectTemplateModal';
@@ -685,6 +685,7 @@ function FlowRMSPageContent() {
 
   const selectedVersionSnapshot = selectedVersionNumber != null ? snapshots[selectedVersionNumber] ?? null : null;
   const [manualEditDataMutation] = useMutation(M_MANUAL_EDIT_DATA);
+  const [approveDocumentMutation] = useMutation(M_APPROVE);
 
   useEffect(() => {
     if (!pendingId) return;
@@ -1328,6 +1329,20 @@ function FlowRMSPageContent() {
     if (!pendingId) return;
 
     const saveToTemplateParam = saveToTemplateValue ? 'true' : 'false';
+
+    // Call approveDocument mutation first
+    try {
+      await approveDocumentMutation({
+        variables: {
+          pendingId,
+          saveToTemplate: saveToTemplateValue,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to approve document:', error);
+      toast.error('Failed to approve document. Please try again.');
+      return;
+    }
 
     // Check if this is a tabular upload (CSV/spreadsheet)
     if (isCsv) {
