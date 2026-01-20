@@ -921,7 +921,7 @@ export default function CompaniesContent() {
           )}
           <input
             type="text"
-            placeholder="Search companies by name, phone, or website..."
+            placeholder="Search companies by name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
