@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface SubmittalSettingsTabProps {
   editingJobName: string;
@@ -16,6 +16,7 @@ interface SubmittalSettingsTabProps {
   onRemoveTag: (tag: string) => void;
   hasSettingsChanges: boolean;
   onSaveSettings: () => void;
+  onDeleteSubmittal?: () => void;
 }
 
 export function SubmittalSettingsTab({
@@ -32,7 +33,19 @@ export function SubmittalSettingsTab({
   onRemoveTag,
   hasSettingsChanges,
   onSaveSettings,
+  onDeleteSubmittal,
 }: SubmittalSettingsTabProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = () => {
+    onDeleteSubmittal?.();
+    setShowDeleteConfirm(false);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-xl space-y-6">
@@ -119,11 +132,52 @@ export function SubmittalSettingsTab({
         )}
 
         <div className={`${hasSettingsChanges ? '' : 'pt-4 border-t border-[var(--border)]'}`}>
-          <button className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+          <button
+            onClick={handleDeleteClick}
+            className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          >
             Delete Submittal
           </button>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <line x1="10" y1="11" x2="10" y2="17" strokeLinecap="round" strokeLinejoin="round"/>
+                  <line x1="14" y1="11" x2="14" y2="17" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-[var(--foreground)]">Delete Submittal</h3>
+                <p className="text-sm text-[var(--muted-foreground)]">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-sm text-[var(--muted-foreground)] mb-6">
+              Are you sure you want to delete this submittal? All items, revisions, and associated data will be permanently removed.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete Submittal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

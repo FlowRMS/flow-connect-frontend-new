@@ -103,8 +103,7 @@ export function useSpecSheetsContent() {
         displayName: sheet.displayName,
         categories: sheet.categories as SpecSheet['categories'],
         tags: sheet.tags || [],
-        folderId: undefined,
-        folderPath: sheet.folderPath || undefined,
+        folderId: sheet.folderId || undefined,
         uploadSource: sheet.uploadSource as SpecSheet['uploadSource'],
         sourceUrl: sheet.sourceUrl || undefined,
         fileUrl: sheet.fileUrl,
@@ -131,8 +130,7 @@ export function useSpecSheetsContent() {
         displayName: sheet.displayName,
         categories: sheet.categories as SpecSheet['categories'],
         tags: sheet.tags || [],
-        folderId: undefined,
-        folderPath: sheet.folderPath || undefined,
+        folderId: sheet.folderId || undefined,
         uploadSource: sheet.uploadSource as SpecSheet['uploadSource'],
         sourceUrl: sheet.sourceUrl || undefined,
         fileUrl: sheet.fileUrl,
@@ -185,11 +183,19 @@ export function useSpecSheetsContent() {
   const filteredSpecSheets = useMemo(() => {
     let result = [...specSheets];
     if (folderState.selectedFolderId) {
-      const selectedFolder = folderState.folders.find(f => f.id === folderState.selectedFolderId);
-      if (selectedFolder?.folderPath) {
-        const selectedPath = selectedFolder.folderPath;
-        result = result.filter(s => s.folderPath === selectedPath || s.folderPath?.startsWith(selectedPath + '/'));
-      }
+      // Get all descendant folder IDs (including the selected folder)
+      const getDescendantIds = (parentId: string): Set<string> => {
+        const ids = new Set<string>([parentId]);
+        const children = folderState.folders.filter(f => f.parentId === parentId);
+        for (const child of children) {
+          for (const id of getDescendantIds(child.id)) {
+            ids.add(id);
+          }
+        }
+        return ids;
+      };
+      const folderIds = getDescendantIds(folderState.selectedFolderId);
+      result = result.filter(s => s.folderId && folderIds.has(s.folderId));
     }
     if (selectedTags.length > 0) {
       result = result.filter(s => s.categories && selectedTags.some(cat => s.categories.includes(cat as SpecSheetCategory)));

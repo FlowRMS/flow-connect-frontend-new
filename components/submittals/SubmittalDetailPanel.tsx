@@ -26,6 +26,7 @@ import { ItemsTabContent } from './ItemsTabContent';
 import { SubmittalSettingsTab } from './SubmittalSettingsTab';
 import { useRevisionWorkflow } from './hooks/useRevisionWorkflow';
 import { useSubmittalSettings, StakeholdersTabContent } from './submittal-detail';
+import SpecSheetUploadModal from './SpecSheetUploadModal';
 
 interface SubmittalDetailPanelProps {
   submittal: Submittal;
@@ -33,6 +34,14 @@ interface SubmittalDetailPanelProps {
   onUpdate?: (updates: Partial<Submittal>) => void;
   onPrint?: () => void;
   onResubmit?: (itemsToResubmit: string[]) => void;
+  onAddItem?: () => void;
+  onDeleteItem?: (itemId: string) => void;
+  onEditItem?: (itemId: string, values: { description?: string; quantity?: number }) => void;
+  isEditingItem?: boolean;
+  onUpdateArchitect?: (name: string) => void;
+  onUpdateEngineer?: (name: string) => void;
+  onUpdateBidDate?: (date: string) => void;
+  onDeleteSubmittal?: () => void;
 }
 
 type TabId = 'items' | 'stakeholders' | 'revisions' | 'settings';
@@ -43,10 +52,19 @@ export default function SubmittalDetailPanel({
   onUpdate,
   onPrint,
   onResubmit,
+  onAddItem,
+  onDeleteItem,
+  onEditItem,
+  isEditingItem,
+  onUpdateArchitect,
+  onUpdateEngineer,
+  onUpdateBidDate,
+  onDeleteSubmittal,
 }: SubmittalDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>('items');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [showSpecSheetPicker, setShowSpecSheetPicker] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [specSheetSearch, setSpecSheetSearch] = useState('');
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [editingConfig, setEditingConfig] = useState<SubmittalConfig>(
@@ -124,13 +142,18 @@ export default function SubmittalDetailPanel({
   // Spec sheets from API (already filtered by search and manufacturer)
   const filteredSpecSheets: SpecSheet[] = specSheetsFromApi || [];
 
-  // Matching spec sheet for selected item (from API data)
+  // Matching spec sheet for selected item (from API data or search results)
   const selectedItemSpecSheet = useMemo(() => {
     if (!selectedItem?.specSheetId) return null;
+    // First, try to use the spec sheet data that comes with the item from the API
+    if (selectedItem.specSheet) {
+      return selectedItem.specSheet as SpecSheet;
+    }
+    // Fallback to searching in filtered spec sheets (from picker)
     const fromCurrent = filteredSpecSheets.find(s => s.id === selectedItem.specSheetId);
     if (fromCurrent) return fromCurrent;
     return null;
-  }, [selectedItem?.specSheetId, filteredSpecSheets]);
+  }, [selectedItem?.specSheetId, selectedItem?.specSheet, filteredSpecSheets]);
 
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: 'items', label: 'Items', count: submittal.items.length },
@@ -214,7 +237,13 @@ export default function SubmittalDetailPanel({
           onClose={onClose}
         />
 
-        <SubmittalMetaPanel submittal={submittal} stats={stats} />
+        <SubmittalMetaPanel
+          submittal={submittal}
+          stats={stats}
+          onUpdateArchitect={onUpdateArchitect}
+          onUpdateEngineer={onUpdateEngineer}
+          onUpdateBidDate={onUpdateBidDate}
+        />
 
         {/* Tabs */}
         <div className="flex border-b border-[var(--border)]">
@@ -247,6 +276,11 @@ export default function SubmittalDetailPanel({
               selectedItemSpecSheet={selectedItemSpecSheet}
               onBrowseLibrary={() => setShowSpecSheetPicker(true)}
               onRemoveSpecSheet={handleRemoveSpecSheet}
+              onAddItem={onAddItem}
+              onDeleteItem={onDeleteItem}
+              onEditItem={onEditItem}
+              isEditingItem={isEditingItem}
+              onUploadNew={() => setShowUploadModal(true)}
             />
           )}
 
@@ -289,6 +323,7 @@ export default function SubmittalDetailPanel({
               onRemoveTag={settings.handleRemoveTag}
               hasSettingsChanges={settings.hasSettingsChanges}
               onSaveSettings={settings.handleSaveSettings}
+              onDeleteSubmittal={onDeleteSubmittal}
             />
           )}
         </div>
@@ -361,6 +396,17 @@ export default function SubmittalDetailPanel({
             onUpdateChange={handleUpdateChange}
             onAddChange={handleAddChange}
             onDeleteChange={handleDeleteChange}
+          />
+        )}
+
+        {showUploadModal && (
+          <SpecSheetUploadModal
+            onClose={() => setShowUploadModal(false)}
+            onSuccess={() => {
+              setShowUploadModal(false);
+              // After upload, open the spec sheet picker to select the newly uploaded sheet
+              setShowSpecSheetPicker(true);
+            }}
           />
         )}
       </div>

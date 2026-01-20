@@ -21,7 +21,7 @@ export const GET_SPEC_SHEET = `
       pageCount
       categories
       tags
-      folderPath
+      folderId
       needsReview
       published
       usageCount
@@ -52,7 +52,7 @@ export const GET_SPEC_SHEETS_BY_FACTORY = `
       pageCount
       categories
       tags
-      folderPath
+      folderId
       needsReview
       published
       usageCount
@@ -95,7 +95,38 @@ export const SEARCH_SPEC_SHEETS = `
       pageCount
       categories
       tags
-      folderPath
+      folderId
+      needsReview
+      published
+      usageCount
+      highlightCount
+      createdAt
+      createdBy {
+        id
+        email
+        firstName
+        lastName
+        fullName
+      }
+    }
+  }
+`;
+
+export const GET_SPEC_SHEETS_BY_FOLDER = `
+  query GetSpecSheetsByFolder($factoryId: UUID!, $folderId: UUID, $publishedOnly: Boolean) {
+    specSheetsByFolder(factoryId: $factoryId, folderId: $folderId, publishedOnly: $publishedOnly) {
+      id
+      factoryId
+      fileName
+      displayName
+      uploadSource
+      sourceUrl
+      fileUrl
+      fileSize
+      pageCount
+      categories
+      tags
+      folderId
       needsReview
       published
       usageCount

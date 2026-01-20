@@ -1,7 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import type { Submittal } from '../../lib/types/submittals';
+import { ContactSearchModal } from './ContactSearchModal';
+import type { ContactSearchResult } from '../lib/api/search';
 
 interface SubmittalMetaPanelProps {
   submittal: Submittal;
@@ -11,9 +13,33 @@ interface SubmittalMetaPanelProps {
     needsHighlight: number;
     missing: number;
   };
+  onUpdateArchitect?: (name: string) => void;
+  onUpdateEngineer?: (name: string) => void;
+  onUpdateBidDate?: (date: string) => void;
 }
 
-export function SubmittalMetaPanel({ submittal, stats }: SubmittalMetaPanelProps) {
+export function SubmittalMetaPanel({ submittal, stats, onUpdateArchitect, onUpdateEngineer, onUpdateBidDate }: SubmittalMetaPanelProps) {
+  const [showArchitectSearch, setShowArchitectSearch] = useState(false);
+  const [showEngineerSearch, setShowEngineerSearch] = useState(false);
+  const architectInputRef = useRef<HTMLInputElement>(null);
+  const engineerInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSelectArchitect = (contact: ContactSearchResult) => {
+    const fullName = `${contact.firstName} ${contact.lastName}`.trim();
+    if (architectInputRef.current) {
+      architectInputRef.current.value = fullName;
+    }
+    onUpdateArchitect?.(fullName);
+  };
+
+  const handleSelectEngineer = (contact: ContactSearchResult) => {
+    const fullName = `${contact.firstName} ${contact.lastName}`.trim();
+    if (engineerInputRef.current) {
+      engineerInputRef.current.value = fullName;
+    }
+    onUpdateEngineer?.(fullName);
+  };
+
   return (
     <>
       {/* Submittal Meta Information Panel */}
@@ -52,12 +78,18 @@ export function SubmittalMetaPanel({ submittal, stats }: SubmittalMetaPanelProps
                 <label className="text-[10px] text-[var(--muted-foreground)] w-16">Architect:</label>
                 <div className="flex-1 flex items-center gap-2">
                   <input
+                    ref={architectInputRef}
                     type="text"
                     defaultValue={submittal.architects[0]?.contactName || ''}
                     placeholder="Enter architect..."
+                    onBlur={(e) => onUpdateArchitect?.(e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
                   />
-                  <button className="p-1 hover:bg-[var(--muted)] rounded text-[var(--muted-foreground)]" title="Browse contacts">
+                  <button
+                    onClick={() => setShowArchitectSearch(true)}
+                    className="p-1 hover:bg-[var(--muted)] rounded text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors"
+                    title="Browse contacts"
+                  >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <circle cx="11" cy="11" r="8"/>
                       <path d="M21 21l-4.35-4.35"/>
@@ -69,12 +101,18 @@ export function SubmittalMetaPanel({ submittal, stats }: SubmittalMetaPanelProps
                 <label className="text-[10px] text-[var(--muted-foreground)] w-16">Engineer:</label>
                 <div className="flex-1 flex items-center gap-2">
                   <input
+                    ref={engineerInputRef}
                     type="text"
                     defaultValue={submittal.engineers[0]?.contactName || ''}
                     placeholder="Enter engineer..."
+                    onBlur={(e) => onUpdateEngineer?.(e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
                   />
-                  <button className="p-1 hover:bg-[var(--muted)] rounded text-[var(--muted-foreground)]" title="Browse contacts">
+                  <button
+                    onClick={() => setShowEngineerSearch(true)}
+                    className="p-1 hover:bg-[var(--muted)] rounded text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors"
+                    title="Browse contacts"
+                  >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <circle cx="11" cy="11" r="8"/>
                       <path d="M21 21l-4.35-4.35"/>
@@ -94,6 +132,7 @@ export function SubmittalMetaPanel({ submittal, stats }: SubmittalMetaPanelProps
                 <input
                   type="date"
                   defaultValue={submittal.bidDate?.split('T')[0] || ''}
+                  onBlur={(e) => onUpdateBidDate?.(e.target.value)}
                   className="flex-1 px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
                 />
               </div>
@@ -143,6 +182,23 @@ export function SubmittalMetaPanel({ submittal, stats }: SubmittalMetaPanelProps
           </div>
         </div>
       </div>
+
+      {/* Contact Search Modals */}
+      <ContactSearchModal
+        isOpen={showArchitectSearch}
+        onClose={() => setShowArchitectSearch(false)}
+        onSelect={handleSelectArchitect}
+        title="Search Architect"
+        roleFilter="architect"
+      />
+
+      <ContactSearchModal
+        isOpen={showEngineerSearch}
+        onClose={() => setShowEngineerSearch(false)}
+        onSelect={handleSelectEngineer}
+        title="Search Engineer"
+        roleFilter="engineer"
+      />
     </>
   );
 }

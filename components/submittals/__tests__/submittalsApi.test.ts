@@ -109,6 +109,9 @@ describe('Submittals API - Type Contracts', () => {
         status: 'DRAFT',
         transmittalPurpose: 'FOR_APPROVAL',
         description: 'Test submittal',
+        jobLocation: null,
+        bidDate: null,
+        tags: null,
         createdAt: '2024-01-01T00:00:00Z',
         createdBy: {
           id: 'user-uuid',
@@ -117,6 +120,17 @@ describe('Submittals API - Type Contracts', () => {
         items: [],
         stakeholders: [],
         revisions: [],
+        config: {
+          includeLamps: true,
+          includeAccessories: true,
+          includeCq: false,
+          includeFromOrders: false,
+          rollUpKits: false,
+          rollUpAccessories: false,
+          includeZeroQuantityItems: false,
+          dropDescriptions: false,
+          dropLineNotes: false,
+        },
       };
 
       // Verify required fields

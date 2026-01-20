@@ -93,6 +93,18 @@ export interface SubmittalRevisionResponse {
   };
 }
 
+export interface SubmittalConfigResponse {
+  includeLamps: boolean;
+  includeAccessories: boolean;
+  includeCq: boolean;
+  includeFromOrders: boolean;
+  rollUpKits: boolean;
+  rollUpAccessories: boolean;
+  includeZeroQuantityItems: boolean;
+  dropDescriptions: boolean;
+  dropLineNotes: boolean;
+}
+
 export interface SubmittalResponse {
   id: string;
   submittalNumber: string;
@@ -101,6 +113,9 @@ export interface SubmittalResponse {
   status: SubmittalStatusGQL;
   transmittalPurpose: TransmittalPurposeGQL | null;
   description: string | null;
+  jobLocation: string | null;
+  bidDate: string | null; // ISO date string (YYYY-MM-DD)
+  tags: string[] | null;
   createdAt: string;
   createdBy: {
     id: string;
@@ -109,6 +124,7 @@ export interface SubmittalResponse {
   items: SubmittalItemResponse[];
   stakeholders: SubmittalStakeholderResponse[];
   revisions: SubmittalRevisionResponse[];
+  config: SubmittalConfigResponse;
 }
 
 export interface CreateSubmittalInput {
@@ -120,10 +136,26 @@ export interface CreateSubmittalInput {
   description?: string;
 }
 
+export interface SubmittalConfigInput {
+  includeLamps?: boolean;
+  includeAccessories?: boolean;
+  includeCq?: boolean;
+  includeFromOrders?: boolean;
+  rollUpKits?: boolean;
+  rollUpAccessories?: boolean;
+  includeZeroQuantityItems?: boolean;
+  dropDescriptions?: boolean;
+  dropLineNotes?: boolean;
+}
+
 export interface UpdateSubmittalInput {
   status?: SubmittalStatusGQL;
   transmittalPurpose?: TransmittalPurposeGQL;
   description?: string;
+  jobLocation?: string;
+  bidDate?: string; // ISO date string (YYYY-MM-DD)
+  tags?: string[];
+  config?: SubmittalConfigInput;
 }
 
 export interface SubmittalItemInput {
@@ -267,6 +299,20 @@ const SUBMITTAL_REVISION_FRAGMENT = `
   }
 `;
 
+const SUBMITTAL_CONFIG_FRAGMENT = `
+  fragment SubmittalConfigFields on SubmittalConfigResponse {
+    includeLamps
+    includeAccessories
+    includeCq
+    includeFromOrders
+    rollUpKits
+    rollUpAccessories
+    includeZeroQuantityItems
+    dropDescriptions
+    dropLineNotes
+  }
+`;
+
 const SUBMITTAL_FRAGMENT = `
   fragment SubmittalFields on SubmittalResponse {
     id
@@ -276,6 +322,9 @@ const SUBMITTAL_FRAGMENT = `
     status
     transmittalPurpose
     description
+    jobLocation
+    bidDate
+    tags
     createdAt
     createdBy {
       id
@@ -290,10 +339,14 @@ const SUBMITTAL_FRAGMENT = `
     revisions {
       ...SubmittalRevisionFields
     }
+    config {
+      ...SubmittalConfigFields
+    }
   }
   ${SUBMITTAL_ITEM_FRAGMENT}
   ${SUBMITTAL_STAKEHOLDER_FRAGMENT}
   ${SUBMITTAL_REVISION_FRAGMENT}
+  ${SUBMITTAL_CONFIG_FRAGMENT}
 `;
 
 // ============================================================================

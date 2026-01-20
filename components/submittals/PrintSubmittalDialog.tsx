@@ -20,6 +20,7 @@ interface PrintSubmittalDialogProps {
   onPrint: (settings: PrintSettings) => void;
   resubmitMode?: boolean;
   resubmitItemIds?: string[];
+  onAddContact?: () => void;
 }
 
 const TABS: { id: TabId; label: string }[] = [
@@ -35,6 +36,7 @@ export default function PrintSubmittalDialog({
   onPrint,
   resubmitMode = false,
   resubmitItemIds = [],
+  onAddContact,
 }: PrintSubmittalDialogProps) {
   const dialog = usePrintDialog({
     submittal,
@@ -156,6 +158,7 @@ export default function PrintSubmittalDialog({
               toggleContactSelection={dialog.toggleContactSelection}
               selectAllContacts={dialog.selectAllContacts}
               selectNoneContacts={dialog.selectNoneContacts}
+              onAddContact={onAddContact}
             />
           )}
         </div>

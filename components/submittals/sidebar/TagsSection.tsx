@@ -49,36 +49,46 @@ export function TagsSection({
           {allCategories.length === 0 ? (
             <p className="text-xs text-[var(--muted-foreground)] py-2">No categories available</p>
           ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {allCategories.map(cat => {
-                const isSelected = selectedTags.includes(cat);
-                const count = allSpecSheets.filter(s => s.categories?.includes(cat)).length;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => {
-                      if (isSelected) {
-                        setSelectedTags(selectedTags.filter(t => t !== cat));
-                      } else {
-                        setSelectedTags([...selectedTags, cat]);
-                        setSelectedManufacturerId(null);
-                        setSelectedFolderId(null);
-                      }
-                    }}
-                    className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full transition-colors ${
-                      isSelected
-                        ? 'bg-[var(--primary)] text-white'
-                        : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--muted)]/80'
-                    }`}
-                  >
-                    {specSheetCategoryLabels[cat] || cat}
-                    <span className={`${isSelected ? 'text-white/70' : 'text-[var(--muted-foreground)]/70'}`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                {allCategories.map(cat => {
+                  const isSelected = selectedTags.includes(cat);
+                  const count = allSpecSheets.filter(s => s.categories?.includes(cat)).length;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedTags(selectedTags.filter(t => t !== cat));
+                        } else {
+                          setSelectedTags([...selectedTags, cat]);
+                          setSelectedManufacturerId(null);
+                          setSelectedFolderId(null);
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full transition-colors ${
+                        isSelected
+                          ? 'bg-[var(--primary)] text-white'
+                          : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--muted)]/80'
+                      }`}
+                    >
+                      {specSheetCategoryLabels[cat] || cat}
+                      <span className={`${isSelected ? 'text-white/70' : 'text-[var(--muted-foreground)]/70'}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedTags.length > 0 && (
+                <button
+                  onClick={() => setSelectedTags([])}
+                  className="mt-2 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] underline"
+                >
+                  Clear tags
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

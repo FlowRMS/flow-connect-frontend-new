@@ -12,6 +12,8 @@ interface ItemsTabContentProps {
   selectedItemSpecSheet: SpecSheet | null;
   onBrowseLibrary: () => void;
   onRemoveSpecSheet: (itemId: string) => void;
+  onAddItem?: () => void;
+  onDeleteItem?: (itemId: string) => void;
 }
 
 export function ItemsTabContent({
@@ -22,13 +24,18 @@ export function ItemsTabContent({
   selectedItemSpecSheet,
   onBrowseLibrary,
   onRemoveSpecSheet,
+  onAddItem,
+  onDeleteItem,
 }: ItemsTabContentProps) {
   return (
     <>
       {/* Items List */}
       <div className="w-80 border-r border-[var(--border)] flex flex-col">
         <div className="p-3 border-b border-[var(--border)]">
-          <button className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm border border-dashed border-[var(--border)] rounded-lg text-[var(--muted-foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors">
+          <button
+            onClick={onAddItem}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm border border-dashed border-[var(--border)] rounded-lg text-[var(--muted-foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
+          >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
             </svg>
@@ -86,7 +93,10 @@ export function ItemsTabContent({
                     <path d="M18.5 2.5a2.121 2.121 0 010 3L12 12l-4 1 1-4 6.5-6.5a2.121 2.121 0 013 0z" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
-                <button className="p-2 hover:bg-red-50 rounded-lg transition-colors text-red-500">
+                <button
+                  onClick={() => onDeleteItem?.(selectedItem.id)}
+                  className="p-2 hover:bg-red-50 rounded-lg transition-colors text-red-500"
+                >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M3 6h14M8 6V4h4v2M17 6v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>

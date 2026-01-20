@@ -18,6 +18,7 @@ interface AddressedToTabProps {
   toggleContactSelection: (contactId: string) => void;
   selectAllContacts: () => void;
   selectNoneContacts: () => void;
+  onAddContact?: () => void;
 }
 
 export function AddressedToTab({
@@ -26,6 +27,7 @@ export function AddressedToTab({
   toggleContactSelection,
   selectAllContacts,
   selectNoneContacts,
+  onAddContact,
 }: AddressedToTabProps) {
   return (
     <div className="space-y-4">
@@ -84,6 +86,7 @@ export function AddressedToTab({
       {/* Footer */}
       <div className="flex items-center justify-end gap-2 pt-2">
         <button
+          onClick={onAddContact}
           className="px-4 py-1.5 text-sm border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors"
         >
           Add Contact

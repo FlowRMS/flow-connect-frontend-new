@@ -18,7 +18,6 @@ interface ManufacturerManagementModalProps {
   handleRenameManufacturer: (index: number) => void;
   handleSaveManufacturerRename: () => void;
   handleDeleteManufacturer: (index: number) => void;
-  handleAddManufacturer: () => void;
   draggedManufacturerIndex: number | null;
   dragOverIndex: number | null;
   handleDragStart: (index: number) => void;
@@ -69,7 +68,6 @@ export function ManufacturerManagementModal({
   handleRenameManufacturer,
   handleSaveManufacturerRename,
   handleDeleteManufacturer,
-  handleAddManufacturer,
   draggedManufacturerIndex,
   dragOverIndex,
   handleDragStart,
@@ -224,19 +222,10 @@ export function ManufacturerManagementModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/30">
-          <button
-            onClick={handleAddManufacturer}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
-            </svg>
-            Add Manufacturer
-          </button>
+        <div className="flex items-center justify-end px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/30">
           <div className="flex items-center gap-3">
             <span className="text-sm text-[var(--muted-foreground)]">
-              {manufacturers.length} manufacturer{manufacturers.length !== 1 ? 's' : ''} · {folders.length} folder{folders.length !== 1 ? 's' : ''}
+              {manufacturers.length} manufacturer{manufacturers.length !== 1 ? 's' : ''} · {manufacturers.reduce((total, mfr) => total + getFolderCountForManufacturer(mfr.name), 0)} folder{manufacturers.reduce((total, mfr) => total + getFolderCountForManufacturer(mfr.name), 0) !== 1 ? 's' : ''}
             </span>
             <button
               onClick={handleClose}

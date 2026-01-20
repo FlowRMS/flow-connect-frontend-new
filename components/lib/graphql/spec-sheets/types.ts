@@ -19,7 +19,7 @@ export interface SpecSheetResponse {
   pageCount: number;
   categories: string[];
   tags: string[] | null;
-  folderPath: string | null;
+  folderId: string | null; // pyfiles.folders ID (from File.folder_id)
   needsReview: boolean;
   published: boolean;
   usageCount: number;
@@ -53,9 +53,9 @@ export interface UpdateSpecSheetInput {
   displayName?: string;
   categories?: string[];
   tags?: string[];
-  folderPath?: string;
   needsReview?: boolean;
   published?: boolean;
+  // Note: To move a spec sheet to a different folder, use moveSpecSheetToFolder mutation
 }
 
 // ============================================================================

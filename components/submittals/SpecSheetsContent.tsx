@@ -210,7 +210,6 @@ export default function SpecSheetsContent() {
           handleRenameManufacturer={state.handleRenameManufacturer}
           handleSaveManufacturerRename={state.handleSaveManufacturerRename}
           handleDeleteManufacturer={state.handleDeleteManufacturer}
-          handleAddManufacturer={state.handleAddManufacturer}
           draggedManufacturerIndex={state.draggedManufacturerIndex}
           dragOverIndex={state.dragOverIndex}
           handleDragStart={state.handleDragStart}

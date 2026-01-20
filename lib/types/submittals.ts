@@ -161,6 +161,9 @@ export interface SubmittalItem {
   specSheetId?: string;
   specSheetPageRange?: { start: number; end: number }; // If only using certain pages
   highlightDefinitionId?: string;
+  // Nested objects from API
+  specSheet?: SpecSheet; // Populated from GraphQL response
+  highlightVersion?: HighlightDefinition; // Populated from GraphQL response
   // Status
   matchStatus: SpecSheetMatchStatus;
   itemApprovalStatus?: ItemApprovalStatus;
