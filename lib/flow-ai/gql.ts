@@ -1048,6 +1048,7 @@ export const M_EXECUTE_PIPELINE = gql`
     $overrideCode: String
     $stopAfter: Int = 4
     $additionalData: JSON
+    $startFromNode: Int
   ) {
     executePipeline(
       prompt: $prompt
@@ -1055,6 +1056,7 @@ export const M_EXECUTE_PIPELINE = gql`
       overrideCode: $overrideCode
       stopAfter: $stopAfter
       additionalData: $additionalData
+      startFromNode: $startFromNode
     ) {
       success
       error

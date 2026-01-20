@@ -100,9 +100,20 @@ export default function CreateWorkflowPage() {
       }
     }
 
+    if (step === 4) {
+      const fallbackCode = pipelineResult?.nodes?.node3?.code?.trim() || '';
+      const overrideCode = editedCode.trim() || fallbackCode;
+      if (!overrideCode) {
+        toast.error('Run Node 3 first or provide code before running Node 4.');
+        return;
+      }
+    }
+
     setLoadingStep(step);
     try {
-      const shouldOverrideCode = step === 4 && editedCode.trim().length > 0;
+      const fallbackCode = pipelineResult?.nodes?.node3?.code?.trim() || '';
+      const overrideCode =
+        step === 4 ? editedCode.trim() || fallbackCode || undefined : undefined;
 
       // For step 1: upload files (pass files, no existingFileIds)
       // For steps 2-4: reuse fileIds from step 1 (pass undefined for files, pass existingFileIds)
@@ -111,7 +122,8 @@ export default function CreateWorkflowPage() {
         step === 1 ? files : undefined,
         step === 1 ? undefined : uploadedFileIds ?? undefined,
         step,
-        shouldOverrideCode ? editedCode : undefined
+        overrideCode,
+        step
       );
 
       // Store fileIds from step 1 for reuse in subsequent steps
@@ -207,6 +219,23 @@ export default function CreateWorkflowPage() {
     return csvRows.join('\n');
   };
 
+  const extractRows = (raw: any): Record<string, any>[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+
+    const candidates = [raw.data, raw.rows, raw.result, raw.records, raw.items];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate;
+      if (candidate && typeof candidate === 'object') {
+        if (Array.isArray(candidate.data)) return candidate.data;
+        if (Array.isArray(candidate.rows)) return candidate.rows;
+        if (Array.isArray(candidate.result)) return candidate.result;
+      }
+    }
+
+    return [];
+  };
+
   const downloadCsv = (filename: string, csv: string) => {
     if (!csv) return;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -223,8 +252,8 @@ export default function CreateWorkflowPage() {
   useEffect(() => {
     if (!pipelineResult?.nodes?.node4 || autoDownloadedCsv) return;
     const raw = pipelineResult.nodes.node4.result;
-    const data = (raw?.data ?? raw?.rows ?? raw) as Record<string, any>[] | undefined;
-    if (!Array.isArray(data) || !data.length) return;
+    const data = extractRows(raw);
+    if (!data.length) return;
     const csv = jsonToCsv(data);
     if (!csv) return;
     downloadCsv('workflow-result.csv', csv);
@@ -410,15 +439,7 @@ export default function CreateWorkflowPage() {
         </p>
       );
     const raw = node4.result;
-    const data = Array.isArray(raw?.data)
-      ? raw.data
-      : Array.isArray(raw?.rows)
-      ? raw.rows
-      : Array.isArray(raw?.result)
-      ? raw.result
-      : Array.isArray(raw)
-      ? raw
-      : [];
+    const data = extractRows(raw);
     const hasData = Array.isArray(data) && data.length;
     return (
       <>

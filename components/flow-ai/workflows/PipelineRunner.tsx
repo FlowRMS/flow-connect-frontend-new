@@ -83,9 +83,20 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
       return;
     }
 
+    if (step === 4) {
+      const fallbackCode = pipelineResult?.nodes?.node3?.code?.trim() || '';
+      const overrideCode = editedCode.trim() || fallbackCode;
+      if (!overrideCode) {
+        toast.error('Run Node 3 first or provide code before running Node 4.');
+        return;
+      }
+    }
+
     setLoadingStep(step);
     try {
-      const shouldOverrideCode = step === 4 && editedCode.trim().length > 0;
+      const fallbackCode = pipelineResult?.nodes?.node3?.code?.trim() || '';
+      const overrideCode =
+        step === 4 ? editedCode.trim() || fallbackCode || undefined : undefined;
 
       // Node 1: pass files to upload, nodes 2-4: pass existing fileIds
       const res = await workflowAPI.executePipeline(
@@ -93,7 +104,8 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
         step === 1 ? files : undefined,
         step === 1 ? undefined : uploadedFileIds,
         step,
-        shouldOverrideCode ? editedCode : undefined
+        overrideCode,
+        step
       );
       setPipelineResult(res);
 
@@ -149,6 +161,23 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     return csvRows.join('\n');
   };
 
+  const extractRows = (raw: any): Record<string, any>[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+
+    const candidates = [raw.data, raw.rows, raw.result, raw.records, raw.items];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate;
+      if (candidate && typeof candidate === 'object') {
+        if (Array.isArray(candidate.data)) return candidate.data;
+        if (Array.isArray(candidate.rows)) return candidate.rows;
+        if (Array.isArray(candidate.result)) return candidate.result;
+      }
+    }
+
+    return [];
+  };
+
   const downloadCsv = (filename: string, csv: string) => {
     if (!csv) return;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -165,8 +194,8 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
   useEffect(() => {
     if (!pipelineResult?.nodes?.node4 || autoDownloadedCsv) return;
     const raw = pipelineResult.nodes.node4.result;
-    const data = (raw?.data ?? raw?.rows ?? raw) as Record<string, any>[] | undefined;
-    if (!Array.isArray(data) || !data.length) return;
+    const data = extractRows(raw);
+    if (!data.length) return;
     const csv = jsonToCsv(data);
     if (!csv) return;
     downloadCsv('workflow-result.csv', csv);
@@ -332,15 +361,7 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     if (!node4)
       return <p className="text-sm text-muted-foreground">Run Node 4 to see execution result.</p>;
     const raw = node4.result;
-    const data = Array.isArray(raw?.data)
-      ? raw.data
-      : Array.isArray(raw?.rows)
-      ? raw.rows
-      : Array.isArray(raw?.result)
-      ? raw.result
-      : Array.isArray(raw)
-      ? raw
-      : [];
+    const data = extractRows(raw);
     const hasData = Array.isArray(data) && data.length;
     return (
       <>

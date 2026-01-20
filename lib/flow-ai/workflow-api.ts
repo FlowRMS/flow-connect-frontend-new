@@ -420,7 +420,8 @@ class WorkflowAPI {
     files: File[] | undefined,
     existingFileIds: string[] | undefined,
     stopAfter: number = 4,
-    overrideCode?: string
+    overrideCode?: string,
+    startFromNode?: number
   ): Promise<PipelineExecuteResponse> {
     const client = apolloClient;
 
@@ -458,6 +459,7 @@ class WorkflowAPI {
         fileIds,
         overrideCode,
         stopAfter,
+        startFromNode,
       },
     });
 
