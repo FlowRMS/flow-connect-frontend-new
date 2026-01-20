@@ -1239,8 +1239,9 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   };
 
   const handleCreateInventoryRequest = async (items: { lineItem: FulfillmentOrderLineItem; requestedQty: number }[]) => {
-    // Validate warehouse is assigned
-    if (!fulfillmentOrder.warehouseId) {
+    try {
+      // Validate warehouse is assigned
+      if (!fulfillmentOrder.warehouseId) {
       alert('Error: No warehouse assigned to this fulfillment order. Please assign a warehouse before creating a shipment request.');
       return;
     }

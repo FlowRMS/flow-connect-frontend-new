@@ -639,7 +639,7 @@ export async function createWarehouseAddress(
     ...restAddress,
     sourceId: warehouseId,
     sourceType: "FACTORY",
-    addressType: address.addressType || "OTHER",
+    addressTypes: [address.addressType || "OTHER"],
   };
 
   const response = await crmGraphQLRequest<{ createAddress: WarehouseAddress }>(
@@ -676,7 +676,7 @@ export async function updateWarehouseAddress(
     ...restAddress,
     sourceId: warehouseId,
     sourceType: "FACTORY",
-    addressType: address.addressType || "OTHER",
+    addressTypes: [address.addressType || "OTHER"],
   };
 
   const response = await crmGraphQLRequest<{ updateAddress: WarehouseAddress }>(
