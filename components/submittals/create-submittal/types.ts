@@ -44,7 +44,7 @@ export interface ManualContacts {
 // Props for CreateSubmittalModal
 export interface CreateSubmittalModalProps {
   onClose: () => void;
-  onCreate: (submittal: Partial<Submittal>) => void;
+  onCreate: (submittal: Partial<Submittal>) => void | Promise<void>;
   preselectedQuoteId?: string;
   preselectedQuoteName?: string;
   quoteRecipients?: QuoteRecipient[];
@@ -100,5 +100,8 @@ export interface UseCreateSubmittalReturn {
   // Navigation
   handleNext: () => void;
   handleBack: () => void;
-  handleCreate: () => void;
+  handleCreate: () => Promise<void>;
+
+  // Loading state
+  isCreating: boolean;
 }

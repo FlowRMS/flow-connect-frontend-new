@@ -149,6 +149,10 @@ export function useSubmittalsState() {
     isLoading,
     error,
 
+    // Loading states
+    isSavingSettings: updateSubmittalMutation.isPending,
+    isAddingStakeholder: addSubmittalStakeholderMutation.isPending,
+
     // Handlers
     ...handlers,
 

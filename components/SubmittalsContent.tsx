@@ -50,6 +50,10 @@ export default function SubmittalsContent() {
     isLoading,
     error,
 
+    // Loading states
+    isSavingSettings,
+    isAddingStakeholder,
+
     // Handlers
     handleSubmittalUpdate,
     handleCreateSubmittal,
@@ -61,6 +65,8 @@ export default function SubmittalsContent() {
     handleUpdateBidDate,
     handleAddContact,
     handleDeleteSubmittal,
+    handleAddStakeholder,
+    handleRemoveStakeholder,
 
     // PDF generation
     generatePdfMutation,
@@ -205,6 +211,10 @@ export default function SubmittalsContent() {
               onUpdateEngineer={handleUpdateEngineer}
               onUpdateBidDate={handleUpdateBidDate}
               onDeleteSubmittal={handleDeleteSubmittal}
+              onAddStakeholder={handleAddStakeholder}
+              onRemoveStakeholder={handleRemoveStakeholder}
+              isSavingSettings={isSavingSettings}
+              isAddingStakeholder={isAddingStakeholder}
             />
           </div>
         </div>

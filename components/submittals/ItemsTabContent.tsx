@@ -1,8 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { SubmittalItem, SpecSheet } from '../../lib/types/submittals';
 import { matchStatusLabels, matchStatusColors } from '../../lib/data/submittals-mock';
+
+interface EditItemValues {
+  description: string;
+  quantity: number;
+}
 
 interface ItemsTabContentProps {
   items: SubmittalItem[];
@@ -14,6 +19,9 @@ interface ItemsTabContentProps {
   onRemoveSpecSheet: (itemId: string) => void;
   onAddItem?: () => void;
   onDeleteItem?: (itemId: string) => void;
+  onEditItem?: (itemId: string, values: { description?: string; quantity?: number }) => void | Promise<void>;
+  isEditingItem?: boolean;
+  onUploadNew?: () => void;
 }
 
 export function ItemsTabContent({
@@ -26,7 +34,56 @@ export function ItemsTabContent({
   onRemoveSpecSheet,
   onAddItem,
   onDeleteItem,
+  onEditItem,
+  isEditingItem,
+  onUploadNew,
 }: ItemsTabContentProps) {
+  // Inline editing state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValues, setEditValues] = useState<EditItemValues>({ description: '', quantity: 0 });
+
+  // Reset editing state when selected item changes
+  useEffect(() => {
+    setIsEditing(false);
+    if (selectedItem) {
+      setEditValues({
+        description: selectedItem.description || '',
+        quantity: selectedItem.quantity || 0,
+      });
+    }
+  }, [selectedItemId, selectedItem]);
+
+  const handleStartEdit = () => {
+    if (selectedItem) {
+      setEditValues({
+        description: selectedItem.description || '',
+        quantity: selectedItem.quantity || 0,
+      });
+      setIsEditing(true);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    if (selectedItem) {
+      setEditValues({
+        description: selectedItem.description || '',
+        quantity: selectedItem.quantity || 0,
+      });
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (selectedItem && onEditItem) {
+      // Wait for the edit to complete and data to be refetched
+      await onEditItem(selectedItem.id, {
+        description: editValues.description,
+        quantity: editValues.quantity,
+      });
+      // Only exit edit mode after data is updated
+      setIsEditing(false);
+    }
+  };
   return (
     <>
       {/* Items List */}
@@ -87,20 +144,51 @@ export function ItemsTabContent({
                 <p className="text-sm text-[var(--muted-foreground)]">{selectedItem.manufacturer}</p>
               </div>
               <div className="flex items-center gap-2">
-                <button className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors text-[var(--muted-foreground)]">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M11 4H4a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 010 3L12 12l-4 1 1-4 6.5-6.5a2.121 2.121 0 013 0z" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-                <button
-                  onClick={() => onDeleteItem?.(selectedItem.id)}
-                  className="p-2 hover:bg-red-50 rounded-lg transition-colors text-red-500"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M3 6h14M8 6V4h4v2M17 6v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
+                {isEditing ? (
+                  <>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveEdit}
+                      disabled={isEditingItem}
+                      className="px-3 py-1.5 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isEditingItem && (
+                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      )}
+                      Save
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleStartEdit}
+                      className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors text-[var(--muted-foreground)]"
+                      title="Edit item"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M11 4H4a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 010 3L12 12l-4 1 1-4 6.5-6.5a2.121 2.121 0 013 0z" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => onDeleteItem?.(selectedItem.id)}
+                      className="p-2 hover:bg-red-50 rounded-lg transition-colors text-red-500"
+                      title="Delete item"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 6h14M8 6V4h4v2M17 6v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -108,14 +196,31 @@ export function ItemsTabContent({
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-[var(--muted)]/30 rounded-lg p-4">
                 <span className="text-xs text-[var(--muted-foreground)]">Description</span>
-                <p className="text-sm text-[var(--foreground)] mt-1">{selectedItem.description}</p>
+                {isEditing ? (
+                  <textarea
+                    value={editValues.description}
+                    onChange={(e) => setEditValues(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full mt-1 px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 resize-none"
+                    rows={3}
+                  />
+                ) : (
+                  <p className="text-sm text-[var(--foreground)] mt-1">{selectedItem.description}</p>
+                )}
               </div>
-              {selectedItem.quantity && (
-                <div className="bg-[var(--muted)]/30 rounded-lg p-4">
-                  <span className="text-xs text-[var(--muted-foreground)]">Quantity</span>
-                  <p className="text-sm text-[var(--foreground)] mt-1">{selectedItem.quantity}</p>
-                </div>
-              )}
+              <div className="bg-[var(--muted)]/30 rounded-lg p-4">
+                <span className="text-xs text-[var(--muted-foreground)]">Quantity</span>
+                {isEditing ? (
+                  <input
+                    type="number"
+                    value={editValues.quantity}
+                    onChange={(e) => setEditValues(prev => ({ ...prev, quantity: Number(e.target.value) }))}
+                    className="w-full mt-1 px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                    min={0}
+                  />
+                ) : (
+                  <p className="text-sm text-[var(--foreground)] mt-1">{selectedItem.quantity || '-'}</p>
+                )}
+              </div>
             </div>
 
             {/* Spec Sheet Section */}
@@ -183,7 +288,10 @@ export function ItemsTabContent({
                     >
                       Browse Library
                     </button>
-                    <button className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors">
+                    <button
+                      onClick={onUploadNew}
+                      className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                    >
                       Upload New
                     </button>
                   </div>

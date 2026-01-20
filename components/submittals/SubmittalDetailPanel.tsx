@@ -42,6 +42,10 @@ interface SubmittalDetailPanelProps {
   onUpdateEngineer?: (name: string) => void;
   onUpdateBidDate?: (date: string) => void;
   onDeleteSubmittal?: () => void;
+  onAddStakeholder?: (role: 'customer' | 'engineer' | 'architect', data: { contactName: string; companyName: string; email: string }) => Promise<void>;
+  onRemoveStakeholder?: (stakeholderId: string) => void;
+  isSavingSettings?: boolean;
+  isAddingStakeholder?: boolean;
 }
 
 type TabId = 'items' | 'stakeholders' | 'revisions' | 'settings';
@@ -60,6 +64,10 @@ export default function SubmittalDetailPanel({
   onUpdateEngineer,
   onUpdateBidDate,
   onDeleteSubmittal,
+  onAddStakeholder,
+  onRemoveStakeholder,
+  isSavingSettings,
+  isAddingStakeholder,
 }: SubmittalDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>('items');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -289,6 +297,9 @@ export default function SubmittalDetailPanel({
               customers={submittal.customers}
               engineers={submittal.engineers}
               architects={submittal.architects}
+              onAddStakeholder={onAddStakeholder}
+              onRemoveStakeholder={onRemoveStakeholder}
+              isAddingStakeholder={isAddingStakeholder}
             />
           )}
 
@@ -324,6 +335,7 @@ export default function SubmittalDetailPanel({
               hasSettingsChanges={settings.hasSettingsChanges}
               onSaveSettings={settings.handleSaveSettings}
               onDeleteSubmittal={onDeleteSubmittal}
+              isSaving={isSavingSettings}
             />
           )}
         </div>

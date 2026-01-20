@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import type {
   Submittal,
   SubmittalRevision,
@@ -6,6 +6,8 @@ import type {
   EmailSendRecord,
   ItemChange,
 } from '../../../lib/types/submittals';
+import { useSendSubmittalEmail } from '../api/useSubmittalsApi';
+import { submittalToasts } from '../../lib/toast';
 
 interface UseRevisionWorkflowParams {
   submittal: Submittal;
@@ -21,29 +23,39 @@ export function useRevisionWorkflow({
   const [emailDialogRevision, setEmailDialogRevision] = useState<SubmittalRevision | null>(null);
   const [uploadDialogRevision, setUploadDialogRevision] = useState<SubmittalRevision | null>(null);
   const [analysisReturnedPdf, setAnalysisReturnedPdf] = useState<ReturnedPdf | null>(null);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
-  const handleSendEmail = (emailRecord: Omit<EmailSendRecord, 'id' | 'sentAt'>) => {
-    if (!emailDialogRevision || !onUpdate) return;
+  // API hook for sending email
+  const sendEmailMutation = useSendSubmittalEmail();
 
-    const newEmailRecord: EmailSendRecord = {
-      ...emailRecord,
-      id: `email-${Date.now()}`,
-      sentAt: new Date().toISOString(),
-    };
+  const handleSendEmail = useCallback(async (emailRecord: Omit<EmailSendRecord, 'id' | 'sentAt'>) => {
+    if (!emailDialogRevision || !submittal.id) return;
 
-    const updatedRevisions = submittal.revisions.map(rev => {
-      if (rev.revisionNumber === emailDialogRevision.revisionNumber) {
-        return {
-          ...rev,
-          emailsSent: [...(rev.emailsSent || []), newEmailRecord],
-        };
-      }
-      return rev;
-    });
+    setIsSendingEmail(true);
+    try {
+      // Find the revision ID from the submittal
+      const revision = submittal.revisions.find(
+        r => r.revisionNumber === emailDialogRevision.revisionNumber
+      );
 
-    onUpdate({ revisions: updatedRevisions });
-    setEmailDialogRevision(null);
-  };
+      await sendEmailMutation.mutateAsync({
+        submittalId: submittal.id,
+        revisionId: undefined, // TODO: Get revision ID when available from backend
+        subject: emailRecord.subject,
+        body: emailRecord.body,
+        recipientEmails: emailRecord.recipients,
+      });
+
+      // Query invalidation happens automatically in the mutation hook
+      setEmailDialogRevision(null);
+      submittalToasts.emailSent(emailRecord.recipients.length);
+    } catch (error) {
+      console.error('Error sending email:', error);
+      submittalToasts.emailError(error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsSendingEmail(false);
+    }
+  }, [emailDialogRevision, submittal.id, submittal.revisions, sendEmailMutation]);
 
   const handleUploadReturned = (returnedPdf: Omit<ReturnedPdf, 'id' | 'uploadedAt' | 'uploadedBy'>) => {
     if (!uploadDialogRevision || !onUpdate) return;
@@ -201,5 +213,6 @@ export function useRevisionWorkflow({
     handleAddChange,
     handleDeleteChange,
     handleResubmit,
+    isSendingEmail,
   };
 }

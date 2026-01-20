@@ -333,6 +333,50 @@ export function useSubmittalHandlers({
     }
   }, [selectedSubmittalId, addSubmittalStakeholderMutation, refetch]);
 
+  // Handle add stakeholder from the Stakeholders tab form
+  const handleAddStakeholder = useCallback(async (
+    role: 'customer' | 'engineer' | 'architect',
+    data: { contactName: string; companyName: string; email: string }
+  ) => {
+    if (!selectedSubmittalId || !data.contactName.trim()) return;
+
+    const roleMap: Record<string, SubmittalStakeholderRoleGQL> = {
+      customer: 'CUSTOMER',
+      engineer: 'ENGINEER',
+      architect: 'ARCHITECT',
+    };
+
+    try {
+      const stakeholderInput: SubmittalStakeholderInput = {
+        role: roleMap[role],
+        contactName: data.contactName.trim(),
+        companyName: data.companyName.trim() || undefined,
+        contactEmail: data.email.trim() || undefined,
+      };
+      await addSubmittalStakeholderMutation.mutateAsync({
+        submittalId: selectedSubmittalId,
+        input: stakeholderInput,
+      });
+      refetch();
+    } catch (err) {
+      console.error('Error adding stakeholder:', err);
+    }
+  }, [selectedSubmittalId, addSubmittalStakeholderMutation, refetch]);
+
+  // Handle remove stakeholder
+  const handleRemoveStakeholder = useCallback(async (stakeholderId: string) => {
+    if (!selectedSubmittalId) return;
+    try {
+      await removeSubmittalStakeholderMutation.mutateAsync({
+        id: stakeholderId,
+        submittalId: selectedSubmittalId,
+      });
+      refetch();
+    } catch (err) {
+      console.error('Error removing stakeholder:', err);
+    }
+  }, [selectedSubmittalId, removeSubmittalStakeholderMutation, refetch]);
+
   // Handle delete submittal
   const handleDeleteSubmittal = useCallback(async () => {
     if (!selectedSubmittalId || !selectedSubmittalFull) return;
@@ -359,5 +403,7 @@ export function useSubmittalHandlers({
     handleUpdateBidDate,
     handleAddContact,
     handleDeleteSubmittal,
+    handleAddStakeholder,
+    handleRemoveStakeholder,
   };
 }

@@ -265,7 +265,9 @@ export function useSendSubmittalEmail() {
   return useMutation<boolean, Error, SendSubmittalEmailInput>({
     mutationFn: sendSubmittalEmail,
     onSuccess: (_, { submittalId }) => {
+      // Invalidate both detail and list queries to refresh revision data
       queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.list() });
     },
   });
 }

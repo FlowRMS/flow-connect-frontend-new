@@ -66,6 +66,9 @@ export function useCreateSubmittal({
   // Step state
   const [step, setStep] = useState<Step>(preselectedQuoteId ? 'select-recipients' : 'select-quote');
 
+  // Loading state for creation
+  const [isCreating, setIsCreating] = useState(false);
+
   // Quote selection
   const [selectedQuoteIds, setSelectedQuoteIds] = useState<Set<string>>(
     preselectedQuoteId ? new Set([preselectedQuoteId]) : new Set()
@@ -266,56 +269,63 @@ export function useCreateSubmittal({
     }
   };
 
-  const handleCreate = () => {
-    const items: Partial<SubmittalItem>[] = lineItems
-      .filter(li => selectedItemIds.has(li.id))
-      .map((li, index) => ({
-        id: `SI-NEW-${Date.now()}-${index}`,
-        catalogNumber: li.catalogNumber,
-        manufacturer: li.manufacturer,
-        description: li.description,
-        quantity: li.quantity,
-        sortOrder: index,
-        matchStatus: 'no_match' as const,
-        fixtureType: `F${index + 1}`,
-      }));
+  const handleCreate = async () => {
+    if (isCreating) return;
 
-    const customerRoles: QuoteRecipient['role'][] = ['customer', 'gc', 'ec', 'other'];
-    const customers: SubmittalStakeholder[] = selectedRecipients
-      .filter(r => customerRoles.includes(r.role))
-      .map(r => ({ contactId: r.id, contactName: r.name, companyName: r.company, email: r.email, role: r.role as SubmittalStakeholder['role'] }));
+    setIsCreating(true);
+    try {
+      const items: Partial<SubmittalItem>[] = lineItems
+        .filter(li => selectedItemIds.has(li.id))
+        .map((li, index) => ({
+          id: `SI-NEW-${Date.now()}-${index}`,
+          catalogNumber: li.catalogNumber,
+          manufacturer: li.manufacturer,
+          description: li.description,
+          quantity: li.quantity,
+          sortOrder: index,
+          matchStatus: 'no_match' as const,
+          fixtureType: `F${index + 1}`,
+        }));
 
-    const engineers: SubmittalStakeholder[] = selectedRecipients
-      .filter(r => r.role === 'engineer')
-      .map(r => ({ contactId: r.id, contactName: r.name, companyName: r.company, email: r.email, role: r.role as SubmittalStakeholder['role'] }));
+      const customerRoles: QuoteRecipient['role'][] = ['customer', 'gc', 'ec', 'other'];
+      const customers: SubmittalStakeholder[] = selectedRecipients
+        .filter(r => customerRoles.includes(r.role))
+        .map(r => ({ contactId: r.id, contactName: r.name, companyName: r.company, email: r.email, role: r.role as SubmittalStakeholder['role'] }));
 
-    const architects: SubmittalStakeholder[] = selectedRecipients
-      .filter(r => r.role === 'architect')
-      .map(r => ({ contactId: r.id, contactName: r.name, companyName: r.company, email: r.email, role: r.role as SubmittalStakeholder['role'] }));
+      const engineers: SubmittalStakeholder[] = selectedRecipients
+        .filter(r => r.role === 'engineer')
+        .map(r => ({ contactId: r.id, contactName: r.name, companyName: r.company, email: r.email, role: r.role as SubmittalStakeholder['role'] }));
 
-    // Add manual contacts
-    if (manualContacts.architectName.trim() && !architects.some(a => a.contactName === manualContacts.architectName.trim())) {
-      architects.push({ contactId: `manual-arch-${Date.now()}`, contactName: manualContacts.architectName.trim(), companyName: manualContacts.architectCompany.trim() || undefined, role: 'architect' });
+      const architects: SubmittalStakeholder[] = selectedRecipients
+        .filter(r => r.role === 'architect')
+        .map(r => ({ contactId: r.id, contactName: r.name, companyName: r.company, email: r.email, role: r.role as SubmittalStakeholder['role'] }));
+
+      // Add manual contacts
+      if (manualContacts.architectName.trim() && !architects.some(a => a.contactName === manualContacts.architectName.trim())) {
+        architects.push({ contactId: `manual-arch-${Date.now()}`, contactName: manualContacts.architectName.trim(), companyName: manualContacts.architectCompany.trim() || undefined, role: 'architect' });
+      }
+      if (manualContacts.engineerName.trim() && !engineers.some(e => e.contactName === manualContacts.engineerName.trim())) {
+        engineers.push({ contactId: `manual-eng-${Date.now()}`, contactName: manualContacts.engineerName.trim(), companyName: manualContacts.engineerCompany.trim() || undefined, role: 'engineer' });
+      }
+      if (manualContacts.otherContactName.trim() && !customers.some(c => c.contactName === manualContacts.otherContactName.trim())) {
+        customers.push({ contactId: `manual-other-${Date.now()}`, contactName: manualContacts.otherContactName.trim(), companyName: manualContacts.otherContactCompany.trim() || undefined, role: 'other' });
+      }
+
+      await onCreate({
+        jobName: submittalName,
+        quoteIds: Array.from(selectedQuoteIds),
+        items: items as SubmittalItem[],
+        status: 'draft',
+        currentRevision: 0,
+        customers,
+        engineers,
+        architects,
+        config,
+        revisions: [],
+      });
+    } finally {
+      setIsCreating(false);
     }
-    if (manualContacts.engineerName.trim() && !engineers.some(e => e.contactName === manualContacts.engineerName.trim())) {
-      engineers.push({ contactId: `manual-eng-${Date.now()}`, contactName: manualContacts.engineerName.trim(), companyName: manualContacts.engineerCompany.trim() || undefined, role: 'engineer' });
-    }
-    if (manualContacts.otherContactName.trim() && !customers.some(c => c.contactName === manualContacts.otherContactName.trim())) {
-      customers.push({ contactId: `manual-other-${Date.now()}`, contactName: manualContacts.otherContactName.trim(), companyName: manualContacts.otherContactCompany.trim() || undefined, role: 'other' });
-    }
-
-    onCreate({
-      jobName: submittalName,
-      quoteIds: Array.from(selectedQuoteIds),
-      items: items as SubmittalItem[],
-      status: 'draft',
-      currentRevision: 0,
-      customers,
-      engineers,
-      architects,
-      config,
-      revisions: [],
-    });
   };
 
   // Can proceed
@@ -352,6 +362,6 @@ export function useCreateSubmittal({
     lineItems, selectedItemIds, toggleItem, toggleAllItems,
     submittalName, setSubmittalName, transmittalPurpose, setTransmittalPurpose,
     notes, setNotes, config, updateConfig,
-    handleNext, handleBack, handleCreate,
+    handleNext, handleBack, handleCreate, isCreating,
   };
 }
