@@ -1261,27 +1261,23 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       return acc;
     }, {} as Record<string, { name: string; items: Array<{ productId: string; quantity: number }> }>);
 
-    // Validate we have manufacturers to request from
-    const manufacturerEntries = Object.entries(byManufacturer);
-    if (manufacturerEntries.length === 0) {
-      alert('Error: No manufacturers found for the selected items. Products need to have a manufacturer assigned.');
-      return;
-    }
-
-    try {
-      // Create shipment requests for each manufacturer
-      for (const [mfrId, { items: reqItems }] of manufacturerEntries) {
-        await createShipmentRequestMutation.mutateAsync({
-          warehouseId: fulfillmentOrder.warehouseId,
-          factoryId: mfrId,
-          requestDate: new Date().toISOString(),
-          priority: 'STANDARD',
-          method: 'EMAIL',
-          status: 'DRAFT',
-          notes: `Created from fulfillment order ${fulfillmentOrder.fulfillmentOrderNumber}`,
-          items: reqItems,
-        });
-      }
+    // Create shipment requests for each manufacturer
+    Object.entries(byManufacturer).forEach(([mfrId, { name, items: reqItems }]) => {
+      addShipmentRequest({
+        vendorId: mfrId,
+        vendorName: name,
+        warehouseId: fulfillmentOrder.warehouseId,
+        warehouseName: fulfillmentOrder.warehouseName,
+        requestMethod: 'EMAIL',
+        status: 'DRAFT',
+        priority: 'standard',
+        requestedDeliveryDate: fulfillmentOrder.needByDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        items: reqItems,
+        totalQuantity: reqItems.reduce((sum, item) => sum + item.requestedQuantity, 0),
+        notes: `Created from fulfillment order ${fulfillmentOrder.fulfillmentOrderNumber}`,
+        createdBy: 'Current User',
+      });
+    });
 
       // Update the fulfillment order to show it's pending delivery
       updateOrderMutation.mutate({

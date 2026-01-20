@@ -1,6 +1,8 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ApolloProvider } from '@apollo/client/react';
+import { client } from '@/lib/analytics/apolloClient';
 import { useState, useEffect } from 'react';
 import { Toaster } from 'sonner';
 import { UnauthorizedProvider, useUnauthorized, setGlobalUnauthorizedTrigger } from '@/components/lib/unauthorized-handler';
@@ -31,11 +33,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <UnauthorizedProvider>
-        <UnauthorizedTriggerSetup>
-          {children}
-        </UnauthorizedTriggerSetup>
-      </UnauthorizedProvider>
+      <ApolloProvider client={client}>
+        <UnauthorizedProvider>
+          <UnauthorizedTriggerSetup>
+            {children}
+          </UnauthorizedTriggerSetup>
+        </UnauthorizedProvider>
+      </ApolloProvider>
       <Toaster
         position="top-right"
         expand={false}

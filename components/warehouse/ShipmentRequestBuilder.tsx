@@ -20,6 +20,7 @@ import {
   ShipmentRequestMethod,
   ShipmentRequest,
   ShipmentRequestStatus,
+  ShipmentPriority,
   shipmentRequestMethodLabels,
   shipmentRequestStatusLabels,
   Inventory,
@@ -147,7 +148,7 @@ export default function ShipmentRequestBuilder() {
   const [requestedDate, setRequestedDate] = useState<string>(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
-  const [priority, setPriority] = useState<'standard' | 'expedited' | 'urgent'>('standard');
+  const [priority, setPriority] = useState<ShipmentPriority>('STANDARD');
   const [requestMethod, setRequestMethod] = useState<ShipmentRequestMethod>('EMAIL');
   const [lineItems, setLineItems] = useState<RequestLineItem[]>([]);
 
@@ -408,9 +409,9 @@ export default function ShipmentRequestBuilder() {
     );
 
     let urgencyNote = '';
-    if (priority === 'urgent') {
+    if (priority === 'URGENT') {
       urgencyNote = 'This is an urgent request and we would appreciate expedited processing.\n\n';
-    } else if (priority === 'expedited') {
+    } else if (priority === 'EXPEDITED') {
       urgencyNote = 'We would appreciate expedited processing if possible.\n\n';
     }
 
@@ -503,7 +504,7 @@ export default function ShipmentRequestBuilder() {
   const canSubmit = () => {
     if (!selectedVendorId || !selectedWarehouseId || lineItems.length === 0) return false;
     if (requestMethod === 'EMAIL' && !selectedContactId) return false;
-    if ((requestMethod === 'CALL' || requestMethod === 'MANUFACTURER_SYSTEM') && !isConfirmed) return false;
+    if ((requestMethod === 'PHONE_CALL' || requestMethod === 'MANUFACTURER_SYSTEM') && !isConfirmed) return false;
     return true;
   };
 
@@ -556,7 +557,7 @@ export default function ShipmentRequestBuilder() {
       } : {}),
 
       // Call/System confirmation fields
-      ...((requestMethod === 'CALL' || requestMethod === 'MANUFACTURER_SYSTEM') ? {
+      ...((requestMethod === 'PHONE_CALL' || requestMethod === 'MANUFACTURER_SYSTEM') ? {
         confirmedAt: new Date().toISOString(),
         confirmedBy: 'Current User',
         confirmationNotes: confirmationNotes || undefined,
@@ -690,12 +691,12 @@ export default function ShipmentRequestBuilder() {
                     </label>
                     <select
                       value={priority}
-                      onChange={(e) => setPriority(e.target.value as 'standard' | 'expedited' | 'urgent')}
+                      onChange={(e) => setPriority(e.target.value as ShipmentPriority)}
                       className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                     >
-                      <option value="standard">Standard</option>
-                      <option value="expedited">Expedited</option>
-                      <option value="urgent">Urgent</option>
+                      <option value="STANDARD">Standard</option>
+                      <option value="EXPEDITED">Expedited</option>
+                      <option value="URGENT">Urgent</option>
                     </select>
                   </div>
                 </div>
@@ -1018,7 +1019,7 @@ export default function ShipmentRequestBuilder() {
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6">
                 <h2 className="text-lg font-medium text-[var(--foreground)] mb-4">Request Method</h2>
                 <div className="grid grid-cols-3 gap-3">
-                  {(['EMAIL', 'CALL', 'MANUFACTURER_SYSTEM'] as ShipmentRequestMethod[]).map((method) => (
+                  {(['EMAIL', 'PHONE_CALL', 'MANUFACTURER_SYSTEM'] as ShipmentRequestMethod[]).map((method) => (
                     <button
                       key={method}
                       type="button"
@@ -1040,7 +1041,7 @@ export default function ShipmentRequestBuilder() {
                             <polyline points="22,6 12,13 2,6"/>
                           </svg>
                         )}
-                        {method === 'CALL' && (
+                        {method === 'PHONE_CALL' && (
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
                           </svg>
@@ -1056,7 +1057,7 @@ export default function ShipmentRequestBuilder() {
                       </div>
                       <p className="text-xs text-[var(--muted-foreground)] mt-1">
                         {method === 'EMAIL' && 'Send request via email'}
-                        {method === 'CALL' && 'Request by phone call'}
+                        {method === 'PHONE_CALL' && 'Request by phone call'}
                         {method === 'MANUFACTURER_SYSTEM' && 'Submit via vendor portal'}
                       </p>
                     </button>
@@ -1121,9 +1122,9 @@ export default function ShipmentRequestBuilder() {
                 )}
 
                 {/* Call/System Confirmation */}
-                {(requestMethod === 'CALL' || requestMethod === 'MANUFACTURER_SYSTEM') && (
+                {(requestMethod === 'PHONE_CALL' || requestMethod === 'MANUFACTURER_SYSTEM') && (
                   <div className={`mt-4 border rounded-lg p-4 ${
-                    requestMethod === 'CALL' ? 'bg-green-50 border-green-200' : 'bg-purple-50 border-purple-200'
+                    requestMethod === 'PHONE_CALL' ? 'bg-green-50 border-green-200' : 'bg-purple-50 border-purple-200'
                   }`}>
                     <div className="flex items-start gap-3">
                       <input
@@ -1132,23 +1133,23 @@ export default function ShipmentRequestBuilder() {
                         checked={isConfirmed}
                         onChange={(e) => setIsConfirmed(e.target.checked)}
                         className={`mt-1 rounded ${
-                          requestMethod === 'CALL' ? 'text-green-600 focus:ring-green-500' : 'text-purple-600 focus:ring-purple-500'
+                          requestMethod === 'PHONE_CALL' ? 'text-green-600 focus:ring-green-500' : 'text-purple-600 focus:ring-purple-500'
                         }`}
                       />
                       <div className="flex-1">
                         <label htmlFor="confirmed" className={`block text-sm font-medium cursor-pointer ${
-                          requestMethod === 'CALL' ? 'text-green-800' : 'text-purple-800'
+                          requestMethod === 'PHONE_CALL' ? 'text-green-800' : 'text-purple-800'
                         }`}>
-                          {requestMethod === 'CALL'
+                          {requestMethod === 'PHONE_CALL'
                             ? 'I confirm I have called and requested this inventory'
                             : 'I confirm I have submitted this request in the manufacturer system'
                           }
                           <span className="text-red-500 ml-1">*</span>
                         </label>
                         <p className={`text-xs mt-1 ${
-                          requestMethod === 'CALL' ? 'text-green-700' : 'text-purple-700'
+                          requestMethod === 'PHONE_CALL' ? 'text-green-700' : 'text-purple-700'
                         }`}>
-                          {requestMethod === 'CALL'
+                          {requestMethod === 'PHONE_CALL'
                             ? 'Check this box after completing your phone call with the vendor.'
                             : 'Check this box after submitting the order in the manufacturer\'s portal.'
                           }
@@ -1159,7 +1160,7 @@ export default function ShipmentRequestBuilder() {
                     {isConfirmed && (
                       <div className="mt-3">
                         <label className={`block text-sm font-medium mb-1 ${
-                          requestMethod === 'CALL' ? 'text-green-800' : 'text-purple-800'
+                          requestMethod === 'PHONE_CALL' ? 'text-green-800' : 'text-purple-800'
                         }`}>
                           Confirmation Notes
                         </label>
@@ -1167,7 +1168,7 @@ export default function ShipmentRequestBuilder() {
                           value={confirmationNotes}
                           onChange={(e) => setConfirmationNotes(e.target.value)}
                           rows={2}
-                          placeholder={requestMethod === 'CALL'
+                          placeholder={requestMethod === 'PHONE_CALL'
                             ? 'Who did you speak with? What was confirmed?'
                             : 'Confirmation number or any relevant details...'
                           }
@@ -1299,9 +1300,11 @@ export default function ShipmentRequestBuilder() {
                         PENDING: 'bg-yellow-100 text-yellow-700',
                         SENT: 'bg-blue-100 text-blue-700',
                         CONFIRMED: 'bg-purple-100 text-purple-700',
+                        IN_PROGRESS: 'bg-orange-100 text-orange-700',
                         SHIPPED: 'bg-indigo-100 text-indigo-700',
                         RECEIVED: 'bg-green-100 text-green-700',
                         CANCELLED: 'bg-red-100 text-red-700',
+                        REJECTED: 'bg-red-100 text-red-700',
                       };
                       return (
                         <div
@@ -1386,7 +1389,7 @@ export default function ShipmentRequestBuilder() {
                 <div className="text-xs text-blue-700 space-y-1">
                   <div>{lineItems.length} product{lineItems.length !== 1 ? 's' : ''} • {lineItems.reduce((sum, item) => sum + item.requestedQuantity, 0)} total units</div>
                   <div>Requested delivery: {new Date(requestedDate).toLocaleDateString()}</div>
-                  <div>Priority: {priority.charAt(0).toUpperCase() + priority.slice(1)}</div>
+                  <div>Priority: {priority.charAt(0) + priority.slice(1).toLowerCase()}</div>
                 </div>
               </div>
             </div>

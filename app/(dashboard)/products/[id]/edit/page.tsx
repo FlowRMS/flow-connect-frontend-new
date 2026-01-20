@@ -31,6 +31,7 @@ import {
   type ProductQuantityPricing,
   type ProductQuantityPricingInput,
 } from '../../../../../components/products/api';
+import { ManageCategoriesModal, ManageUomsModal } from '../../../../../components/products/modals';
 import { useUnsavedChangesGuard } from '../../../../../components/shared/hooks/useUnsavedChangesGuard';
 import { useUnsavedChangesContext } from '../../../../../contexts/UnsavedChangesContext';
 
@@ -168,6 +169,10 @@ export default function ProductEditPage() {
 
   // Portal mount state
   const [isMounted, setIsMounted] = useState(false);
+
+  // Management modals state
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
+  const [showUomsModal, setShowUomsModal] = useState(false);
 
   // Section refs for scroll-to functionality
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
@@ -717,6 +722,29 @@ export default function ProductEditPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Management Buttons */}
+            <button
+              onClick={() => setShowUomsModal(true)}
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+              Manage UOMs
+            </button>
+            <button
+              onClick={() => setShowCategoriesModal(true)}
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 6h16M4 12h16M4 18h16"/>
+              </svg>
+              Manage Categories
+            </button>
+
+            {/* Divider */}
+            <div className="h-6 w-px bg-gray-300"></div>
+
             {/* Status Badges */}
             <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
               formData.published
@@ -2140,6 +2168,16 @@ export default function ProductEditPage() {
         </div>
 
       </div>
+
+      {/* Management Modals */}
+      <ManageCategoriesModal
+        isOpen={showCategoriesModal}
+        onClose={() => setShowCategoriesModal(false)}
+      />
+      <ManageUomsModal
+        isOpen={showUomsModal}
+        onClose={() => setShowUomsModal(false)}
+      />
     </main>
   );
 }

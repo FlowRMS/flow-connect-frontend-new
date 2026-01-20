@@ -1,32 +1,58 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@apollo/client/react';
 import { Inventory, InventoryItemInput } from '@/lib/types/warehouse';
-import { mockBins } from '@/lib/data/warehouse-mock';
+import { GET_WAREHOUSE_LOCATIONS } from '@/app/graphql/warehouse';
+import { useWarehouse } from '../WarehouseContext';
+import { useAddInventoryItemMutation } from '../inventory/api/useInventoryApi';
 
 interface AddInventoryItemModalProps {
   inventory: Inventory;
   onClose: () => void;
-  onSave: (item: InventoryItemInput) => void;
+  onSuccess?: () => void;
 }
 
-export default function AddInventoryItemModal({ inventory, onClose, onSave }: AddInventoryItemModalProps) {
-  const [formData, setFormData] = useState<InventoryItemInput>({
-    inventoryId: inventory.id,
-    binId: '',
-    quantity: 1,
-    weightPerUnit: 0,
-    lotNumber: '',
-    serialNumber: '',
-    receivedDate: new Date().toISOString().split('T')[0],
-    expirationDate: '',
-    isPerishable: false,
-    notes: '',
+export default function AddInventoryItemModal({ inventory, onClose, onSuccess }: AddInventoryItemModalProps) {
+  const { selectedWarehouse } = useWarehouse();
+  const [addInventoryItem] = useAddInventoryItemMutation();
+
+  // Fetch real locations
+  const { data: locationsData, loading: loadingLocations } = useQuery<any>(GET_WAREHOUSE_LOCATIONS, {
+    variables: { warehouseId: selectedWarehouse?.id },
+    skip: !selectedWarehouse?.id
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const locations = useMemo(() => locationsData?.warehouseLocations || [], [locationsData]);
+
+  const [formData, setFormData] = useState<InventoryItemInput>({
+    inventoryId: inventory.id,
+    locationId: '',
+    quantity: 1,
+    lotNumber: '',
+    receivedDate: new Date().toISOString().split('T')[0],
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    try {
+      await addInventoryItem({
+        variables: {
+          input: {
+            inventoryId: formData.inventoryId,
+            locationId: formData.locationId || null, // Ensure empty string becomes null or valid UUID
+            quantity: formData.quantity,
+            lotNumber: formData.lotNumber,
+            status: "AVAILABLE", // Default status
+            receivedDate: new Date(formData.receivedDate as string).toISOString(),
+          }
+        }
+      });
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (error) {
+      console.error("Failed to add inventory item:", error);
+    }
   };
 
   const handleChange = (field: keyof InventoryItemInput, value: string | number | boolean) => {
@@ -50,7 +76,7 @@ export default function AddInventoryItemModal({ inventory, onClose, onSave }: Ad
             className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
+              <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -75,39 +101,29 @@ export default function AddInventoryItemModal({ inventory, onClose, onSave }: Ad
           {/* Bin Location */}
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
-              Bin Location <span className="text-red-500">*</span>
+              Location <span className="text-red-500">*</span>
             </label>
             <select
-              value={formData.binId}
-              onChange={(e) => handleChange('binId', e.target.value)}
+              value={formData.locationId}
+              onChange={(e) => handleChange('locationId', e.target.value)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-              required
+            // required - optional now if null is allowed, but UI suggests required
             >
-              <option value="">Select bin location</option>
-              {mockBins.map((bin) => (
-                <option key={bin.id} value={bin.id}>
-                  Bin {bin.letterCode} (Row {bin.rowId.split('-')[1]})
-                </option>
-              ))}
+              <option value="">Select location</option>
+              {loadingLocations ? (
+                <option disabled>Loading locations...</option>
+              ) : (
+                locations.map((loc: any) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name} {loc.code ? `(${loc.code})` : ''}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
-          {/* Weight & Lot Number Row */}
+          {/* Lot Number & Received Date Row */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
-                Weight per Unit
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.weightPerUnit}
-                onChange={(e) => handleChange('weightPerUnit', parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                placeholder="0.00"
-              />
-            </div>
             <div>
               <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
                 Lot Number
@@ -118,22 +134,6 @@ export default function AddInventoryItemModal({ inventory, onClose, onSave }: Ad
                 onChange={(e) => handleChange('lotNumber', e.target.value)}
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                 placeholder="Lot number"
-              />
-            </div>
-          </div>
-
-          {/* Serial Number & Received Date Row */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
-                Serial Number
-              </label>
-              <input
-                type="text"
-                value={formData.serialNumber}
-                onChange={(e) => handleChange('serialNumber', e.target.value)}
-                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                placeholder="Serial number"
               />
             </div>
             <div>
@@ -147,58 +147,6 @@ export default function AddInventoryItemModal({ inventory, onClose, onSave }: Ad
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               />
             </div>
-          </div>
-
-          {/* Perishable Toggle */}
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)]">
-                Perishable
-              </label>
-              <p className="text-xs text-[var(--muted-foreground)]">This item has an expiration date</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleChange('isPerishable', !formData.isPerishable)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${
-                formData.isPerishable ? 'bg-[var(--primary)]' : 'bg-[var(--muted)]'
-              }`}
-            >
-              <span
-                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                  formData.isPerishable ? 'left-6' : 'left-1'
-                }`}
-              />
-            </button>
-          </div>
-
-          {/* Expiration Date (shown if perishable) */}
-          {formData.isPerishable && (
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
-                Expiration Date
-              </label>
-              <input
-                type="date"
-                value={formData.expirationDate}
-                onChange={(e) => handleChange('expirationDate', e.target.value)}
-                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-              />
-            </div>
-          )}
-
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
-              Notes
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => handleChange('notes', e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 resize-none"
-              placeholder="Additional notes..."
-            />
           </div>
 
           {/* Actions */}
