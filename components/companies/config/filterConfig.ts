@@ -105,8 +105,6 @@ export function getCompanySortOptions(): SortOption[] {
   return [
     { columnName: 'name', label: 'Company Name' },
     { columnName: 'companySourceType', label: 'Company Type' },
-    { columnName: 'phone', label: 'Phone' },
-    { columnName: 'website', label: 'Website' },
     { columnName: 'createdAt', label: 'Created Date' },
   ];
 }
