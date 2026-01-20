@@ -6,7 +6,6 @@ import type { TransmittalPurpose, SubmittalItem, SubmittalStakeholder, Submittal
 import { defaultSubmittalConfig } from '../../../lib/types/submittals';
 import { searchQuotes, type QuoteSearchResult } from '../../lib/api/search';
 import { useQuote } from '../../quotes/api/useQuotesApi';
-import { useFactories } from '../../warehouse/api/useFactoriesApi';
 import { fetchContactsByQuoteId } from '../../lib/graphql';
 import type {
   Step,
@@ -107,7 +106,6 @@ export function useCreateSubmittal({
   const { data: quotesSearchResults, isLoading: isSearchingQuotes } = useQuoteSearch(quoteSearch, step === 'select-quote');
   const firstSelectedQuoteId = Array.from(selectedQuoteIds)[0] || '';
   const { data: selectedQuoteDetails, isLoading: isLoadingQuoteDetails } = useQuote(firstSelectedQuoteId);
-  const { data: factories } = useFactories();
 
   // Fetch contacts linked to the quote
   const { data: quoteContacts } = useQuery({
@@ -116,13 +114,6 @@ export function useCreateSubmittal({
     enabled: !!firstSelectedQuoteId,
     staleTime: 30 * 1000,
   });
-
-  // Factory map
-  const factoryMap = useMemo(() => {
-    const map = new Map<string, string>();
-    factories?.forEach(f => map.set(f.id, f.title));
-    return map;
-  }, [factories]);
 
   // Transform search results
   const filteredQuotes = useMemo(() => {
@@ -170,13 +161,13 @@ export function useCreateSubmittal({
       return selectedQuoteDetails.details.map((detail, index) => ({
         id: detail.id || `li-${index}`,
         catalogNumber: detail.product?.factoryPartNumber || '',
-        manufacturer: detail.factoryId ? (factoryMap.get(detail.factoryId) || '') : '',
+        manufacturer: detail.factory?.title || '',
         description: detail.product?.description || '',
         quantity: detail.quantity || 0,
       }));
     }
     return [];
-  }, [selectedQuoteDetails, quoteLineItems, factoryMap]);
+  }, [selectedQuoteDetails, quoteLineItems]);
 
   // Recipients - combine soldToCustomer with linked contacts
   const recipients: QuoteRecipient[] = useMemo(() => {

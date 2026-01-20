@@ -167,6 +167,7 @@ export function useSubmittalHandlers({
           const itemInput: SubmittalItemInput = {
             itemNumber: i + 1,
             partNumber: item.catalogNumber || item.fixtureType,
+            manufacturer: item.manufacturer,
             description: item.description,
             quantity: item.quantity,
             matchStatus: 'NO_MATCH',

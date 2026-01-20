@@ -127,7 +127,7 @@ export function transformToFullSubmittal(response: SubmittalResponse): Submittal
       quoteLineItemId: item.quoteDetailId || undefined,
       quoteId: response.quoteId || undefined,
       fixtureType: `F${item.itemNumber || index + 1}`,
-      manufacturer: '',
+      manufacturer: item.manufacturer || '',
       catalogNumber: item.partNumber || '',
       description: item.description || '',
       quantity: item.quantity || undefined,

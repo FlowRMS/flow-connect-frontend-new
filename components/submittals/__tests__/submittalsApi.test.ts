@@ -155,6 +155,7 @@ describe('Submittals API - Type Contracts', () => {
         specSheetId: null,
         highlightVersionId: null,
         partNumber: 'PART-001',
+        manufacturer: 'Acuity Brands',
         description: 'Test item',
         quantity: 10,
         approvalStatus: 'PENDING',

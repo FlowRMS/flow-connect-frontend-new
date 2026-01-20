@@ -56,6 +56,7 @@ export interface SubmittalItemResponse {
   specSheetId: string | null;
   highlightVersionId: string | null;
   partNumber: string | null;
+  manufacturer: string | null;
   description: string | null;
   quantity: number | null;
   approvalStatus: SubmittalItemApprovalStatusGQL;
@@ -164,6 +165,7 @@ export interface SubmittalItemInput {
   specSheetId?: string;
   highlightVersionId?: string;
   partNumber?: string;
+  manufacturer?: string;
   description?: string;
   quantity?: number;
   approvalStatus?: SubmittalItemApprovalStatusGQL;
@@ -175,6 +177,7 @@ export interface UpdateSubmittalItemInput {
   specSheetId?: string;
   highlightVersionId?: string;
   partNumber?: string;
+  manufacturer?: string;
   description?: string;
   quantity?: number;
   approvalStatus?: SubmittalItemApprovalStatusGQL;
@@ -248,6 +251,7 @@ const SUBMITTAL_ITEM_FRAGMENT = `
     specSheetId
     highlightVersionId
     partNumber
+    manufacturer
     description
     quantity
     approvalStatus
