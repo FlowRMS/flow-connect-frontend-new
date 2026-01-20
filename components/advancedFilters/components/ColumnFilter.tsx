@@ -11,9 +11,19 @@ import { BooleanFilter } from './filter-types/BooleanFilter';
 import { MonthYearFilter } from './filter-types/MonthYearFilter';
 import { FactoryFilter } from './filter-types/FactoryFilter';
 import { CategoryFilter } from './filter-types/CategoryFilter';
+import { CompanyFilter } from './filter-types/CompanyFilter';
 import { parseDateString, formatDateToBackend } from '../utils';
 
-export type ColumnFilterType = 'text' | 'dropdown' | 'number' | 'date' | 'boolean' | 'month' | 'factory' | 'category';
+export type ColumnFilterType =
+  | 'text'
+  | 'dropdown'
+  | 'number'
+  | 'date'
+  | 'boolean'
+  | 'month'
+  | 'factory'
+  | 'category'
+  | 'company';
 
 // Keep ColumnFilterValue for backward compatibility during migration
 export interface ColumnFilterValue {
@@ -194,7 +204,7 @@ export function ColumnFilter({
         if ((filter.operator === 'GTE' || filter.operator === 'LTE') && filter.value) {
           return true;
         }
-      } else if (type === 'factory' || type === 'category') {
+      } else if (type === 'factory' || type === 'category' || type === 'company') {
         if (filter.values && Array.isArray(filter.values) && filter.values.length > 0) {
           return true;
         }
@@ -223,7 +233,7 @@ export function ColumnFilter({
     if (type === 'date') {
       return localDateStart !== null || localDateEnd !== null;
     }
-    if (type === 'factory' || type === 'category') {
+    if (type === 'factory' || type === 'category' || type === 'company') {
       return localSelectedValues.length > 0;
     }
     return false;
@@ -412,7 +422,9 @@ export function ColumnFilter({
           </svg>
           {hasValue && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--primary)] text-white text-[10px] rounded-full flex items-center justify-center">
-              {(type === 'dropdown' || type === 'factory' || type === 'category') ? localSelectedValues.length : '•'}
+              {(type === 'dropdown' || type === 'factory' || type === 'category' || type === 'company')
+                ? localSelectedValues.length
+                : '•'}
             </span>
           )}
         </button>
@@ -423,10 +435,27 @@ export function ColumnFilter({
           align="start"
           sideOffset={4}
           className="z-[100] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden"
-          style={{ 
-            width: (type === 'date' || type === 'month') ? '300px' : 'var(--radix-popover-trigger-width)',
-            minWidth: type === 'date' ? '300px' : '200px',
-            maxWidth: type === 'month' ? '300px' : (type === 'date' ? '300px' : '320px')
+          style={{
+            width:
+              type === 'date' || type === 'month'
+                ? '300px'
+                : type === 'company'
+                  ? '280px'
+                  : 'var(--radix-popover-trigger-width)',
+            minWidth:
+              type === 'date'
+                ? '300px'
+                : type === 'company'
+                  ? '220px'
+                  : '200px',
+            maxWidth:
+              type === 'month'
+                ? '300px'
+                : type === 'date'
+                  ? '300px'
+                  : type === 'company'
+                    ? '320px'
+                    : '320px',
           }}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
@@ -524,6 +553,17 @@ export function ColumnFilter({
               onClear={handleClear}
               hasActiveFilter={getSelectedValues().length > 0}
               factoryId={factoryId}
+            />
+          )}
+
+          {type === 'company' && (
+            <CompanyFilter
+              option={filterOption}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
             />
           )}
         </PopoverPrimitive.Content>
