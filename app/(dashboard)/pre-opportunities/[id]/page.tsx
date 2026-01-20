@@ -33,11 +33,7 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
   const [editFormData, setEditFormData] = useState<EditFormData>({
     status: 'QUALIFIED',
     expDate: '',
-    reviseDate: '',
-    acceptDate: '',
     customerRef: '',
-    paymentTerms: '',
-    freightTerms: '',
     jobId: '',
     jobName: '',
   });
@@ -51,11 +47,7 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
       setEditFormData({
         status: preOpp.status,
         expDate: preOpp.expDate || '',
-        reviseDate: preOpp.reviseDate || '',
-        acceptDate: preOpp.acceptDate || '',
         customerRef: preOpp.customerRef || '',
-        paymentTerms: preOpp.paymentTerms || '',
-        freightTerms: preOpp.freightTerms || '',
         jobId: preOpp.jobId || '',
         jobName: preOpp.job?.jobName || '',
       });
@@ -109,11 +101,7 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
         // Editable fields
         status: editFormData.status,
         expDate: editFormData.expDate || undefined,
-        reviseDate: editFormData.reviseDate || undefined,
-        acceptDate: editFormData.acceptDate || undefined,
         customerRef: editFormData.customerRef || undefined,
-        paymentTerms: editFormData.paymentTerms || undefined,
-        freightTerms: editFormData.freightTerms || undefined,
         jobId: editFormData.jobId || undefined,
         // Include line items
         details: detailsToSave,
@@ -147,11 +135,7 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
       setEditFormData({
         status: preOpp.status,
         expDate: preOpp.expDate || '',
-        reviseDate: preOpp.reviseDate || '',
-        acceptDate: preOpp.acceptDate || '',
         customerRef: preOpp.customerRef || '',
-        paymentTerms: preOpp.paymentTerms || '',
-        freightTerms: preOpp.freightTerms || '',
         jobId: preOpp.jobId || '',
         jobName: preOpp.job?.jobName || '',
       });

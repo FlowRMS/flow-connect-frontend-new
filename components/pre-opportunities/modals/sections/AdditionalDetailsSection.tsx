@@ -9,19 +9,11 @@ import React from 'react';
 interface AdditionalDetailsSectionProps {
   customerRef: string;
   setCustomerRef: (value: string) => void;
-  paymentTerms: string;
-  setPaymentTerms: (value: string) => void;
-  freightTerms: string;
-  setFreightTerms: (value: string) => void;
 }
 
 export function AdditionalDetailsSection({
   customerRef,
   setCustomerRef,
-  paymentTerms,
-  setPaymentTerms,
-  freightTerms,
-  setFreightTerms,
 }: AdditionalDetailsSectionProps) {
   return (
     <div className="bg-gray-50 rounded-lg p-4">
@@ -31,45 +23,17 @@ export function AdditionalDetailsSection({
         </svg>
         Additional Details
       </h3>
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Customer Reference
-          </label>
-          <input
-            type="text"
-            value={customerRef}
-            onChange={(e) => setCustomerRef(e.target.value)}
-            className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
-            placeholder="Optional reference"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Payment Terms
-          </label>
-          <input
-            type="text"
-            value={paymentTerms}
-            onChange={(e) => setPaymentTerms(e.target.value)}
-            className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
-            placeholder="Net 30"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Freight Terms
-          </label>
-          <input
-            type="text"
-            value={freightTerms}
-            onChange={(e) => setFreightTerms(e.target.value)}
-            className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
-            placeholder="FOB"
-          />
-        </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Customer Reference
+        </label>
+        <input
+          type="text"
+          value={customerRef}
+          onChange={(e) => setCustomerRef(e.target.value)}
+          className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+          placeholder="Optional reference"
+        />
       </div>
     </div>
   );

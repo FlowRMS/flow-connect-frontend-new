@@ -51,7 +51,7 @@ export default function CheckDetailContent({
   const router = useRouter();
   const state = useCheckDetailState({ checkId });
   const { setFullEntityContext } = useFlowChat();
-  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+  const { requestNavigation, hasUnsavedChanges, clearUnsavedChanges } = useUnsavedChangesContext();
 
   // Adjustments state management - reuse from orders
   const adjustmentsState = useAdjustmentsState();
@@ -447,6 +447,7 @@ export default function CheckDetailContent({
                 onRowClick={state.openLineItemDetail}
                 onUpdateStatedCommission={state.updateLineItemAmount}
                 onOrderClick={state.openOrderDetail}
+                onDelete={state.deleteLineItem}
               />
             </div>
           )}

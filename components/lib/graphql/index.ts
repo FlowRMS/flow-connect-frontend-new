@@ -283,6 +283,7 @@ export {
   type OrderLandingPageOrderBy,
   type PaginatedOrdersResult,
   type CreateOrderFromQuoteInput,
+  type QuoteDetailToOrderDetailInput,
 } from './orders';
 
 // Invoices module

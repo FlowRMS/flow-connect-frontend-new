@@ -3,13 +3,23 @@
  * Scroll-based navigation with sticky tabs
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import type { Company, CompanyAddress, AddressType, ManufacturerInfo, SalesRepAssignment, CompanyHierarchyRole, ChildCompanyRef } from '../types';
+import type { Company, ManufacturerInfo, SalesRepAssignment, CompanyHierarchyRole, ChildCompanyRef } from '../types';
 import type { RelatedEntityContact, RelatedEntityJob } from '../../lib/crm-graphql';
 import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
-import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
+import {
+  GoogleMapsAddressModal,
+  type Address,
+} from '../../shared/google-maps-address';
+import {
+  useAddressesBySource,
+  useCreateAddress,
+  useUpdateAddress,
+  useDeleteAddress,
+} from '../../hooks/useAddressApi';
+import { toast } from 'sonner';
 import AliasesModal, { CompanyAlias } from '../../AliasesModal';
 import { SelectChildCompaniesModal } from '../modals/SelectChildCompaniesModal';
 import { useCompanySearch } from '../../notes/api';
@@ -52,7 +62,7 @@ interface CompanyDetailViewProps {
   onDeleteClick: () => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
-  onFieldChange: (field: string, value: string | number | boolean | string[] | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[] | CompanyHierarchyRole | ChildCompanyRef[]) => void;
+  onFieldChange: (field: string, value: string | number | boolean | string[] | ManufacturerInfo | SalesRepAssignment[] | CompanyHierarchyRole | ChildCompanyRef[]) => void;
   onContactClick?: (contact: RelatedEntityContact) => void;
   onJobClick?: (job: RelatedEntityJob) => void;
 }
@@ -451,145 +461,6 @@ function ParentCompanySelect({ value, selectedName, onChange, onClear, excludeId
   );
 }
 
-// Address Card Component
-function AddressCard({
-  address,
-  isEditing,
-  onUpdate,
-  onDelete,
-}: {
-  address: CompanyAddress;
-  isEditing: boolean;
-  onUpdate: (updated: CompanyAddress) => void;
-  onDelete: () => void;
-}) {
-  const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
-  const readOnlyClass = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600";
-
-  const toggleAddressType = (type: AddressType) => {
-    const newTypes = address.types.includes(type)
-      ? address.types.filter(t => t !== type)
-      : [...address.types, type];
-    onUpdate({ ...address, types: newTypes });
-  };
-
-  return (
-    <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
-      {/* Address Type Checkboxes */}
-      <div className="flex items-center gap-6 mb-4">
-        {(['shipping', 'billing', 'mailing'] as AddressType[]).map((type) => (
-          <label key={type} className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={address.types.includes(type)}
-              onChange={() => isEditing && toggleAddressType(type)}
-              disabled={!isEditing}
-              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-700 capitalize">{type}</span>
-          </label>
-        ))}
-        {isEditing && (
-          <button
-            onClick={onDelete}
-            className="ml-auto text-red-500 hover:text-red-700 text-sm"
-          >
-            Remove
-          </button>
-        )}
-      </div>
-
-      {/* Country */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Country*</label>
-        {isEditing ? (
-          <select
-            value={address.country}
-            onChange={(e) => onUpdate({ ...address, country: e.target.value })}
-            className={inputClass}
-          >
-            <option value="United States">United States</option>
-            <option value="Canada">Canada</option>
-            <option value="Mexico">Mexico</option>
-          </select>
-        ) : (
-          <div className={readOnlyClass}>{address.country || '-'}</div>
-        )}
-      </div>
-
-      {/* Address Line 1 */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1*</label>
-        <input
-          type="text"
-          value={address.addressLine1}
-          onChange={(e) => onUpdate({ ...address, addressLine1: e.target.value })}
-          className={isEditing ? inputClass : readOnlyClass}
-          readOnly={!isEditing}
-          placeholder="Street address"
-        />
-      </div>
-
-      {/* Address Line 2 */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2</label>
-        <input
-          type="text"
-          value={address.addressLine2 || ''}
-          onChange={(e) => onUpdate({ ...address, addressLine2: e.target.value })}
-          className={isEditing ? inputClass : readOnlyClass}
-          readOnly={!isEditing}
-          placeholder="Apt, suite, unit, etc."
-        />
-      </div>
-
-      {/* City */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">City*</label>
-        <input
-          type="text"
-          value={address.city}
-          onChange={(e) => onUpdate({ ...address, city: e.target.value })}
-          className={isEditing ? inputClass : readOnlyClass}
-          readOnly={!isEditing}
-          placeholder="City"
-        />
-      </div>
-
-      {/* State & ZIP */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">State*</label>
-          {isEditing ? (
-            <select
-              value={address.state}
-              onChange={(e) => onUpdate({ ...address, state: e.target.value })}
-              className={inputClass}
-            >
-              <option value="">Select a state</option>
-              {US_STATES.map((state) => (
-                <option key={state.value} value={state.value}>{state.label}</option>
-              ))}
-            </select>
-          ) : (
-            <div className={readOnlyClass}>{address.state || '-'}</div>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Code*</label>
-          <input
-            type="text"
-            value={address.zipCode}
-            onChange={(e) => onUpdate({ ...address, zipCode: e.target.value })}
-            className={isEditing ? inputClass : readOnlyClass}
-            readOnly={!isEditing}
-            placeholder="ZIP code"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function CompanyDetailView({
   company,
@@ -614,7 +485,14 @@ export default function CompanyDetailView({
   const companyTypes: CompanyType[] = companyTypesData ?? [];
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
-  const [showAddAddressModal, setShowAddAddressModal] = useState(false);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+
+  // Address API hooks
+  const { data: addresses = [], isLoading: addressesLoading } = useAddressesBySource(company.id, 'COMPANY');
+  const createAddressMutation = useCreateAddress();
+  const updateAddressMutation = useUpdateAddress();
+  const deleteAddressMutation = useDeleteAddress();
   const [showAddTagModal, setShowAddTagModal] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [showAddListModal, setShowAddListModal] = useState(false);
@@ -736,37 +614,80 @@ export default function CompanyDetailView({
     return () => container.removeEventListener('scroll', handleScroll);
   }, [isManufacturer]);
 
-  // Get addresses
-  const addresses = isEditing ? (editFormData.addresses || company.addresses || []) : (company.addresses || []);
-
   // Get manufacturer info
   const manufacturerInfo = isEditing
     ? (editFormData.manufacturerInfo || company.manufacturerInfo || {})
     : (company.manufacturerInfo || {});
 
-  // Address handlers
-  const handleAddAddress = (address: Address) => {
-    const newAddress: CompanyAddress = {
-      id: address.id,
-      types: address.types,
-      country: address.country,
-      addressLine1: address.addressLine1,
-      addressLine2: address.addressLine2,
-      city: address.city,
-      state: address.state,
-      zipCode: address.zipCode,
-    };
-    onFieldChange('addresses', [...addresses, newAddress]);
+  // Address handlers - API backed
+  const handleAddressSave = async (addressData: Omit<Address, 'id' | 'createdAt'>) => {
+    try {
+      if (editingAddress) {
+        // Update existing address
+        await updateAddressMutation.mutateAsync({
+          id: editingAddress.id,
+          input: {
+            sourceId: company.id,
+            sourceType: 'COMPANY',
+            addressTypes: addressData.addressTypes || [addressData.addressType],
+            line1: addressData.line1,
+            line2: addressData.line2,
+            city: addressData.city,
+            state: addressData.state,
+            zipCode: addressData.zipCode,
+            country: addressData.country,
+            notes: addressData.notes,
+            isPrimary: addressData.isPrimary,
+          },
+        });
+        toast.success('Address updated successfully');
+        setEditingAddress(null);
+      } else {
+        // Create new address
+        await createAddressMutation.mutateAsync({
+          sourceId: company.id,
+          sourceType: 'COMPANY',
+          addressTypes: addressData.addressTypes || [addressData.addressType],
+          line1: addressData.line1,
+          line2: addressData.line2,
+          city: addressData.city,
+          state: addressData.state,
+          zipCode: addressData.zipCode,
+          country: addressData.country,
+          notes: addressData.notes,
+          isPrimary: addressData.isPrimary,
+        });
+        toast.success('Address added successfully');
+      }
+    } catch (err) {
+      toast.error(editingAddress ? 'Failed to update address' : 'Failed to add address');
+      throw err;
+    }
   };
 
-  const updateAddress = (index: number, updated: CompanyAddress) => {
-    const newAddresses = [...addresses];
-    newAddresses[index] = updated;
-    onFieldChange('addresses', newAddresses);
+  const handleEditAddress = (address: Address) => {
+    setEditingAddress(address);
+    setIsAddressModalOpen(true);
   };
 
-  const deleteAddress = (index: number) => {
-    onFieldChange('addresses', addresses.filter((_, i) => i !== index));
+  const handleAddressModalClose = () => {
+    setIsAddressModalOpen(false);
+    setEditingAddress(null);
+  };
+
+  const handleAddressDelete = async (address: Address) => {
+    if (!confirm('Are you sure you want to delete this address?')) return;
+
+    try {
+      await deleteAddressMutation.mutateAsync({
+        id: address.id,
+        sourceId: company.id,
+        sourceType: 'COMPANY',
+      });
+      toast.success('Address deleted');
+    } catch (err) {
+      toast.error('Failed to delete address');
+    }
   };
 
   // Manufacturer info handler
@@ -1967,71 +1888,142 @@ export default function CompanyDetailView({
 
         {/* ============ ADDRESSES SECTION ============ */}
         <div ref={el => { sectionRefs.current['addresses'] = el; }} id="section-addresses">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] relative overflow-hidden opacity-60">
-            {/* Coming Soon Overlay */}
-            <div className="absolute inset-0 bg-gray-50/80 backdrop-blur-[1px] z-10 flex items-center justify-center">
-              <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
-                <span className="text-sm font-medium text-gray-500">Coming Soon</span>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Addresses
+            </h2>
+            <button
+              onClick={() => setIsAddressModalOpen(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Address
+            </button>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            {addressesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
-            </div>
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Addresses</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  {addresses.length}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  disabled
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg opacity-50 cursor-not-allowed"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+            ) : addresses.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  Link Address
-                </button>
-                <button
-                  disabled
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg opacity-50 cursor-not-allowed"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Address
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              {addresses.length > 0 ? (
-                <div className="grid grid-cols-2 gap-6">
-                  {addresses.map((address, index) => (
-                    <AddressCard
-                      key={address.id}
-                      address={address}
-                      isEditing={isEditing}
-                      onUpdate={(updated) => updateAddress(index, updated)}
-                      onDelete={() => deleteAddress(index)}
-                    />
-                  ))}
                 </div>
-              ) : (
-                <div className="text-center py-4 text-[var(--muted-foreground)]">
-                  <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No addresses yet</h3>
+                <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+                  Add billing, shipping, or mailing addresses for this company using Google Maps search.
+                </p>
+                <button
+                  onClick={() => setIsAddressModalOpen(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors inline-flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
-                  <p className="text-sm">No addresses linked</p>
-                  <button
-                    onClick={() => setShowAddAddressModal(true)}
-                    className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                  Add First Address
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {addresses.map((address) => (
+                  <div
+                    key={address.id}
+                    className="relative flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors group"
                   >
-                    + Add an address
-                  </button>
-                </div>
-              )}
-            </div>
+                    {/* Address Type Icon */}
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      address.addressType === 'BILLING' ? 'bg-blue-100' :
+                      address.addressType === 'SHIPPING' ? 'bg-green-100' :
+                      address.addressType === 'MAILING' ? 'bg-purple-100' : 'bg-gray-100'
+                    }`}>
+                      {address.addressType === 'BILLING' && (
+                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                      )}
+                      {address.addressType === 'SHIPPING' && (
+                        <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12l-4 9H8l-4-9h4m0 0V4m0 3v10m4-10v10m-4 0h4" />
+                        </svg>
+                      )}
+                      {address.addressType === 'MAILING' && (
+                        <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                      {address.addressType === 'OTHER' && (
+                        <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* Address Details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          address.addressType === 'BILLING' ? 'bg-blue-100 text-blue-700' :
+                          address.addressType === 'SHIPPING' ? 'bg-green-100 text-green-700' :
+                          address.addressType === 'MAILING' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {address.addressType.charAt(0) + address.addressType.slice(1).toLowerCase()}
+                        </span>
+                        {address.isPrimary && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-medium text-gray-900">{address.line1}</p>
+                      {address.line2 && <p className="text-sm text-gray-600">{address.line2}</p>}
+                      <p className="text-sm text-gray-600">
+                        {[address.city, address.state, address.zipCode].filter(Boolean).join(', ')}
+                      </p>
+                      <p className="text-sm text-gray-500">{address.country}</p>
+                      {address.notes && (
+                        <p className="text-xs text-gray-400 mt-1 italic">{address.notes}</p>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Edit Button */}
+                      <button
+                        onClick={() => handleEditAddress(address)}
+                        className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit address"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      {/* Delete Button */}
+                      <button
+                        onClick={() => handleAddressDelete(address)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete address"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -2147,10 +2139,16 @@ export default function CompanyDetailView({
 
       </div>
 
-      <AddAddressModal
-        isOpen={showAddAddressModal}
-        onClose={() => setShowAddAddressModal(false)}
-        onSave={handleAddAddress}
+      {/* Google Maps Address Modal */}
+      <GoogleMapsAddressModal
+        isOpen={isAddressModalOpen}
+        onClose={handleAddressModalClose}
+        onSave={handleAddressSave}
+        sourceId={company.id}
+        sourceType="COMPANY"
+        defaultAddressType={editingAddress?.addressType || "BILLING"}
+        initialAddress={editingAddress || undefined}
+        mode={editingAddress ? 'edit' : 'create'}
       />
 
       {deleteConfirmId && (

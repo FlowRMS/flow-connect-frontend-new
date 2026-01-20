@@ -929,14 +929,14 @@ const CREATE_ORDER_FROM_QUOTE = `
     $orderNumber: String!
     $quoteId: UUID!
     $dueDate: Date!
-    $quoteDetailIds: [UUID!]
+    $quoteDetailsInputs: [QuoteDetailToOrderDetailInput!]
   ) {
     createOrderFromQuote(
       factoryId: $factoryId
       orderNumber: $orderNumber
       quoteId: $quoteId
       dueDate: $dueDate
-      quoteDetailIds: $quoteDetailIds
+      quoteDetailsInputs: $quoteDetailsInputs
     ) {
       id
       orderNumber
@@ -1139,12 +1139,18 @@ export async function duplicateOrder(
 // Create Order from Quote
 // ============================================================================
 
+export interface QuoteDetailToOrderDetailInput {
+  quoteDetailId: string;
+  quantity: string;
+  unitPrice: string;
+}
+
 export interface CreateOrderFromQuoteInput {
   factoryId: string;
   orderNumber: string;
   quoteId: string;
   dueDate: string;
-  quoteDetailIds?: string[];
+  quoteDetailsInputs?: QuoteDetailToOrderDetailInput[];
 }
 
 /**
@@ -1158,7 +1164,7 @@ export async function createOrderFromQuote(input: CreateOrderFromQuoteInput): Pr
       orderNumber: input.orderNumber,
       quoteId: input.quoteId,
       dueDate: input.dueDate,
-      quoteDetailIds: input.quoteDetailIds,
+      quoteDetailsInputs: input.quoteDetailsInputs,
     },
   });
 

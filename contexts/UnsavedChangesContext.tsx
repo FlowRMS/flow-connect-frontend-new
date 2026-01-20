@@ -178,48 +178,9 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
     }
   }, [confirmNavigation]);
 
-  // Handle browser back button using beforeunload and popstate
-  useEffect(() => {
-    // Handle browser beforeunload (refresh/close tab)
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
-        e.preventDefault();
-        e.returnValue = '';
-        return '';
-      }
-    };
-
-    // Handle browser back/forward buttons
-    const handlePopState = () => {
-      if (hasUnsavedChanges) {
-        // Push current state back to prevent navigation
-        window.history.pushState(null, '', window.location.href);
-
-        // Show browser alert for back button
-        const shouldLeave = window.confirm(
-          'You have unsaved changes. Are you sure you want to leave this page?'
-        );
-
-        if (shouldLeave) {
-          clearUnsavedChanges();
-          window.history.back();
-        }
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('popstate', handlePopState);
-
-    // Push initial state to enable popstate handling
-    if (hasUnsavedChanges) {
-      window.history.pushState(null, '', window.location.href);
-    }
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [hasUnsavedChanges, clearUnsavedChanges]);
+  // Note: We intentionally do NOT use browser beforeunload or popstate handlers
+  // because they cause false alerts when navigating after saving (race condition with state updates).
+  // Our custom modal (NavigationBlockerModal) handles all unsaved changes warnings for in-app navigation.
 
   // Clear unsaved changes when pathname changes (successful navigation)
   useEffect(() => {

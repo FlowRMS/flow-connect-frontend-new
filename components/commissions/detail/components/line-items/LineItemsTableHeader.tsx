@@ -6,7 +6,7 @@
 'use client';
 
 import React from 'react';
-import type { ColumnKey } from '../../types';
+import type { ColumnKey, CheckStatus } from '../../types';
 import type { SortableColumnKey, SortDirection } from './LineItemsTable';
 import { COLUMN_LABELS } from '../../constants';
 
@@ -16,6 +16,8 @@ interface LineItemsTableHeaderProps {
   sortColumn: SortableColumnKey;
   sortDirection: SortDirection;
   onSort: (column: SortableColumnKey) => void;
+  status: CheckStatus;
+  showActionsColumn?: boolean;
 }
 
 // Sort indicator component
@@ -34,6 +36,8 @@ export function LineItemsTableHeader({
   sortColumn,
   sortDirection,
   onSort,
+  status,
+  showActionsColumn,
 }: LineItemsTableHeaderProps) {
   const headerClass = "px-4 py-3 text-left text-sm font-medium text-[var(--foreground)] cursor-pointer hover:bg-[var(--muted)] transition-colors group select-none";
 
@@ -115,6 +119,12 @@ export function LineItemsTableHeader({
         {visibleColumns.has('paid') && (
           <th className="px-4 py-3 text-center text-sm font-medium text-[var(--foreground)]">
             {COLUMN_LABELS.paid}
+          </th>
+        )}
+        {/* Actions column header (only when not posted) */}
+        {status !== 'posted' && showActionsColumn && (
+          <th className="px-2 py-3 text-center text-sm font-medium text-[var(--foreground)] w-12">
+            {/* Empty header for actions column */}
           </th>
         )}
       </tr>
