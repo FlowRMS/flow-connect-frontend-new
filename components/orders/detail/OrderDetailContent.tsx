@@ -48,6 +48,8 @@ import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipSta
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
 import { orderToasts } from '@/components/lib/toast';
 import { UnsavedChangesModal } from '@/components/shared/modals/UnsavedChangesModal';
+import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 interface OrderDetailContentProps {
   orderId: string;
@@ -57,6 +59,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const router = useRouter();
   const state = useOrderDetailState({ orderId });
   const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
 
   // Credits state management
   const creditsState = useCreditsState({ orderId: orderId !== 'new' ? orderId : null });
@@ -105,6 +108,34 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       setFullEntityContext(null, null, null);
     };
   }, [state?.order?.orderNumber, orderId, setFullEntityContext]);
+
+  // Ref to hold the save handler for the unsaved changes guard
+  const saveHandlerRef = React.useRef<(() => Promise<boolean>) | null>(null);
+
+  // Unsaved changes guard - tracks order changes and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Order',
+    entityId: orderId !== 'new' ? orderId : null,
+    entityName: state?.order?.orderNumber || null,
+    hasChanges: state?.hasChanges || false,
+    onSave: async () => {
+      if (saveHandlerRef.current) {
+        return saveHandlerRef.current();
+      }
+      return false;
+    },
+  });
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/orders', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/orders');
+  };
 
   // Wrapped handlers for settings changes with rep redistribution
   const handleSetShowOutsideRepPerLine = async (value: boolean) => {
@@ -525,6 +556,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     }
   };
 
+  // Store save handler in ref for unsaved changes guard
+  saveHandlerRef.current = handleSave;
+
   const handleDelete = () => {
     setShowDeleteOrderModal(true);
   };
@@ -711,6 +745,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onDuplicateOrder={() => setShowDuplicateOrderModal(true)}
         onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
         onAutoPopulateInsideRepsToLineItems={handleAutoPopulateInsideRepsToLineItems}
+        onBack={handleBack}
       />
 
       {/* Main Content Area with Tabs */}

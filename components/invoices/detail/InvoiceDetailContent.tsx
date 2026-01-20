@@ -37,6 +37,8 @@ import { mockOrders, mockChecks } from '@/lib/data/rms-mock';
 import type { ColumnKey, RepSplit, InvoiceLineItem } from './types';
 import type { OrderLineItem } from '@/lib/types/rms';
 import { toast } from 'sonner';
+import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 interface InvoiceDetailContentProps {
   invoiceId: string;
@@ -47,6 +49,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
   const router = useRouter();
   const state = useInvoiceDetailState({ invoiceId, initialOrderId });
   const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
 
   // Set full entity context for global chatbot (type, id, and invoice number)
   useEffect(() => {
@@ -72,6 +75,37 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
   const [showDeleteInvoiceModal, setShowDeleteInvoiceModal] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const deleteInvoiceMutation = useDeleteInvoice();
+
+  // Unsaved changes guard - must be before any early returns
+  const handleSaveForGuard = React.useCallback(async (): Promise<boolean> => {
+    if (!state?.saveInvoice) return false;
+    const success = await state.saveInvoice();
+    if (success) {
+      toast.success('Invoice saved successfully');
+      return true;
+    }
+    toast.error('Failed to save invoice');
+    return false;
+  }, [state]);
+
+  useUnsavedChangesGuard({
+    entityType: 'Invoice',
+    entityId: state?.isCreateMode ? null : invoiceId,
+    entityName: state?.invoice?.invoiceNumber || null,
+    hasChanges: state?.hasChanges || false,
+    onSave: handleSaveForGuard,
+  });
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/invoices', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/invoices');
+  };
 
   // Loading state
   if (state?.isLoading) {
@@ -304,6 +338,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         isCreateMode={state.isCreateMode}
         hasChanges={state.hasChanges}
         isSaving={state.isSaving}
+        onBack={handleBack}
       />
 
       {/* Pricing Summary Bar */}

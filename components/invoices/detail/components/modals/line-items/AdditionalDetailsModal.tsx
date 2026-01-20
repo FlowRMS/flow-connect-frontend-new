@@ -289,9 +289,8 @@ export function AdditionalDetailsModal({
   // Only validate outside split if we're showing it (outsidePerLineItem is true)
   const isOutsideSplitValid = !outsidePerLineItem || outsideSplitReps.length === 0 || outsideSplitTotal === 100;
 
-  const insideSplitTotal = insideSplitReps.reduce((sum, r) => sum + (r.splitRate || 0), 0);
-  // Only validate inside split if we're showing it (insidePerLineItem is true)
-  const isInsideSplitValid = !insidePerLineItem || insideSplitReps.length === 0 || insideSplitTotal === 100;
+  // Inside rep percentages are auto-calculated, so always valid
+  const isInsideSplitValid = true;
 
   const isSplitValid = isOutsideSplitValid && isInsideSplitValid;
 
@@ -434,17 +433,7 @@ export function AdditionalDetailsModal({
                       <div className="flex-1">
                         <span className="text-sm font-medium text-gray-900">{rep.userName || 'Unknown'}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={rep.splitRate}
-                          onChange={(e) => updateInsideSplitRate(rep.id, parseInt(e.target.value) || 0)}
-                          className="w-14 px-2 py-1 text-sm border border-gray-300 rounded text-right"
-                        />
-                        <span className="text-sm text-gray-500">%</span>
-                      </div>
+                      {/* Percentage is auto-calculated, hidden from UI */}
                       <button
                         onClick={() => removeInsideRepFromSplit(rep.id)}
                         className="p-1 text-gray-400 hover:text-red-500"
@@ -456,12 +445,6 @@ export function AdditionalDetailsModal({
                       </button>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between text-xs px-1">
-                    <span className="text-gray-500">Total:</span>
-                    <span className={`font-medium ${insideSplitTotal === 100 ? 'text-blue-600' : 'text-red-600'}`}>
-                      {insideSplitTotal}%
-                    </span>
-                  </div>
                 </div>
               ) : (
                 <p className="text-xs text-gray-500 mb-3">No inside reps assigned. Search below to add.</p>
