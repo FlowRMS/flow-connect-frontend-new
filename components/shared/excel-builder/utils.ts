@@ -114,14 +114,14 @@ function getLineItemCellValue(
     case 'description':
       return editedValues.description ?? item.description;
     case 'quantity':
-      return editedValues.quantity ?? item.quantity;
+      return Number(editedValues.quantity ?? item.quantity ?? 0);
     case 'unitPrice':
-      return editedValues.unitPrice ?? item.unitPrice;
+      return Number(editedValues.unitPrice ?? item.unitPrice ?? 0);
     case 'uom':
       return editedValues.uom ?? item.uom ?? 'EA';
     case 'total': {
-      const qty = editedValues.quantity ?? item.quantity;
-      const price = editedValues.unitPrice ?? item.unitPrice;
+      const qty = Number(editedValues.quantity ?? item.quantity ?? 0);
+      const price = Number(editedValues.unitPrice ?? item.unitPrice ?? 0);
       return qty * price;
     }
     case 'source':
@@ -129,7 +129,7 @@ function getLineItemCellValue(
     case 'reference':
       return item.description;
     case 'appliedAmount':
-      return item.total;
+      return Number(item.total ?? 0);
     default:
       return '-';
   }
@@ -174,10 +174,12 @@ export async function exportEntityToExcel(options: {
   };
   const primaryNumberFieldId = primaryNumberFieldMap[entityType];
   const primaryNumberField = visibleFields.find((field) => field.id === primaryNumberFieldId);
+  const statusField = visibleFields.find((field) => field.id === 'status');
   const showPrimaryNumberInTitle = Boolean(primaryNumberField && entityNumber);
   const summaryFields = visibleFields.filter((field) => field.category === 'summary');
   const headerFields = visibleFields.filter((field) => {
     if (field.category === 'summary') return false;
+    if (includeHeader && statusField && field.id === 'status') return false;
     if (showPrimaryNumberInTitle && field.id === primaryNumberFieldId) return false;
     return true;
   });
@@ -189,6 +191,9 @@ export async function exportEntityToExcel(options: {
     const price = item.editedValues?.unitPrice ?? item.unitPrice;
     return sum + qty * price;
   }, 0);
+  const lineItemsTotalQuantity = visibleLineItems.reduce((sum, item) => {
+    return sum + Number(item.editedValues?.quantity ?? item.quantity ?? 0);
+  }, 0);
 
   const totalColumns = Math.max(2, visibleColumns.length);
 
@@ -197,6 +202,10 @@ export async function exportEntityToExcel(options: {
     ? headerFields.map((field) => [field.label, formatFieldValue(field)])
     : [];
   const summaryRows = summaryFields.map((field) => {
+    const discountField = summaryFields.find((summaryField) => summaryField.id === 'discount');
+    const discountValue = Number(
+      discountField?.editedValue ?? discountField?.value ?? 0
+    );
     const rawValue = (() => {
       if (field.id === 'subtotal') {
         return field.editedValue !== undefined ? Number(field.editedValue) : lineItemsSubtotal;
@@ -208,11 +217,6 @@ export async function exportEntityToExcel(options: {
         if (field.editedValue !== undefined) {
           return Number(field.editedValue);
         }
-        const discountValue = Number(
-          summaryFields.find((summaryField) => summaryField.id === 'discount')?.editedValue ??
-          summaryFields.find((summaryField) => summaryField.id === 'discount')?.value ??
-          0
-        );
         return lineItemsSubtotal - discountValue;
       }
       return Number(field.editedValue ?? field.value ?? 0);
@@ -238,16 +242,13 @@ export async function exportEntityToExcel(options: {
   // Build totals row
   const totalsRow: (string | number)[] = [];
   if (includeTotals && visibleLineItems.length > 0) {
-    const totalQuantity = visibleLineItems.reduce((sum, item) => {
-      return sum + (item.editedValues?.quantity ?? item.quantity);
-    }, 0);
     const grandTotal = lineItemsSubtotal;
 
     visibleColumns.forEach((column, idx) => {
       if (idx === 0) {
         totalsRow.push('TOTAL');
       } else if (column.id === 'quantity') {
-        totalsRow.push(totalQuantity);
+        totalsRow.push(lineItemsTotalQuantity);
       } else if (column.id === 'total' || column.id === 'appliedAmount') {
         totalsRow.push(grandTotal);
       } else {
@@ -260,6 +261,7 @@ export async function exportEntityToExcel(options: {
     ? `${ENTITY_TYPE_LABELS[entityType]} # ${entityNumber}`
     : ENTITY_TYPE_LABELS[entityType];
   const titleLeftText = organizationName?.trim() || '';
+  const showHeaderInfoRow = includeHeader && (Boolean(titleLeftText) || Boolean(statusField));
   const showSplitTitle = Boolean(titleLeftText && showPrimaryNumberInTitle && entityNumber);
   const rightSectionWidth = Math.min(2, totalColumns - 1);
   const leftSectionWidth = totalColumns - rightSectionWidth;
@@ -272,6 +274,16 @@ export async function exportEntityToExcel(options: {
   // Build sheet rows
   const sheetRows: (string | number)[][] = [];
   sheetRows.push(titleRow);
+
+  const headerInfoRowIndex = showHeaderInfoRow ? sheetRows.length : -1;
+  if (showHeaderInfoRow) {
+    const headerInfoRow = new Array(totalColumns).fill('');
+    headerInfoRow[0] = titleLeftText || 'Company Name';
+    if (statusField) {
+      headerInfoRow[totalColumns - 1] = formatFieldValue(statusField);
+    }
+    sheetRows.push(headerInfoRow);
+  }
 
   const headerStartRow = sheetRows.length;
   if (includeHeader && headerRows.length > 0) {
@@ -357,6 +369,19 @@ export async function exportEntityToExcel(options: {
       });
     }
   }
+  if (headerInfoRowIndex >= 0 && totalColumns > 1) {
+    if (statusField) {
+      merges.push({
+        s: { r: headerInfoRowIndex, c: 0 },
+        e: { r: headerInfoRowIndex, c: totalColumns - 2 },
+      });
+    } else {
+      merges.push({
+        s: { r: headerInfoRowIndex, c: 0 },
+        e: { r: headerInfoRowIndex, c: totalColumns - 1 },
+      });
+    }
+  }
 
   merges.push(
     { s: { r: footerTitleRowIndex, c: 0 }, e: { r: footerTitleRowIndex, c: totalColumns - 1 } },
@@ -402,6 +427,17 @@ export async function exportEntityToExcel(options: {
     if (!cell) return;
     cell.z = format;
   };
+  const setCellFormula = (row: number, col: number, formula: string, value?: number) => {
+    const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+    const cell = worksheet[cellAddress];
+    const nextCell = cell || { t: 'n', v: value ?? 0 };
+    nextCell.f = formula;
+    if (value !== undefined) {
+      nextCell.v = value;
+    }
+    nextCell.t = 'n';
+    worksheet[cellAddress] = nextCell;
+  };
 
   // Style: Title row
   const thinBorder = {
@@ -424,6 +460,30 @@ export async function exportEntityToExcel(options: {
       alignment: { horizontal: 'right', vertical: 'center' },
       border: thinBorder,
     });
+  }
+
+  // Style: Header info row (company name + status)
+  if (headerInfoRowIndex >= 0) {
+    setCellStyle(headerInfoRowIndex, 0, {
+      font: { bold: true, color: { rgb: COLORS.text }, sz: 12 },
+      alignment: { horizontal: 'left', vertical: 'center' },
+      border: {
+        bottom: { style: 'thin', color: { rgb: COLORS.border } },
+      },
+    });
+    if (statusField) {
+      const statusColors = getStatusColors(
+        String(statusField.editedValue ?? statusField.value ?? '')
+      );
+      setCellStyle(headerInfoRowIndex, totalColumns - 1, {
+        font: { bold: true, color: { rgb: statusColors.text }, sz: 9 },
+        fill: solidFill(statusColors.fill),
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: {
+          bottom: { style: 'thin', color: { rgb: COLORS.border } },
+        },
+      });
+    }
   }
 
   // Style: Header fields
@@ -572,6 +632,90 @@ export async function exportEntityToExcel(options: {
         });
       }
     });
+  }
+
+  // Formulas for line items, totals, and summary
+  const columnIndexById = visibleColumns.reduce<Record<string, number>>((acc, column, index) => {
+    acc[column.id] = index;
+    return acc;
+  }, {});
+  const quantityColIndex = columnIndexById['quantity'];
+  const unitPriceColIndex = columnIndexById['unitPrice'];
+  const totalColIndex = columnIndexById['total'];
+  const appliedAmountColIndex = columnIndexById['appliedAmount'];
+  const lineItemsStartRowNumber = lineItemsStartRow + 1;
+  const lineItemsEndRowNumber = lineItemsStartRow + lineItemRows.length;
+
+  if (lineItemRows.length > 0) {
+    if (
+      totalColIndex !== undefined &&
+      quantityColIndex !== undefined &&
+      unitPriceColIndex !== undefined
+    ) {
+      for (let row = lineItemsStartRow; row < lineItemsStartRow + lineItemRows.length; row += 1) {
+        const rowNumber = row + 1;
+        const qtyCell = `${XLSX.utils.encode_col(quantityColIndex)}${rowNumber}`;
+        const priceCell = `${XLSX.utils.encode_col(unitPriceColIndex)}${rowNumber}`;
+        const computedValue =
+          Number(worksheet[XLSX.utils.encode_cell({ r: row, c: quantityColIndex })]?.v ?? 0) *
+          Number(worksheet[XLSX.utils.encode_cell({ r: row, c: unitPriceColIndex })]?.v ?? 0);
+        setCellFormula(row, totalColIndex, `IFERROR(${qtyCell}*${priceCell},0)`, computedValue);
+      }
+    }
+
+    if (totalsRowIndex >= 0) {
+      if (quantityColIndex !== undefined) {
+        const qtyRange = `${XLSX.utils.encode_col(quantityColIndex)}${lineItemsStartRowNumber}:${XLSX.utils.encode_col(quantityColIndex)}${lineItemsEndRowNumber}`;
+        setCellFormula(totalsRowIndex, quantityColIndex, `SUM(${qtyRange})`, lineItemsTotalQuantity);
+      }
+      if (totalColIndex !== undefined) {
+        const totalRange = `${XLSX.utils.encode_col(totalColIndex)}${lineItemsStartRowNumber}:${XLSX.utils.encode_col(totalColIndex)}${lineItemsEndRowNumber}`;
+        setCellFormula(totalsRowIndex, totalColIndex, `SUM(${totalRange})`, lineItemsSubtotal);
+      } else if (appliedAmountColIndex !== undefined) {
+        const amountRange = `${XLSX.utils.encode_col(appliedAmountColIndex)}${lineItemsStartRowNumber}:${XLSX.utils.encode_col(appliedAmountColIndex)}${lineItemsEndRowNumber}`;
+        setCellFormula(totalsRowIndex, appliedAmountColIndex, `SUM(${amountRange})`, lineItemsSubtotal);
+      }
+    }
+
+    if (summaryStartRowIndex >= 0) {
+      const summaryRowIndexById = summaryFields.reduce<Record<string, number>>((acc, field, idx) => {
+        acc[field.id] = summaryStartRowIndex + idx;
+        return acc;
+      }, {});
+      const summaryValueColIndex = totalColumns - 1;
+      const subtotalRowIndex = summaryRowIndexById['subtotal'];
+      const discountRowIndex = summaryRowIndexById['discount'];
+      const totalRowIndex = summaryRowIndexById['total'];
+      const lineItemTotalColIndex = totalColIndex ?? appliedAmountColIndex;
+      if (subtotalRowIndex !== undefined && lineItemTotalColIndex !== undefined) {
+        const subtotalRange = `${XLSX.utils.encode_col(lineItemTotalColIndex)}${lineItemsStartRowNumber}:${XLSX.utils.encode_col(lineItemTotalColIndex)}${lineItemsEndRowNumber}`;
+        setCellFormula(subtotalRowIndex, summaryValueColIndex, `SUM(${subtotalRange})`, lineItemsSubtotal);
+      } else if (subtotalRowIndex !== undefined && unitPriceColIndex !== undefined && quantityColIndex !== undefined) {
+        const priceRange = `${XLSX.utils.encode_col(unitPriceColIndex)}${lineItemsStartRowNumber}:${XLSX.utils.encode_col(unitPriceColIndex)}${lineItemsEndRowNumber}`;
+        const qtyRange = `${XLSX.utils.encode_col(quantityColIndex)}${lineItemsStartRowNumber}:${XLSX.utils.encode_col(quantityColIndex)}${lineItemsEndRowNumber}`;
+        setCellFormula(subtotalRowIndex, summaryValueColIndex, `SUMPRODUCT(${priceRange},${qtyRange})`, lineItemsSubtotal);
+      }
+      if (totalRowIndex !== undefined) {
+        if (subtotalRowIndex !== undefined && discountRowIndex !== undefined) {
+          const subtotalCell = `${XLSX.utils.encode_col(summaryValueColIndex)}${subtotalRowIndex + 1}`;
+          const discountCell = `${XLSX.utils.encode_col(summaryValueColIndex)}${discountRowIndex + 1}`;
+          const discountValue = Number(
+            summaryFields.find((field) => field.id === 'discount')?.editedValue ??
+            summaryFields.find((field) => field.id === 'discount')?.value ??
+            0
+          );
+          setCellFormula(
+            totalRowIndex,
+            summaryValueColIndex,
+            `${subtotalCell}-ABS(${discountCell})`,
+            lineItemsSubtotal - discountValue
+          );
+        } else if (subtotalRowIndex !== undefined) {
+          const subtotalCell = `${XLSX.utils.encode_col(summaryValueColIndex)}${subtotalRowIndex + 1}`;
+          setCellFormula(totalRowIndex, summaryValueColIndex, `${subtotalCell}`, lineItemsSubtotal);
+        }
+      }
+    }
   }
 
   setCellStyle(footerTitleRowIndex, 0, {

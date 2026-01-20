@@ -37,6 +37,7 @@ export function ExcelPreview({
   const visibleFields = fields.filter((f) => f.visible);
   const visibleLineItems = lineItems.filter((item) => item.visible);
   const visibleColumns = columns.filter((c) => c.visible);
+  const titleLeftText = organizationName?.trim() || '';
   const primaryNumberFieldMap: Record<PDFEntityType, string> = {
     PRE_OPPORTUNITIES: 'entityNumber',
     QUOTES: 'quoteNumber',
@@ -46,10 +47,13 @@ export function ExcelPreview({
   };
   const primaryNumberFieldId = primaryNumberFieldMap[entityType];
   const primaryNumberField = visibleFields.find((field) => field.id === primaryNumberFieldId);
+  const statusField = visibleFields.find((field) => field.id === 'status');
   const showPrimaryNumberInTitle = Boolean(primaryNumberField && entityNumber);
+  const showHeaderInfoRow = includeHeader && (Boolean(titleLeftText) || Boolean(statusField));
   const summaryFields = visibleFields.filter((field) => field.category === 'summary');
   const headerFields = visibleFields.filter((field) => {
     if (field.category === 'summary') return false;
+    if (showHeaderInfoRow && field.id === 'status') return false;
     if (showPrimaryNumberInTitle && field.id === primaryNumberFieldId) return false;
     return true;
   });
@@ -59,7 +63,6 @@ export function ExcelPreview({
   const titleText = showPrimaryNumberInTitle && entityNumber
     ? `${ENTITY_TYPE_LABELS[entityType]} # ${entityNumber}`
     : ENTITY_TYPE_LABELS[entityType];
-  const titleLeftText = organizationName?.trim() || '';
   const showSplitTitle = Boolean(titleLeftText && showPrimaryNumberInTitle && entityNumber);
   const singleTitleText = titleLeftText || titleText;
 
@@ -80,7 +83,10 @@ export function ExcelPreview({
 
   // Calculate grand total
   const grandTotal = lineItemsSubtotal;
-  const totalQuantity = visibleLineItems.reduce((sum, item) => sum + (item.editedValues?.quantity ?? item.quantity), 0);
+  const totalQuantity = visibleLineItems.reduce(
+    (sum, item) => sum + Number(item.editedValues?.quantity ?? item.quantity ?? 0),
+    0
+  );
 
   // Format field value based on type
   const formatFieldValue = (field: ExcelFieldConfig): string => {
@@ -224,6 +230,23 @@ export function ExcelPreview({
                     </td>
                   )}
                 </tr>
+                {showHeaderInfoRow && (
+                  <tr>
+                    <td
+                      colSpan={statusField ? Math.max(1, totalColumns - 1) : totalColumns}
+                      className="border-b border-gray-300 px-2 py-2 text-sm font-semibold text-gray-900"
+                    >
+                      {titleLeftText || 'Company Name'}
+                    </td>
+                    {statusField && (
+                      <td className="border-b border-gray-300 px-2 py-2 text-right">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${getStatusColor(String(statusField.editedValue ?? statusField.value ?? ''))}`}>
+                          {formatStatus(String(statusField.editedValue ?? statusField.value ?? ''))}
+                        </span>
+                      </td>
+                    )}
+                  </tr>
+                )}
 
                 {/* Header Fields Section */}
                 {includeHeader && headerFields.length > 0 && (
