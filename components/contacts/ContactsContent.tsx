@@ -25,12 +25,15 @@ import { CONTACT_TYPES } from './constants';
 import { mapAPIContactToUIContact } from './types';
 import type { DuplicateGroup } from './types';
 import type { RelatedEntityCompany, RelatedEntityJob } from '../lib/crm-graphql';
+import { useUnsavedChangesGuard } from '../shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 export default function ContactsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const state = useContactsState();
   const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation } = useUnsavedChangesContext();
 
   // Navigation morph hooks
   const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
@@ -100,11 +103,27 @@ export default function ContactsContent() {
     }
   }, [state.selectedContact?.id, state.isMounted, router, searchParams]);
 
+  // Clear editing state when contact is deselected (e.g., after discarding changes and navigating back)
+  useEffect(() => {
+    if (!state.selectedContact) {
+      state.setIsEditing(false);
+      state.setHasLocalEdits(false);
+    }
+  }, [state.selectedContact, state.setIsEditing, state.setHasLocalEdits]);
+
   // Handle back navigation
   const handleBack = () => {
+    // Check for unsaved changes before allowing navigation
+    if (state.hasLocalEdits) {
+      const canNavigate = requestNavigation('/contacts', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
     isIntentionalClearRef.current = true;
     state.setSelectedContact(null);
     state.setIsEditing(false);
+    state.setHasLocalEdits(false);
     router.replace('/contacts', { scroll: false });
   };
 
@@ -123,6 +142,18 @@ export default function ContactsContent() {
 
   // Mock duplicate groups (would come from API in the future)
   const duplicateGroups: DuplicateGroup[] = [];
+
+  // Unsaved changes guard - tracks contact editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Contact',
+    entityId: state.selectedContact?.id || null,
+    entityName: state.selectedContact?.name || null,
+    hasChanges: state.hasLocalEdits,
+    onSave: async () => {
+      await state.handleSaveEdit();
+      return true;
+    },
+  });
 
   // Don't show loading state - let skeleton show in table instead
   // Only check isMounted for hydration safety
@@ -214,7 +245,7 @@ export default function ContactsContent() {
         onCancel={state.handleCancelEdit}
         onDelete={handleDeleteWithNavigation}
         onFieldChange={(field, value) =>
-          state.setEditFormData((prev) => ({ ...prev, [field]: value }))
+          state.handleEditFormChange((prev) => ({ ...prev, [field]: value }))
         }
         setDeleteConfirmId={state.setDeleteConfirmId}
         onJobClick={handleJobClick}

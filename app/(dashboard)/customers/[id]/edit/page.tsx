@@ -28,6 +28,8 @@ import {
   useDeleteAddress,
 } from '../../../../../components/hooks/useAddressApi';
 import { ConnectedEntitiesSection } from '../../../../../components/shared/ConnectedEntitiesSection';
+import { useUnsavedChangesGuard } from '../../../../../components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '../../../../../contexts/UnsavedChangesContext';
 
 // ============================================================================
 // Types
@@ -361,10 +363,10 @@ export default function CustomerEditPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!companyName.trim()) {
       toast.error('Company name is required');
-      return;
+      return false;
     }
 
     if (!isValidSplitRate) {
@@ -375,7 +377,7 @@ export default function CustomerEditPage() {
       } else {
         toast.error('Outside Reps split rate must total exactly 100%');
       }
-      return;
+      return false;
     }
 
     // Convert entries to the format expected by the API
@@ -413,10 +415,35 @@ export default function CustomerEditPage() {
       });
       toast.success('Customer updated successfully');
       setHasChanges(false);
+      return true;
     } catch (err) {
       toast.error('Failed to update customer');
       console.error('Update error:', err);
+      return false;
     }
+  };
+
+  // Unsaved changes guard - tracks customer editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Customer',
+    entityId: customerId,
+    entityName: customer?.companyName || null,
+    hasChanges,
+    onSave: handleSave,
+  });
+
+  // Get unsaved changes context for back button navigation check
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/customers', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/customers');
   };
 
   // Handle address save (create or update)
@@ -559,7 +586,7 @@ export default function CustomerEditPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/customers')}
+              onClick={handleBack}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

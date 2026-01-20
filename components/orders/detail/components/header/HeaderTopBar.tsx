@@ -46,6 +46,7 @@ interface HeaderTopBarProps {
   onCreateInvoice?: () => void;
   onDuplicateOrder?: () => void;
   onDelete?: () => void;
+  onBack?: () => void;
 }
 
 const getStatusColor = (status: Order['status']) => {
@@ -92,8 +93,17 @@ export function HeaderTopBar({
   onCreateInvoice,
   onDuplicateOrder,
   onDelete,
+  onBack,
 }: HeaderTopBarProps) {
   const router = useRouter();
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.push('/orders');
+    }
+  };
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
 
   return (
@@ -102,7 +112,7 @@ export function HeaderTopBar({
         <div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push('/orders')}
+              onClick={handleBack}
               className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
               title="Back to Orders"
             >

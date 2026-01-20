@@ -15,6 +15,8 @@ import { LineItemsTable } from './components/line-items';
 import { useDeleteStatement } from '../api/useStatementsApi';
 import { ColumnsModal } from './components/modals/ColumnsModal';
 import { AdditionalDetailsModal } from './components/modals/AdditionalDetailsModal';
+import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 interface StatementDetailContentProps {
   statementId: string;
@@ -23,6 +25,7 @@ interface StatementDetailContentProps {
 export default function StatementDetailContent({ statementId }: StatementDetailContentProps) {
   const router = useRouter();
   const state = useStatementDetailState({ statementId });
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
 
   // Delete mutation
   const deleteStatementMutation = useDeleteStatement();
@@ -31,6 +34,34 @@ export default function StatementDetailContent({ statementId }: StatementDetailC
 
   // Additional details modal state
   const [additionalDetailsItem, setAdditionalDetailsItem] = useState<LocalLineItem | null>(null);
+
+  // Ref for save handler
+  const saveHandlerRef = React.useRef<(() => Promise<boolean>) | null>(null);
+
+  // Unsaved changes guard - tracks statement changes and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Statement',
+    entityId: state?.isCreateMode ? null : statementId,
+    entityName: state?.statementNumber || null,
+    hasChanges: state?.hasChanges || false,
+    onSave: async () => {
+      if (saveHandlerRef.current) {
+        return saveHandlerRef.current();
+      }
+      return false;
+    },
+  });
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/statements', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/statements');
+  };
 
   // Loading state
   if (state.isLoading) {
@@ -99,17 +130,17 @@ export default function StatementDetailContent({ statementId }: StatementDetailC
     );
   }
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     try {
       // Validate required fields
       if (!state.factoryId) {
         alert('Factory is required');
-        return;
+        return false;
       }
 
       if (!state.entityDate) {
         alert('Statement date is required');
-        return;
+        return false;
       }
 
       const input = state.buildSaveInput();
@@ -122,12 +153,17 @@ export default function StatementDetailContent({ statementId }: StatementDetailC
         await state.updateMutation.mutateAsync(input);
         state.resetChanges();
       }
+      return true;
     } catch (error) {
       console.error('Error saving statement:', error);
       const message = error instanceof Error ? error.message : 'Failed to save statement';
       alert(message);
+      return false;
     }
   };
+
+  // Store save handler in ref for unsaved changes guard
+  saveHandlerRef.current = handleSave;
 
   const handleDelete = async () => {
     if (!state.statement?.id) return;
@@ -158,6 +194,7 @@ export default function StatementDetailContent({ statementId }: StatementDetailC
         isSaving={isSaving}
         onSave={handleSave}
         onDelete={() => setShowDeleteConfirm(true)}
+        onBack={handleBack}
         showActionsDropdown={state.showActionsDropdown}
         setShowActionsDropdown={state.setShowActionsDropdown}
       />

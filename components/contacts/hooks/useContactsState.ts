@@ -40,6 +40,8 @@ export function useContactsState() {
   const [isEditing, setIsEditing] = useState(true);
   const [editFormData, setEditFormData] = useState<Partial<Contact>>({});
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  // Track if user has made actual edits (not just entered edit mode)
+  const [hasLocalEdits, setHasLocalEdits] = useState(false);
 
   // Initialize editFormData when a contact is selected
   useEffect(() => {
@@ -56,6 +58,8 @@ export function useContactsState() {
         tags: selectedContact.tags,
         notes: selectedContact.notes,
       });
+      // Reset hasLocalEdits when switching contacts
+      setHasLocalEdits(false);
     }
   }, [selectedContact?.id, isEditing]); // Re-initialize when contact changes or edit mode changes
 
@@ -351,8 +355,9 @@ export function useContactsState() {
         role: editFormData.role || selectedContact.role,
         tags: updatedTags,
       });
-      
+
       setIsEditing(false);
+      setHasLocalEdits(false);
       refetch();
     } catch (err) {
       console.error('Failed to update contact:', err);
@@ -363,7 +368,18 @@ export function useContactsState() {
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditFormData({});
+    setHasLocalEdits(false);
   };
+
+  // Wrapper for setEditFormData that tracks changes
+  const handleEditFormChange = useCallback((updater: Partial<Contact> | ((prev: Partial<Contact>) => Partial<Contact>)) => {
+    setHasLocalEdits(true);
+    if (typeof updater === 'function') {
+      setEditFormData(updater);
+    } else {
+      setEditFormData(prev => ({ ...prev, ...updater }));
+    }
+  }, []);
 
   // Handle delete
   const handleDeleteContact = async (id: string) => {
@@ -395,6 +411,9 @@ export function useContactsState() {
     setIsEditing,
     editFormData,
     setEditFormData,
+    handleEditFormChange,
+    hasLocalEdits,
+    setHasLocalEdits,
     deleteConfirmId,
     setDeleteConfirmId,
     activeFilter,

@@ -41,6 +41,7 @@ import { quoteToasts } from '../lib/toast';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
 import { useQuoteSettings } from '@/contexts/UserSettingsContext';
+import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
 
 type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings' | 'files';
 
@@ -583,7 +584,20 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     } finally {
       setIsSaving(false);
     }
-  }, [quote, isNew, buildQuoteInput, createQuoteMutation, updateQuoteMutation, manageJobLink, refetch]);
+  }, [quote, isNew, buildQuoteInput, createQuoteMutation, updateQuoteMutation, manageJobLink, refetch, lineItems, settings.specifyEndUserPerLine]);
+
+  // Store save handler in ref for unsaved changes guard
+  const saveHandlerRef = React.useRef<(() => Promise<boolean>) | null>(null);
+  saveHandlerRef.current = handleSave;
+
+  // Unsaved changes guard - tracks quote changes and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Quote',
+    entityId: isNew ? null : quote.id || null,
+    entityName: quote.quoteNumber || null,
+    hasChanges,
+    onSave: handleSave,
+  });
 
   const handleDelete = useCallback(() => {
     if (!quote.id) return;

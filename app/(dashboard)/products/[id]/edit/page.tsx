@@ -31,6 +31,8 @@ import {
   type ProductQuantityPricing,
   type ProductQuantityPricingInput,
 } from '../../../../../components/products/api';
+import { useUnsavedChangesGuard } from '../../../../../components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '../../../../../contexts/UnsavedChangesContext';
 
 // ============================================================================
 // Types
@@ -335,15 +337,15 @@ export default function ProductEditPage() {
     setHasChanges(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!formData.factoryPartNumber.trim()) {
       toast.error('Part number is required');
-      return;
+      return false;
     }
 
     if (!formData.selectedFactoryId) {
       toast.error('Factory is required');
-      return;
+      return false;
     }
 
     setIsSaving(true);
@@ -363,12 +365,37 @@ export default function ProductEditPage() {
       await updateProductMutation.mutateAsync({ id: productId, input });
       toast.success('Product updated successfully');
       setHasChanges(false);
+      return true;
     } catch (error) {
       toast.error('Failed to update product');
       console.error('Update error:', error);
+      return false;
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Unsaved changes guard - tracks product editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Product',
+    entityId: productId,
+    entityName: product?.factoryPartNumber || null,
+    hasChanges,
+    onSave: handleSave,
+  });
+
+  // Get unsaved changes context for back button navigation check
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/products', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/products');
   };
 
   // CPN Handlers
@@ -669,7 +696,7 @@ export default function ProductEditPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/products')}
+              onClick={handleBack}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

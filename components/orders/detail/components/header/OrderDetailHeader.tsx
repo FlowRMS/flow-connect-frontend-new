@@ -70,6 +70,7 @@ interface OrderDetailHeaderProps {
   handleGenerateFulfillmentRequest?: () => void;
   onCreateInvoice?: () => void;
   onDuplicateOrder?: () => void;
+  onBack?: () => void;
   // Callbacks for auto-populating reps at line item level
   onAutoPopulateOutsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
   onAutoPopulateInsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
@@ -130,6 +131,7 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
     handleGenerateFulfillmentRequest = () => { alert('Fulfillment request - coming soon'); },
     onCreateInvoice,
     onDuplicateOrder,
+    onBack,
     onAutoPopulateOutsideRepsToLineItems,
     onAutoPopulateInsideRepsToLineItems,
   } = props;
@@ -199,6 +201,7 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
         onCreateInvoice={onCreateInvoice}
         onDuplicateOrder={onDuplicateOrder}
         onDelete={onDelete}
+        onBack={onBack}
       />
 
       <PricingSummaryBar

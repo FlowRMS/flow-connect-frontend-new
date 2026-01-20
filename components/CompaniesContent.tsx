@@ -30,6 +30,8 @@ import CompanyDetailView from './companies/detail/CompanyDetailView';
 import GridView from './companies/views/GridView';
 import ListView from './companies/views/ListView';
 import { ManageCompanyTypesModal } from './companies/modals/ManageCompanyTypesModal';
+import { useUnsavedChangesGuard } from './shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 // Company Type Filter Dropdown Component - uses dynamic company types from API
 function CompanyTypeFilterDropdown({
@@ -238,6 +240,7 @@ export default function CompaniesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
 
   // Navigation morph hooks
   const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
@@ -466,8 +469,23 @@ export default function CompaniesContent() {
     }
   }, [selectedCompany?.id, isMounted, router, searchParams]);
 
+  // Clear editing state when company is deselected (e.g., after discarding changes and navigating back)
+  useEffect(() => {
+    if (!selectedCompany) {
+      setIsEditing(false);
+      setEditFormData({});
+    }
+  }, [selectedCompany, setIsEditing, setEditFormData]);
+
   // Handle back navigation
   const handleBack = () => {
+    // Check for unsaved changes before allowing navigation
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/companies', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
     isIntentionalClearRef.current = true;
     setSelectedCompany(null);
     setIsEditing(false);
@@ -512,8 +530,8 @@ export default function CompaniesContent() {
   };
 
   // Handle save edit
-  const handleSaveEdit = async () => {
-    if (!selectedCompany) return;
+  const handleSaveEdit = async (): Promise<boolean> => {
+    if (!selectedCompany) return false;
 
     // Parse tags - handle both string and array formats
     let tagsToSend: string | undefined;
@@ -572,11 +590,22 @@ export default function CompaniesContent() {
 
       setIsEditing(false);
       refetch();
+      return true;
     } catch (err) {
       console.error('Failed to update company:', err);
       companyToasts.updateError(err instanceof Error ? err.message : undefined);
+      return false;
     }
   };
+
+  // Unsaved changes guard - tracks company editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Company',
+    entityId: selectedCompany?.id || null,
+    entityName: selectedCompany?.name || null,
+    hasChanges: isEditing && Object.keys(editFormData).length > 0,
+    onSave: handleSaveEdit,
+  });
 
   // Handle field change in edit form
   const handleFieldChange = (field: string, value: unknown) => {

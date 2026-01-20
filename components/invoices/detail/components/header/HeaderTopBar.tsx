@@ -44,6 +44,7 @@ interface HeaderTopBarProps {
   isCreateMode?: boolean;
   hasChanges?: boolean;
   isSaving?: boolean;
+  onBack?: () => void;
 }
 
 const getStatusColor = (status: InvoiceStatus) => {
@@ -84,9 +85,18 @@ export function HeaderTopBar({
   isCreateMode = false,
   hasChanges = false,
   isSaving = false,
+  onBack,
 }: HeaderTopBarProps) {
   const router = useRouter();
   const overdue = isOverdue(invoice);
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.push('/invoices');
+    }
+  };
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
 
   // Simple view columns (default)
@@ -127,7 +137,7 @@ export function HeaderTopBar({
         <div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push('/invoices')}
+              onClick={handleBack}
               className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
               title="Back to Invoices"
             >
