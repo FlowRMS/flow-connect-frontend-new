@@ -72,7 +72,7 @@ import ShippedInterface from './fulfillment-detail/ShippedInterface';
 import FulfillmentDetailsForm from './fulfillment-detail/FulfillmentDetailsForm';
 import AuditTimestamps from './fulfillment-detail/AuditTimestamps';
 import LineItemsTable from './fulfillment-detail/LineItemsTable';
-import { PackingBoxType } from './fulfillment-detail/packing/PackingBox';
+import { PackingBoxType, packagingOptions } from './fulfillment-detail/packing/PackingBox';
 
 // Import modal components
 import PackingSlipModal from './fulfillment-detail/modals/PackingSlipModal';
@@ -151,6 +151,12 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [shipToDifferentFromPO, setShipToDifferentFromPO] = useState(false);
   const [trackingNumbers, setTrackingNumbers] = useState('');
 
+  // Shipping state - must be declared before the useEffect that uses them
+  const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL'>(fulfillmentOrder?.fulfillmentMethod || 'SHIP');
+  const [carrierType, setCarrierType] = useState<'parcel' | 'freight'>((fulfillmentOrder as any)?.carrierType?.toLowerCase() || 'parcel');
+  const [selectedCarrier, setSelectedCarrier] = useState(fulfillmentOrder?.carrierId || '');
+  const [freightClass, setFreightClass] = useState(fulfillmentOrder?.freightClass || '');
+
   // Initialize form state when fulfillment order loads
   useEffect(() => {
     if (fulfillmentOrder) {
@@ -204,18 +210,85 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     }
   }, [fulfillmentOrder?.lineItems]);
 
-  // Packing state
-  const [packingBoxes, setPackingBoxes] = useState<PackingBoxType[]>([
-    {
-      id: 'box-1',
+  // Helper to format decimal numbers - removes trailing zeros
+  const formatDecimal = (value: number | null): string => {
+    if (value === null || value === undefined) return '';
+    // Parse the number and format it, removing unnecessary trailing zeros
+    const num = Number(value);
+    if (isNaN(num)) return '';
+    // Use toFixed(2) then remove trailing zeros
+    return parseFloat(num.toFixed(2)).toString();
+  };
+
+  // Helper to convert server PackingBox to local PackingBoxType
+  // Note: This is a plain function, not a hook, so it can be called in useState initializers
+  const convertServerBoxToLocal = (serverBox: {
+    id: string;
+    length: number | null;
+    width: number | null;
+    height: number | null;
+    weight: number | null;
+    items: { fulfillmentLineItemId: string }[];
+  }): PackingBoxType => {
+    // Format dimensions for comparison (remove decimals for matching)
+    const lengthStr = formatDecimal(serverBox.length);
+    const widthStr = formatDecimal(serverBox.width);
+    const heightStr = formatDecimal(serverBox.height);
+
+    // Determine packaging type from dimensions
+    let packagingType = 'custom';
+    if (serverBox.length && serverBox.width && serverBox.height) {
+      const match = packagingOptions.find((opt) =>
+        opt.dimensions.length === lengthStr &&
+        opt.dimensions.width === widthStr &&
+        opt.dimensions.height === heightStr
+      );
+      if (match) packagingType = match.value;
+    }
+
+    return {
+      id: serverBox.id,
+      packagingType,
+      customWeight: formatDecimal(serverBox.weight),
+      useCustomWeight: serverBox.weight !== null,
+      customDimensions: {
+        length: lengthStr,
+        width: widthStr,
+        height: heightStr,
+      },
+      lineItemIds: serverBox.items.map(item => item.fulfillmentLineItemId),
+    };
+  };
+
+  // Packing state - initialize from server data if available
+  const [packingBoxes, setPackingBoxes] = useState<PackingBoxType[]>(() => {
+    if (fulfillmentOrder?.packingBoxes && fulfillmentOrder.packingBoxes.length > 0) {
+      return fulfillmentOrder.packingBoxes.map(convertServerBoxToLocal);
+    }
+    // Default empty box
+    return [{
+      id: 'local-box-1',
       packagingType: 'pallet_48x40x6',
       customWeight: '',
       useCustomWeight: false,
       customDimensions: { length: '', width: '', height: '' },
       lineItemIds: [],
+    }];
+  });
+
+  // Track which items are verified (packed)
+  const [verifiedItems, setVerifiedItems] = useState<Record<string, boolean>>(() => {
+    // Initialize from server packing boxes
+    const verified: Record<string, boolean> = {};
+    if (fulfillmentOrder?.packingBoxes) {
+      fulfillmentOrder.packingBoxes.forEach(box => {
+        box.items.forEach(item => {
+          verified[item.fulfillmentLineItemId] = true;
+        });
+      });
     }
-  ]);
-  const [verifiedItems, setVerifiedItems] = useState<Record<string, boolean>>({});
+    return verified;
+  });
   const [packingNotes, setPackingNotes] = useState<Record<string, string>>({});
   const [expandedPackingNoteId, setExpandedPackingNoteId] = useState<string | null>(null);
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
@@ -232,6 +305,32 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     }
   }, [fulfillmentOrder?.activities]);
 
+  // Track if packing boxes have been initialized from server
+  const [packingInitialized, setPackingInitialized] = useState(false);
+
+  // Track boxes to delete on save (server-side boxes that were removed locally)
+  const [boxesToDelete, setBoxesToDelete] = useState<string[]>([]);
+
+  // Counter for generating unique local box IDs
+  const [localBoxCounter, setLocalBoxCounter] = useState(1);
+
+  // Initialize packing boxes from server data on first load only
+  // After that, local state is managed independently until Save
+  useEffect(() => {
+    if (!packingInitialized && fulfillmentOrder?.packingBoxes && fulfillmentOrder.packingBoxes.length > 0) {
+      setPackingBoxes(fulfillmentOrder.packingBoxes.map(convertServerBoxToLocal));
+      // Update verified items based on what's in boxes
+      const verified: Record<string, boolean> = {};
+      fulfillmentOrder.packingBoxes.forEach(box => {
+        box.items.forEach(item => {
+          verified[item.fulfillmentLineItemId] = true;
+        });
+      });
+      setVerifiedItems(verified);
+      setPackingInitialized(true);
+    }
+  }, [fulfillmentOrder?.packingBoxes, packingInitialized]);
+
   // Modal state
   const [showPackingSlipModal, setShowPackingSlipModal] = useState(false);
   const [showShippingLabelsModal, setShowShippingLabelsModal] = useState(false);
@@ -240,12 +339,8 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [selectedPackingTemplate, setSelectedPackingTemplate] = useState('standard');
   const [selectedLabelFormat, setSelectedLabelFormat] = useState('4x6');
 
-  // Shipping state
-  const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL'>(fulfillmentOrder?.fulfillmentMethod || 'SHIP');
-  const [carrierType, setCarrierType] = useState<'parcel' | 'freight'>((fulfillmentOrder as any)?.carrierType || 'parcel');
-  const [selectedCarrier, setSelectedCarrier] = useState(fulfillmentOrder?.carrierId || '');
+  // Additional shipping state (shippingMethod, carrierType, selectedCarrier, freightClass declared earlier)
   const [serviceType, setServiceType] = useState((fulfillmentOrder as any)?.serviceType || '');
-  const [freightClass, setFreightClass] = useState(fulfillmentOrder?.freightClass || '');
   const [bolNumber, setBolNumber] = useState((fulfillmentOrder as any)?.bolNumber || '');
   const [proNumber, setProNumber] = useState((fulfillmentOrder as any)?.proNumber || '');
   const [shippingNotes, setShippingNotes] = useState((fulfillmentOrder as any)?.shippingNotes || '');
@@ -719,20 +814,41 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       [lineItemId]: note
     }));
   };
+
+  // All packing operations are LOCAL ONLY - changes saved when clicking Save button
   const addNewBox = () => {
     const newBox: PackingBoxType = {
-      id: `box-${packingBoxes.length + 1}`,
-      packagingType: 'small_box',
+      id: `local-box-${localBoxCounter}`,
+      packagingType: 'pallet_48x40x6',
       customWeight: '',
       useCustomWeight: false,
       customDimensions: { length: '', width: '', height: '' },
       lineItemIds: [],
     };
     setPackingBoxes(prev => [...prev, newBox]);
+    setLocalBoxCounter(prev => prev + 1);
   };
 
   const removeBox = (boxId: string) => {
     if (packingBoxes.length <= 1) return;
+
+    // Track server-side boxes for deletion on save
+    if (!boxId.startsWith('local-')) {
+      setBoxesToDelete(prev => [...prev, boxId]);
+    }
+
+    // Update verified items - unverify items that were in this box
+    const boxToRemove = packingBoxes.find(b => b.id === boxId);
+    if (boxToRemove) {
+      const itemsToUnverify = boxToRemove.lineItemIds;
+      setVerifiedItems(prev => {
+        const updated = { ...prev };
+        itemsToUnverify.forEach(id => { updated[id] = false; });
+        return updated;
+      });
+    }
+
+    // Remove from local state
     setPackingBoxes(prev => prev.filter(b => b.id !== boxId));
   };
 
@@ -758,13 +874,17 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   };
 
   const addAllItemsToBox = (boxId: string) => {
-    const unassignedIds = getUnassignedItems().map(li => li.id);
+    const unassignedItems = getUnassignedItems();
+    if (unassignedItems.length === 0) return;
+
+    const unassignedIds = unassignedItems.map(li => li.id);
     setPackingBoxes(prev => prev.map(box => {
       if (box.id === boxId) {
         return { ...box, lineItemIds: [...box.lineItemIds, ...unassignedIds] };
       }
       return box;
     }));
+
     const newVerified: Record<string, boolean> = {};
     unassignedIds.forEach(id => { newVerified[id] = true; });
     setVerifiedItems(prev => ({ ...prev, ...newVerified }));
@@ -941,6 +1061,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     if (!fulfillmentOrder) return;
 
     try {
+      // 1. Save fulfillment order basic info
       await updateOrderMutation.mutateAsync({
         id: fulfillmentOrder.id,
         input: {
@@ -949,6 +1070,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           carrierId: selectedCarrier || null,
           carrierType: shippingMethod === 'SHIP' ? carrierType.toUpperCase() as 'PARCEL' | 'FREIGHT' : null,
           freightClass: freightClass || null,
+          serviceType: serviceType || null,
           needByDate: needByDate || null,
           shipToName: shipToName || null,
           shipToPhone: shipToPhone || null,
@@ -965,7 +1087,125 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           },
         },
       });
+
+      // 2. Sync packing boxes if in PACKING status or later
+      const isPacking = fulfillmentOrder.status === 'PACKING' ||
+                        fulfillmentOrder.status === 'SHIPPING' ||
+                        fulfillmentOrder.status === 'SHIPPED';
+
+      if (isPacking) {
+        // Get current server boxes
+        const serverBoxIds = new Set(fulfillmentOrder.packingBoxes?.map(b => b.id) || []);
+
+        // Delete boxes that were removed locally
+        for (const boxId of boxesToDelete) {
+          if (serverBoxIds.has(boxId)) {
+            try {
+              await deletePackingBoxMutation.mutateAsync(boxId);
+            } catch (err) {
+              console.error('Failed to delete box:', boxId, err);
+            }
+          }
+        }
+
+        // Map from local box ID to server box ID for new boxes
+        const boxIdMap = new Map<string, string>();
+
+        // Create new boxes and update existing ones
+        for (const box of packingBoxes) {
+          const packagingOpt = packagingOptions.find((opt) => opt.value === box.packagingType);
+          const dimensions = packagingOpt?.dimensions || { length: '48', width: '40', height: '6' };
+
+          const boxInput = {
+            length: parseFloat(box.customDimensions.length || dimensions.length) || null,
+            width: parseFloat(box.customDimensions.width || dimensions.width) || null,
+            height: parseFloat(box.customDimensions.height || dimensions.height) || null,
+            weight: box.useCustomWeight && box.customWeight ? parseFloat(box.customWeight) : null,
+          };
+
+          if (box.id.startsWith('local-')) {
+            // Create new box on server
+            try {
+              const newBox = await addPackingBoxMutation.mutateAsync({
+                fulfillmentOrderId,
+                input: boxInput,
+              });
+              boxIdMap.set(box.id, newBox.id);
+            } catch (err) {
+              console.error('Failed to create box:', err);
+            }
+          } else {
+            // Update existing box
+            boxIdMap.set(box.id, box.id);
+            // TODO: Could add updatePackingBox call here if dimensions changed
+          }
+        }
+
+        // Get server's current item assignments
+        const serverItemAssignments = new Map<string, string>(); // lineItemId -> boxId
+        fulfillmentOrder.packingBoxes?.forEach(box => {
+          box.items.forEach(item => {
+            serverItemAssignments.set(item.fulfillmentLineItemId, box.id);
+          });
+        });
+
+        // Sync item assignments
+        for (const box of packingBoxes) {
+          const serverBoxId = boxIdMap.get(box.id);
+          if (!serverBoxId) continue;
+
+          for (const lineItemId of box.lineItemIds) {
+            const currentServerBoxId = serverItemAssignments.get(lineItemId);
+
+            if (currentServerBoxId !== serverBoxId) {
+              // Item needs to be moved or assigned
+              if (currentServerBoxId) {
+                // Remove from old box first
+                try {
+                  await removeItemFromBoxMutation.mutateAsync({
+                    boxId: currentServerBoxId,
+                    lineItemId
+                  });
+                } catch (err) {
+                  console.error('Failed to remove item from box:', err);
+                }
+              }
+
+              // Assign to new box
+              const lineItem = fulfillmentOrder.lineItems.find(li => li.id === lineItemId);
+              const quantity = lineItem?.allocatedQty || 1;
+              try {
+                await assignItemToBoxMutation.mutateAsync({
+                  boxId: serverBoxId,
+                  lineItemId,
+                  quantity,
+                });
+              } catch (err) {
+                console.error('Failed to assign item to box:', err);
+              }
+            }
+          }
+        }
+
+        // Remove items that are no longer in any box
+        const localAssignedItems = new Set(packingBoxes.flatMap(b => b.lineItemIds));
+        for (const [lineItemId, boxId] of serverItemAssignments) {
+          if (!localAssignedItems.has(lineItemId)) {
+            try {
+              await removeItemFromBoxMutation.mutateAsync({ boxId, lineItemId });
+            } catch (err) {
+              console.error('Failed to remove unassigned item:', err);
+            }
+          }
+        }
+
+        // Clear the boxes to delete list after successful save
+        setBoxesToDelete([]);
+      }
+
       fulfillmentToasts.saveSuccess(fulfillmentOrder.fulfillmentOrderNumber);
+      // Refetch to sync state with server
+      refetchOrder();
     } catch (error) {
       console.error('Failed to save fulfillment order:', error);
       fulfillmentToasts.saveError(error instanceof Error ? error.message : undefined);

@@ -575,8 +575,8 @@ export default function PickingInterface({
         onReportInventoryDiscrepancy({
           lineItemId: shortage.lineItemId,
           productId: lineItem.productId,
-          productName: lineItem.productName,
-          partNumber: lineItem.partNumber,
+          productName: lineItem.product?.description || lineItem.product?.factoryPartNumber || '',
+          partNumber: lineItem.product?.factoryPartNumber || '',
           locationId: shortage.locationId,
           locationName: shortage.locationName,
           locationType: shortage.locationType,
@@ -692,8 +692,8 @@ export default function PickingInterface({
               {itemsAtScannedLocation.map(({ lineItemId, lineItem, location }) => (
                 <div key={lineItemId} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-blue-200">
                   <div className="flex-1 min-w-0">
-                    <span className="font-medium text-sm">{lineItem.partNumber}</span>
-                    <p className="text-xs text-[var(--muted-foreground)] truncate">{lineItem.productName}</p>
+                    <span className="font-medium text-sm">{lineItem.product?.factoryPartNumber || '-'}</span>
+                    <p className="text-xs text-[var(--muted-foreground)] truncate">{lineItem.product?.description || lineItem.product?.factoryPartNumber || '-'}</p>
                   </div>
                   <div className="text-sm text-[var(--muted-foreground)]">
                     Pick <span className="font-semibold text-[var(--foreground)]">{Math.round(location.expectedQty)}</span>
@@ -807,9 +807,11 @@ export default function PickingInterface({
           .filter((item) => {
             if (!itemSearchQuery) return true;
             const query = itemSearchQuery.toLowerCase();
+            const partNumber = item.product?.factoryPartNumber || '';
+            const productName = item.product?.description || item.product?.factoryPartNumber || '';
             return (
-              item.partNumber.toLowerCase().includes(query) ||
-              item.productName.toLowerCase().includes(query)
+              partNumber.toLowerCase().includes(query) ||
+              productName.toLowerCase().includes(query)
             );
           })
           .map((lineItem) => {
@@ -863,8 +865,8 @@ export default function PickingInterface({
                 {/* Product info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-[var(--foreground)]">{lineItem.partNumber}</span>
-                    <span className="text-xs px-2 py-0.5 bg-[var(--muted)] rounded">{lineItem.uom}</span>
+                    <span className="font-semibold text-[var(--foreground)]">{lineItem.product?.factoryPartNumber || '-'}</span>
+                    <span className="text-xs px-2 py-0.5 bg-[var(--muted)] rounded">{lineItem.product?.uom?.title || 'EA'}</span>
                     {hasNote && !isNoteExpanded && (
                       <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded flex items-center gap-1">
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -874,7 +876,7 @@ export default function PickingInterface({
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-[var(--muted-foreground)] truncate">{lineItem.productName}</p>
+                  <p className="text-sm text-[var(--muted-foreground)] truncate">{lineItem.product?.description || lineItem.product?.factoryPartNumber || '-'}</p>
                 </div>
 
                 {/* Quantity display */}

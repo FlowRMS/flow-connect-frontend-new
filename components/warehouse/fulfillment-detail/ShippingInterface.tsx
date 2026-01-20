@@ -156,6 +156,7 @@ export default function ShippingInterface({
           shippingMethod={shippingMethod}
           carrierType={carrierType}
           selectedCarrier={selectedCarrier}
+          carrierName={fulfillmentOrder.carrier?.name}
           trackingNumbers={trackingNumbers}
           proNumber={proNumber}
           bolNumber={bolNumber}

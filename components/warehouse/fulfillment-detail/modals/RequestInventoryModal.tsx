@@ -110,7 +110,7 @@ export default function RequestInventoryModal({
                 Request Inventory from Manufacturer
               </h2>
               <p className="text-sm text-gray-600">
-                Order #{fulfillmentOrder.orderNumber} - {fulfillmentOrder.customerName}
+                Order #{fulfillmentOrder.order?.orderNumber || '-'} - {fulfillmentOrder.customer?.companyName || '-'}
               </p>
             </div>
           </div>
@@ -241,9 +241,9 @@ export default function RequestInventoryModal({
                       >
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm text-gray-900 truncate">
-                            {item.lineItem.productName}
+                            {item.lineItem.product?.description || item.lineItem.product?.factoryPartNumber || '-'}
                           </div>
-                          <div className="text-xs text-gray-500">{item.lineItem.partNumber}</div>
+                          <div className="text-xs text-gray-500">{item.lineItem.product?.factoryPartNumber || '-'}</div>
                           <div className="text-xs text-gray-400 mt-1">
                             Ordered: {item.lineItem.orderedQty} | On Hand: {item.inventoryOnHand} |{' '}
                             <span className="text-red-600 font-medium">Short: {shortQty}</span>

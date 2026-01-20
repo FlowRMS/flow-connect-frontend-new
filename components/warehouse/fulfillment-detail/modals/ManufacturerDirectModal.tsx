@@ -107,7 +107,7 @@ export default function ManufacturerDirectModal({
                 Request Manufacturer Direct Shipment
               </h2>
               <p className="text-sm text-gray-600">
-                Order #{fulfillmentOrder.orderNumber} - {fulfillmentOrder.customerName}
+                Order #{fulfillmentOrder.order?.orderNumber || '-'} - {fulfillmentOrder.customer?.companyName || '-'}
               </p>
             </div>
           </div>
@@ -187,9 +187,9 @@ export default function ManufacturerDirectModal({
                         />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm text-gray-900 truncate">
-                            {item.lineItem.productName}
+                            {item.lineItem.product?.description || item.lineItem.product?.factoryPartNumber || '-'}
                           </div>
-                          <div className="text-xs text-gray-500">{item.lineItem.partNumber}</div>
+                          <div className="text-xs text-gray-500">{item.lineItem.product?.factoryPartNumber || '-'}</div>
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-semibold text-gray-900">

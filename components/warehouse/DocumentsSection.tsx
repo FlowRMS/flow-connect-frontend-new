@@ -599,7 +599,7 @@ export default function DocumentsSection({
                 <div>
                   <h3 className="font-medium text-[var(--foreground)]">{viewingDocument.fileName}</h3>
                   <p className="text-xs text-[var(--muted-foreground)]">
-                    {documentTypeInfo[viewingDocument.documentType as DocumentType].label} - Uploaded {formatDate(viewingDocument.uploadedAt)} by {viewingDocument.uploadedByName}
+                    {documentTypeInfo[viewingDocument.documentType as DocumentType].label} - Uploaded {formatDate(viewingDocument.uploadedAt)} by {viewingDocument.uploadedBy?.fullName || 'Unknown'}
                   </p>
                 </div>
               </div>

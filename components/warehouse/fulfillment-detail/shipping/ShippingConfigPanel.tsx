@@ -7,6 +7,7 @@ interface ShippingConfigPanelProps {
   shippingMethod: 'SHIP' | 'WILL_CALL';
   carrierType: 'parcel' | 'freight';
   selectedCarrier: string;
+  carrierName?: string;
   trackingNumbers: string;
   proNumber: string;
   bolNumber: string;
@@ -26,6 +27,7 @@ export default function ShippingConfigPanel({
   shippingMethod,
   carrierType,
   selectedCarrier,
+  carrierName,
   trackingNumbers,
   proNumber,
   bolNumber,
@@ -48,6 +50,10 @@ export default function ShippingConfigPanel({
 
   // Format carrier name for display
   const formatCarrier = (carrier: string) => {
+    // If carrierName is provided directly (from fulfillment order), use it
+    if (carrierName) {
+      return carrierName;
+    }
     // If it's a UUID, look up the carrier name
     if (isUUID(carrier)) {
       const foundCarrier = carriers.find(c => c.id === carrier);

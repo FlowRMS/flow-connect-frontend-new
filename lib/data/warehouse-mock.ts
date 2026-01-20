@@ -951,6 +951,19 @@ export function getTotalAvailableQty(productId: string): number {
 // Calculate picking allocation across locations for a given quantity needed
 export function calculatePickingAllocation(productId: string, qtyNeeded: number): InventoryLocation[] {
   const locations = getProductLocations(productId);
+
+  // If no mock locations found for this product, generate a default primary location
+  // This ensures picking can function for real products during development
+  if (locations.length === 0 && qtyNeeded > 0) {
+    return [{
+      locationId: `LOC-${productId.substring(0, 8)}-PRI`,
+      locationName: 'Primary Location',
+      locationType: 'PRIMARY' as LocationType,
+      quantity: qtyNeeded,
+      priority: 1,
+    }];
+  }
+
   const allocations: InventoryLocation[] = [];
   let remaining = qtyNeeded;
 
@@ -1250,32 +1263,23 @@ export const mockFulfillmentOrders: any[] = [
     assignedManagers: [
       {
         id: 'AM-001',
-        userId: 'user-mgr-001',
-        userName: 'Sarah Johnson',
-        userEmail: 'sarah.johnson@flowcrm.com',
+        user: { id: 'user-mgr-001', fullName: 'Sarah Johnson', email: 'sarah.johnson@flowcrm.com' },
         role: 'manager',
-        assignedAt: '2024-12-10T08:00:00Z',
-        assignedBy: 'System',
+        createdAt: '2024-12-10T08:00:00Z',
       },
     ],
     assignedWorkers: [
       {
         id: 'AW-001',
-        userId: 'user-wkr-001',
-        userName: 'Mike Chen',
-        userEmail: 'mike.chen@flowcrm.com',
+        user: { id: 'user-wkr-001', fullName: 'Mike Chen', email: 'mike.chen@flowcrm.com' },
         role: 'worker',
-        assignedAt: '2024-12-10T08:15:00Z',
-        assignedBy: 'Sarah Johnson',
+        createdAt: '2024-12-10T08:15:00Z',
       },
       {
         id: 'AW-002',
-        userId: 'user-wkr-002',
-        userName: 'Lisa Rodriguez',
-        userEmail: 'lisa.rodriguez@flowcrm.com',
+        user: { id: 'user-wkr-002', fullName: 'Lisa Rodriguez', email: 'lisa.rodriguez@flowcrm.com' },
         role: 'worker',
-        assignedAt: '2024-12-10T08:15:00Z',
-        assignedBy: 'Sarah Johnson',
+        createdAt: '2024-12-10T08:15:00Z',
       },
     ],
   },
@@ -1329,23 +1333,17 @@ export const mockFulfillmentOrders: any[] = [
     assignedManagers: [
       {
         id: 'AM-002',
-        userId: 'user-mgr-002',
-        userName: 'David Park',
-        userEmail: 'david.park@flowcrm.com',
+        user: { id: 'user-mgr-002', fullName: 'David Park', email: 'david.park@flowcrm.com' },
         role: 'manager',
-        assignedAt: '2024-12-10T08:30:00Z',
-        assignedBy: 'System',
+        createdAt: '2024-12-10T08:30:00Z',
       },
     ],
     assignedWorkers: [
       {
         id: 'AW-003',
-        userId: 'user-wkr-003',
-        userName: 'James Wilson',
-        userEmail: 'james.wilson@flowcrm.com',
+        user: { id: 'user-wkr-003', fullName: 'James Wilson', email: 'james.wilson@flowcrm.com' },
         role: 'worker',
-        assignedAt: '2024-12-10T08:45:00Z',
-        assignedBy: 'David Park',
+        createdAt: '2024-12-10T08:45:00Z',
       },
     ],
   },
@@ -2269,32 +2267,29 @@ export function addFulfillmentOrderAssignment(
 
   const newAssignment: AssignedUser = {
     id: `assign-${Date.now()}`,
-    userId: user.id,
-    userName: user.name,
-    userEmail: user.email,
+    user: { id: user.id, fullName: user.name, email: user.email },
     role,
-    assignedAt: new Date().toISOString(),
-    assignedBy,
+    createdAt: new Date().toISOString(),
   };
 
   if (role === 'manager') {
     const currentManagers = order.assignedManagers || [];
     // Don't add if already assigned
-    if (currentManagers.some(m => m.userId === userId)) return order;
+    if (currentManagers.some(m => m.user?.id === userId)) return order;
     return updateFulfillmentOrder(fulfillmentOrderId, {
       assignedManagers: [...currentManagers, newAssignment],
     });
   } else if (role === 'inside_sales') {
     const currentInsideSales = order.assignedInsideSales || [];
     // Don't add if already assigned
-    if (currentInsideSales.some(s => s.userId === userId)) return order;
+    if (currentInsideSales.some(s => s.user?.id === userId)) return order;
     return updateFulfillmentOrder(fulfillmentOrderId, {
       assignedInsideSales: [...currentInsideSales, newAssignment],
     });
   } else {
     const currentWorkers = order.assignedWorkers || [];
     // Don't add if already assigned
-    if (currentWorkers.some(w => w.userId === userId)) return order;
+    if (currentWorkers.some(w => w.user?.id === userId)) return order;
     return updateFulfillmentOrder(fulfillmentOrderId, {
       assignedWorkers: [...currentWorkers, newAssignment],
     });
@@ -2499,23 +2494,17 @@ export const mockIncomingShipments: IncomingShipment[] = [
     assignedManagers: [
       {
         id: 'AM-003',
-        userId: 'user-mgr-001',
-        userName: 'Sarah Johnson',
-        userEmail: 'sarah.johnson@flowcrm.com',
+        user: { id: 'user-mgr-001', fullName: 'Sarah Johnson', email: 'sarah.johnson@flowcrm.com' },
         role: 'manager',
-        assignedAt: '2024-12-05T10:00:00Z',
-        assignedBy: 'System',
+        createdAt: '2024-12-05T10:00:00Z',
       },
     ],
     assignedWorkers: [
       {
         id: 'AW-004',
-        userId: 'user-wkr-004',
-        userName: 'Tony Martinez',
-        userEmail: 'tony.martinez@flowcrm.com',
+        user: { id: 'user-wkr-004', fullName: 'Tony Martinez', email: 'tony.martinez@flowcrm.com' },
         role: 'worker',
-        assignedAt: '2024-12-05T10:30:00Z',
-        assignedBy: 'Sarah Johnson',
+        createdAt: '2024-12-05T10:30:00Z',
       },
     ],
   },
@@ -2545,32 +2534,23 @@ export const mockIncomingShipments: IncomingShipment[] = [
     assignedManagers: [
       {
         id: 'AM-004',
-        userId: 'user-mgr-002',
-        userName: 'David Park',
-        userEmail: 'david.park@flowcrm.com',
+        user: { id: 'user-mgr-002', fullName: 'David Park', email: 'david.park@flowcrm.com' },
         role: 'manager',
-        assignedAt: '2024-12-08T10:00:00Z',
-        assignedBy: 'System',
+        createdAt: '2024-12-08T10:00:00Z',
       },
     ],
     assignedWorkers: [
       {
         id: 'AW-005',
-        userId: 'user-wkr-001',
-        userName: 'Mike Chen',
-        userEmail: 'mike.chen@flowcrm.com',
+        user: { id: 'user-wkr-001', fullName: 'Mike Chen', email: 'mike.chen@flowcrm.com' },
         role: 'worker',
-        assignedAt: '2024-12-08T10:15:00Z',
-        assignedBy: 'David Park',
+        createdAt: '2024-12-08T10:15:00Z',
       },
       {
         id: 'AW-006',
-        userId: 'user-wkr-003',
-        userName: 'James Wilson',
-        userEmail: 'james.wilson@flowcrm.com',
+        user: { id: 'user-wkr-003', fullName: 'James Wilson', email: 'james.wilson@flowcrm.com' },
         role: 'worker',
-        assignedAt: '2024-12-08T10:15:00Z',
-        assignedBy: 'David Park',
+        createdAt: '2024-12-08T10:15:00Z',
       },
     ],
   },
@@ -3576,25 +3556,22 @@ export function addIncomingShipmentAssignment(
 
   const newAssignment: AssignedUser = {
     id: `assign-${Date.now()}`,
-    userId: user.id,
-    userName: user.name,
-    userEmail: user.email,
+    user: { id: user.id, fullName: user.name, email: user.email },
     role,
-    assignedAt: new Date().toISOString(),
-    assignedBy,
+    createdAt: new Date().toISOString(),
   };
 
   if (role === 'manager') {
     const currentManagers = shipment.assignedManagers || [];
     // Don't add if already assigned
-    if (currentManagers.some(m => m.userId === userId)) return shipment;
+    if (currentManagers.some(m => m.user?.id === userId)) return shipment;
     return updateShipmentDetails(shipmentId, {
       assignedManagers: [...currentManagers, newAssignment],
     });
   } else {
     const currentWorkers = shipment.assignedWorkers || [];
     // Don't add if already assigned
-    if (currentWorkers.some(w => w.userId === userId)) return shipment;
+    if (currentWorkers.some(w => w.user?.id === userId)) return shipment;
     return updateShipmentDetails(shipmentId, {
       assignedWorkers: [...currentWorkers, newAssignment],
     });

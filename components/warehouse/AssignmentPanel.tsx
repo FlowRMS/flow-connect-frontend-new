@@ -125,33 +125,36 @@ export default function AssignmentPanel({
   const missingWorker = showRequiredWarnings && assignedWorkers.length === 0;
   const isLoading = isLoadingWarehouse || isLoadingUsers;
 
-  const renderAssignedUser = (user: AssignedUser, role: AssignedUserRole) => (
-    <div
-      key={user.id}
-      className="flex items-center gap-3 p-3 bg-[var(--background)] rounded-lg border border-[var(--border)]"
-    >
-      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/70 flex items-center justify-center flex-shrink-0">
-        <span className="text-sm font-semibold text-white">
-          {user.userName.split(' ').map(n => n[0]).join('')}
-        </span>
+  const renderAssignedUser = (assignment: AssignedUser, role: AssignedUserRole) => {
+    const userName = assignment.user?.fullName || 'Unknown';
+    return (
+      <div
+        key={assignment.id}
+        className="flex items-center gap-3 p-3 bg-[var(--background)] rounded-lg border border-[var(--border)]"
+      >
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/70 flex items-center justify-center flex-shrink-0">
+          <span className="text-sm font-semibold text-white">
+            {userName.split(' ').map(n => n[0]).join('')}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-[var(--foreground)] truncate">{userName}</p>
+          <p className="text-xs text-[var(--muted-foreground)] capitalize">{role === 'worker' ? 'Picker' : role}</p>
+        </div>
+        {isEditable && (
+          <button
+            onClick={() => onRemoveAssignment(assignment.id, role)}
+            className="p-1.5 text-[var(--muted-foreground)] hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+            title="Remove"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[var(--foreground)] truncate">{user.userName}</p>
-        <p className="text-xs text-[var(--muted-foreground)] capitalize">{role === 'worker' ? 'Picker' : role}</p>
-      </div>
-      {isEditable && (
-        <button
-          onClick={() => onRemoveAssignment(user.id, role)}
-          className="p-1.5 text-[var(--muted-foreground)] hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-          title="Remove"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderDropdownContent = (
     availableUsers: AvailableUser[],

@@ -71,12 +71,16 @@ export interface FulfillmentActivity {
   createdById: string;
 }
 
+export interface UserLite {
+  id: string;
+  fullName: string;
+  email: string;
+}
+
 export interface FulfillmentAssignment {
   id: string;
-  userId: string;
   role: FulfillmentAssignmentRole;
-  userName: string;
-  userEmail: string;
+  user: UserLite | null;
   createdAt: string;
 }
 
@@ -90,9 +94,8 @@ export interface FulfillmentDocument {
   notes: string | null;
   uploadedAt: string;
   createdAt: string;
-  createdById: string;
-  uploadedByName: string;
   fileId: string | null;
+  uploadedBy: UserLite | null;
 }
 
 export interface PackingBoxItem {
@@ -119,18 +122,13 @@ export interface PackingBox {
 export interface ProductUom {
   id: string;
   title: string;
-}
-
-export interface Factory {
-  id: string;
-  title: string;
+  description: string | null;
 }
 
 export interface Product {
   id: string;
   factoryPartNumber: string;
   description: string | null;
-  factory: Factory | null;
   uom: ProductUom | null;
 }
 
@@ -150,7 +148,6 @@ export interface FulfillmentOrderLineItem {
   linkedShipmentRequestId: string | null;
   shortReason: string | null;
   notes: string | null;
-  packingBoxItems: PackingBoxItem[];
 }
 
 export interface Warehouse {
@@ -166,7 +163,11 @@ export interface ShippingCarrier {
   carrierType: CarrierType | null;
   code: string | null;
   isActive: boolean | null;
-  trackingUrlTemplate: string | null;
+}
+
+export interface Customer {
+  id: string;
+  companyName: string;
 }
 
 export interface Order {
@@ -174,11 +175,6 @@ export interface Order {
   orderNumber: string;
   status: string;
   soldToCustomerId: string;
-}
-
-export interface Customer {
-  id: string;
-  companyName: string;
 }
 
 export interface FulfillmentOrder {
@@ -195,6 +191,7 @@ export interface FulfillmentOrder {
   fulfillmentMethod: FulfillmentMethod;
   carrierType: CarrierType | null;
   freightClass: string | null;
+  serviceType: string | null;
   needByDate: string | null;
   hasBackorderItems: boolean;
   holdReason: string | null;
@@ -283,6 +280,7 @@ export interface UpdateFulfillmentOrderInput {
   carrierId?: string | null;
   carrierType?: CarrierType | null;
   freightClass?: string | null;
+  serviceType?: string | null;
   shipToAddress?: AddressInput | null;
   shipToName?: string | null;
   shipToPhone?: string | null;
@@ -349,9 +347,25 @@ export interface FulfillmentFilters {
 // ============================================================================
 
 // Lightweight fragment for table listing - only fields needed for the table view
+// Note: List endpoint returns FulfillmentOrderLiteResponse, not FulfillmentOrderResponse
 const FULFILLMENT_ORDER_LIST_FRAGMENT = `
-  fragment FulfillmentOrderListFields on FulfillmentOrderResponse {
+  fragment FulfillmentOrderListFields on FulfillmentOrderLiteResponse {
     id
+    fulfillmentOrderNumber
+    orderId
+    warehouseId
+    carrierId
+    status
+    fulfillmentMethod
+    carrierType
+    freightClass
+    serviceType
+    needByDate
+    hasBackorderItems
+    createdAt
+    trackingNumbers
+    bolNumber
+    proNumber
     order {
       id
       orderNumber
@@ -360,21 +374,40 @@ const FULFILLMENT_ORDER_LIST_FRAGMENT = `
       id
       companyName
     }
-    status
-    createdAt
+    warehouse {
+      id
+      name
+    }
+    carrier {
+      id
+      name
+    }
     lineItems {
       id
+      productId
       product {
         id
         factoryPartNumber
+        description
+        uom {
+          id
+          title
+          description
+        }
       }
       orderedQty
       allocatedQty
       backorderQty
     }
     assignments {
+      id
       role
-      userName
+      user {
+        id
+        fullName
+        email
+      }
+      createdAt
     }
   }
 `;
@@ -409,12 +442,12 @@ const FULFILLMENT_ORDER_FRAGMENT = `
       carrierType
       code
       isActive
-      trackingUrlTemplate
     }
     status
     fulfillmentMethod
     carrierType
     freightClass
+    serviceType
     needByDate
     hasBackorderItems
     holdReason
@@ -449,13 +482,10 @@ const FULFILLMENT_ORDER_FRAGMENT = `
         id
         factoryPartNumber
         description
-        factory {
-          id
-          title
-        }
         uom {
           id
           title
+          description
         }
       }
       orderDetailId
@@ -470,11 +500,6 @@ const FULFILLMENT_ORDER_FRAGMENT = `
       linkedShipmentRequestId
       shortReason
       notes
-      packingBoxItems {
-        id
-        fulfillmentLineItemId
-        quantity
-      }
     }
     packingBoxes {
       id
@@ -496,10 +521,12 @@ const FULFILLMENT_ORDER_FRAGMENT = `
     }
     assignments {
       id
-      userId
       role
-      userName
-      userEmail
+      user {
+        id
+        fullName
+        email
+      }
       createdAt
     }
     documents {
@@ -512,9 +539,12 @@ const FULFILLMENT_ORDER_FRAGMENT = `
       notes
       uploadedAt
       createdAt
-      createdById
-      uploadedByName
       fileId
+      uploadedBy {
+        id
+        fullName
+        email
+      }
     }
     activities {
       id
@@ -640,14 +670,6 @@ const UPDATE_PICKED_QUANTITY = `
         id
         factoryPartNumber
         description
-        factory {
-          id
-          title
-        }
-        uom {
-          id
-          title
-        }
       }
       orderDetailId
       orderedQty
@@ -1367,14 +1389,6 @@ const GET_BACKORDER_ITEMS = `
         id
         factoryPartNumber
         description
-        factory {
-          id
-          title
-        }
-        uom {
-          id
-          title
-        }
       }
       orderDetailId
       orderedQty
@@ -1410,14 +1424,6 @@ const SPLIT_FULFILLMENT_LINE_ITEM = `
         id
         factoryPartNumber
         description
-        factory {
-          id
-          title
-        }
-        uom {
-          id
-          title
-        }
       }
       orderDetailId
       orderedQty
@@ -1584,8 +1590,12 @@ const ADD_DOCUMENT = `
       notes
       uploadedAt
       createdAt
-      createdById
-      uploadedByName
+      fileId
+      uploadedBy {
+        id
+        fullName
+        email
+      }
     }
   }
 `;
@@ -1608,8 +1618,12 @@ const UPLOAD_DOCUMENT = `
       notes
       uploadedAt
       createdAt
-      createdById
-      uploadedByName
+      fileId
+      uploadedBy {
+        id
+        fullName
+        email
+      }
     }
   }
 `;

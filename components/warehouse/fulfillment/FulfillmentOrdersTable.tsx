@@ -602,15 +602,16 @@ export default function FulfillmentOrdersTable({
                   <td className="px-6 py-4">
                     {(() => {
                       const managers = fo.assignments?.filter(a => a.role === 'MANAGER') || [];
+                      const managerName = managers[0]?.user?.fullName;
                       return managers.length > 0 ? (
                         <div className="flex items-center gap-1.5">
                           <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
                             <span className="text-xs font-medium text-amber-700">
-                              {managers[0].userName?.split(' ').map(n => n[0]).join('') || '?'}
+                              {managerName?.split(' ').map(n => n[0]).join('') || '?'}
                             </span>
                           </div>
                           <span className="text-sm text-[var(--foreground)] truncate max-w-[100px]">
-                            {managers[0].userName || 'Unknown'}
+                            {managerName || 'Unknown'}
                           </span>
                         </div>
                       ) : (
@@ -621,15 +622,16 @@ export default function FulfillmentOrdersTable({
                   <td className="px-6 py-4">
                     {(() => {
                       const workers = fo.assignments?.filter(a => a.role === 'WORKER') || [];
+                      const workerName = workers[0]?.user?.fullName;
                       return workers.length > 0 ? (
                         <div className="flex items-center gap-1.5">
                           <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                             <span className="text-xs font-medium text-blue-700">
-                              {workers[0].userName?.split(' ').map(n => n[0]).join('') || '?'}
+                              {workerName?.split(' ').map(n => n[0]).join('') || '?'}
                             </span>
                           </div>
                           <span className="text-sm text-[var(--foreground)] truncate max-w-[100px]">
-                            {workers[0].userName || 'Unknown'}
+                            {workerName || 'Unknown'}
                           </span>
                           {workers.length > 1 && (
                             <span className="text-xs text-[var(--muted-foreground)]">+{workers.length - 1}</span>

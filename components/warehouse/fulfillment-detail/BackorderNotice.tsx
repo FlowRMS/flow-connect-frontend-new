@@ -116,9 +116,9 @@ export default function BackorderNotice({
                 <tr key={item.lineItem.id} className="hover:bg-amber-50/50">
                   <td className="px-4 py-3">
                     <div className="font-medium text-sm text-gray-900">
-                      {item.lineItem.productName}
+                      {item.lineItem.product?.description || item.lineItem.product?.factoryPartNumber || '-'}
                     </div>
-                    <div className="text-xs text-gray-500">{item.lineItem.partNumber}</div>
+                    <div className="text-xs text-gray-500">{item.lineItem.product?.factoryPartNumber || '-'}</div>
                   </td>
                   <td className="px-4 py-3 text-center text-sm text-gray-900">
                     {formatQty(item.lineItem.orderedQty)}

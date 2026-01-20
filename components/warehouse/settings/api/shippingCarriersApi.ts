@@ -213,7 +213,7 @@ const SEARCH_SHIPPING_CARRIERS = `
 `;
 
 const GET_SHIPPING_CARRIERS_BY_TYPE = `
-  query GetShippingCarriersByType($carrierType: CarrierTypeEnum!, $activeOnly: Boolean) {
+  query GetShippingCarriersByType($carrierType: CarrierType!, $activeOnly: Boolean) {
     shippingCarriersByType(carrierType: $carrierType, activeOnly: $activeOnly) {
       id
       name
