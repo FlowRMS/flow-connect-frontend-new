@@ -59,6 +59,7 @@ import { formatYTDHelperText, getYTDRanges } from "@/lib/analytics/lib/pivot/ytd
 import { FullScreenModal, ExpandButton } from "@/components/analytics/ui/FullScreenModal";
 import { DateFormatDropdown, DATE_FORMATS, formatDateByType } from "@/components/analytics/ui/DateFormatDropdown";
 import { RefreshButton } from "@/components/analytics/ui/RefreshButton";
+import { extractYear, extractQuarter, extractMonth } from "@/lib/analytics/utils/dateExtractors";
 import { toNumericSortValue } from "@/lib/analytics/lib/pivot/sortHelpers";
 
 // Mock data generator for testing without GraphQL connection
@@ -465,6 +466,11 @@ export function QuotePivotGrid() {
           discount: 0, // Not available in quote data
           commissionDiscount: 0, // Not available in quote data
           dueDate: formatDate(record.expDate, dateFormat),
+
+          // Date-based grouping fields extracted from quoteDate
+          year: extractYear(quoteDateValue),
+          quarter: extractQuarter(quoteDateValue),
+          month: extractMonth(quoteDateValue, true), // Use month names
         };
 
         // attachYtdFields now adds commissionDiffPct and salesDiffPct as objects
@@ -1138,6 +1144,27 @@ export function QuotePivotGrid() {
         {
           prop: "quoteDate",
           name: "Quote Date",
+          sortable: true,
+          size: 120,
+          minSize: 100,
+        },
+        {
+          prop: "year",
+          name: "Year",
+          sortable: true,
+          size: 100,
+          minSize: 80,
+        },
+        {
+          prop: "quarter",
+          name: "Quarter",
+          sortable: true,
+          size: 100,
+          minSize: 80,
+        },
+        {
+          prop: "month",
+          name: "Month",
           sortable: true,
           size: 120,
           minSize: 100,
