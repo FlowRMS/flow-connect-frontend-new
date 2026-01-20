@@ -3,15 +3,21 @@
  */
 
 import React from 'react';
-import type { Company } from '../types';
-import { getCompanyInitials, getLogoColor } from '../utils';
+import type { Company } from '../../types';
+import { getCompanyInitials, getLogoColor } from '../../utils';
+import { CompaniesGridSkeleton } from './components/CompaniesGridSkeleton';
 
 interface GridViewProps {
   companies: Company[];
   onCompanyClick: (company: Company) => void;
+  isLoading?: boolean;
 }
 
-export default function GridView({ companies, onCompanyClick }: GridViewProps) {
+export default function GridView({ companies, onCompanyClick, isLoading = false }: GridViewProps) {
+  if (isLoading) {
+    return <CompaniesGridSkeleton />;
+  }
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
       {companies.map((company) => (

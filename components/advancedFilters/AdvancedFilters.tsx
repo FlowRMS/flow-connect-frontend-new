@@ -12,6 +12,10 @@ import { DropdownFilter } from './components/filter-types/DropdownFilter';
 import { DateRangeFilter } from './components/filter-types/DateRangeFilter';
 import { BooleanFilter } from './components/filter-types/BooleanFilter';
 import { MonthYearFilter } from './components/filter-types/MonthYearFilter';
+import { FactoryFilter } from './components/filter-types/FactoryFilter';
+import { CategoryFilter } from './components/filter-types/CategoryFilter';
+import { CompanyFilter } from './components/filter-types/CompanyFilter';
+import { CompanyTypeFilter } from './components/filter-types/CompanyTypeFilter';
 
 // Re-export types for backward compatibility
 export type { FilterOperator, ActiveFilter, ActiveSort, FilterOption };
@@ -134,6 +138,16 @@ export default function AdvancedFilters({
           
           setFilterValue('');
           setSelectedValues([]);
+        } else if (option.type === 'factory' || option.type === 'category' || option.type === 'company' || option.type === 'companyType') {
+          // For factory/category/company/companyType filters, look for IN operator with values
+          const existingFilter = existingFilters.find(f => f.operator === 'IN' && f.values);
+          if (existingFilter && existingFilter.values) {
+            setSelectedValues(existingFilter.values);
+            setFilterValue('');
+          } else {
+            setSelectedValues([]);
+            setFilterValue('');
+          }
         } else if (existingFilters.length > 0) {
           const existingFilter = existingFilters[0];
           if (existingFilter.operator === 'IN' && existingFilter.values) {
@@ -640,6 +654,55 @@ export default function AdvancedFilters({
                               handleClearFilter(option.columnName);
                             }}
                             hasActiveFilter={localFilters.some(f => f.columnName === option.columnName)}
+                          />
+                        ) : option.type === 'factory' ? (
+                          <FactoryFilter
+                            option={option}
+                            selectedValues={selectedValues}
+                            onToggleValue={toggleValue}
+                            onApply={handleApplyMultiSelect}
+                            onClear={() => {
+                              setSelectedValues([]);
+                              handleClearFilter(option.columnName);
+                            }}
+                            hasActiveFilter={selectedValues.length > 0}
+                          />
+                        ) : option.type === 'category' ? (
+                          <CategoryFilter
+                            option={option}
+                            selectedValues={selectedValues}
+                            onToggleValue={toggleValue}
+                            onApply={handleApplyMultiSelect}
+                            onClear={() => {
+                              setSelectedValues([]);
+                              handleClearFilter(option.columnName);
+                            }}
+                            hasActiveFilter={selectedValues.length > 0}
+                            factoryId={undefined}
+                          />
+                        ) : option.type === 'company' ? (
+                          <CompanyFilter
+                            option={option}
+                            selectedValues={selectedValues}
+                            onToggleValue={toggleValue}
+                            onApply={handleApplyMultiSelect}
+                            onClear={() => {
+                              setSelectedValues([]);
+                              handleClearFilter(option.columnName);
+                            }}
+                            hasActiveFilter={selectedValues.length > 0}
+                          />
+                        ) : option.type === 'companyType' ? (
+                          <CompanyTypeFilter
+                            option={option}
+                            selectedValues={selectedValues}
+                            onToggleValue={toggleValue}
+                            onApply={handleApplyMultiSelect}
+                            onClear={() => {
+                              setSelectedValues([]);
+                              handleClearFilter(option.columnName);
+                            }}
+                            hasActiveFilter={selectedValues.length > 0}
                           />
                         ) : (
                           <TextFilter
