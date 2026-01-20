@@ -270,7 +270,9 @@ export function ColumnFilter({
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleDropdownApply = () => {
@@ -285,7 +287,9 @@ export function ColumnFilter({
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleNumberApply = () => {
@@ -301,7 +305,9 @@ export function ColumnFilter({
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleDateApply = () => {
@@ -327,7 +333,9 @@ export function ColumnFilter({
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleMonthYearApply = (option: FilterOption) => {
@@ -335,7 +343,9 @@ export function ColumnFilter({
       // Remove filter if empty
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
-      onToggle();
+      if (onToggle) {
+        onToggle();
+      }
       return;
     }
 
@@ -365,7 +375,9 @@ export function ColumnFilter({
     ];
     
     updateFilters(newFilters);
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleBooleanChange = (val: 'all' | 'true' | 'false') => {
@@ -381,14 +393,18 @@ export function ColumnFilter({
       }]);
     }
     // Auto-apply boolean filters (no need to keep popover open)
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleClear = () => {
     // Remove all filters for this column
     const otherFilters = safeValue.filter(f => f.columnName !== columnName);
     onChange(otherFilters);
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const toggleDropdownValue = (val: string) => {

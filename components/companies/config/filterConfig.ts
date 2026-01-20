@@ -3,7 +3,12 @@
  * Note: columnName should match the backend CompanyLandingPage field names
  */
 
-import type { FilterOption, SortOption } from '../../lib/filter-utils';
+import type { FilterOption } from '../../advancedFilters/types';
+
+export type SortOption = {
+  columnName: string;
+  label: string;
+};
 
 export function getCompanyFilterOptions(): FilterOption[] {
   return [

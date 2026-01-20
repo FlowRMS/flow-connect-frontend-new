@@ -6,7 +6,7 @@
  * - Sorting is handled globally via SortButton (no per-column sort here)
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { Company } from '../../types';
 import { getCompanyInitials, getLogoColor, formatDate } from '../../utils';
 import { CompaniesTableSkeleton } from './components/CompaniesTableSkeleton';
@@ -30,6 +30,8 @@ export default function ListView({
   onColumnFiltersChange,
   filterOptions,
 }: ListViewProps) {
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+
   // Map from UI column keys to filter option IDs
   const columnKeyToFilterId: Record<string, string> = {
     name: 'name',
@@ -77,6 +79,8 @@ export default function ListView({
           }
           onColumnFiltersChange(next);
         }}
+        isOpen={openFilter === columnKey}
+        onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
         filterOption={filterOption as any}
       />
     );
