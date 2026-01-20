@@ -1563,17 +1563,7 @@ export function QuoteDetailHeaderV2({
                       <div className="flex-1">
                         <span className="text-sm font-medium text-gray-900">{rep.userName}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={rep.splitRate}
-                          onChange={(e) => updateSplitRate(rep.id, e.target.value, true)}
-                          className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-right"
-                        />
-                        <span className="text-sm text-gray-500">%</span>
-                      </div>
+                      {/* Percentage is auto-calculated, hidden from UI */}
                       {insideSplitReps.length > 1 && (
                         <button
                           onClick={() => removeRepFromSplit(rep.id, true)}
@@ -1607,18 +1597,6 @@ export function QuoteDetailHeaderV2({
                   />
                 </div>
 
-                {/* Total validation */}
-                <div className="flex items-center justify-between text-sm mb-4">
-                  <span className="text-gray-500">Total:</span>
-                  <span className={`font-semibold ${
-                    insideSplitReps.reduce((sum, r) => sum + parseInt(r.splitRate || '0'), 0) === 100
-                      ? 'text-green-600'
-                      : 'text-red-600'
-                  }`}>
-                    {insideSplitReps.reduce((sum, r) => sum + parseInt(r.splitRate || '0'), 0)}%
-                  </span>
-                </div>
-
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => {
@@ -1643,7 +1621,7 @@ export function QuoteDetailHeaderV2({
                       });
                       setShowInsideSplitModal(false);
                     }}
-                    disabled={insideSplitReps.reduce((sum, r) => sum + parseInt(r.splitRate || '0'), 0) !== 100}
+                    disabled={insideSplitReps.length === 0}
                     className="px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
                     Save

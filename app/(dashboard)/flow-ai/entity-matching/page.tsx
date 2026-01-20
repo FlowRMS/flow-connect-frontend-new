@@ -542,7 +542,7 @@ function EntityMatchingContent() {
       return { needsOutsideRep: true, needsInsideRep: true, insideRepRequired: false, outsideRepRequired: true, needsFactory: false, factoryRequired: false };
     }
     if (entityType === 'FACTORIES') {
-      return { needsOutsideRep: false, needsInsideRep: true, insideRepRequired: true, outsideRepRequired: false, needsFactory: false, factoryRequired: false };
+      return { needsOutsideRep: false, needsInsideRep: true, insideRepRequired: false, outsideRepRequired: false, needsFactory: false, factoryRequired: false };
     }
     if (entityType === 'PRODUCTS') {
       return { needsOutsideRep: false, needsInsideRep: false, insideRepRequired: false, outsideRepRequired: false, needsFactory: true, factoryRequired: true };
