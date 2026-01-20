@@ -511,10 +511,10 @@ export function LineItemsTable({
       )}
 
       {/* Line Items Table */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full">
         {/* Add Line Button - at top */}
         {isEditable && (
-          <div className="border-b border-[var(--border)]">
+          <div className="border-b border-[var(--border)] flex-shrink-0">
             <button
               onClick={onAddLine}
               className="w-full px-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
@@ -527,7 +527,9 @@ export function LineItemsTable({
           </div>
         )}
 
-        <table className="w-full min-w-[1200px]">
+        {/* Scrollable table container - both horizontal and vertical scroll */}
+        <div className="flex-1 overflow-auto min-h-0 max-h-[60vh] scrollbar-always-visible">
+          <table className="w-full min-w-[1200px]">
           <LineItemsTableHeader
             lineItems={invoice.lineItems}
             selectedLineItems={selectedLineItems}
@@ -820,6 +822,7 @@ export function LineItemsTable({
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Dropdown Portal for Search */}
@@ -846,6 +849,36 @@ export function LineItemsTable({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab') {
+                      // Close dropdown and move to next editable cell in the table
+                      e.preventDefault();
+                      const currentItemId = dropdownOpen?.itemId;
+                      setDropdownOpen(null);
+                      setSearchQuery('');
+
+                      // Find next editable cell in the table
+                      setTimeout(() => {
+                        if (!currentItemId) return;
+
+                        // Get all editable cell buttons in the table (excluding action buttons)
+                        const table = document.querySelector('.line-items-table table, table');
+                        if (table) {
+                          const editableCells = Array.from(table.querySelectorAll<HTMLButtonElement>(
+                            'td button:not([title="Remove line item"]):not([title="More options"])'
+                          ));
+
+                          // Focus on the next available editable cell
+                          if (editableCells.length > 0) {
+                            editableCells[0]?.focus();
+                          }
+                        }
+                      }, 50);
+                    } else if (e.key === 'Escape') {
+                      setDropdownOpen(null);
+                      setSearchQuery('');
+                    }
+                  }}
                   placeholder={
                     isProductDropdown ? "Type to search..." :
                     isCpnDropdown ? "Customer part numbers..." :

@@ -302,11 +302,10 @@ export function AdditionalDetailsModalV2({
     onClose();
   };
 
-  const insideSplitTotal = insideSplitReps.reduce((sum, r) => sum + parseInt(r.splitRate || '0'), 0);
   const outsideSplitTotal = outsideSplitReps.reduce((sum, r) => sum + parseInt(r.splitRate || '0'), 0);
 
-  // Validate split totals - only check if per-line-item is enabled AND reps are added
-  const isInsideSplitValid = !settings?.insideRepAtLineLevel || insideSplitReps.length === 0 || insideSplitTotal === 100;
+  // Validate split totals - inside rep percentages are auto-calculated, so always valid
+  const isInsideSplitValid = true;
   const isOutsideSplitValid = !settings?.outsideRepAtLineLevel || outsideSplitReps.length === 0 || outsideSplitTotal === 100;
 
   // Validate End User - only check if per-line-item is enabled
@@ -399,17 +398,7 @@ export function AdditionalDetailsModalV2({
                         <div className="flex-1">
                           <span className="text-sm font-medium text-gray-900">{rep.userName || 'Unknown'}</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={rep.splitRate}
-                            onChange={(e) => updateSplitRate(rep.id, e.target.value, true)}
-                            className="w-14 px-2 py-1 text-sm border border-gray-300 rounded text-right"
-                          />
-                          <span className="text-sm text-gray-500">%</span>
-                        </div>
+                        {/* Percentage is auto-calculated, hidden from UI */}
                         <button
                           onClick={() => removeRepFromSplit(rep.id, true)}
                           className="p-1 text-gray-400 hover:text-red-500"
@@ -421,12 +410,6 @@ export function AdditionalDetailsModalV2({
                         </button>
                       </div>
                     ))}
-                    <div className="flex items-center justify-between text-xs px-1">
-                      <span className="text-gray-500">Total:</span>
-                      <span className={`font-medium ${insideSplitTotal === 100 ? 'text-green-600' : 'text-red-600'}`}>
-                        {insideSplitTotal}%
-                      </span>
-                    </div>
                   </div>
                 ) : (
                   <p className="text-xs text-gray-500 mb-3">No inside reps assigned. Search below to add.</p>

@@ -10,6 +10,8 @@ import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/use
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import { ExcelBuilder } from '@/components/shared/excel-builder';
+import { UnsavedChangesModal } from '@/components/shared/modals/UnsavedChangesModal';
 
 // Quote status options using API enum values
 const quoteStatusOptions: QuoteV2Status[] = [
@@ -54,7 +56,7 @@ interface QuoteDetailHeaderV2Props {
   quote: QuoteV2;
   onQuoteChange: (updates: Partial<QuoteV2>) => void;
   onBack: () => void;
-  onSave?: () => void;
+  onSave?: () => Promise<boolean> | boolean;
   onDelete?: () => void;
   onDuplicate?: () => void;
   isSaving?: boolean;
@@ -161,8 +163,10 @@ export function QuoteDetailHeaderV2({
   const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [viewMode, setViewMode] = useState<'simple' | 'overage'>('simple');
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
+  const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
   const [showQuoteDetails, setShowQuoteDetails] = useState(true);
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
+  const [showExcelBuilder, setShowExcelBuilder] = useState(false);
 
   // Customer search state
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
@@ -653,7 +657,7 @@ export function QuoteDetailHeaderV2({
   }, []);
 
   return (
-    <div className="flex-shrink-0">
+    <div className="sticky top-0 z-50 flex-shrink-0 bg-white">
       {/* Top Header Row */}
       <div className="flex items-center justify-between pt-6 pb-4 px-6 border-b border-gray-200">
         <div className="flex items-center gap-4">
@@ -707,7 +711,12 @@ export function QuoteDetailHeaderV2({
                   <button
                     onClick={() => {
                       setShowActionsMenu(false);
-                      setShowCreateOrderModal(true);
+                      // Check for unsaved changes before opening the modal
+                      if (hasChanges) {
+                        setShowUnsavedChangesModal(true);
+                      } else {
+                        setShowCreateOrderModal(true);
+                      }
                     }}
                     disabled={isNew || !quote.id}
                     className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
@@ -861,6 +870,21 @@ export function QuoteDetailHeaderV2({
             </button>
           </div>
 
+          {/* Excel Button */}
+          <button
+            onClick={() => setShowExcelBuilder(true)}
+            disabled={isNew || !quote.id}
+            className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-lg transition-colors ${
+              isNew || !quote.id
+                ? 'text-white bg-emerald-600 opacity-50 cursor-not-allowed'
+                : 'text-white bg-emerald-600 hover:bg-emerald-700'
+            }`}
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            Excel
+          </button>
           {/* PDF Button */}
           <button
             onClick={() => setShowPDFBuilder(true)}
@@ -1522,6 +1546,16 @@ export function QuoteDetailHeaderV2({
               type="checkbox"
               checked={quote.blanket || false}
               onChange={(e) => onQuoteChange({ blanket: e.target.checked })}
+              onKeyDown={(e) => {
+                if (e.key === 'Tab' && !e.shiftKey) {
+                  // Move focus to the first line item cell instead of other elements
+                  const firstLineItemCell = document.querySelector('tbody tr[data-item-id] td button:not([title="Remove line item"]):not([title="More options"])');
+                  if (firstLineItemCell) {
+                    e.preventDefault();
+                    (firstLineItemCell as HTMLElement).focus();
+                  }
+                }
+              }}
               className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
             />
             <span className="text-sm text-gray-700">Blanket</span>
@@ -1556,17 +1590,7 @@ export function QuoteDetailHeaderV2({
                       <div className="flex-1">
                         <span className="text-sm font-medium text-gray-900">{rep.userName}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={rep.splitRate}
-                          onChange={(e) => updateSplitRate(rep.id, e.target.value, true)}
-                          className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-right"
-                        />
-                        <span className="text-sm text-gray-500">%</span>
-                      </div>
+                      {/* Percentage is auto-calculated, hidden from UI */}
                       {insideSplitReps.length > 1 && (
                         <button
                           onClick={() => removeRepFromSplit(rep.id, true)}
@@ -1600,18 +1624,6 @@ export function QuoteDetailHeaderV2({
                   />
                 </div>
 
-                {/* Total validation */}
-                <div className="flex items-center justify-between text-sm mb-4">
-                  <span className="text-gray-500">Total:</span>
-                  <span className={`font-semibold ${
-                    insideSplitReps.reduce((sum, r) => sum + parseInt(r.splitRate || '0'), 0) === 100
-                      ? 'text-green-600'
-                      : 'text-red-600'
-                  }`}>
-                    {insideSplitReps.reduce((sum, r) => sum + parseInt(r.splitRate || '0'), 0)}%
-                  </span>
-                </div>
-
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => {
@@ -1636,7 +1648,7 @@ export function QuoteDetailHeaderV2({
                       });
                       setShowInsideSplitModal(false);
                     }}
-                    disabled={insideSplitReps.reduce((sum, r) => sum + parseInt(r.splitRate || '0'), 0) !== 100}
+                    disabled={insideSplitReps.length === 0}
                     className="px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
                     Save
@@ -1783,6 +1795,35 @@ export function QuoteDetailHeaderV2({
         entityType="QUOTES"
         isOpen={showPDFBuilder}
         onClose={() => setShowPDFBuilder(false)}
+      />
+
+      {/* Excel Builder */}
+      <ExcelBuilder
+        entityId={quote.id}
+        entityType="QUOTES"
+        isOpen={showExcelBuilder}
+        onClose={() => setShowExcelBuilder(false)}
+      />
+
+      {/* Unsaved Changes Modal */}
+      <UnsavedChangesModal
+        isOpen={showUnsavedChangesModal}
+        title="Unsaved Changes"
+        message="You have unsaved changes to this quote. Please save before creating an order."
+        actionLabel="Save Quote"
+        isSaving={isSaving}
+        onClose={() => setShowUnsavedChangesModal(false)}
+        onSave={async () => {
+          if (onSave) {
+            const success = await onSave();
+            if (success) {
+              setShowUnsavedChangesModal(false);
+              // After saving successfully, open the create order modal
+              setShowCreateOrderModal(true);
+            }
+            // If save failed, keep the modal open so user can cancel or try again after fixing issues
+          }
+        }}
       />
     </div>
   );

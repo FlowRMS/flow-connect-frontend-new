@@ -362,10 +362,18 @@ export async function searchAdjustments(
  * Fetch adjustments with pagination using findLandingPages
  */
 export async function fetchAdjustmentsWithPagination(
-  filters?: Array<{ columnName: string; operator: string; value: string }>,
-  options?: { limit?: number; offset?: number }
+  filters?: Array<{ columnName: string; operator: string; value?: string; values?: string[] }>,
+  options?: { limit?: number; offset?: number; orderBy?: Array<{ columnName: string; direction: 'ASC' | 'DESC' }> }
 ): Promise<PaginatedAdjustmentsResult> {
-  const { limit = 50, offset = 0 } = options || {};
+  const { limit = 50, offset = 0, orderBy } = options || {};
+
+  // Default orderBy if not provided
+  const defaultOrderBy = [
+    {
+      columnName: 'createdAt',
+      direction: 'DESC' as const,
+    },
+  ];
 
   try {
     const response = await crmGraphQLRequest<{ findLandingPages: FindAdjustmentsLandingPagesResponse }>({
@@ -374,12 +382,7 @@ export async function fetchAdjustmentsWithPagination(
         filters: filters || [],
         limit,
         offset,
-        orderBy: [
-          {
-            columnName: 'createdAt',
-            direction: 'DESC',
-          },
-        ],
+        orderBy: orderBy || defaultOrderBy,
       },
     });
 

@@ -89,10 +89,10 @@ export function CreateQuoteFromPreOppModal({
     setError(null);
 
     try {
-      // Build array of selected detail IDs
+      // Build array of selected detail IDs (only if not all items are selected)
       const preOpportunityDetailIds = lineItems.length > 0 && selectedItemIds.size < lineItems.length
         ? Array.from(selectedItemIds)
-        : undefined;
+        : null;
 
       const quote = await createQuoteMutation.mutateAsync({
         preOpportunityId,

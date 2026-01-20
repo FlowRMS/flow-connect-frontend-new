@@ -5,9 +5,29 @@ import { PAYMENT_TERMS_OPTIONS } from '../constants';
 interface CarrierAccountBillingProps {
   carrier: ShippingCarrier;
   onUpdate: (updates: Partial<ShippingCarrier>) => void;
+  isLoading?: boolean;
 }
 
-export default function CarrierAccountBilling({ carrier, onUpdate }: CarrierAccountBillingProps) {
+// Skeleton for billing address fields while loading
+function BillingAddressSkeleton() {
+  return (
+    <div className="animate-pulse space-y-2">
+      <div className="h-3 w-24 bg-[var(--muted)] rounded" />
+      <div className="h-9 bg-[var(--muted)] rounded-lg" />
+      <div className="h-9 bg-[var(--muted)] rounded-lg" />
+      <div className="grid grid-cols-2 gap-2">
+        <div className="h-9 bg-[var(--muted)] rounded-lg" />
+        <div className="h-9 bg-[var(--muted)] rounded-lg" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="h-9 bg-[var(--muted)] rounded-lg" />
+        <div className="h-9 bg-[var(--muted)] rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
+export default function CarrierAccountBilling({ carrier, onUpdate, isLoading = false }: CarrierAccountBillingProps) {
   // Helper to update billing address fields
   const updateBillingAddress = (field: string, value: string) => {
     const currentAddress = carrier.billingAddressData || {
@@ -49,55 +69,59 @@ export default function CarrierAccountBilling({ carrier, onUpdate }: CarrierAcco
         </div>
 
         {/* Billing Address Fields */}
-        <div className="space-y-2">
-          <label className="block text-xs text-[var(--muted-foreground)]">Billing Address</label>
-          <input
-            type="text"
-            value={carrier.billingAddressData?.line1 || ''}
-            onChange={(e) => updateBillingAddress('line1', e.target.value)}
-            placeholder="Address Line 1"
-            className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="text"
-            value={carrier.billingAddressData?.line2 || ''}
-            onChange={(e) => updateBillingAddress('line2', e.target.value)}
-            placeholder="Address Line 2 (optional)"
-            className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <div className="grid grid-cols-2 gap-2">
+        {isLoading ? (
+          <BillingAddressSkeleton />
+        ) : (
+          <div className="space-y-2">
+            <label className="block text-xs text-[var(--muted-foreground)]">Billing Address</label>
             <input
               type="text"
-              value={carrier.billingAddressData?.city || ''}
-              onChange={(e) => updateBillingAddress('city', e.target.value)}
-              placeholder="City"
+              value={carrier.billingAddressData?.line1 || ''}
+              onChange={(e) => updateBillingAddress('line1', e.target.value)}
+              placeholder="Address Line 1"
               className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="text"
-              value={carrier.billingAddressData?.state || ''}
-              onChange={(e) => updateBillingAddress('state', e.target.value)}
-              placeholder="State"
+              value={carrier.billingAddressData?.line2 || ''}
+              onChange={(e) => updateBillingAddress('line2', e.target.value)}
+              placeholder="Address Line 2 (optional)"
               className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={carrier.billingAddressData?.city || ''}
+                onChange={(e) => updateBillingAddress('city', e.target.value)}
+                placeholder="City"
+                className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                type="text"
+                value={carrier.billingAddressData?.state || ''}
+                onChange={(e) => updateBillingAddress('state', e.target.value)}
+                placeholder="State"
+                className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={carrier.billingAddressData?.zipCode || ''}
+                onChange={(e) => updateBillingAddress('zipCode', e.target.value)}
+                placeholder="ZIP Code"
+                className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                type="text"
+                value={carrier.billingAddressData?.country || ''}
+                onChange={(e) => updateBillingAddress('country', e.target.value)}
+                placeholder="Country"
+                className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="text"
-              value={carrier.billingAddressData?.zipCode || ''}
-              onChange={(e) => updateBillingAddress('zipCode', e.target.value)}
-              placeholder="ZIP Code"
-              className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="text"
-              value={carrier.billingAddressData?.country || ''}
-              onChange={(e) => updateBillingAddress('country', e.target.value)}
-              placeholder="Country"
-              className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
+        )}
 
         <div>
           <label className="block text-xs text-[var(--muted-foreground)] mb-1">Payment Terms</label>

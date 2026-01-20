@@ -10,6 +10,7 @@ import type { CheckStatus, VersionInfo } from '../../types';
 import { CHECK_STATUS_LABELS, CHECK_STATUS_COLORS } from '../../constants';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import { ExcelBuilder } from '@/components/shared/excel-builder';
 
 interface HeaderTopBarProps {
   check: CommissionCheck;
@@ -48,6 +49,7 @@ interface HeaderTopBarProps {
   isOriginallyPosted?: boolean;
   // Unsaved changes
   hasChanges?: boolean;
+  onBack?: () => void;
 }
 
 const getStatusColor = (status: CheckStatus) => {
@@ -84,9 +86,19 @@ export function HeaderTopBar({
   isDeleting = false,
   isOriginallyPosted = false,
   hasChanges = false,
+  onBack,
 }: HeaderTopBarProps) {
   const router = useRouter();
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
+  const [showExcelBuilder, setShowExcelBuilder] = useState(false);
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.push('/commissions');
+    }
+  };
 
   const handleExportCheckDetails = () => {
     onExportCheckDetails?.();
@@ -120,11 +132,11 @@ export function HeaderTopBar({
   };
 
   return (
-    <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
+    <div className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push('/commissions')}
+            onClick={handleBack}
             className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
             title="Back to Commissions"
           >
@@ -348,6 +360,21 @@ export function HeaderTopBar({
             </button>
           )}
 
+          {/* Excel Button */}
+          <button
+            onClick={() => setShowExcelBuilder(true)}
+            disabled={isCreateMode || !check.id}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isCreateMode || !check.id
+                ? 'bg-emerald-600 text-white opacity-50 cursor-not-allowed'
+                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+            }`}
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            Excel
+          </button>
           {/* PDF Button */}
           <button
             onClick={() => setShowPDFBuilder(true)}
@@ -561,6 +588,14 @@ export function HeaderTopBar({
         entityType="CHECKS"
         isOpen={showPDFBuilder}
         onClose={() => setShowPDFBuilder(false)}
+      />
+
+      {/* Excel Builder */}
+      <ExcelBuilder
+        entityId={check.id}
+        entityType="CHECKS"
+        isOpen={showExcelBuilder}
+        onClose={() => setShowExcelBuilder(false)}
       />
     </div>
   );

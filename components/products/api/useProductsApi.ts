@@ -70,7 +70,7 @@ export const productQueryKeys = {
 
   // Products
   products: () => [...productQueryKeys.all, 'list'] as const,
-  productLandingPages: (filters?: ProductLandingPageFilter[], orderBy?: ProductLandingPageOrderBy) =>
+  productLandingPages: (filters?: ProductLandingPageFilter[], orderBy?: ProductLandingPageOrderBy[]) =>
     [...productQueryKeys.all, 'landingPages', { filters, orderBy }] as const,
   product: (id: string) => [...productQueryKeys.all, 'detail', id] as const,
   productSearch: (searchTerm?: string, factoryId?: string, categoryIds?: string[]) =>
@@ -112,7 +112,7 @@ const DEFAULT_PAGE_SIZE = 50;
  */
 export function useProductsInfinite(
   filters?: ProductLandingPageFilter[],
-  orderBy?: ProductLandingPageOrderBy,
+  orderBy?: ProductLandingPageOrderBy[],
   pageSize: number = DEFAULT_PAGE_SIZE
 ) {
   return useInfiniteQuery<PaginatedProductsResult, Error>({
@@ -139,7 +139,7 @@ export function useProductsInfinite(
  */
 export function useProducts(
   filters?: ProductLandingPageFilter[],
-  orderBy?: ProductLandingPageOrderBy
+  orderBy?: ProductLandingPageOrderBy[]
 ) {
   return useQuery<ProductLandingPage[], Error>({
     queryKey: productQueryKeys.productLandingPages(filters, orderBy),
@@ -314,14 +314,37 @@ export function useProductCategories(factoryId?: string, parentId?: string, gran
 
 /**
  * Search product categories
+ * @param searchTerm - Search term for filtering categories
+ * @param factoryId - Factory ID (optional, if not provided will fetch all categories)
+ * @param limit - Maximum number of results
  */
-export function useProductCategorySearch(searchTerm: string, factoryId: string, limit?: number) {
-  return useQuery<ProductCategory[], Error>({
-    queryKey: productQueryKeys.categorySearch(searchTerm, factoryId),
-    queryFn: () => searchProductCategories(searchTerm, factoryId, limit),
-    enabled: !!searchTerm && !!factoryId,
+export function useProductCategorySearch(searchTerm: string, factoryId?: string, limit?: number) {
+  // If factoryId is provided, use the search endpoint
+  // If not, use the list endpoint and filter client-side
+  const hasFactoryId = !!factoryId;
+  
+  const searchQuery = useQuery<ProductCategory[], Error>({
+    queryKey: productQueryKeys.categorySearch(searchTerm, factoryId!),
+    queryFn: () => searchProductCategories(searchTerm, factoryId!, limit),
+    enabled: hasFactoryId && !!searchTerm,
     staleTime: 30 * 1000,
   });
+
+  const allCategoriesQuery = useProductCategories(factoryId);
+  
+  // If no factoryId, use all categories and filter client-side
+  if (!hasFactoryId) {
+    const filteredCategories = (allCategoriesQuery.data || []).filter(category =>
+      category.title.toLowerCase().includes(searchTerm.toLowerCase())
+    ).slice(0, limit);
+    
+    return {
+      ...allCategoriesQuery,
+      data: filteredCategories,
+    };
+  }
+  
+  return searchQuery;
 }
 
 /**

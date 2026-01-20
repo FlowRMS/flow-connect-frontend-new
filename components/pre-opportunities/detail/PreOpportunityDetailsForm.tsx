@@ -38,11 +38,7 @@ interface PreOpportunityDetailsFormProps {
 export interface EditFormData {
   status: PreOpportunityStatus;
   expDate: string;
-  reviseDate: string;
-  acceptDate: string;
   customerRef: string;
-  paymentTerms: string;
-  freightTerms: string;
   jobId: string;
   jobName: string;
 }
@@ -218,7 +214,6 @@ export function PreOpportunityDetailsForm({
   const [jobSearch, setJobSearch] = useState(editFormData.jobName || '');
   const [showJobDropdown, setShowJobDropdown] = useState(false);
   const [jobValidated, setJobValidated] = useState(!!editFormData.jobId);
-  const [isAdditionalDetailsOpen, setIsAdditionalDetailsOpen] = useState(false);
   const debouncedJobSearch = useDebounce(jobSearch, 300);
   
   const { data: jobs = [], isLoading: isLoadingJobs } = useCRMJobSearch(
@@ -282,7 +277,7 @@ export function PreOpportunityDetailsForm({
 
         {/* Form Content */}
         <div className="p-6">
-          <div className="grid grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 gap-5">
             {/* Entity Number - Read Only */}
             <div>
               <label className={labelClass}>
@@ -339,124 +334,8 @@ export function PreOpportunityDetailsForm({
                 disabled={!isEditing}
               />
             </div>
-
-            {/* Accept Date */}
-            <div>
-              <label className={labelClass}>
-                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Accept Date
-              </label>
-              <StyledDatePicker
-                selected={editFormData.acceptDate ? new Date(editFormData.acceptDate + 'T00:00:00') : null}
-                onChange={(date) => onChange('acceptDate', formatLocalDate(date))}
-                placeholder="Select accept date..."
-                disabled={!isEditing}
-              />
-            </div>
-
-            {/* Revise Date */}
-            <div>
-              <label className={labelClass}>
-                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Revise Date
-              </label>
-              <StyledDatePicker
-                selected={editFormData.reviseDate ? new Date(editFormData.reviseDate + 'T00:00:00') : null}
-                onChange={(date) => onChange('reviseDate', formatLocalDate(date))}
-                placeholder="Select revise date..."
-                disabled={!isEditing}
-              />
-            </div>
           </div>
         </div>
-      </div>
-
-      {/* Additional Details Card - Collapsible */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setIsAdditionalDetailsOpen(!isAdditionalDetailsOpen)}
-          className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors border-b border-gray-100"
-        >
-          <div className="flex items-center gap-2">
-            <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            <h2 className="text-lg font-semibold text-gray-900">Additional Details</h2>
-          </div>
-          <svg
-            className={`w-5 h-5 text-gray-500 transition-transform ${isAdditionalDetailsOpen ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        
-        {isAdditionalDetailsOpen && (
-          <div className="p-6">
-            <div className="grid grid-cols-3 gap-5">
-              {/* Customer Reference */}
-              <div>
-                <label className={labelClass}>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Customer Reference
-                </label>
-                <input
-                  type="text"
-                  value={editFormData.customerRef}
-                  onChange={(e) => onChange('customerRef', e.target.value)}
-                  className={inputBaseClass}
-                  readOnly={!isEditing}
-                  placeholder={isEditing ? "Enter customer reference" : "-"}
-                />
-              </div>
-              
-              {/* Payment Terms */}
-              <div>
-                <label className={labelClass}>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Payment Terms
-                </label>
-                <input
-                  type="text"
-                  value={editFormData.paymentTerms}
-                  onChange={(e) => onChange('paymentTerms', e.target.value)}
-                  className={inputBaseClass}
-                  readOnly={!isEditing}
-                  placeholder={isEditing ? "e.g., Net 30" : "-"}
-                />
-              </div>
-              
-              {/* Freight Terms */}
-              <div>
-                <label className={labelClass}>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                  </svg>
-                  Freight Terms
-                </label>
-                <input
-                  type="text"
-                  value={editFormData.freightTerms}
-                  onChange={(e) => onChange('freightTerms', e.target.value)}
-                  className={inputBaseClass}
-                  readOnly={!isEditing}
-                  placeholder={isEditing ? "e.g., FOB" : "-"}
-                />
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
