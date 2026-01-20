@@ -45,6 +45,7 @@ interface HeaderTopBarProps {
   isCreateMode?: boolean;
   hasChanges?: boolean;
   isSaving?: boolean;
+  onBack?: () => void;
 }
 
 const getStatusColor = (status: InvoiceStatus) => {
@@ -85,9 +86,18 @@ export function HeaderTopBar({
   isCreateMode = false,
   hasChanges = false,
   isSaving = false,
+  onBack,
 }: HeaderTopBarProps) {
   const router = useRouter();
   const overdue = isOverdue(invoice);
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.push('/invoices');
+    }
+  };
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
   const [showExcelBuilder, setShowExcelBuilder] = useState(false);
 
@@ -124,12 +134,12 @@ export function HeaderTopBar({
   ];
 
   return (
-    <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
+    <div className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push('/invoices')}
+              onClick={handleBack}
               className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
               title="Back to Invoices"
             >

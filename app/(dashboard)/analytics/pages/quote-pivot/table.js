@@ -60,6 +60,7 @@ import { FullScreenModal, ExpandButton } from "@/components/analytics/ui/FullScr
 import { DateFormatDropdown, DATE_FORMATS, formatDateByType } from "@/components/analytics/ui/DateFormatDropdown";
 import { RefreshButton } from "@/components/analytics/ui/RefreshButton";
 import { toNumericSortValue } from "@/lib/analytics/lib/pivot/sortHelpers";
+import { getDefault2YearRange } from "@/lib/analytics/utils/relativeDateUtils";
 
 // Mock data generator for testing without GraphQL connection
 const generateMockData = (count = 50) => {
@@ -107,9 +108,9 @@ const formatDate = (value, formatType = DATE_FORMATS.DEFAULT) => {
 };
 
 export function QuotePivotGrid() {
-  // Date range state
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  // Date range state - defaults to last 2 years
+  const [startDate, setStartDate] = useState(() => getDefault2YearRange().startDate);
+  const [endDate, setEndDate] = useState(() => getDefault2YearRange().endDate);
   const [filterByDate, setFilterByDate] = useState("ENTITY_DATE");
 
   // YTD Mode state
@@ -275,26 +276,43 @@ export function QuotePivotGrid() {
   // Check for pending config load from GlobalConfigManager
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
+    const handlePendingLoad = (pendingData) => {
+      // Handle both old format (tableId) and new format (reportType)
+      const isMatch = (pendingData.tableId === "quote-pivot") || (pendingData.reportType === "PIVOT_QUOTE_REPORT");
+      if (isMatch) {
+        // Clear the pending load
+        sessionStorage.removeItem("pendingConfigLoad");
+        // Load the config
+        setTimeout(() => {
+          loadConfig(pendingData.configId);
+        }, 500);
+      }
+    };
+
+    // Check sessionStorage on mount (for cross-page navigation)
     try {
       const pendingLoad = sessionStorage.getItem("pendingConfigLoad");
       if (pendingLoad) {
         const pendingData = JSON.parse(pendingLoad);
-        
-        // Handle both old format (tableId) and new format (reportType)
-        const isMatch = (pendingData.tableId === "quote-pivot") || (pendingData.reportType === "PIVOT_QUOTE_REPORT");
-        if (isMatch) {
-          // Clear the pending load
-          sessionStorage.removeItem("pendingConfigLoad");
-          // Load the config
-          setTimeout(() => {
-            loadConfig(pendingData.configId);
-          }, 500);
-        }
+        handlePendingLoad(pendingData);
       }
     } catch (error) {
       console.error("Error loading pending config:", error);
     }
+
+    // Listen for custom event (for same-page config loading from GlobalConfigManager)
+    const handleLoadPendingConfigEvent = (event) => {
+      if (event.detail) {
+        handlePendingLoad(event.detail);
+      }
+    };
+
+    window.addEventListener("loadPendingConfig", handleLoadPendingConfigEvent);
+
+    return () => {
+      window.removeEventListener("loadPendingConfig", handleLoadPendingConfigEvent);
+    };
   }, [loadConfig]);
 
   // Export functionality

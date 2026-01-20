@@ -24,6 +24,7 @@ interface InvoicesTabProps {
   isLoading?: boolean;
   error?: Error | null;
   onViewInvoice?: (invoice: OrderInvoice) => void;
+  onDeleteInvoice?: (invoice: OrderInvoice) => void;
   onCreateInvoice: () => void;
 }
 
@@ -32,6 +33,7 @@ export function InvoicesTab({
   isLoading = false,
   error = null,
   onViewInvoice,
+  onDeleteInvoice,
   onCreateInvoice,
 }: InvoicesTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -268,7 +270,7 @@ export function InvoicesTab({
                   </div>
 
                   {/* Right Section - Actions */}
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -282,6 +284,21 @@ export function InvoicesTab({
                         <path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z"/>
                       </svg>
                     </button>
+                    {onDeleteInvoice && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteInvoice(invoice);
+                        }}
+                        className="p-2 rounded-lg text-[var(--muted-foreground)] hover:bg-red-50 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete invoice"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M10 11v6M14 11v6" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                    )}
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)] group-hover:text-indigo-400 transition-colors">
                       <path d="M7 7l6 6M13 7l-6 6" strokeLinecap="round" transform="rotate(-45 10 10)"/>
                     </svg>

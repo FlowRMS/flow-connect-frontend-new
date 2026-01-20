@@ -19,9 +19,15 @@ import {
   M_CREATE_CHAT,
   M_DELETE_CHAT,
   M_SUBMIT_MESSAGE_FEEDBACK,
+  Q_GET_CHAT_FOLDERS,
+  M_CREATE_CHAT_FOLDER,
+  M_DELETE_CHAT_FOLDER,
+  M_MOVE_CHAT_TO_FOLDER,
+  M_BULK_MOVE_CHATS_TO_FOLDER,
 } from '@/lib/flow-ai/gql';
 import {
   Chat,
+  ChatFolder,
   ChatMessage as ChatMessageType,
   ChatStreamResponse,
   DocumentReference,
@@ -154,6 +160,20 @@ export default function AIChatPage() {
   
   // Mutation for message feedback
   const [submitFeedbackMutation] = useMutation(M_SUBMIT_MESSAGE_FEEDBACK);
+
+  // Chat folder mutations
+  const [createFolderMutation] = useMutation(M_CREATE_CHAT_FOLDER);
+  const [deleteFolderMutation] = useMutation(M_DELETE_CHAT_FOLDER);
+  const [moveChatToFolderMutation] = useMutation(M_MOVE_CHAT_TO_FOLDER);
+  const [bulkMoveChatsMutation] = useMutation(M_BULK_MOVE_CHATS_TO_FOLDER);
+
+  // Track which chats are currently being moved (for loading spinner)
+  const [movingChatIds, setMovingChatIds] = useState<Set<string>>(new Set());
+
+  // Fetch chat folders
+  const { data: foldersData, refetch: refetchFolders } = useQuery<{ getChatFolders: ChatFolder[] }>(Q_GET_CHAT_FOLDERS, {
+    fetchPolicy: 'network-only',
+  });
 
   // Fetch user's chat history
   const { data: userChatsData, loading: chatsLoading, refetch: refetchChats } = useQuery<{ getUserChats: Chat[] }>(Q_GET_USER_CHATS, {
@@ -345,6 +365,79 @@ export default function AIChatPage() {
     setChatToDelete(chatId);
     setDeleteDialogOpen(true);
   }, []);
+
+  // Handle create folder
+  const handleCreateFolder = useCallback(async (name: string) => {
+    try {
+      await createFolderMutation({
+        variables: { input: { name } },
+      });
+      toast.success('Folder created');
+      refetchFolders();
+    } catch (error) {
+      console.error('Failed to create folder:', error);
+      toast.error('Failed to create folder');
+    }
+  }, [createFolderMutation, refetchFolders]);
+
+  // Handle delete folder
+  const handleDeleteFolder = useCallback(async (folderId: string) => {
+    try {
+      await deleteFolderMutation({
+        variables: { folderId },
+      });
+      toast.success('Folder deleted');
+      refetchFolders();
+      refetchChats(); // Refresh chats since they may have been moved out
+    } catch (error) {
+      console.error('Failed to delete folder:', error);
+      toast.error('Failed to delete folder');
+    }
+  }, [deleteFolderMutation, refetchFolders, refetchChats]);
+
+  // Handle move chat to folder
+  const handleMoveToFolder = useCallback(async (chatId: string, folderId: string | null) => {
+    // Show loading state
+    setMovingChatIds(prev => new Set(prev).add(chatId));
+    
+    try {
+      await moveChatToFolderMutation({
+        variables: { input: { chatId, folderId } },
+      });
+      toast.success(folderId ? 'Chat moved to folder' : 'Chat removed from folder');
+      refetchChats();
+    } catch (error) {
+      console.error('Failed to move chat:', error);
+      toast.error('Failed to move chat');
+    } finally {
+      // Remove loading state
+      setMovingChatIds(prev => {
+        const next = new Set(prev);
+        next.delete(chatId);
+        return next;
+      });
+    }
+  }, [moveChatToFolderMutation, refetchChats]);
+
+  // Handle bulk move chats to folder
+  const handleBulkMoveToFolder = useCallback(async (chatIds: string[], folderId: string | null) => {
+    // Show loading state for all chats being moved
+    setMovingChatIds(new Set(chatIds));
+    
+    try {
+      await bulkMoveChatsMutation({
+        variables: { input: { chatIds, folderId } },
+      });
+      toast.success(`${chatIds.length} chat${chatIds.length > 1 ? 's' : ''} moved`);
+      refetchChats();
+    } catch (error) {
+      console.error('Failed to move chats:', error);
+      toast.error('Failed to move chats');
+    } finally {
+      // Remove loading state
+      setMovingChatIds(new Set());
+    }
+  }, [bulkMoveChatsMutation, refetchChats]);
 
   // Confirm delete
   const confirmDelete = useCallback(async () => {
@@ -727,6 +820,12 @@ export default function AIChatPage() {
           isLoading={chatsLoading}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          folders={foldersData?.getChatFolders || []}
+          onCreateFolder={handleCreateFolder}
+          onDeleteFolder={handleDeleteFolder}
+          onMoveToFolder={handleMoveToFolder}
+          onBulkMoveToFolder={handleBulkMoveToFolder}
+          movingChatIds={movingChatIds}
         />
       </div>
 

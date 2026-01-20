@@ -13,6 +13,8 @@ interface InventoryFiltersProps {
     requestStatusFilter: ShipmentRequestStatus | 'all';
     onRequestStatusFilterChange: (value: ShipmentRequestStatus | 'all') => void;
     factories: Array<{ id: string; name: string }>;
+    statusOptions: Array<{ label: string; value: string }>;
+    inventoryStatusOptions: Array<{ label: string; value: string }>;
 }
 
 export default function InventoryFilters({
@@ -26,6 +28,8 @@ export default function InventoryFilters({
     requestStatusFilter,
     onRequestStatusFilterChange,
     factories,
+    statusOptions,
+    inventoryStatusOptions,
 }: InventoryFiltersProps) {
     return (
         <div className="flex items-center gap-4 mb-4">
@@ -47,7 +51,9 @@ export default function InventoryFilters({
                     placeholder={
                         activeTab === 'inventory'
                             ? "Search by product, part number, location..."
-                            : "Search by request number or vendor..."
+                            : activeTab === 'requests'
+                                ? "Search by request number or vendor..."
+                                : "Search by product, customer..."
                     }
                     value={searchQuery}
                     onChange={(e) => onSearchChange(e.target.value)}
@@ -71,27 +77,22 @@ export default function InventoryFilters({
                     className="px-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                 >
                     <option value="All">All Statuses</option>
-                    <option value="AVAILABLE">Available</option>
-                    <option value="RESERVED">Reserved</option>
-                    <option value="PICKING">Picking</option>
-                    <option value="DAMAGED">Damaged</option>
-                    <option value="IN_TRANSIT">In Transit</option>
+                    {inventoryStatusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                 </select>
-            ) : (
+            ) : activeTab === 'requests' ? (
                 <select
                     value={requestStatusFilter}
                     onChange={(e) => onRequestStatusFilterChange(e.target.value as ShipmentRequestStatus | 'all')}
                     className="px-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                 >
                     <option value="all">All Statuses</option>
-                    <option value="PENDING">Pending</option>
-                    <option value="SENT">Sent</option>
-                    <option value="CONFIRMED">Confirmed</option>
-                    <option value="SHIPPED">Shipped</option>
-                    <option value="RECEIVED">Received</option>
-                    <option value="CANCELLED">Cancelled</option>
+                    {statusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                 </select>
-            )}
+            ) : null}
         </div>
     );
 }

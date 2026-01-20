@@ -89,7 +89,7 @@ const defaultConfig: SidebarConfig = {
         { id: 'orders', name: 'Orders', href: '/orders', enabled: true },
         { id: 'invoices', name: 'Invoices', href: '/invoices', enabled: true },
         { id: 'statements', name: 'Statements', href: '/statements', enabled: true },
-        { id: 'commissions', name: 'Commissions', href: '/commissions', enabled: true },
+        { id: 'commissions', name: 'Checks', href: '/commissions', enabled: true },
         { id: 'credits', name: 'Credits', href: '/credits', enabled: true },
         { id: 'adjustments', name: 'Adjustments', href: '/adjustments', enabled: true },
         { id: 'acknowledgements', name: 'Acknowledgements', href: '/acknowledgements', enabled: true },
@@ -104,7 +104,7 @@ const defaultConfig: SidebarConfig = {
         // { id: 'warehouse-overview', name: 'Overview', href: '/warehouse', enabled: true },
         // { id: 'warehouse-fulfillment', name: 'Fulfillment', href: '/warehouse/fulfillment', enabled: true },
         // { id: 'warehouse-deliveries', name: 'Deliveries', href: '/warehouse/deliveries', enabled: true },
-        // { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
+        { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
         // { id: 'warehouse-cycle-counts', name: 'Cycle Counts', href: '/warehouse/cycle-counts', enabled: true },
         // { id: 'warehouse-reports', name: 'Reports', href: '/warehouse/reports', enabled: true },
         { id: 'warehouse-settings', name: 'Settings', href: '/warehouse/settings', enabled: true },
@@ -166,7 +166,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 33; // Increment this to force a reset of cached sidebar config
+const CONFIG_VERSION = 35; // Increment this to force a reset of cached sidebar config
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

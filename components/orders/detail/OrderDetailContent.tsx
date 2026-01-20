@@ -47,6 +47,9 @@ import { useInvoicesState } from './hooks/useInvoicesState';
 import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipStatus } from './utils';
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
 import { orderToasts } from '@/components/lib/toast';
+import { UnsavedChangesModal } from '@/components/shared/modals/UnsavedChangesModal';
+import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 interface OrderDetailContentProps {
   orderId: string;
@@ -56,6 +59,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const router = useRouter();
   const state = useOrderDetailState({ orderId });
   const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
 
   // Credits state management
   const creditsState = useCreditsState({ orderId: orderId !== 'new' ? orderId : null });
@@ -75,6 +79,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
   // Create Invoice from Order modal state
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
+
+  // Unsaved Changes modal state
+  const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
 
   // Duplicate Order modal state
   const [showDuplicateOrderModal, setShowDuplicateOrderModal] = useState(false);
@@ -101,6 +108,34 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       setFullEntityContext(null, null, null);
     };
   }, [state?.order?.orderNumber, orderId, setFullEntityContext]);
+
+  // Ref to hold the save handler for the unsaved changes guard
+  const saveHandlerRef = React.useRef<(() => Promise<boolean>) | null>(null);
+
+  // Unsaved changes guard - tracks order changes and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Order',
+    entityId: orderId !== 'new' ? orderId : null,
+    entityName: state?.order?.orderNumber || null,
+    hasChanges: state?.hasChanges || false,
+    onSave: async () => {
+      if (saveHandlerRef.current) {
+        return saveHandlerRef.current();
+      }
+      return false;
+    },
+  });
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/orders', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/orders');
+  };
 
   // Wrapped handlers for settings changes with rep redistribution
   const handleSetShowOutsideRepPerLine = async (value: boolean) => {
@@ -258,8 +293,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   // Use non-null assertion since we've handled null case above
   const order = state.order!;
 
-  const handleSave = async () => {
-    if (!order) return;
+  const handleSave = async (): Promise<boolean> => {
+    if (!order) return false;
 
     try {
       // Helper to check if ID is a valid UUID (from API)
@@ -269,7 +304,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       if (!order.dueDate) {
         console.error('❌ VALIDATION FAILED: Due Date is missing');
         orderToasts.updateError('Due Date is required.');
-        return;
+        return false;
       }
 
       // Validate End User based on settings (REQUIRED field)
@@ -292,14 +327,14 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         if (!orderEndUserId || orderEndUserId.trim() === '' || !isValidUUID(orderEndUserId)) {
           console.error('❌ VALIDATION FAILED: Header End User is missing or invalid');
           orderToasts.updateError('End User is required at the header level. Please select an End User.');
-          return;
+          return false;
         }
       } else {
         // When toggle is ON, EACH line item MUST have End User
         if (!order.lineItems || order.lineItems.length === 0) {
           console.error('❌ VALIDATION FAILED: No line items');
           orderToasts.updateError('Please add at least one line item.');
-          return;
+          return false;
         }
 
         const lineItemsWithoutEndUser = order.lineItems.filter(item => {
@@ -316,7 +351,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         if (lineItemsWithoutEndUser.length > 0) {
           console.error('❌ VALIDATION FAILED: Line items missing End User');
           orderToasts.updateError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
-          return;
+          return false;
         }
       }
 
@@ -503,9 +538,12 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
           await state.updateOrderMutation.mutateAsync(updateInput);
           state.resetChanges();
+          // Refetch order data to get fresh UUIDs for any newly created line items
+          await state.refetch();
           orderToasts.updateSuccess(order.orderNumber);
         }
       }
+      return true;
     } catch (error) {
       console.error('Error saving order:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -514,8 +552,12 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       } else {
         orderToasts.updateError(errorMessage);
       }
+      return false;
     }
   };
+
+  // Store save handler in ref for unsaved changes guard
+  saveHandlerRef.current = handleSave;
 
   const handleDelete = () => {
     setShowDeleteOrderModal(true);
@@ -640,6 +682,15 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     state.updateLocalOrder({ lineItems: updatedLineItems });
   };
 
+  // Handler for Create Invoice action - checks for unsaved changes first
+  const handleCreateInvoice = () => {
+    if (state.hasChanges) {
+      setShowUnsavedChangesModal(true);
+    } else {
+      setShowCreateInvoiceModal(true);
+    }
+  };
+
   return (
     <main className="h-full overflow-auto bg-[var(--background)]">
       {/* Header */}
@@ -690,10 +741,11 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         setActiveView={state.setActiveView}
         updateOrderStatus={state.updateOrderStatus}
         setShowQuoteLookupModal={state.setShowQuoteLookupModal}
-        onCreateInvoice={() => setShowCreateInvoiceModal(true)}
+        onCreateInvoice={handleCreateInvoice}
         onDuplicateOrder={() => setShowDuplicateOrderModal(true)}
         onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
         onAutoPopulateInsideRepsToLineItems={handleAutoPopulateInsideRepsToLineItems}
+        onBack={handleBack}
       />
 
       {/* Main Content Area with Tabs */}
@@ -860,7 +912,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               isLoading={invoicesState.isLoadingInvoices}
               error={invoicesState.invoicesError}
               onViewInvoice={invoicesState.viewInvoice}
-              onCreateInvoice={() => setShowCreateInvoiceModal(true)}
+              onDeleteInvoice={invoicesState.openDeleteInvoiceModal}
+              onCreateInvoice={handleCreateInvoice}
             />
           )}
           {state.activeTab === 'credits' && (
@@ -1179,6 +1232,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         isLoading={invoicesState.isLoadingInvoiceDetails}
       />
 
+      {/* Delete Invoice Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={invoicesState.showDeleteInvoiceModal}
+        title="Delete Invoice?"
+        message="Are you sure you want to delete invoice"
+        itemName={invoicesState.invoiceToDelete?.invoiceNumber || ''}
+        isPending={invoicesState.isDeletingInvoice}
+        onConfirm={invoicesState.handleConfirmDeleteInvoice}
+        onCancel={invoicesState.closeDeleteInvoiceModal}
+      />
+
       {/* Duplicate Order Modal */}
       <DuplicateOrderModal
         isOpen={showDuplicateOrderModal}
@@ -1213,6 +1277,25 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         isPending={isDeleting}
         onConfirm={handleConfirmDelete}
         onCancel={() => setShowDeleteOrderModal(false)}
+      />
+
+      {/* Unsaved Changes Modal */}
+      <UnsavedChangesModal
+        isOpen={showUnsavedChangesModal}
+        title="Unsaved Changes"
+        message="You have unsaved changes to this order. Please save before creating an invoice."
+        actionLabel="Save Order"
+        isSaving={state.createOrderMutation?.isPending || state.updateOrderMutation?.isPending}
+        onClose={() => setShowUnsavedChangesModal(false)}
+        onSave={async () => {
+          const success = await handleSave();
+          if (success) {
+            setShowUnsavedChangesModal(false);
+            // After saving successfully, open the create invoice modal
+            setShowCreateInvoiceModal(true);
+          }
+          // If save failed, keep the modal open so user can cancel or try again after fixing issues
+        }}
       />
     </main>
   );

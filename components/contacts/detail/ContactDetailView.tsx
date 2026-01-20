@@ -11,9 +11,9 @@ import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection'
 import DeleteConfirmModal from './DeleteConfirmModal';
 import type { Contact, ContactAddress, AddressType } from '../types';
 import type { RelatedEntityCompany, RelatedEntityJob } from '../../lib/crm-graphql';
-import type { Company } from '../../lib/graphql/types';
+import type { CompanyLandingPage } from '../../lib/graphql/types';
 import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
-import { useCRMCompanies } from '../../hooks/useCRMApi';
+import { useCRMCompanyLandingPages } from '../../hooks/useCRMApi';
 
 type TabId = 'overview' | 'sales-reps' | 'addresses' | 'emails' | 'meetings' | 'connected-entities';
 
@@ -364,8 +364,8 @@ function CompanySearchSelect({ value, companyId, onChange, disabled }: CompanySe
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch companies from API
-  const { data: companies = [], isLoading } = useCRMCompanies();
+  // Fetch companies from API using landing pages endpoint
+  const { data: companies = [], isLoading } = useCRMCompanyLandingPages();
 
   // Filter companies based on search term
   const filteredCompanies = useMemo(() => {
@@ -424,7 +424,7 @@ function CompanySearchSelect({ value, companyId, onChange, disabled }: CompanySe
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelect = (company: Company) => {
+  const handleSelect = (company: CompanyLandingPage) => {
     onChange(company.id, company.name);
     setIsOpen(false);
     setSearchTerm('');

@@ -21,6 +21,7 @@ interface ShippingCarriersListProps {
   saveCarrier?: (id: string) => Promise<void>;
   deleteCarrierImmediately?: (id: string) => Promise<void>;
   hasCarrierChanges?: (id: string) => boolean;
+  isLoadingDetails?: boolean;
 }
 
 export default function ShippingCarriersList({
@@ -35,6 +36,7 @@ export default function ShippingCarriersList({
   saveCarrier,
   deleteCarrierImmediately,
   hasCarrierChanges,
+  isLoadingDetails = false,
 }: ShippingCarriersListProps) {
   // Delete confirmation state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -79,6 +81,7 @@ export default function ShippingCarriersList({
             carrier={carrier}
             isExpanded={isExpanded}
             hasChanges={hasChanges}
+            isLoadingDetails={isExpanded && isLoadingDetails}
             onToggleExpansion={() => toggleCarrierExpansion(carrier.id)}
             onUpdateCarrier={(updates) => handleUpdateCarrier(carrier.id, updates)}
             onDeleteCarrier={() => handleDeleteClick(carrier.id)}

@@ -88,17 +88,19 @@ function ColumnHeader({
             </svg>
           </span>
         </button>
-        <button
+        {/* Column filter button - hidden for now */}
+        {/* <button
           onClick={() => setShowFilter(!showFilter)}
           className={`p-0.5 rounded hover:bg-[var(--muted)] transition-colors ${filterValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/60'}`}
         >
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
           </svg>
-        </button>
+        </button> */}
       </div>
 
-      {showFilter && (
+      {/* Column filter dropdown - hidden for now */}
+      {/* {showFilter && (
         <div className="absolute top-full left-0 mt-1 z-50 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg min-w-[180px]">
           {filterType === 'text' ? (
             <div className="p-2">
@@ -174,7 +176,7 @@ function ColumnHeader({
             </div>
           )}
         </div>
-      )}
+      )} */}
     </div>
   );
 }

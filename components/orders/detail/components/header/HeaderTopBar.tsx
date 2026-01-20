@@ -47,6 +47,7 @@ interface HeaderTopBarProps {
   onCreateInvoice?: () => void;
   onDuplicateOrder?: () => void;
   onDelete?: () => void;
+  onBack?: () => void;
 }
 
 const getStatusColor = (status: Order['status']) => {
@@ -93,18 +94,27 @@ export function HeaderTopBar({
   onCreateInvoice,
   onDuplicateOrder,
   onDelete,
+  onBack,
 }: HeaderTopBarProps) {
   const router = useRouter();
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.push('/orders');
+    }
+  };
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
   const [showExcelBuilder, setShowExcelBuilder] = useState(false);
 
   return (
-    <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
+    <div className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push('/orders')}
+              onClick={handleBack}
               className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
               title="Back to Orders"
             >

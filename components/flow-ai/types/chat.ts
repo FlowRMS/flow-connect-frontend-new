@@ -24,6 +24,14 @@ export interface Chat {
   status: ChatStatus;
   title: string;
   userId: string;
+  folderId?: string | null;
+}
+
+export interface ChatFolder {
+  id: string;
+  name: string;
+  userId: string;
+  createdAt: string;
 }
 
 export interface DocumentReference {

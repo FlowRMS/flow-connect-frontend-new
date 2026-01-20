@@ -105,6 +105,9 @@ export default function WarehouseSettingsContent() {
           setShowLayoutModal={warehouseSettings.setShowLayoutModal}
           setShowQRCodesModal={warehouseSettings.setShowQRCodesModal}
           getWorkerById={warehouseSettings.getWorkerById}
+          hasChanges={hasChanges}
+          isSaving={isSaving}
+          onSave={handleSave}
         />
       )}
 
@@ -126,6 +129,7 @@ export default function WarehouseSettingsContent() {
           saveCarrier={carrierSettings.saveCarrier}
           deleteCarrierImmediately={carrierSettings.deleteCarrierImmediately}
           hasCarrierChanges={carrierSettings.hasCarrierChanges}
+          isLoadingDetails={carrierSettings.isLoadingDetails}
         />
       )}
 

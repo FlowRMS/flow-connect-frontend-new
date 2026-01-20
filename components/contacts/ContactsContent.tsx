@@ -25,12 +25,15 @@ import { CONTACT_TYPES } from './constants';
 import { mapAPIContactToUIContact } from './types';
 import type { DuplicateGroup } from './types';
 import type { RelatedEntityCompany, RelatedEntityJob } from '../lib/crm-graphql';
+import { useUnsavedChangesGuard } from '../shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 export default function ContactsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const state = useContactsState();
   const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation } = useUnsavedChangesContext();
 
   // Navigation morph hooks
   const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
@@ -100,11 +103,27 @@ export default function ContactsContent() {
     }
   }, [state.selectedContact?.id, state.isMounted, router, searchParams]);
 
+  // Clear editing state when contact is deselected (e.g., after discarding changes and navigating back)
+  useEffect(() => {
+    if (!state.selectedContact) {
+      state.setIsEditing(false);
+      state.setHasLocalEdits(false);
+    }
+  }, [state.selectedContact, state.setIsEditing, state.setHasLocalEdits]);
+
   // Handle back navigation
   const handleBack = () => {
+    // Check for unsaved changes before allowing navigation
+    if (state.hasLocalEdits) {
+      const canNavigate = requestNavigation('/contacts', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
     isIntentionalClearRef.current = true;
     state.setSelectedContact(null);
     state.setIsEditing(false);
+    state.setHasLocalEdits(false);
     router.replace('/contacts', { scroll: false });
   };
 
@@ -123,6 +142,18 @@ export default function ContactsContent() {
 
   // Mock duplicate groups (would come from API in the future)
   const duplicateGroups: DuplicateGroup[] = [];
+
+  // Unsaved changes guard - tracks contact editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Contact',
+    entityId: state.selectedContact?.id || null,
+    entityName: state.selectedContact?.name || null,
+    hasChanges: state.hasLocalEdits,
+    onSave: async () => {
+      await state.handleSaveEdit();
+      return true;
+    },
+  });
 
   // Don't show loading state - let skeleton show in table instead
   // Only check isMounted for hydration safety
@@ -214,7 +245,7 @@ export default function ContactsContent() {
         onCancel={state.handleCancelEdit}
         onDelete={handleDeleteWithNavigation}
         onFieldChange={(field, value) =>
-          state.setEditFormData((prev) => ({ ...prev, [field]: value }))
+          state.handleEditFormChange((prev) => ({ ...prev, [field]: value }))
         }
         setDeleteConfirmId={state.setDeleteConfirmId}
         onJobClick={handleJobClick}
@@ -330,6 +361,28 @@ export default function ContactsContent() {
               <span className="sm:hidden">Add</span>
             </button>
           </motion.div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative mt-4">
+          {state.isSearching ? (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--primary)] animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          ) : (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
+            </svg>
+          )}
+          <input
+            type="text"
+            placeholder="Search contacts by name, email, phone, or role..."
+            value={state.searchQuery}
+            onChange={(e) => state.setSearchQuery(e.target.value)}
+            className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+          />
         </div>
 
         {/* Quick Filters */}

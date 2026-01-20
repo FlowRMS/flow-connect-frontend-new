@@ -12,6 +12,7 @@ interface ShippingCarrierAccordionItemProps {
   carrier: ShippingCarrier;
   isExpanded: boolean;
   hasChanges?: boolean;
+  isLoadingDetails?: boolean;
   onToggleExpansion: () => void;
   onUpdateCarrier: (updates: Partial<ShippingCarrier>) => void;
   onDeleteCarrier: () => void;
@@ -22,6 +23,7 @@ export default function ShippingCarrierAccordionItem({
   carrier,
   isExpanded,
   hasChanges = false,
+  isLoadingDetails = false,
   onToggleExpansion,
   onUpdateCarrier,
   onDeleteCarrier,
@@ -136,8 +138,8 @@ export default function ShippingCarrierAccordionItem({
             {/* Left Column */}
             <div className="space-y-4">
               <CarrierBasicInfo carrier={carrier} onUpdate={onUpdateCarrier} />
-              <CarrierAccountBilling carrier={carrier} onUpdate={onUpdateCarrier} />
-              <CarrierContactInfo carrier={carrier} onUpdate={onUpdateCarrier} />
+              <CarrierAccountBilling carrier={carrier} onUpdate={onUpdateCarrier} isLoading={isLoadingDetails} />
+              <CarrierContactInfo carrier={carrier} onUpdate={onUpdateCarrier} isLoading={isLoadingDetails} />
             </div>
 
             {/* Right Column */}
