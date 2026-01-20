@@ -862,15 +862,11 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     docsToCreate.forEach((doc) => {
       tasks.push(
         (async () => {
-          let fileUrl = doc.fileUrl;
-          let mimeType = doc.mimeType;
-          let fileSize = doc.fileSize;
-          let name = doc.name;
           let fileId = doc.fileId;
 
-            if (!fileId) {
-              if (!doc.file) {
-                console.error('Missing file for delivery document upload:', doc);
+          if (!fileId) {
+            if (!doc.file) {
+              console.error('Missing file for delivery document upload:', doc);
                 return;
               }
               const uploaded = await uploadFile({
@@ -879,10 +875,6 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                 fileEntityType: 'DELIVERIES',
                 folderPath: `/warehouse/deliveries/${shipmentId}`,
               });
-              fileUrl = uploaded.filePath;
-              mimeType = uploaded.fileType || doc.file.type || 'application/octet-stream';
-              fileSize = uploaded.fileSize || doc.file.size;
-              name = uploaded.fileName;
               fileId = uploaded.id;
             }
           if (!fileId) {
@@ -891,12 +883,8 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           }
           return createDeliveryDocumentMutation.mutateAsync({
             deliveryId: shipment.id,
-            name,
             docType: doc.type,
             fileId,
-            fileUrl,
-            mimeType,
-            fileSize,
             uploadedById: isUuid(doc.uploadedBy) ? doc.uploadedBy : null,
             notes: doc.notes || null,
           });
@@ -1613,6 +1601,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
           carrierId: shipment.carrierId || null,
           trackingNumber: shipment.trackingNumber || null,
+          recurringShipmentId: shipment.recurringShipmentId || null,
           vendorContactName: shipment.vendorContact || null,
           vendorContactEmail: shipment.vendorEmail || null,
           notes: trimmedNotes || null,
@@ -1651,6 +1640,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
         carrierId: shipment.carrierId || null,
         trackingNumber: shipment.trackingNumber || null,
+        recurringShipmentId: shipment.recurringShipmentId || null,
         vendorContactName: shipment.vendorContact || null,
         vendorContactEmail: shipment.vendorEmail || null,
         notes: nextNotes,
@@ -1766,12 +1756,8 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       }
       const created = await createDeliveryDocumentMutation.mutateAsync({
         deliveryId: shipment.id,
-        name,
         docType: document.type,
         fileId,
-        fileUrl,
-        mimeType,
-        fileSize,
         uploadedById: isUuid(document.uploadedBy) ? document.uploadedBy : null,
         notes: document.notes || null,
       });

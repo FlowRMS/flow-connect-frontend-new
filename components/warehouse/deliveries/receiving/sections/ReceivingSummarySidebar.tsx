@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import AssignmentPanel from '@/components/warehouse/AssignmentPanel';
 import DocumentsSection from '@/components/warehouse/DocumentsSection';
 import type { AssignedUser, AttachedDocument, IncomingShipment } from '@/lib/types/warehouse';
+import { getFilePresignedUrl } from '@/components/lib/graphql/files';
 import type { DeliveryDiscrepancy, WarehouseUser } from '../types';
 
 interface ReceivingSummarySidebarProps {
@@ -43,6 +44,84 @@ export default function ReceivingSummarySidebar({
   onRemoveDocument,
   isEditable,
 }: ReceivingSummarySidebarProps) {
+  const [resolvedDocUrls, setResolvedDocUrls] = useState<Record<string, string>>({});
+  const isDirectUrl = (url: string) => url.startsWith('http') || url.startsWith('data:') || url.startsWith('blob:');
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadPresignedUrls = async () => {
+      const candidates = attachedDocuments.filter(
+        (doc) =>
+          doc.fileId &&
+          !isDirectUrl(doc.fileUrl) &&
+          !resolvedDocUrls[doc.id]
+      );
+
+      if (!candidates.length) {
+        return;
+      }
+
+      const results = await Promise.all(
+        candidates.map(async (doc) => {
+          const url = await getFilePresignedUrl(doc.fileId as string);
+          return url ? { id: doc.id, url } : null;
+        })
+      );
+
+      if (!isActive) {
+        return;
+      }
+
+      const updates = results.filter(Boolean) as { id: string; url: string }[];
+      if (!updates.length) {
+        return;
+      }
+
+      setResolvedDocUrls((prev) => {
+        const next = { ...prev };
+        updates.forEach(({ id, url }) => {
+          next[id] = url;
+        });
+        return next;
+      });
+    };
+
+    void loadPresignedUrls();
+
+    return () => {
+      isActive = false;
+    };
+  }, [attachedDocuments, resolvedDocUrls]);
+
+  const resolvedDocuments = useMemo(
+    () =>
+      attachedDocuments.map((doc) => {
+        const resolvedUrl = resolvedDocUrls[doc.id];
+        if (isDirectUrl(doc.fileUrl)) {
+          return doc;
+        }
+        if (resolvedUrl) {
+          return {
+            ...doc,
+            fileUrl: resolvedUrl,
+          };
+        }
+        if (doc.fileId) {
+          return {
+            ...doc,
+            fileUrl: '',
+            mimeType: 'application/octet-stream',
+            thumbnailUrl: undefined,
+          };
+        }
+        return {
+          ...doc,
+        };
+      }),
+    [attachedDocuments, resolvedDocUrls]
+  );
+
   return (
     <div className="space-y-4">
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
@@ -142,7 +221,7 @@ export default function ReceivingSummarySidebar({
       />
 
       <DocumentsSection
-        documents={attachedDocuments}
+        documents={resolvedDocuments}
         onAddDocument={onAddDocument}
         onRemoveDocument={onRemoveDocument}
         isEditable={isEditable}

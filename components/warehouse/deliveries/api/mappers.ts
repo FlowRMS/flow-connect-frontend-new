@@ -28,6 +28,33 @@ export function mapDeliveryToShipment(
   const carrier = delivery.carrier || (delivery.carrierId ? carrierMap.get(delivery.carrierId) : undefined);
   const assignees = delivery.assignees || [];
   const documents = delivery.documents || [];
+  const normalizeAssigneeRole = (role: string | number) => {
+    if (typeof role === 'number') {
+      if (role === 2) return 'MANAGER';
+      if (role === 1) return 'WORKER';
+      return String(role);
+    }
+    const normalized = role.toUpperCase();
+    if (normalized === '2') return 'MANAGER';
+    if (normalized === '1') return 'WORKER';
+    return normalized;
+  };
+  const uniqueAssignees = new Map<string, (typeof assignees)[number]>();
+  assignees.forEach((assignee) => {
+    const roleKey = normalizeAssigneeRole(assignee.role);
+    const key = `${assignee.userId}:${roleKey}`;
+    if (!uniqueAssignees.has(key)) {
+      uniqueAssignees.set(key, assignee);
+    }
+  });
+  const dedupedAssignees = Array.from(uniqueAssignees.values());
+  const uniqueDocuments = new Map<string, (typeof documents)[number]>();
+  documents.forEach((doc) => {
+    if (!uniqueDocuments.has(doc.id)) {
+      uniqueDocuments.set(doc.id, doc);
+    }
+  });
+  const dedupedDocuments = Array.from(uniqueDocuments.values());
   const issues: IncomingShipmentIssue[] = (delivery.issues || []).map((issue) => ({
     id: issue.id,
     deliveryItemId: issue.deliveryItemId,
@@ -95,11 +122,9 @@ export function mapDeliveryToShipment(
     receivedAt: delivery.receivedAt || undefined,
     notes: delivery.notes || undefined,
     recurringShipmentId: delivery.recurringShipmentId || undefined,
-    assignedManagers: assignees
+    assignedManagers: dedupedAssignees
       .filter((assignee) => {
-        if (typeof assignee.role === 'number') return assignee.role === 2;
-        if (assignee.role === '2') return true;
-        return assignee.role === 'MANAGER';
+        return normalizeAssigneeRole(assignee.role) === 'MANAGER';
       })
       .map((assignee) => ({
         id: assignee.id,
@@ -108,11 +133,9 @@ export function mapDeliveryToShipment(
         role: 'manager',
         assignedAt: delivery.createdAt,
       })),
-    assignedWorkers: assignees
+    assignedWorkers: dedupedAssignees
       .filter((assignee) => {
-        if (typeof assignee.role === 'number') return assignee.role === 1;
-        if (assignee.role === '1') return true;
-        return assignee.role === 'WORKER';
+        return normalizeAssigneeRole(assignee.role) === 'WORKER';
       })
       .map((assignee) => ({
         id: assignee.id,
@@ -121,7 +144,7 @@ export function mapDeliveryToShipment(
         role: 'worker',
         assignedAt: delivery.createdAt,
       })),
-    documents: documents.map((doc) => ({
+    documents: dedupedDocuments.map((doc) => ({
       id: doc.id,
       name: doc.name,
       type: doc.docType as string,

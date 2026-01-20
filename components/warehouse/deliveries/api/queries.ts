@@ -17,19 +17,7 @@ const DELIVERIES_LIST_QUERY = `
       poNumber
       warehouseId
       vendorId
-      vendor {
-        id
-        title
-        email
-      }
       carrierId
-      carrier {
-        id
-        name
-        trackingUrlTemplate
-        code
-        isActive
-      }
       trackingNumber
       status
       expectedDate
@@ -46,63 +34,6 @@ const DELIVERIES_LIST_QUERY = `
       createdById
       updatedById
       updatedAt
-      items {
-        id
-        productId
-        expectedQuantity
-        receivedQuantity
-        damagedQuantity
-        status
-        discrepancyNotes
-      }
-    }
-  }
-`;
-
-const DELIVERIES_WITH_ISSUES_QUERY = `
-  query DeliveriesWithIssues($warehouseId: UUID) {
-    deliveries(warehouseId: $warehouseId) {
-      id
-      poNumber
-      warehouseId
-      vendorId
-      vendor {
-        id
-        title
-        email
-      }
-      expectedDate
-      createdAt
-      items {
-        id
-        productId
-        expectedQuantity
-        receivedQuantity
-        damagedQuantity
-        status
-        discrepancyNotes
-        product {
-          id
-          factoryPartNumber
-          description
-          unitPrice
-        }
-      }
-      issues {
-        id
-        deliveryId
-        deliveryItemId
-        receiptId
-        issueType
-        customIssueType
-        quantity
-        status
-        description
-        notes
-        communicatedAt
-        createdAt
-        createdById
-      }
     }
   }
 `;
@@ -374,7 +305,7 @@ export async function fetchDeliveries(
   options?: { includeIssues?: boolean; limit?: number; offset?: number }
 ): Promise<DeliveryApi[]> {
   const response = await crmGraphQLRequest<{ deliveries: DeliveryApi[] }>({
-    query: options?.includeIssues ? DELIVERIES_WITH_ISSUES_QUERY : DELIVERIES_LIST_QUERY,
+    query: DELIVERIES_LIST_QUERY,
     variables: {
       warehouseId: warehouseId || null,
       limit: options?.limit ?? null,
@@ -386,7 +317,16 @@ export async function fetchDeliveries(
     throw new Error(response.errors[0]?.message || 'Failed to fetch deliveries');
   }
 
-  return response.data?.deliveries || [];
+  const deliveries = response.data?.deliveries || [];
+  if (!deliveries.length) {
+    return [];
+  }
+
+  const detailedDeliveries = await Promise.all(
+    deliveries.map((delivery) => fetchDeliveryById(delivery.id))
+  );
+
+  return detailedDeliveries.filter((delivery): delivery is DeliveryApi => delivery !== null);
 }
 
 export async function fetchDeliveryById(id: string): Promise<DeliveryApi | null> {
