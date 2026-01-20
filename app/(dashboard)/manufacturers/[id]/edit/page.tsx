@@ -749,40 +749,12 @@ export default function ManufacturerEditPage() {
 
         {/* ============ SPLIT RATES SECTION ============ */}
         <div ref={el => { sectionRefs.current['split-rates'] = el; }} id="section-split-rates">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Commission Split Rates</h2>
-          </div>
-
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <p className="text-sm text-gray-500 mb-6">
-              Configure how commissions are split between team members for this manufacturer.
-              The total must equal 100%.
-            </p>
-
             <FactorySplitRatesInput
               entries={splitRateEntries}
               onChange={handleSplitRateChange}
               disabled={updateFactory.isPending}
             />
-
-            {/* Split Rate Summary */}
-            {splitRateEntries.length > 0 && (
-              <div className={`mt-6 p-4 rounded-lg ${isValidSplitRate ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`text-sm font-medium ${isValidSplitRate ? 'text-green-700' : 'text-red-700'}`}>
-                    Total Split Rate
-                  </span>
-                  <span className={`text-lg font-semibold ${isValidSplitRate ? 'text-green-700' : 'text-red-700'}`}>
-                    {splitRateTotal.toFixed(1)}%
-                  </span>
-                </div>
-                {!isValidSplitRate && (
-                  <p className="text-xs text-red-600 mt-1">
-                    Split rates must total exactly 100%. Currently {splitRateTotal > 100 ? 'over' : 'under'} by {Math.abs(100 - splitRateTotal).toFixed(1)}%
-                  </p>
-                )}
-              </div>
-            )}
           </div>
         </div>
 

@@ -1592,6 +1592,16 @@ export function QuoteDetailHeaderV2({
               type="checkbox"
               checked={quote.blanket || false}
               onChange={(e) => onQuoteChange({ blanket: e.target.checked })}
+              onKeyDown={(e) => {
+                if (e.key === 'Tab' && !e.shiftKey) {
+                  // Move focus to the first line item cell instead of other elements
+                  const firstLineItemCell = document.querySelector('tbody tr[data-item-id] td button:not([title="Remove line item"]):not([title="More options"])');
+                  if (firstLineItemCell) {
+                    e.preventDefault();
+                    (firstLineItemCell as HTMLElement).focus();
+                  }
+                }
+              }}
               className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
             />
             <span className="text-sm text-gray-700">Blanket</span>

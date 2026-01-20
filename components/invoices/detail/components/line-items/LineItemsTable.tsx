@@ -423,8 +423,8 @@ export function LineItemsTable({
         editValue = String(item.unitPrice || 0);
         break;
       case 'commissionPercent':
-        displayValue = `${(item.commissionRate || 0).toFixed(1)}%`;
-        editValue = (item.commissionRate || 0).toFixed(1);
+        displayValue = `${Number(item.commissionRate || 0).toFixed(1)}%`;
+        editValue = Number(item.commissionRate || 0).toFixed(1);
         break;
     }
 
@@ -849,6 +849,36 @@ export function LineItemsTable({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab') {
+                      // Close dropdown and move to next editable cell in the table
+                      e.preventDefault();
+                      const currentItemId = dropdownOpen?.itemId;
+                      setDropdownOpen(null);
+                      setSearchQuery('');
+
+                      // Find next editable cell in the table
+                      setTimeout(() => {
+                        if (!currentItemId) return;
+
+                        // Get all editable cell buttons in the table (excluding action buttons)
+                        const table = document.querySelector('.line-items-table table, table');
+                        if (table) {
+                          const editableCells = Array.from(table.querySelectorAll<HTMLButtonElement>(
+                            'td button:not([title="Remove line item"]):not([title="More options"])'
+                          ));
+
+                          // Focus on the next available editable cell
+                          if (editableCells.length > 0) {
+                            editableCells[0]?.focus();
+                          }
+                        }
+                      }, 50);
+                    } else if (e.key === 'Escape') {
+                      setDropdownOpen(null);
+                      setSearchQuery('');
+                    }
+                  }}
                   placeholder={
                     isProductDropdown ? "Type to search..." :
                     isCpnDropdown ? "Customer part numbers..." :

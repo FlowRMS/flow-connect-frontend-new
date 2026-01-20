@@ -1255,40 +1255,7 @@ export default function CustomerEditPage() {
 
         {/* ============ INSIDE REPS SECTION ============ */}
         <div ref={el => { sectionRefs.current['inside-reps'] = el; }} id="section-inside-reps">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-              Inside Representatives
-            </h2>
-            {hasInsideReps && (
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-                isInsideValid
-                  ? 'bg-green-100 text-green-700'
-                  : insideTotal > 100
-                    ? 'bg-red-100 text-red-700'
-                    : 'bg-amber-100 text-amber-700'
-              }`}>
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isInsideValid ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} />
-                </svg>
-                Total: {insideTotal.toFixed(1)}%
-              </div>
-            )}
-          </div>
-
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-start gap-3 mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-              <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p className="text-sm text-blue-900 font-medium">Commission Split Rules</p>
-                <p className="text-sm text-blue-700 mt-1">
-                  Inside representatives handle internal sales operations. Split rates must total 100%.
-                </p>
-              </div>
-            </div>
-
             <SplitRatesInput
               repType="INSIDE"
               entries={insideRepEntries}
@@ -1300,40 +1267,7 @@ export default function CustomerEditPage() {
 
         {/* ============ OUTSIDE REPS SECTION ============ */}
         <div ref={el => { sectionRefs.current['outside-reps'] = el; }} id="section-outside-reps">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-              Outside Representatives
-            </h2>
-            {hasOutsideReps && (
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-                isOutsideValid
-                  ? 'bg-green-100 text-green-700'
-                  : outsideTotal > 100
-                    ? 'bg-red-100 text-red-700'
-                    : 'bg-amber-100 text-amber-700'
-              }`}>
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isOutsideValid ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} />
-                </svg>
-                Total: {outsideTotal.toFixed(1)}%
-              </div>
-            )}
-          </div>
-
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-start gap-3 mb-6 p-4 bg-purple-50 rounded-lg border border-purple-100">
-              <svg className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p className="text-sm text-purple-900 font-medium">Commission Split Rules</p>
-                <p className="text-sm text-purple-700 mt-1">
-                  Outside representatives handle field sales and client relationships. Split rates must total 100%.
-                </p>
-              </div>
-            </div>
-
             <SplitRatesInput
               repType="OUTSIDE"
               entries={outsideRepEntries}
