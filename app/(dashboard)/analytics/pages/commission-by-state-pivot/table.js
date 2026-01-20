@@ -54,6 +54,7 @@ import { applyPivotSorting } from "@/lib/analytics/lib/pivot/applyPivotSorting";
 import { FullScreenModal, ExpandButton } from "@/components/analytics/ui/FullScreenModal";
 import { DateFormatDropdown, DATE_FORMATS, formatDateByType } from "@/components/analytics/ui/DateFormatDropdown";
 import { RefreshButton } from "@/components/analytics/ui/RefreshButton";
+import { getDefault2YearRange } from "@/lib/analytics/utils/relativeDateUtils";
 
 const formatDate = (value, formatType = DATE_FORMATS.DEFAULT) => {
   return formatDateByType(value, formatType);
@@ -73,9 +74,9 @@ const parseCurrency = (value) => {
 };
 
 export function CommissionByStatePivotGrid() {
-  // Date range state
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  // Date range state - defaults to last 2 years
+  const [startDate, setStartDate] = useState(() => getDefault2YearRange().startDate);
+  const [endDate, setEndDate] = useState(() => getDefault2YearRange().endDate);
   const [filterByDate, setFilterByDate] = useState("ENTITY_DATE");
 
   // YTD Mode state

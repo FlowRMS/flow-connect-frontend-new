@@ -60,6 +60,7 @@ import { formatYTDHelperText, getYTDRanges } from "@/lib/analytics/lib/pivot/ytd
 import { FullScreenModal, ExpandButton } from "@/components/analytics/ui/FullScreenModal";
 import { DateFormatDropdown, DATE_FORMATS, formatDateByType } from "@/components/analytics/ui/DateFormatDropdown";
 import { RefreshButton } from "@/components/analytics/ui/RefreshButton";
+import { getDefault2YearRange } from "@/lib/analytics/utils/relativeDateUtils";
 
 // Mock data generator for testing without GraphQL connection
 const generateMockData = (count = 50) => {
@@ -103,9 +104,9 @@ const formatDate = (value, formatType = DATE_FORMATS.DEFAULT) => {
 };
 
 export function OrderPivotGrid() {
-  // Date range state
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  // Date range state - defaults to last 2 years
+  const [startDate, setStartDate] = useState(() => getDefault2YearRange().startDate);
+  const [endDate, setEndDate] = useState(() => getDefault2YearRange().endDate);
   const [filterByDate, setFilterByDate] = useState("ENTITY_DATE");
 
   // YTD Mode state
