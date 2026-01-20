@@ -762,3 +762,61 @@ export const invoiceToasts = {
       description: `${invoiceNumber} status changed to ${newStatus}`,
     }),
 };
+
+// Submittal Toasts
+export const submittalToasts = {
+  createSuccess: (submittalNumber: string) =>
+    showSuccessToast('Submittal Created', {
+      description: `${submittalNumber} has been created successfully`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Submittal', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  updateSuccess: (submittalNumber: string) =>
+    showSuccessToast('Submittal Updated', {
+      description: `${submittalNumber} has been updated successfully`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update Submittal', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  deleteSuccess: (submittalNumber: string) =>
+    showSuccessToast('Submittal Deleted', {
+      description: `${submittalNumber} has been removed`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Submittal', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  pdfGenerating: () =>
+    showInfoToast('Generating PDF', {
+      description: 'Your submittal PDF is being generated...',
+    }),
+
+  pdfSuccess: () =>
+    showSuccessToast('PDF Generated', {
+      description: 'Your submittal PDF is ready',
+    }),
+
+  pdfError: (error?: string) =>
+    showErrorToast('PDF Generation Failed', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  emailSent: (recipientCount: number) =>
+    showSuccessToast('Email Sent', {
+      description: `Submittal sent to ${recipientCount} recipient${recipientCount !== 1 ? 's' : ''}`,
+    }),
+
+  emailError: (error?: string) =>
+    showErrorToast('Failed to Send Email', {
+      description: error || 'Please try again or contact support',
+    }),
+};

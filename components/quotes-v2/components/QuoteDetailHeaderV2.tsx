@@ -13,6 +13,16 @@ import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
 import CreateSubmittalModal from '@/components/submittals/CreateSubmittalModal';
 import type { QuoteLineItem } from '@/components/submittals/CreateSubmittalModal';
+import type { Submittal } from '@/lib/types/submittals';
+import {
+  useCreateSubmittal,
+  useAddSubmittalItem,
+  useAddSubmittalStakeholder,
+  type SubmittalItemInput,
+  type SubmittalStakeholderInput,
+  type SubmittalStakeholderRoleGQL,
+} from '@/components/submittals/api/useSubmittalsApi';
+import { submittalToasts } from '@/components/lib/toast';
 
 // Quote status options using API enum values
 const quoteStatusOptions: QuoteV2Status[] = [
@@ -162,6 +172,11 @@ export function QuoteDetailHeaderV2({
     fetchOutsideRepsFromCustomer,
     fetchInsideRepsFromFactory,
   } = useAutoPopulateReps();
+
+  // Submittal creation hooks
+  const createSubmittalMutation = useCreateSubmittal();
+  const addSubmittalItemMutation = useAddSubmittalItem();
+  const addSubmittalStakeholderMutation = useAddSubmittalStakeholder();
 
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -673,6 +688,69 @@ export function QuoteDetailHeaderV2({
     setFactorySearchTerm(term);
     setFactorySearchEnabled(true);
   }, []);
+
+  // Handle create submittal - calls the API to persist to backend
+  const handleCreateSubmittal = useCallback(async (newSubmittal: Partial<Submittal>) => {
+    try {
+      // 1. Create the submittal
+      const createdSubmittal = await createSubmittalMutation.mutateAsync({
+        submittalNumber: `SUB-${Date.now()}`,
+        description: newSubmittal.jobName || 'New Submittal',
+        status: 'DRAFT',
+        quoteId: newSubmittal.quoteIds?.[0],
+      });
+
+      const submittalId = createdSubmittal.id;
+
+      // 2. Add items
+      if (newSubmittal.items && newSubmittal.items.length > 0) {
+        for (let i = 0; i < newSubmittal.items.length; i++) {
+          const item = newSubmittal.items[i];
+          const itemInput: SubmittalItemInput = {
+            itemNumber: i + 1,
+            partNumber: item.catalogNumber || item.fixtureType,
+            description: item.description,
+            quantity: item.quantity,
+            matchStatus: 'NO_MATCH',
+          };
+          await addSubmittalItemMutation.mutateAsync({ submittalId, input: itemInput });
+        }
+      }
+
+      // 3. Add stakeholders (customers, engineers, architects)
+      const mapRoleToGQL = (role: string): SubmittalStakeholderRoleGQL => {
+        switch (role) {
+          case 'customer': return 'CUSTOMER';
+          case 'engineer': return 'ENGINEER';
+          case 'architect': return 'ARCHITECT';
+          case 'gc': return 'GENERAL_CONTRACTOR';
+          default: return 'OTHER';
+        }
+      };
+
+      const allStakeholders = [
+        ...(newSubmittal.customers || []),
+        ...(newSubmittal.engineers || []),
+        ...(newSubmittal.architects || []),
+      ];
+
+      for (const stakeholder of allStakeholders) {
+        const stakeholderInput: SubmittalStakeholderInput = {
+          role: mapRoleToGQL(stakeholder.role),
+          contactName: stakeholder.contactName,
+          contactEmail: stakeholder.email,
+          companyName: stakeholder.companyName,
+        };
+        await addSubmittalStakeholderMutation.mutateAsync({ submittalId, input: stakeholderInput });
+      }
+
+      setShowCreateSubmittalModal(false);
+      submittalToasts.createSuccess(createdSubmittal.submittalNumber);
+    } catch (err) {
+      console.error('Error creating submittal:', err);
+      submittalToasts.createError(err instanceof Error ? err.message : 'Unknown error');
+    }
+  }, [createSubmittalMutation, addSubmittalItemMutation, addSubmittalStakeholderMutation]);
 
   return (
     <div className="flex-shrink-0">
@@ -1877,10 +1955,7 @@ export function QuoteDetailHeaderV2({
       {showCreateSubmittalModal && (
         <CreateSubmittalModal
           onClose={() => setShowCreateSubmittalModal(false)}
-          onCreate={(submittal) => {
-            console.log('Created submittal:', submittal);
-            setShowCreateSubmittalModal(false);
-          }}
+          onCreate={handleCreateSubmittal}
           preselectedQuoteId={quote.id}
           preselectedQuoteName={quote.quoteNumber}
           quoteLineItems={lineItems.map((item): QuoteLineItem => ({

@@ -9,10 +9,15 @@ import {
   useUpdateSubmittal,
   useUpdateSubmittalItem,
   useGenerateSubmittalPdf,
+  useAddSubmittalItem,
+  useAddSubmittalStakeholder,
   type SubmittalResponse,
   type SubmittalStatusGQL,
   type GenerateSubmittalPdfInput,
   type UpdateSubmittalItemInput,
+  type SubmittalItemInput,
+  type SubmittalStakeholderInput,
+  type SubmittalStakeholderRoleGQL,
 } from './submittals/api/useSubmittalsApi';
 import {
   submittalStatusLabels,
@@ -20,6 +25,7 @@ import {
 } from '../lib/data/submittals-mock';
 import type { Submittal, SubmittalStatus, SpecSheetMatchStatus } from '../lib/types/submittals';
 import { defaultSubmittalConfig } from '../lib/types/submittals';
+import { submittalToasts } from './lib/toast';
 
 // Dynamically import heavy components to reduce initial bundle
 const SubmittalDetailPanel = dynamic(
@@ -216,6 +222,8 @@ export default function SubmittalsContent() {
   const updateSubmittalMutation = useUpdateSubmittal();
   const updateSubmittalItemMutation = useUpdateSubmittalItem();
   const generatePdfMutation = useGenerateSubmittalPdf();
+  const addSubmittalItemMutation = useAddSubmittalItem();
+  const addSubmittalStakeholderMutation = useAddSubmittalStakeholder();
 
   // Find raw API response for selected submittal (to pass to detail panel)
   const selectedSubmittalRaw = useMemo(() => {
@@ -292,18 +300,66 @@ export default function SubmittalsContent() {
   // Handle create submittal from modal
   const handleCreateSubmittal = useCallback(async (newSubmittal: Partial<Submittal>) => {
     try {
-      await createSubmittalMutation.mutateAsync({
+      // 1. Create the submittal
+      const createdSubmittal = await createSubmittalMutation.mutateAsync({
         submittalNumber: `SUB-${Date.now()}`,
         description: newSubmittal.jobName || 'New Submittal',
         status: 'DRAFT',
         quoteId: newSubmittal.quoteIds?.[0],
       });
+
+      const submittalId = createdSubmittal.id;
+
+      // 2. Add items
+      if (newSubmittal.items && newSubmittal.items.length > 0) {
+        for (let i = 0; i < newSubmittal.items.length; i++) {
+          const item = newSubmittal.items[i];
+          const itemInput: SubmittalItemInput = {
+            itemNumber: i + 1,
+            partNumber: item.catalogNumber || item.fixtureType,
+            description: item.description,
+            quantity: item.quantity,
+            matchStatus: 'NO_MATCH',
+          };
+          await addSubmittalItemMutation.mutateAsync({ submittalId, input: itemInput });
+        }
+      }
+
+      // 3. Add stakeholders (customers, engineers, architects)
+      const mapRoleToGQL = (role: string): SubmittalStakeholderRoleGQL => {
+        switch (role) {
+          case 'customer': return 'CUSTOMER';
+          case 'engineer': return 'ENGINEER';
+          case 'architect': return 'ARCHITECT';
+          case 'gc': return 'GENERAL_CONTRACTOR';
+          default: return 'OTHER';
+        }
+      };
+
+      const allStakeholders = [
+        ...(newSubmittal.customers || []),
+        ...(newSubmittal.engineers || []),
+        ...(newSubmittal.architects || []),
+      ];
+
+      for (const stakeholder of allStakeholders) {
+        const stakeholderInput: SubmittalStakeholderInput = {
+          role: mapRoleToGQL(stakeholder.role),
+          contactName: stakeholder.contactName,
+          contactEmail: stakeholder.email,
+          companyName: stakeholder.companyName,
+        };
+        await addSubmittalStakeholderMutation.mutateAsync({ submittalId, input: stakeholderInput });
+      }
+
       setShowCreateModal(false);
+      submittalToasts.createSuccess(createdSubmittal.submittalNumber);
       refetch();
     } catch (err) {
       console.error('Error creating submittal:', err);
+      submittalToasts.createError(err instanceof Error ? err.message : 'Unknown error');
     }
-  }, [createSubmittalMutation, refetch]);
+  }, [createSubmittalMutation, addSubmittalItemMutation, addSubmittalStakeholderMutation, refetch]);
 
   // Transform API data to display format
   const submittals = useMemo(() => {
@@ -672,13 +728,14 @@ export default function SubmittalsContent() {
                   // Regular URL - download
                   window.open(result.pdfUrl, '_blank');
                 }
+              submittalToasts.pdfSuccess();
               } else if (!result.success) {
                 console.error('PDF generation failed:', result.error);
-                alert(`Error generating PDF: ${result.error}`);
+                submittalToasts.pdfError(result.error);
               }
             } catch (error) {
               console.error('Error generating PDF:', error);
-              alert(`Error generating PDF: ${error}`);
+              submittalToasts.pdfError(error instanceof Error ? error.message : 'Unknown error');
             }
             setShowPrintDialog(false);
           }}

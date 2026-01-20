@@ -58,6 +58,7 @@ export {
   fetchContacts,
   fetchContact,
   fetchContactsByCompanyId,
+  fetchContactsByQuoteId,
   fetchJobsByCompanyId,
   fetchJobsByContactId,
   createContact,

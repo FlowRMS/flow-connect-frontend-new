@@ -7,6 +7,7 @@ import { defaultSubmittalConfig } from '../../../lib/types/submittals';
 import { searchQuotes, type QuoteSearchResult } from '../../lib/api/search';
 import { useQuote } from '../../quotes/api/useQuotesApi';
 import { useFactories } from '../../warehouse/api/useFactoriesApi';
+import { fetchContactsByQuoteId } from '../../lib/graphql';
 import type {
   Step,
   QuoteRecipient,
@@ -105,6 +106,14 @@ export function useCreateSubmittal({
   const { data: selectedQuoteDetails, isLoading: isLoadingQuoteDetails } = useQuote(firstSelectedQuoteId);
   const { data: factories } = useFactories();
 
+  // Fetch contacts linked to the quote
+  const { data: quoteContacts } = useQuery({
+    queryKey: ['contacts', 'byQuote', firstSelectedQuoteId],
+    queryFn: () => fetchContactsByQuoteId(firstSelectedQuoteId),
+    enabled: !!firstSelectedQuoteId,
+    staleTime: 30 * 1000,
+  });
+
   // Factory map
   const factoryMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -166,21 +175,46 @@ export function useCreateSubmittal({
     return [];
   }, [selectedQuoteDetails, quoteLineItems, factoryMap]);
 
-  // Recipients
+  // Recipients - combine soldToCustomer with linked contacts
   const recipients: QuoteRecipient[] = useMemo(() => {
     if (quoteRecipients && quoteRecipients.length > 0) return quoteRecipients;
+
+    const result: QuoteRecipient[] = [];
+
+    // Add soldToCustomer as the primary customer
     if (selectedQuoteDetails?.soldToCustomer) {
       const customer = selectedQuoteDetails.soldToCustomer;
-      return [{
+      result.push({
         id: customer.id || 'customer-1',
         name: customer.companyName || 'Customer',
         email: '',
         company: customer.companyName || '',
         role: 'customer' as const,
-      }];
+      });
     }
-    return selectedQuote?.recipients || [];
-  }, [quoteRecipients, selectedQuoteDetails, selectedQuote]);
+
+    // Add contacts linked to the quote
+    if (quoteContacts && quoteContacts.length > 0) {
+      for (const contact of quoteContacts) {
+        // Map contact role to QuoteRecipient role
+        const contactRole = contact.role?.toLowerCase() || '';
+        let role: QuoteRecipient['role'] = 'other';
+        if (contactRole.includes('architect')) role = 'architect';
+        else if (contactRole.includes('engineer')) role = 'engineer';
+        else if (contactRole.includes('customer') || contactRole.includes('gc') || contactRole.includes('contractor')) role = 'gc';
+
+        result.push({
+          id: contact.id,
+          name: `${contact.firstName} ${contact.lastName}`.trim(),
+          email: contact.email || '',
+          company: '', // Contact doesn't have company directly
+          role,
+        });
+      }
+    }
+
+    return result.length > 0 ? result : (selectedQuote?.recipients || []);
+  }, [quoteRecipients, selectedQuoteDetails, selectedQuote, quoteContacts]);
 
   const selectedRecipients = recipients.filter(r => selectedRecipientIds.has(r.id));
 

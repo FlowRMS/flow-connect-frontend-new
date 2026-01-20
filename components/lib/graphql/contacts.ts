@@ -75,6 +75,23 @@ const GET_CONTACTS_BY_COMPANY = `
   }
 `;
 
+const GET_CONTACTS_BY_QUOTE = `
+  query GetContactsByQuote($quoteId: UUID!) {
+    contactsByQuote(quoteId: $quoteId) {
+      id
+      firstName
+      lastName
+      email
+      phone
+      role
+      notes
+      tags
+      territory
+      createdAt
+    }
+  }
+`;
+
 const GET_JOBS_BY_COMPANY = `
   query GetJobsByCompany($companyId: UUID!) {
     jobsByCompany(companyId: $companyId) {
@@ -246,6 +263,19 @@ export async function fetchContactsByCompanyId(companyId: string): Promise<Conta
   }
 
   return response.data?.contactsByCompany || [];
+}
+
+export async function fetchContactsByQuoteId(quoteId: string): Promise<Contact[]> {
+  const response = await crmGraphQLRequest<{ contactsByQuote: Contact[] }>({
+    query: GET_CONTACTS_BY_QUOTE,
+    variables: { quoteId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch contacts by quote');
+  }
+
+  return response.data?.contactsByQuote || [];
 }
 
 export async function fetchJobsByCompanyId(companyId: string): Promise<Job[]> {
