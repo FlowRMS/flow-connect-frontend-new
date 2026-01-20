@@ -109,6 +109,16 @@ export default function HighlightCanvas({
   );
 }
 
+// Helper to convert hex color to rgba with opacity
+function hexToRgba(hex: string, opacity: number): string {
+  // Remove # if present
+  const cleanHex = hex.replace('#', '');
+  const r = parseInt(cleanHex.substring(0, 2), 16);
+  const g = parseInt(cleanHex.substring(2, 4), 16);
+  const b = parseInt(cleanHex.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
 // Region display component for read-only view
 export function HighlightRegionDisplay({
   region,
@@ -128,13 +138,33 @@ export function HighlightRegionDisplay({
     pointerEvents: 'none',
   };
 
+  // Semi-transparent fill color (50% opacity like in drawingUtils.ts)
+  const fillColor = hexToRgba(region.color, 0.5);
+
   switch (region.shape) {
     case 'highlight':
-      return <div style={{ ...style, backgroundColor: region.color, opacity: 0.5 }} />;
+      return <div style={{ ...style, backgroundColor: fillColor }} />;
     case 'rectangle':
-      return <div style={{ ...style, border: `${region.strokeWidth || 2}px solid ${region.color}` }} />;
+      return (
+        <div
+          style={{
+            ...style,
+            backgroundColor: fillColor,
+            border: `${region.strokeWidth || 2}px solid ${region.color}`,
+          }}
+        />
+      );
     case 'oval':
-      return <div style={{ ...style, border: `${region.strokeWidth || 2}px solid ${region.color}`, borderRadius: '50%' }} />;
+      return (
+        <div
+          style={{
+            ...style,
+            backgroundColor: fillColor,
+            border: `${region.strokeWidth || 2}px solid ${region.color}`,
+            borderRadius: '50%',
+          }}
+        />
+      );
     default:
       return null;
   }

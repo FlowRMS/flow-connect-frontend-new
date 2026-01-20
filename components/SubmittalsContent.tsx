@@ -60,6 +60,7 @@ export default function SubmittalsContent() {
     handleAddItem,
     handleDeleteItem,
     handleEditItem,
+    handleRemoveItemSpecSheet,
     handleUpdateArchitect,
     handleUpdateEngineer,
     handleUpdateBidDate,
@@ -206,6 +207,7 @@ export default function SubmittalsContent() {
               onAddItem={handleAddItem}
               onDeleteItem={handleDeleteItem}
               onEditItem={handleEditItem}
+              onRemoveItemSpecSheet={handleRemoveItemSpecSheet}
               isEditingItem={isEditingItem}
               onUpdateArchitect={handleUpdateArchitect}
               onUpdateEngineer={handleUpdateEngineer}

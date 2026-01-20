@@ -186,8 +186,9 @@ export function useUpdateSubmittalItem() {
 
   return useMutation<SubmittalItemResponse, Error, { id: string; input: UpdateSubmittalItemInput; submittalId: string }>({
     mutationFn: ({ id, input }) => updateSubmittalItem(id, input),
-    onSuccess: (_, { submittalId }) => {
-      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+    onSuccess: () => {
+      // Invalidate all submittal queries to refresh the list and detail views
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.all });
     },
   });
 }

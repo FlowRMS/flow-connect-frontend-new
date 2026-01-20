@@ -26,6 +26,7 @@ import { ItemsTabContent } from './ItemsTabContent';
 import { SubmittalSettingsTab } from './SubmittalSettingsTab';
 import { useRevisionWorkflow } from './hooks/useRevisionWorkflow';
 import { useSubmittalSettings, StakeholdersTabContent } from './submittal-detail';
+import { useSpecSheetHandlers } from './hooks/useSpecSheetHandlers';
 import SpecSheetUploadModal from './SpecSheetUploadModal';
 
 interface SubmittalDetailPanelProps {
@@ -37,6 +38,7 @@ interface SubmittalDetailPanelProps {
   onAddItem?: () => void;
   onDeleteItem?: (itemId: string) => void;
   onEditItem?: (itemId: string, values: { description?: string; quantity?: number }) => void;
+  onRemoveItemSpecSheet?: (itemId: string) => void;
   isEditingItem?: boolean;
   onUpdateArchitect?: (name: string) => void;
   onUpdateEngineer?: (name: string) => void;
@@ -59,6 +61,7 @@ export default function SubmittalDetailPanel({
   onAddItem,
   onDeleteItem,
   onEditItem,
+  onRemoveItemSpecSheet,
   isEditingItem,
   onUpdateArchitect,
   onUpdateEngineer,
@@ -155,13 +158,19 @@ export default function SubmittalDetailPanel({
     if (!selectedItem?.specSheetId) return null;
     // First, try to use the spec sheet data that comes with the item from the API
     if (selectedItem.specSheet) {
-      return selectedItem.specSheet as SpecSheet;
+      const specSheet = selectedItem.specSheet as SpecSheet;
+      // Resolve manufacturer from factoryId if not already set
+      if (!specSheet.manufacturer && specSheet.factoryId) {
+        const factory = manufacturers.find(m => m.id === specSheet.factoryId);
+        return { ...specSheet, manufacturer: factory?.name || '' };
+      }
+      return specSheet;
     }
     // Fallback to searching in filtered spec sheets (from picker)
     const fromCurrent = filteredSpecSheets.find(s => s.id === selectedItem.specSheetId);
     if (fromCurrent) return fromCurrent;
     return null;
-  }, [selectedItem?.specSheetId, selectedItem?.specSheet, filteredSpecSheets]);
+  }, [selectedItem?.specSheetId, selectedItem?.specSheet, filteredSpecSheets, manufacturers]);
 
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: 'items', label: 'Items', count: submittal.items.length },
@@ -170,67 +179,22 @@ export default function SubmittalDetailPanel({
     { id: 'settings', label: 'Settings' },
   ];
 
-  const handleAttachSpecSheet = (specSheetId: string) => {
-    if (!selectedItemId || !onUpdate) return;
-
-    const updatedItems = submittal.items.map(item => {
-      if (item.id === selectedItemId) {
-        return {
-          ...item,
-          specSheetId,
-          matchStatus: 'matched_no_highlight' as SpecSheetMatchStatus,
-        };
-      }
-      return item;
-    });
-
-    onUpdate({ items: updatedItems });
-    setShowSpecSheetPicker(false);
-    setSelectedSpecSheetForHighlight(specSheetId);
-    setShowHighlightPicker(true);
-  };
-
-  const handleAttachHighlightVersion = (highlightVersionId: string) => {
-    if (!selectedItemId || !onUpdate) return;
-
-    const updatedItems = submittal.items.map(item => {
-      if (item.id === selectedItemId) {
-        return {
-          ...item,
-          highlightDefinitionId: highlightVersionId,
-          matchStatus: 'matched_with_highlight' as SpecSheetMatchStatus,
-        };
-      }
-      return item;
-    });
-
-    onUpdate({ items: updatedItems });
-    setShowHighlightPicker(false);
-    setSelectedSpecSheetForHighlight(null);
-  };
-
-  const handleSkipHighlightVersion = () => {
-    setShowHighlightPicker(false);
-    setSelectedSpecSheetForHighlight(null);
-  };
-
-  const handleRemoveSpecSheet = (itemId: string) => {
-    if (!onUpdate) return;
-
-    const updatedItems = submittal.items.map(item => {
-      if (item.id === itemId) {
-        return {
-          ...item,
-          specSheetId: undefined,
-          highlightDefinitionId: undefined,
-          matchStatus: 'no_match' as SpecSheetMatchStatus,
-        };
-      }
-      return item;
-    });
-
-    onUpdate({ items: updatedItems });
-  };
+  // Spec sheet handlers hook
+  const {
+    handleAttachSpecSheet,
+    handleAttachHighlightVersion,
+    handleSkipHighlightVersion,
+    handleRemoveSpecSheet,
+    handleEditHighlights,
+  } = useSpecSheetHandlers({
+    submittal,
+    selectedItemId,
+    selectedSpecSheetForHighlight,
+    onUpdate,
+    setShowSpecSheetPicker,
+    setShowHighlightPicker,
+    setSelectedSpecSheetForHighlight,
+  });
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -283,7 +247,8 @@ export default function SubmittalDetailPanel({
               selectedItem={selectedItem}
               selectedItemSpecSheet={selectedItemSpecSheet}
               onBrowseLibrary={() => setShowSpecSheetPicker(true)}
-              onRemoveSpecSheet={handleRemoveSpecSheet}
+              onRemoveSpecSheet={onRemoveItemSpecSheet || handleRemoveSpecSheet}
+              onEditHighlights={() => handleEditHighlights(selectedItem?.specSheetId)}
               onAddItem={onAddItem}
               onDeleteItem={onDeleteItem}
               onEditItem={onEditItem}

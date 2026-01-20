@@ -819,4 +819,19 @@ export const submittalToasts = {
     showErrorToast('Failed to Send Email', {
       description: error || 'Please try again or contact support',
     }),
+
+  itemDeleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Item', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  itemUpdateError: (error?: string) =>
+    showErrorToast('Failed to Update Item', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  specSheetRemoveError: (error?: string) =>
+    showErrorToast('Failed to Remove Spec Sheet', {
+      description: error || 'Please try again or contact support',
+    }),
 };

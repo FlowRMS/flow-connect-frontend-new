@@ -174,8 +174,8 @@ export interface SubmittalItemInput {
 }
 
 export interface UpdateSubmittalItemInput {
-  specSheetId?: string;
-  highlightVersionId?: string;
+  specSheetId?: string | null;
+  highlightVersionId?: string | null;
   partNumber?: string;
   manufacturer?: string;
   description?: string;
@@ -260,6 +260,7 @@ const SUBMITTAL_ITEM_FRAGMENT = `
     createdAt
     specSheet {
       id
+      factoryId
       displayName
       fileUrl
       pageCount

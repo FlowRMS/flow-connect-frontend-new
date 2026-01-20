@@ -120,6 +120,7 @@ export interface SpecSheetFolder {
 
 export interface SpecSheet {
   id: string;
+  factoryId?: string; // Factory ID from API (used to resolve manufacturer name)
   manufacturer: string;
   fileName: string;
   displayName: string; // User-friendly name (can override fileName)

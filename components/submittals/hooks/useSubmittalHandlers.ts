@@ -14,6 +14,7 @@ import {
 import type { Submittal } from '../../../lib/types/submittals';
 import { submittalToasts } from '../../lib/toast';
 import { statusFrontendToApi } from '../types/submittal-transforms';
+import { useStakeholderHandlers } from './useStakeholderHandlers';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type MutationHook = { mutateAsync: (params: any) => Promise<any> };
@@ -51,9 +52,20 @@ export function useSubmittalHandlers({
   setIsEditingItem,
   setSelectedSubmittalId,
 }: UseSubmittalHandlersParams) {
+  // Use stakeholder handlers hook
+  const stakeholderHandlers = useStakeholderHandlers({
+    selectedSubmittalId,
+    selectedSubmittalFull,
+    addSubmittalStakeholderMutation,
+    removeSubmittalStakeholderMutation,
+    refetch,
+  });
+
   // Handle submittal update from detail panel
   const handleSubmittalUpdate = useCallback(async (updates: Partial<Submittal>) => {
     if (!selectedSubmittalId) return;
+
+    let itemsUpdated = false;
 
     // Handle item updates (spec sheet attachments, etc.)
     if (updates.items && selectedSubmittalFull) {
@@ -69,18 +81,20 @@ export function useSubmittalHandlers({
           try {
             const itemUpdate: UpdateSubmittalItemInput = {};
             if (originalItem.specSheetId !== updatedItem.specSheetId) {
-              itemUpdate.specSheetId = updatedItem.specSheetId || undefined;
+              itemUpdate.specSheetId = updatedItem.specSheetId ?? null;
             }
             if (originalItem.highlightDefinitionId !== updatedItem.highlightDefinitionId) {
-              itemUpdate.highlightVersionId = updatedItem.highlightDefinitionId || undefined;
+              itemUpdate.highlightVersionId = updatedItem.highlightDefinitionId ?? null;
             }
             await updateSubmittalItemMutation.mutateAsync({
               id: updatedItem.id,
               input: itemUpdate,
               submittalId: selectedSubmittalId,
             });
+            itemsUpdated = true;
           } catch (err) {
             console.error('Error updating submittal item:', err);
+            submittalToasts.specSheetRemoveError(err instanceof Error ? err.message : 'Unknown error');
           }
         }
       }
@@ -141,10 +155,14 @@ export function useSubmittalHandlers({
           id: selectedSubmittalId,
           input: apiUpdates,
         });
-        refetch();
       } catch (err) {
         console.error('Error updating submittal:', err);
       }
+    }
+
+    // Refetch if any updates were made (items or submittal level)
+    if (itemsUpdated || Object.keys(apiUpdates).length > 0) {
+      refetch();
     }
   }, [selectedSubmittalId, selectedSubmittalFull, updateSubmittalMutation, updateSubmittalItemMutation, refetch]);
 
@@ -235,8 +253,22 @@ export function useSubmittalHandlers({
 
   // Handle delete item from current submittal
   const handleDeleteItem = useCallback(async (itemId: string) => {
-    if (!selectedSubmittalId) return;
+    if (!selectedSubmittalId || !selectedSubmittalFull) return;
     try {
+      // First, check if item has linked spec sheet or highlight
+      const item = selectedSubmittalFull.items.find(i => i.id === itemId);
+      if (item && (item.specSheetId || item.highlightDefinitionId)) {
+        // Clear the spec sheet and highlight first to avoid foreign key constraint
+        await updateSubmittalItemMutation.mutateAsync({
+          id: itemId,
+          input: {
+            specSheetId: null,
+            highlightVersionId: null,
+          },
+          submittalId: selectedSubmittalId,
+        });
+      }
+      // Now delete the item
       await removeSubmittalItemMutation.mutateAsync({
         id: itemId,
         submittalId: selectedSubmittalId,
@@ -244,17 +276,20 @@ export function useSubmittalHandlers({
       refetch();
     } catch (err) {
       console.error('Error deleting item:', err);
+      submittalToasts.itemDeleteError(err instanceof Error ? err.message : 'Unknown error');
     }
-  }, [selectedSubmittalId, removeSubmittalItemMutation, refetch]);
+  }, [selectedSubmittalId, selectedSubmittalFull, updateSubmittalItemMutation, removeSubmittalItemMutation, refetch]);
 
   // Handle edit item (inline editing)
-  const handleEditItem = useCallback(async (itemId: string, values: { description?: string; quantity?: number }) => {
+  const handleEditItem = useCallback(async (itemId: string, values: { partNumber?: string; manufacturer?: string; description?: string; quantity?: number }) => {
     if (!selectedSubmittalId) return;
     setIsEditingItem(true);
     try {
       await updateSubmittalItemMutation.mutateAsync({
         id: itemId,
         input: {
+          partNumber: values.partNumber,
+          manufacturer: values.manufacturer,
           description: values.description,
           quantity: values.quantity,
         },
@@ -268,41 +303,24 @@ export function useSubmittalHandlers({
     }
   }, [selectedSubmittalId, updateSubmittalItemMutation, refetch, setIsEditingItem]);
 
-  // Helper function to update stakeholder by role
-  const updateStakeholderByRole = useCallback(async (
-    role: SubmittalStakeholderRoleGQL,
-    name: string,
-    existingStakeholder?: { contactId: string }
-  ) => {
-    if (!selectedSubmittalId || !name.trim()) return;
+  // Handle remove spec sheet from item
+  const handleRemoveItemSpecSheet = useCallback(async (itemId: string) => {
+    if (!selectedSubmittalId) return;
     try {
-      if (existingStakeholder) {
-        await removeSubmittalStakeholderMutation.mutateAsync({
-          id: existingStakeholder.contactId,
-          submittalId: selectedSubmittalId,
-        });
-      }
-      await addSubmittalStakeholderMutation.mutateAsync({
+      await updateSubmittalItemMutation.mutateAsync({
+        id: itemId,
+        input: {
+          specSheetId: null,
+          highlightVersionId: null,
+        },
         submittalId: selectedSubmittalId,
-        input: { role, contactName: name.trim() },
       });
-      refetch();
+      await refetch();
     } catch (err) {
-      console.error(`Error updating ${role.toLowerCase()}:`, err);
+      console.error('Error removing spec sheet:', err);
+      submittalToasts.specSheetRemoveError(err instanceof Error ? err.message : 'Unknown error');
     }
-  }, [selectedSubmittalId, addSubmittalStakeholderMutation, removeSubmittalStakeholderMutation, refetch]);
-
-  // Handle update architect
-  const handleUpdateArchitect = useCallback(async (name: string) => {
-    if (!selectedSubmittalFull) return;
-    await updateStakeholderByRole('ARCHITECT', name, selectedSubmittalFull.architects[0]);
-  }, [selectedSubmittalFull, updateStakeholderByRole]);
-
-  // Handle update engineer
-  const handleUpdateEngineer = useCallback(async (name: string) => {
-    if (!selectedSubmittalFull) return;
-    await updateStakeholderByRole('ENGINEER', name, selectedSubmittalFull.engineers[0]);
-  }, [selectedSubmittalFull, updateStakeholderByRole]);
+  }, [selectedSubmittalId, updateSubmittalItemMutation, refetch]);
 
   // Handle update bid date from header
   const handleUpdateBidDate = useCallback(async (date: string) => {
@@ -317,66 +335,6 @@ export function useSubmittalHandlers({
       console.error('Error updating bid date:', err);
     }
   }, [selectedSubmittalId, updateSubmittalMutation, refetch]);
-
-  // Handle add contact (for Print Dialog Addressed To tab)
-  const handleAddContact = useCallback(async () => {
-    if (!selectedSubmittalId) return;
-    const name = window.prompt('Enter contact name:');
-    if (!name?.trim()) return;
-    try {
-      await addSubmittalStakeholderMutation.mutateAsync({
-        submittalId: selectedSubmittalId,
-        input: { role: 'OTHER', contactName: name.trim() },
-      });
-      refetch();
-    } catch (err) {
-      console.error('Error adding contact:', err);
-    }
-  }, [selectedSubmittalId, addSubmittalStakeholderMutation, refetch]);
-
-  // Handle add stakeholder from the Stakeholders tab form
-  const handleAddStakeholder = useCallback(async (
-    role: 'customer' | 'engineer' | 'architect',
-    data: { contactName: string; companyName: string; email: string }
-  ) => {
-    if (!selectedSubmittalId || !data.contactName.trim()) return;
-
-    const roleMap: Record<string, SubmittalStakeholderRoleGQL> = {
-      customer: 'CUSTOMER',
-      engineer: 'ENGINEER',
-      architect: 'ARCHITECT',
-    };
-
-    try {
-      const stakeholderInput: SubmittalStakeholderInput = {
-        role: roleMap[role],
-        contactName: data.contactName.trim(),
-        companyName: data.companyName.trim() || undefined,
-        contactEmail: data.email.trim() || undefined,
-      };
-      await addSubmittalStakeholderMutation.mutateAsync({
-        submittalId: selectedSubmittalId,
-        input: stakeholderInput,
-      });
-      refetch();
-    } catch (err) {
-      console.error('Error adding stakeholder:', err);
-    }
-  }, [selectedSubmittalId, addSubmittalStakeholderMutation, refetch]);
-
-  // Handle remove stakeholder
-  const handleRemoveStakeholder = useCallback(async (stakeholderId: string) => {
-    if (!selectedSubmittalId) return;
-    try {
-      await removeSubmittalStakeholderMutation.mutateAsync({
-        id: stakeholderId,
-        submittalId: selectedSubmittalId,
-      });
-      refetch();
-    } catch (err) {
-      console.error('Error removing stakeholder:', err);
-    }
-  }, [selectedSubmittalId, removeSubmittalStakeholderMutation, refetch]);
 
   // Handle delete submittal
   const handleDeleteSubmittal = useCallback(async () => {
@@ -399,12 +357,9 @@ export function useSubmittalHandlers({
     handleAddItem,
     handleDeleteItem,
     handleEditItem,
-    handleUpdateArchitect,
-    handleUpdateEngineer,
+    handleRemoveItemSpecSheet,
     handleUpdateBidDate,
-    handleAddContact,
     handleDeleteSubmittal,
-    handleAddStakeholder,
-    handleRemoveStakeholder,
+    ...stakeholderHandlers,
   };
 }
