@@ -29,10 +29,10 @@ export function ProductRow({
     }).format(value);
   };
 
-  // Format percentage
+  // Format percentage (value is already stored as percentage, e.g., 2 for 2%)
   const formatPercentage = (value?: number) => {
     if (value === undefined || value === null) return '—';
-    return `${(value * 100).toFixed(1)}%`;
+    return `${Number(value).toFixed(1)}%`;
   };
 
   return (
