@@ -12,6 +12,7 @@ import { MonthYearFilter } from './filter-types/MonthYearFilter';
 import { FactoryFilter } from './filter-types/FactoryFilter';
 import { CategoryFilter } from './filter-types/CategoryFilter';
 import { CompanyFilter } from './filter-types/CompanyFilter';
+import { CompanyTypeFilter } from './filter-types/CompanyTypeFilter';
 import { parseDateString, formatDateToBackend } from '../utils';
 
 export type ColumnFilterType =
@@ -233,7 +234,7 @@ export function ColumnFilter({
     if (type === 'date') {
       return localDateStart !== null || localDateEnd !== null;
     }
-    if (type === 'factory' || type === 'category' || type === 'company') {
+    if (type === 'factory' || type === 'category' || type === 'company' || type === 'companyType') {
       return localSelectedValues.length > 0;
     }
     return false;
@@ -558,6 +559,17 @@ export function ColumnFilter({
 
           {type === 'company' && (
             <CompanyFilter
+              option={filterOption}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
+            />
+          )}
+          
+          {type === 'companyType' && (
+            <CompanyTypeFilter
               option={filterOption}
               selectedValues={localSelectedValues}
               onToggleValue={toggleDropdownValue}

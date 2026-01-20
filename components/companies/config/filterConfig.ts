@@ -17,7 +17,7 @@ export function getCompanyFilterOptions(): FilterOption[] {
     {
       id: 'type',
       label: 'Company Type',
-      type: 'text',
+      type: 'companyType' as const,
       columnName: 'companySourceType',
       available: true,
     },
