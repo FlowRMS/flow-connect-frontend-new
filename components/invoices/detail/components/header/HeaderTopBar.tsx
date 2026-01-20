@@ -632,52 +632,35 @@ export function HeaderTopBar({
             )}
           </div>
 
-          {/* PDF Button with Excel Dropdown */}
+          {/* Excel Button with Manufacturer Dropdown */}
           <div className="relative">
             <div className="flex">
               <button
                 onClick={() => {
                   setShowDownloadMenu(false);
-                  setShowPDFBuilder(true);
+                  setShowExcelBuilder(true);
                 }}
                 disabled={!invoice.id}
                 className={`flex items-center gap-2 px-4 py-2 rounded-l-lg text-sm font-medium transition-colors ${
                   !invoice.id
-                    ? 'bg-red-600 text-white opacity-50 cursor-not-allowed'
-                    : 'bg-red-600 text-white hover:bg-red-700'
+                    ? 'bg-emerald-600 text-white opacity-50 cursor-not-allowed'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
                 }`}
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path
-                    d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M14 2v4h4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round" />
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-                PDF
+                Excel
               </button>
               <button
                 onClick={() => setShowDownloadMenu((prev) => !prev)}
                 disabled={!invoice.id}
-                className={`px-2 py-2 text-white rounded-r-lg transition-colors border-l border-red-500 ${
+                className={`px-2 py-2 text-white rounded-r-lg transition-colors border-l border-emerald-500 ${
                   !invoice.id
-                    ? 'bg-red-600 opacity-50 cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-700'
+                    ? 'bg-emerald-600 opacity-50 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
                 }`}
-                aria-label="Download options"
+                aria-label="Manufacturer options"
               >
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -687,25 +670,13 @@ export function HeaderTopBar({
             {showDownloadMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
-                <div className="absolute top-full right-0 mt-1 w-52 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                  <button
-                    onClick={() => {
-                      setShowExcelBuilder(true);
-                      setShowDownloadMenu(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Excel
-                  </button>
+                <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
                   <button
                     onClick={() => {
                       setShowManufacturerExcel(true);
                       setShowDownloadMenu(false);
                     }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2"
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-lg flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18" />
@@ -716,6 +687,41 @@ export function HeaderTopBar({
               </>
             )}
           </div>
+          {/* PDF Button */}
+          <button
+            onClick={() => {
+              setShowDownloadMenu(false);
+              setShowPDFBuilder(true);
+            }}
+            disabled={!invoice.id}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              !invoice.id
+                ? 'bg-red-600 text-white opacity-50 cursor-not-allowed'
+                : 'bg-red-600 text-white hover:bg-red-700'
+            }`}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path
+                d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M14 2v4h4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round" />
+            </svg>
+            PDF
+          </button>
 
           {/* Save Button with Dropdown */}
           <div className="relative">

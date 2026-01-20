@@ -873,37 +873,35 @@ export function QuoteDetailHeaderV2({
             </button>
           </div>
 
-          {/* PDF Button with Excel Dropdown */}
+          {/* Excel Button with Manufacturer Dropdown */}
           <div className="relative">
             <div className="flex">
               <button
                 onClick={() => {
                   setShowDownloadMenu(false);
-                  setShowPDFBuilder(true);
+                  setShowExcelBuilder(true);
                 }}
                 disabled={isNew || !quote.id}
                 className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-l-lg transition-colors ${
                   isNew || !quote.id
-                    ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                    : 'text-white bg-red-600 hover:bg-red-700'
+                    ? 'text-white bg-emerald-600 opacity-50 cursor-not-allowed'
+                    : 'text-white bg-emerald-600 hover:bg-emerald-700'
                 }`}
               >
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M14 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round"/>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-                PDF
+                Excel
               </button>
               <button
                 onClick={() => setShowDownloadMenu((prev) => !prev)}
                 disabled={isNew || !quote.id}
-                className={`px-2 py-1.5 text-sm text-white rounded-r-lg border-l border-red-500 transition-colors ${
+                className={`px-2 py-1.5 text-sm text-white rounded-r-lg border-l border-emerald-500 transition-colors ${
                   isNew || !quote.id
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-700'
+                    ? 'bg-emerald-600 opacity-50 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
                 }`}
-                aria-label="Download options"
+                aria-label="Manufacturer options"
               >
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -916,22 +914,10 @@ export function QuoteDetailHeaderV2({
                 <div className="absolute top-full right-0 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
                   <button
                     onClick={() => {
-                      setShowExcelBuilder(true);
-                      setShowDownloadMenu(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors rounded-t-lg flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Excel
-                  </button>
-                  <button
-                    onClick={() => {
                       setShowManufacturerExcel(true);
                       setShowDownloadMenu(false);
                     }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors rounded-b-lg flex items-center gap-2"
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors rounded-lg flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18" />
@@ -942,6 +928,26 @@ export function QuoteDetailHeaderV2({
               </>
             )}
           </div>
+          {/* PDF Button */}
+          <button
+            onClick={() => {
+              setShowDownloadMenu(false);
+              setShowPDFBuilder(true);
+            }}
+            disabled={isNew || !quote.id}
+            className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-lg transition-colors ${
+              isNew || !quote.id
+                ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                : 'text-white bg-red-600 hover:bg-red-700'
+            }`}
+          >
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M14 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round"/>
+            </svg>
+            PDF
+          </button>
 
           {/* Save Button with Dropdown */}
           <div className="relative">
