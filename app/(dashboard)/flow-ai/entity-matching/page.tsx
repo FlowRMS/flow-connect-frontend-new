@@ -492,9 +492,28 @@ function EntityMatchingContent() {
     setInsideRepName(null);
     setOutsideRepId(null);
     setOutsideRepName(null);
-    // Reset factory selection
-    setFactoryId(null);
-    setFactoryName(null);
+    
+    // Auto-populate factory if we're creating a product and a factory is already matched
+    const entityType = getCurrentEntityType();
+    if (entityType === 'PRODUCTS') {
+      // Find a confirmed or auto-matched factory
+      const confirmedFactory = factories.find(
+        f => f.confirmationStatus === 'CONFIRMED' || f.confirmationStatus === 'AUTO_MATCHED'
+      );
+      
+      if (confirmedFactory && confirmedFactory.bestMatchId) {
+        setFactoryId(confirmedFactory.bestMatchId);
+        setFactoryName(confirmedFactory.bestMatchName || confirmedFactory.matchCandidates.find(m => m.entityId === confirmedFactory.bestMatchId)?.name || null);
+      } else {
+        // Reset factory selection if no confirmed factory found
+        setFactoryId(null);
+        setFactoryName(null);
+      }
+    } else {
+      // Reset factory selection for non-product entities
+      setFactoryId(null);
+      setFactoryName(null);
+    }
   };
 
   const updateFormField = (key: string, value: string) => {
