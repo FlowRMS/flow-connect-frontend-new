@@ -21,6 +21,8 @@ import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCom
 import { companyToasts } from './lib/toast';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
 import type { RelatedEntityContact, RelatedEntityJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
+import { useQuery } from '@tanstack/react-query';
+import { searchCompanies, type CompanySearchResult } from './lib/api/search';
 
 // Modular imports
 import { useCompaniesState } from './companies/hooks/useCompaniesState';
@@ -260,6 +262,26 @@ export default function CompaniesContent() {
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // API search for companies
+  const { data: searchResults, isLoading: isSearching } = useQuery<CompanySearchResult[], Error>({
+    queryKey: ['companySearch', debouncedSearchQuery],
+    queryFn: () => searchCompanies(debouncedSearchQuery, 50),
+    enabled: debouncedSearchQuery.length >= 2,
+    staleTime: 30 * 1000,
+  });
+
   // Manage Company Types modal state
   const [showCompanyTypesModal, setShowCompanyTypesModal] = useState(false);
 
@@ -398,6 +420,33 @@ export default function CompaniesContent() {
     handleStartEdit,
     handleCancelEdit,
   } = useCompaniesState(landingPageCompanies);
+
+  // Transform search results to UI company format and filter companies
+  const displayedCompanies = useMemo(() => {
+    if (debouncedSearchQuery.length >= 2 && searchResults) {
+      return searchResults.map(sr => ({
+        id: sr.id,
+        name: sr.name,
+        type: sr.companyType ? [sr.companyType.name || ''] : [],
+        companyTypeId: sr.companyType?.id,
+        companyTypeName: sr.companyType?.name,
+        tags: sr.tags ? (typeof sr.tags === 'string' ? sr.tags.split(',').map(t => t.trim()).filter(Boolean) : sr.tags) : [],
+        phone: sr.phone || '',
+        website: sr.website || '',
+        createdBy: sr.createdBy || '',
+        parentCompanyId: sr.parentCompanyId,
+        // Required fields with default values
+        address: '',
+        lists: [],
+        territory: '',
+        contactCount: 0,
+        jobCount: 0,
+        lastActivity: sr.createdAt || '',
+        followers: [],
+      }));
+    }
+    return companies;
+  }, [companies, debouncedSearchQuery, searchResults]);
 
   // Wrapper handlers that call both state and server-side filter handlers
   const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
@@ -856,10 +905,32 @@ export default function CompaniesContent() {
             </button>
           </motion.div>
         </div>
+
+        {/* Search Bar */}
+        <div className="relative mt-4">
+          {isSearching ? (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--primary)] animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          ) : (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
+            </svg>
+          )}
+          <input
+            type="text"
+            placeholder="Search companies by name, phone, or website..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+          />
+        </div>
       </div>
 
       {/* Empty State */}
-      {companies.length === 0 && !isLoading ? (
+      {displayedCompanies.length === 0 && !isLoading ? (
         <div className="flex flex-col items-center justify-center py-16 px-4">
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
@@ -884,9 +955,9 @@ export default function CompaniesContent() {
       ) : (
         <>
           {viewMode === 'grid' ? (
-            <GridView companies={companies} onCompanyClick={setSelectedCompany} />
+            <GridView companies={displayedCompanies} onCompanyClick={setSelectedCompany} />
           ) : (
-            <ListView companies={companies} onCompanyClick={setSelectedCompany} />
+            <ListView companies={displayedCompanies} onCompanyClick={setSelectedCompany} />
           )}
 
           {/* Infinite scroll trigger */}
