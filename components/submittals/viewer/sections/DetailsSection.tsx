@@ -11,6 +11,7 @@ interface DetailsSectionProps {
   setEditableSpecSheetName: (name: string) => void;
   isEditingSpecSheetName: boolean;
   setIsEditingSpecSheetName: (editing: boolean) => void;
+  onSaveSpecSheetName: () => void;
   expanded: boolean;
   onToggle: () => void;
 }
@@ -28,9 +29,16 @@ export function DetailsSection({
   setEditableSpecSheetName,
   isEditingSpecSheetName,
   setIsEditingSpecSheetName,
+  onSaveSpecSheetName,
   expanded,
   onToggle,
 }: DetailsSectionProps) {
+  const handleSave = () => {
+    if (editableSpecSheetName.trim() && editableSpecSheetName !== specSheet.displayName) {
+      onSaveSpecSheetName();
+    }
+    setIsEditingSpecSheetName(false);
+  };
   return (
     <div className="border-b border-[var(--border)]">
       <button
@@ -49,9 +57,9 @@ export function DetailsSection({
                 type="text"
                 value={editableSpecSheetName}
                 onChange={(e) => setEditableSpecSheetName(e.target.value)}
-                onBlur={() => setIsEditingSpecSheetName(false)}
+                onBlur={handleSave}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') setIsEditingSpecSheetName(false);
+                  if (e.key === 'Enter') handleSave();
                   if (e.key === 'Escape') {
                     setEditableSpecSheetName(specSheet.displayName);
                     setIsEditingSpecSheetName(false);

@@ -16,7 +16,9 @@ import {
   createHighlightVersion,
   updateHighlightRegions,
   deleteHighlightVersion,
+  renameHighlightVersion,
   moveFolder,
+  moveSpecSheetToFolder,
   // Folder API functions
   fetchFoldersByFactory,
   createFolder,
@@ -30,13 +32,12 @@ import {
   type HighlightRegionInput,
   // Folder types
   type FolderResponse,
-  type RenameFolderResult,
   type CreateFolderInput,
   type RenameFolderInput,
   type DeleteFolderInput,
+  type MoveFolderInput,
+  type MoveSpecSheetToFolderInput,
 } from '@/components/lib/graphql/spec-sheets';
-import { useFactories } from '@/components/warehouse/api/useFactoriesApi';
-import type { SpecSheet } from '@/lib/types/submittals';
 
 // ============================================================================
 // Query Keys
@@ -236,17 +237,51 @@ export function useDeleteHighlightVersion() {
 }
 
 /**
- * Move spec sheets between folders
+ * Rename a highlight version
+ */
+export function useRenameHighlightVersion() {
+  const queryClient = useQueryClient();
+
+  return useMutation<HighlightVersionResponse, Error, { id: string; name: string; specSheetId: string }>({
+    mutationFn: ({ id, name }) => renameHighlightVersion(id, name),
+    onSuccess: (data, { specSheetId }) => {
+      queryClient.invalidateQueries({
+        queryKey: specSheetQueryKeys.highlightVersion(data.id)
+      });
+      queryClient.invalidateQueries({
+        queryKey: specSheetQueryKeys.highlightVersions(specSheetId)
+      });
+    },
+  });
+}
+
+/**
+ * Move a folder to a new parent
  */
 export function useMoveFolder() {
   const queryClient = useQueryClient();
 
-  return useMutation<number, Error, { factoryId: string; oldFolderPath: string; newFolderPath: string }>({
-    mutationFn: ({ factoryId, oldFolderPath, newFolderPath }) =>
-      moveFolder(factoryId, oldFolderPath, newFolderPath),
-    onSuccess: (_, { factoryId }) => {
+  return useMutation<FolderResponse, Error, MoveFolderInput>({
+    mutationFn: moveFolder,
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.byFactory(factoryId) });
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.folders(data.factoryId) });
+    },
+  });
+}
+
+/**
+ * Move a spec sheet to a folder
+ */
+export function useMoveSpecSheetToFolder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SpecSheetResponse, Error, MoveSpecSheetToFolderInput>({
+    mutationFn: moveSpecSheetToFolder,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.byFactory(data.factoryId) });
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.folders(data.factoryId) });
     },
   });
 }
@@ -288,11 +323,11 @@ export function useCreateFolder() {
 export function useRenameFolder() {
   const queryClient = useQueryClient();
 
-  return useMutation<RenameFolderResult, Error, RenameFolderInput>({
+  return useMutation<FolderResponse, Error, RenameFolderInput>({
     mutationFn: renameFolder,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.folders(data.folder.factoryId) });
-      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.byFactory(data.folder.factoryId) });
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.folders(data.factoryId) });
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.byFactory(data.factoryId) });
       queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.all });
     },
   });
@@ -314,108 +349,14 @@ export function useDeleteFolder() {
 }
 
 // ============================================================================
-// Adapter Hooks (map API response to frontend types)
+// Re-export Adapter Hooks
 // ============================================================================
 
-/**
- * Transform API spec sheet response to frontend SpecSheet type
- * Maps factoryId to manufacturer name using factory lookup
- */
-function transformSpecSheetResponse(
-  response: SpecSheetResponse,
-  factoryMap: Map<string, string>
-): SpecSheet {
-  return {
-    id: response.id,
-    manufacturer: factoryMap.get(response.factoryId) || 'Unknown',
-    fileName: response.fileName,
-    displayName: response.displayName,
-    categories: response.categories as SpecSheet['categories'],
-    tags: response.tags || [],
-    folderId: undefined, // folder_path is used instead
-    uploadSource: response.uploadSource as SpecSheet['uploadSource'],
-    sourceUrl: response.sourceUrl || undefined,
-    fileUrl: response.fileUrl,
-    fileSize: response.fileSize,
-    pageCount: response.pageCount,
-    uploadedAt: response.createdAt,
-    uploadedBy: response.createdBy.fullName,
-    needsReview: response.needsReview,
-    usageCount: response.usageCount,
-    highlightCount: response.highlightCount,
-  };
-}
-
-/**
- * Hook to get spec sheets with manufacturer names resolved
- * Combines spec sheets API with factories API
- */
-export function useSpecSheetsWithFactoryNames(factoryId: string | null, publishedOnly: boolean = true) {
-  const { data: factories, isLoading: factoriesLoading } = useFactories();
-  const { data: specSheets, isLoading: specSheetsLoading, error } = useSpecSheetsByFactory(factoryId, publishedOnly);
-
-  // Build factory ID to name map (FactoryLandingPage uses 'title' for name)
-  const factoryMap = new Map<string, string>();
-  factories?.forEach(f => factoryMap.set(f.id, f.title));
-
-  // Transform spec sheets to frontend format
-  const transformedSpecSheets = specSheets?.map(sheet =>
-    transformSpecSheetResponse(sheet, factoryMap)
-  );
-
-  return {
-    data: transformedSpecSheets,
-    isLoading: factoriesLoading || specSheetsLoading,
-    error,
-    factories: factories?.map(f => ({ id: f.id, name: f.title })) || [],
-  };
-}
-
-/**
- * Hook to search spec sheets with manufacturer names resolved
- */
-export function useSpecSheetSearchWithFactoryNames(params: {
-  searchTerm?: string;
-  factoryId?: string;
-  categories?: string[];
-  publishedOnly?: boolean;
-  limit?: number;
-}, enabled: boolean = true) {
-  const { data: factories, isLoading: factoriesLoading } = useFactories();
-  const { data: specSheets, isLoading: specSheetsLoading, error } = useSpecSheetSearch(params, enabled);
-
-  // Build factory ID to name map (FactoryLandingPage uses 'title' for name)
-  const factoryMap = new Map<string, string>();
-  factories?.forEach(f => factoryMap.set(f.id, f.title));
-
-  // Transform spec sheets to frontend format
-  const transformedSpecSheets = specSheets?.map(sheet =>
-    transformSpecSheetResponse(sheet, factoryMap)
-  );
-
-  return {
-    data: transformedSpecSheets,
-    isLoading: factoriesLoading || specSheetsLoading,
-    error,
-    factories: factories?.map(f => ({ id: f.id, name: f.title })) || [],
-  };
-}
-
-/**
- * Hook to get all factories (manufacturers) that have spec sheets
- * This replaces the mock getManufacturersWithSpecSheets function
- */
-export function useManufacturersWithSpecSheets() {
-  const { data: factories, isLoading, error } = useFactories();
-
-  // TODO: Filter to only factories that have spec sheets
-  // For now, return all factories (FactoryLandingPage uses 'title' for name)
-  return {
-    data: factories?.map(f => ({ id: f.id, name: f.title })) || [],
-    isLoading,
-    error,
-  };
-}
+export {
+  useSpecSheetsWithFactoryNames,
+  useSpecSheetSearchWithFactoryNames,
+  useManufacturersWithSpecSheets,
+} from './useSpecSheetsAdapters';
 
 // ============================================================================
 // Re-export types
@@ -431,8 +372,9 @@ export type {
   HighlightRegionInput,
   // Folder types
   FolderResponse,
-  RenameFolderResult,
   CreateFolderInput,
   RenameFolderInput,
   DeleteFolderInput,
+  MoveFolderInput,
+  MoveSpecSheetToFolderInput,
 } from '@/components/lib/graphql/spec-sheets';

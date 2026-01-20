@@ -27,6 +27,7 @@ export interface FolderTreeItemProps {
 
 export interface ManufacturerRowProps {
   manufacturer: string;
+  manufacturerId: string;
   index: number;
   isEditing: boolean;
   isDragging: boolean;

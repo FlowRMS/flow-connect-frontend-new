@@ -20,6 +20,7 @@ interface ViewerSidebarProps {
   setEditableSpecSheetName: (name: string) => void;
   isEditingSpecSheetName: boolean;
   setIsEditingSpecSheetName: (editing: boolean) => void;
+  onSaveSpecSheetName: () => void;
 
   // Tools
   activeTool: HighlightShape | 'select';
@@ -53,13 +54,6 @@ interface ViewerSidebarProps {
   onAddTag: () => void;
   onRemoveTag: (tag: string) => void;
 
-  // AI Highlight
-  aiHighlightPrompt: string;
-  setAiHighlightPrompt: (prompt: string) => void;
-  isAiProcessing: boolean;
-  aiError: string | null;
-  onAiHighlight: () => void;
-
   // Sections
   sectionsExpanded: {
     details: boolean;
@@ -78,6 +72,7 @@ export function ViewerSidebar({
   setEditableSpecSheetName,
   isEditingSpecSheetName,
   setIsEditingSpecSheetName,
+  onSaveSpecSheetName,
   activeTool,
   setActiveTool,
   activeColor,
@@ -102,11 +97,6 @@ export function ViewerSidebar({
   setNewTag,
   onAddTag,
   onRemoveTag,
-  aiHighlightPrompt,
-  setAiHighlightPrompt,
-  isAiProcessing,
-  aiError,
-  onAiHighlight,
   sectionsExpanded,
   toggleSection,
 }: ViewerSidebarProps) {
@@ -119,6 +109,7 @@ export function ViewerSidebar({
         setEditableSpecSheetName={setEditableSpecSheetName}
         isEditingSpecSheetName={isEditingSpecSheetName}
         setIsEditingSpecSheetName={setIsEditingSpecSheetName}
+        onSaveSpecSheetName={onSaveSpecSheetName}
         expanded={sectionsExpanded.details}
         onToggle={() => toggleSection('details')}
       />
@@ -164,11 +155,6 @@ export function ViewerSidebar({
       )}
 
       <AIHighlightSection
-        aiHighlightPrompt={aiHighlightPrompt}
-        setAiHighlightPrompt={setAiHighlightPrompt}
-        isAiProcessing={isAiProcessing}
-        aiError={aiError}
-        onAiHighlight={onAiHighlight}
         expanded={sectionsExpanded.aiHighlight}
         onToggle={() => toggleSection('aiHighlight')}
       />

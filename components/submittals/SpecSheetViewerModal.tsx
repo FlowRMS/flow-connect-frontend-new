@@ -115,6 +115,7 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
             setEditableSpecSheetName={viewer.setEditableSpecSheetName}
             isEditingSpecSheetName={viewer.isEditingSpecSheetName}
             setIsEditingSpecSheetName={viewer.setIsEditingSpecSheetName}
+            onSaveSpecSheetName={viewer.handleSaveSpecSheetName}
             activeTool={viewer.activeTool}
             setActiveTool={viewer.setActiveTool}
             activeColor={viewer.activeColor}
@@ -139,11 +140,6 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
             setNewTag={viewer.setNewTag}
             onAddTag={viewer.handleAddTag}
             onRemoveTag={viewer.handleRemoveTag}
-            aiHighlightPrompt={viewer.aiHighlightPrompt}
-            setAiHighlightPrompt={viewer.setAiHighlightPrompt}
-            isAiProcessing={viewer.isAiProcessing}
-            aiError={viewer.aiError}
-            onAiHighlight={viewer.handleAiHighlight}
             sectionsExpanded={viewer.sectionsExpanded}
             toggleSection={viewer.toggleSection}
           />

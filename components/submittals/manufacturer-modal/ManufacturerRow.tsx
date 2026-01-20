@@ -6,6 +6,7 @@ import type { ManufacturerRowProps } from './types';
 
 export function ManufacturerRow({
   manufacturer,
+  manufacturerId,
   index,
   isEditing,
   isDragging,
@@ -130,7 +131,7 @@ export function ManufacturerRow({
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
-                handleAddRootFolder(manufacturer);
+                handleAddRootFolder(manufacturer, manufacturerId);
               }}
               className="p-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
               title="Add folder"
@@ -204,7 +205,7 @@ export function ManufacturerRow({
                 </svg>
                 <p className="text-sm text-[var(--muted-foreground)]">No folders yet</p>
                 <button
-                  onClick={() => handleAddRootFolder(manufacturer)}
+                  onClick={() => handleAddRootFolder(manufacturer, manufacturerId)}
                   className="mt-2 text-xs text-[var(--primary)] hover:underline"
                 >
                   + Add first folder

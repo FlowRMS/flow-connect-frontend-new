@@ -1,6 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { SpecSheetCategory, UploadSource } from '../../../lib/types/submittals';
-import { useManufacturersWithSpecSheets, useCreateSpecSheet, useFoldersByFactory } from '../api/useSpecSheetsApi';
+import { useManufacturersWithSpecSheets, useCreateSpecSheet, useFoldersByFactory, useCreateFolder, type FolderResponse } from '../api/useSpecSheetsApi';
+
+export interface FolderOption {
+  id: string;
+  name: string;
+  displayPath: string;
+}
 
 interface UseSpecSheetUploadParams {
   defaultManufacturerId?: string;
@@ -17,18 +23,49 @@ export function useSpecSheetUpload({ defaultManufacturerId, onSuccess, onClose }
   const [selectedCategories, setSelectedCategories] = useState<SpecSheetCategory[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string>('');
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
 
   const { data: manufacturers = [], isLoading: loadingManufacturers } = useManufacturersWithSpecSheets();
   const createSpecSheetMutation = useCreateSpecSheet();
+  const createFolderMutation = useCreateFolder();
   const { data: existingFolders = [], isLoading: loadingFolders } = useFoldersByFactory(manufacturerId || null);
 
-  const folderOptions = useMemo(() => {
+  // Build display path for a folder by traversing parent chain
+  const buildFolderPath = useCallback((folder: FolderResponse, allFolders: FolderResponse[]): string => {
+    const pathParts: string[] = [folder.name];
+    let currentParentId = folder.parentId;
+
+    while (currentParentId) {
+      const parent = allFolders.find(f => f.id === currentParentId);
+      if (parent) {
+        pathParts.unshift(parent.name);
+        currentParentId = parent.parentId;
+      } else {
+        break;
+      }
+    }
+
+    return pathParts.join('/');
+  }, []);
+
+  const folderOptions = useMemo((): FolderOption[] => {
     if (!existingFolders || existingFolders.length === 0) return [];
-    return existingFolders.map(f => f.folderPath).sort((a, b) => a.localeCompare(b));
-  }, [existingFolders]);
+    return existingFolders
+      .map(f => ({
+        id: f.id,
+        name: f.name,
+        displayPath: buildFolderPath(f, existingFolders),
+      }))
+      .sort((a, b) => a.displayPath.localeCompare(b.displayPath));
+  }, [existingFolders, buildFolderPath]);
+
+  const selectedFolderDisplayPath = useMemo(() => {
+    if (!selectedFolderId) return '';
+    const folder = folderOptions.find(f => f.id === selectedFolderId);
+    return folder?.displayPath || '';
+  }, [selectedFolderId, folderOptions]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -68,16 +105,26 @@ export function useSpecSheetUpload({ defaultManufacturerId, onSuccess, onClose }
     );
   };
 
-  const handleAddFolder = () => {
-    if (!newFolderName.trim()) return;
-    const currentPath = selectedFolderPath;
-    const newPath = currentPath ? `${currentPath}/${newFolderName.trim()}` : newFolderName.trim();
-    setSelectedFolderPath(newPath);
-    setNewFolderName('');
-    setShowNewFolder(false);
+  const handleAddFolder = async () => {
+    if (!newFolderName.trim() || !manufacturerId) return;
+
+    try {
+      const newFolder = await createFolderMutation.mutateAsync({
+        factoryId: manufacturerId,
+        folderName: newFolderName.trim(),
+        parentFolderId: selectedFolderId || null, // Create as child of selected folder, or at root
+      });
+
+      // Select the newly created folder
+      setSelectedFolderId(newFolder.id);
+      setNewFolderName('');
+      setShowNewFolder(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create folder');
+    }
   };
 
-  const handleClearFolder = () => setSelectedFolderPath('');
+  const handleClearFolder = () => setSelectedFolderId('');
 
   const getFileName = () => {
     if (uploadSource === 'file' && file) return file.name;
@@ -100,7 +147,7 @@ export function useSpecSheetUpload({ defaultManufacturerId, onSuccess, onClose }
         sourceUrl: uploadSource === 'url' ? url : undefined,
         pageCount: 1,
         categories: selectedCategories,
-        folderPath: selectedFolderPath || undefined,
+        folderId: selectedFolderId || undefined,
         file: uploadSource === 'file' ? file ?? undefined : undefined,
         published: true,
         needsReview: false,
@@ -115,7 +162,7 @@ export function useSpecSheetUpload({ defaultManufacturerId, onSuccess, onClose }
 
   const handleManufacturerChange = (id: string) => {
     setManufacturerId(id);
-    setSelectedFolderPath('');
+    setSelectedFolderId('');
   };
 
   const isValid = () => {
@@ -124,6 +171,7 @@ export function useSpecSheetUpload({ defaultManufacturerId, onSuccess, onClose }
   };
 
   const isLoading = createSpecSheetMutation.isPending;
+  const isCreatingFolder = createFolderMutation.isPending;
 
   return {
     // State
@@ -135,7 +183,8 @@ export function useSpecSheetUpload({ defaultManufacturerId, onSuccess, onClose }
     selectedCategories,
     isDragging,
     error,
-    selectedFolderPath,
+    selectedFolderId,
+    selectedFolderDisplayPath,
     showNewFolder,
     newFolderName,
     manufacturers,
@@ -143,12 +192,13 @@ export function useSpecSheetUpload({ defaultManufacturerId, onSuccess, onClose }
     loadingFolders,
     folderOptions,
     isLoading,
+    isCreatingFolder,
     // Setters
     setUploadSource,
     setUrl,
     setFile,
     setDisplayName,
-    setSelectedFolderPath,
+    setSelectedFolderId,
     setShowNewFolder,
     setNewFolderName,
     // Handlers

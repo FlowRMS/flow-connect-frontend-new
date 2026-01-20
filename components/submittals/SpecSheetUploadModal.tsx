@@ -78,14 +78,16 @@ export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufa
             <FolderSelector
               loadingFolders={upload.loadingFolders}
               folderOptions={upload.folderOptions}
-              selectedFolderPath={upload.selectedFolderPath}
-              setSelectedFolderPath={upload.setSelectedFolderPath}
+              selectedFolderId={upload.selectedFolderId}
+              selectedFolderDisplayPath={upload.selectedFolderDisplayPath}
+              setSelectedFolderId={upload.setSelectedFolderId}
               showNewFolder={upload.showNewFolder}
               setShowNewFolder={upload.setShowNewFolder}
               newFolderName={upload.newFolderName}
               setNewFolderName={upload.setNewFolderName}
               handleAddFolder={upload.handleAddFolder}
               handleClearFolder={upload.handleClearFolder}
+              isCreatingFolder={upload.isCreatingFolder}
             />
           )}
 

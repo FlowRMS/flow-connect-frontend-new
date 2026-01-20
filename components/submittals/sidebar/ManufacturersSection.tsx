@@ -41,7 +41,7 @@ interface ManufacturersSectionProps {
   // Spec sheet drag & drop
   specSheetDragOverFolderId?: string | null;
   setSpecSheetDragOverFolderId?: (id: string | null) => void;
-  onSpecSheetDrop?: (specSheetId: string, folderPath: string) => void;
+  onSpecSheetDrop?: (specSheetIdOrIds: string | string[], folderId: string, folderName?: string) => void;
 }
 
 export function ManufacturersSection({

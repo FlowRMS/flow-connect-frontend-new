@@ -12,6 +12,8 @@ interface SpecSheetCardProps {
   isMultiSelected?: boolean;
   onToggleSelect?: (id: string, isCtrlOrCmd: boolean) => void;
   selectedIds?: Set<string>;
+  // Context menu
+  onContextMenu?: (e: React.MouseEvent, specSheet: SpecSheet) => void;
 }
 
 export function SpecSheetCard({
@@ -22,6 +24,7 @@ export function SpecSheetCard({
   isMultiSelected = false,
   onToggleSelect,
   selectedIds = new Set(),
+  onContextMenu,
 }: SpecSheetCardProps) {
   const handleDragStart = (e: React.DragEvent) => {
     // If this item is selected and there are multiple selections, drag all selected
@@ -43,6 +46,13 @@ export function SpecSheetCard({
     e.stopPropagation();
     if (onToggleSelect) {
       onToggleSelect(specSheet.id, e.ctrlKey || e.metaKey);
+    }
+  };
+
+  const handleMenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onContextMenu) {
+      onContextMenu(e, specSheet);
     }
   };
 
@@ -71,6 +81,20 @@ export function SpecSheetCard({
             </svg>
           )}
         </div>
+      )}
+
+      {/* Context menu button */}
+      {onContextMenu && (
+        <button
+          onClick={handleMenuClick}
+          className="absolute top-2 right-2 z-10 p-1.5 rounded bg-white/80 hover:bg-white text-[var(--muted-foreground)] hover:text-[var(--foreground)] opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+        >
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="10" cy="5" r="1.5"/>
+            <circle cx="10" cy="10" r="1.5"/>
+            <circle cx="10" cy="15" r="1.5"/>
+          </svg>
+        </button>
       )}
 
       {/* PDF Preview Placeholder */}
@@ -135,6 +159,8 @@ interface SpecSheetListItemProps {
   isMultiSelected?: boolean;
   onToggleSelect?: (id: string, isCtrlOrCmd: boolean) => void;
   selectedIds?: Set<string>;
+  // Context menu
+  onContextMenu?: (e: React.MouseEvent, specSheet: SpecSheet) => void;
 }
 
 export function SpecSheetListItem({
@@ -145,6 +171,7 @@ export function SpecSheetListItem({
   isMultiSelected = false,
   onToggleSelect,
   selectedIds = new Set(),
+  onContextMenu,
 }: SpecSheetListItemProps) {
   const handleDragStart = (e: React.DragEvent) => {
     // If this item is selected and there are multiple selections, drag all selected
@@ -166,6 +193,13 @@ export function SpecSheetListItem({
     e.stopPropagation();
     if (onToggleSelect) {
       onToggleSelect(specSheet.id, e.ctrlKey || e.metaKey);
+    }
+  };
+
+  const handleMenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onContextMenu) {
+      onContextMenu(e, specSheet);
     }
   };
 
@@ -247,7 +281,7 @@ export function SpecSheetListItem({
 
       {/* Actions */}
       <button
-        onClick={(e) => { e.stopPropagation(); }}
+        onClick={handleMenuClick}
         className="p-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors flex-shrink-0"
       >
         <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">

@@ -7,6 +7,8 @@ import {
   useCreateHighlightVersion,
   useUpdateHighlightRegions,
   useDeleteHighlightVersion,
+  useRenameHighlightVersion,
+  useUpdateSpecSheet,
   type HighlightVersionResponse,
 } from '../api/useSpecSheetsApi';
 import { useAiHighlight } from './useAiHighlight';
@@ -83,6 +85,8 @@ export function useSpecSheetViewer({ specSheet }: UseSpecSheetViewerParams) {
   const createVersionMutation = useCreateHighlightVersion();
   const updateRegionsMutation = useUpdateHighlightRegions();
   const deleteVersionMutation = useDeleteHighlightVersion();
+  const renameVersionMutation = useRenameHighlightVersion();
+  const updateSpecSheetMutation = useUpdateSpecSheet();
 
   // Transform API versions to local format
   const versions = useMemo(() => {
@@ -310,12 +314,42 @@ export function useSpecSheetViewer({ specSheet }: UseSpecSheetViewerParams) {
   }, [versions, deleteVersionMutation, specSheet.id, selectedVersionId]);
 
   // Rename a version
-  const handleRenameVersion = useCallback((versionId: string, newName: string) => {
-    if (!newName.trim()) return;
-    console.log('Version rename not yet implemented in API:', versionId, newName);
-    setEditingVersionId(null);
-    setEditingVersionName('');
-  }, []);
+  const handleRenameVersion = useCallback(async (versionId: string, newName: string) => {
+    if (!newName.trim()) {
+      setEditingVersionId(null);
+      setEditingVersionName('');
+      return;
+    }
+
+    try {
+      await renameVersionMutation.mutateAsync({
+        id: versionId,
+        name: newName.trim(),
+        specSheetId: specSheet.id,
+      });
+    } catch (error) {
+      console.error('Failed to rename version:', error);
+    } finally {
+      setEditingVersionId(null);
+      setEditingVersionName('');
+    }
+  }, [renameVersionMutation, specSheet.id]);
+
+  // Save spec sheet name
+  const handleSaveSpecSheetName = useCallback(async () => {
+    if (!editableSpecSheetName.trim() || editableSpecSheetName === specSheet.displayName) return;
+
+    try {
+      await updateSpecSheetMutation.mutateAsync({
+        id: specSheet.id,
+        input: { displayName: editableSpecSheetName.trim() },
+      });
+    } catch (error) {
+      console.error('Failed to save spec sheet name:', error);
+      // Revert on error
+      setEditableSpecSheetName(specSheet.displayName);
+    }
+  }, [editableSpecSheetName, specSheet.id, specSheet.displayName, updateSpecSheetMutation]);
 
   const hasUnsavedChanges = drawingRegions.length > 0;
 
@@ -342,6 +376,7 @@ export function useSpecSheetViewer({ specSheet }: UseSpecSheetViewerParams) {
     // Editable name
     editableSpecSheetName, setEditableSpecSheetName,
     isEditingSpecSheetName, setIsEditingSpecSheetName,
+    handleSaveSpecSheetName,
 
     // Versions
     versions, isLoadingVersions, selectedVersionId, selectedVersion,

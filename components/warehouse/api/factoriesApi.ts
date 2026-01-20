@@ -413,7 +413,7 @@ export async function fetchFactoriesWithPagination(
  * Fetch all factories (no pagination)
  */
 export async function fetchFactories(): Promise<FactoryLandingPage[]> {
-  const result = await fetchFactoriesWithPagination();
+  const result = await fetchFactoriesWithPagination(undefined, undefined, { limit: 500, offset: 0 });
   return result.records;
 }
 

@@ -4,6 +4,7 @@ import React from 'react';
 import { useSpecSheetsContent } from './hooks/useSpecSheetsContent';
 
 import { FolderContextMenu } from './FolderContextMenu';
+import { SpecSheetContextMenu } from './SpecSheetContextMenu';
 import { ManufacturerManagementModal } from './ManufacturerManagementModal';
 import { AddFolderModal } from './AddFolderModal';
 import { SpecSheetsSidebar } from './SpecSheetsSidebar';
@@ -77,6 +78,7 @@ export default function SpecSheetsContent() {
         toggleSpecSheetSelection={state.toggleSpecSheetSelection}
         selectAllVisibleSpecSheets={state.selectAllVisibleSpecSheets}
         clearSpecSheetSelection={state.clearSpecSheetSelection}
+        onContextMenu={state.handleSpecSheetContextMenu}
       />
 
       {state.selectedSpecSheet && (
@@ -84,7 +86,7 @@ export default function SpecSheetsContent() {
       )}
 
       {state.showUploadModal && (
-        <SpecSheetUploadModal onClose={() => state.setShowUploadModal(false)} defaultManufacturerId={state.selectedManufacturer || undefined} />
+        <SpecSheetUploadModal onClose={() => state.setShowUploadModal(false)} defaultManufacturerId={state.selectedManufacturerId || undefined} />
       )}
 
       {state.showCatalogModal && <OpenCatalogModal onClose={() => state.setShowCatalogModal(false)} />}
@@ -98,6 +100,84 @@ export default function SpecSheetsContent() {
           onDelete={() => state.handleDeleteFolder(state.contextMenu!.folder)}
           onAddSubfolder={() => state.handleAddSubfolder(state.contextMenu!.folder)}
         />
+      )}
+
+      {state.specSheetContextMenu && (
+        <SpecSheetContextMenu
+          specSheet={state.specSheetContextMenu.specSheet}
+          position={state.specSheetContextMenu.position}
+          onClose={() => state.setSpecSheetContextMenu(null)}
+          onView={() => state.handleSpecSheetView(state.specSheetContextMenu!.specSheet)}
+          onRename={() => state.handleSpecSheetRename(state.specSheetContextMenu!.specSheet)}
+          onDownload={() => state.handleSpecSheetDownload(state.specSheetContextMenu!.specSheet)}
+          onDelete={() => state.handleSpecSheetDelete(state.specSheetContextMenu!.specSheet)}
+        />
+      )}
+
+      {/* Rename Dialog */}
+      {state.renamingSpecSheetId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl p-6 max-w-md mx-4 w-full">
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Rename Spec Sheet</h3>
+            <input
+              type="text"
+              value={state.renamingSpecSheetName}
+              onChange={(e) => state.setRenamingSpecSheetName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') state.handleSpecSheetSaveRename();
+                if (e.key === 'Escape') {
+                  state.setRenamingSpecSheetId(null);
+                  state.setRenamingSpecSheetName('');
+                }
+              }}
+              className="w-full px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  state.setRenamingSpecSheetId(null);
+                  state.setRenamingSpecSheetName('');
+                }}
+                className="px-4 py-2 text-sm text-[var(--foreground)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={state.handleSpecSheetSaveRename}
+                className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {state.showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">Delete Spec Sheet?</h3>
+            <p className="text-sm text-[var(--muted-foreground)] mb-4">
+              Are you sure you want to delete &quot;{state.showDeleteConfirm.displayName}&quot;? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={state.handleCancelDelete}
+                className="px-4 py-2 text-sm text-[var(--foreground)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={state.handleConfirmDelete}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {state.showAddFolderModal && (
@@ -118,7 +198,7 @@ export default function SpecSheetsContent() {
       {state.showManufacturerModal && (
         <ManufacturerManagementModal
           onClose={() => state.setShowManufacturerModal(false)}
-          manufacturerList={state.manufacturerList}
+          manufacturers={state.manufacturers}
           manufacturerCounts={state.manufacturerCounts}
           expandedManufacturers={state.expandedManufacturers}
           toggleManufacturer={state.toggleManufacturer}

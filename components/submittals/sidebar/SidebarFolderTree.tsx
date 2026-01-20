@@ -22,7 +22,7 @@ interface SidebarFolderTreeProps {
   // Drag & drop for spec sheets
   specSheetDragOverFolderId?: string | null;
   setSpecSheetDragOverFolderId?: (id: string | null) => void;
-  onSpecSheetDrop?: (specSheetIdOrIds: string | string[], folderPath: string) => void;
+  onSpecSheetDrop?: (specSheetIdOrIds: string | string[], folderId: string, folderName?: string) => void;
 }
 
 export function SidebarFolderTree({
@@ -68,10 +68,10 @@ export function SidebarFolderTree({
     }
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'));
-      if (data.type === 'specSheet' && onSpecSheetDrop && folder.folderPath) {
+      if (data.type === 'specSheet' && onSpecSheetDrop && folder.id) {
         // Use ids array if available (multi-select), otherwise fall back to single id
         const idsToMove = data.ids && Array.isArray(data.ids) ? data.ids : [data.id];
-        onSpecSheetDrop(idsToMove, folder.folderPath);
+        onSpecSheetDrop(idsToMove, folder.id, folder.name);
       }
     } catch {
       // Invalid drag data, ignore

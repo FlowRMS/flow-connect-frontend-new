@@ -36,7 +36,7 @@ export function PageThumbnails({
             <button
               key={pageNum}
               onClick={() => onPageSelect(pageNum)}
-              className={`w-full bg-white border rounded-lg shadow-sm transition-all relative mb-2 ${
+              className={`w-full bg-white border rounded-lg shadow-sm transition-all relative mb-2 overflow-hidden ${
                 currentPage === pageNum
                   ? 'ring-2 ring-[var(--primary)] border-[var(--primary)]'
                   : 'border-[var(--border)] hover:shadow-md'

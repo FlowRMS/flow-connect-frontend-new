@@ -6,7 +6,7 @@ import { ManufacturerRow } from './manufacturer-modal';
 
 interface ManufacturerManagementModalProps {
   onClose: () => void;
-  manufacturerList: string[];
+  manufacturers: { id: string; name: string }[];
   manufacturerCounts: Record<string, number>;
   expandedManufacturers: Set<string>;
   toggleManufacturer: (manufacturer: string) => void;
@@ -57,7 +57,7 @@ interface ManufacturerManagementModalProps {
 
 export function ManufacturerManagementModal({
   onClose,
-  manufacturerList,
+  manufacturers,
   manufacturerCounts,
   expandedManufacturers,
   toggleManufacturer,
@@ -188,18 +188,19 @@ export function ManufacturerManagementModal({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
           <div className="space-y-2">
-            {manufacturerList.map((manufacturer, index) => (
+            {manufacturers.map((mfr, index) => (
               <ManufacturerRow
-                key={manufacturer}
-                manufacturer={manufacturer}
+                key={mfr.id}
+                manufacturer={mfr.name}
+                manufacturerId={mfr.id}
                 index={index}
                 isEditing={editingManufacturerIndex === index}
                 isDragging={draggedManufacturerIndex === index}
                 isDragOver={dragOverIndex === index}
-                count={manufacturerCounts[manufacturer] || 0}
-                folderCount={getFolderCountForManufacturer(manufacturer)}
-                manufacturerFolders={getAllFoldersForManufacturer(manufacturer)}
-                isExpanded={expandedManufacturers.has(manufacturer)}
+                count={manufacturerCounts[mfr.name] || 0}
+                folderCount={getFolderCountForManufacturer(mfr.name)}
+                manufacturerFolders={getAllFoldersForManufacturer(mfr.name)}
+                isExpanded={expandedManufacturers.has(mfr.name)}
                 editingManufacturerName={editingManufacturerName}
                 setEditingManufacturerName={setEditingManufacturerName}
                 handleSaveManufacturerRename={handleSaveManufacturerRename}
@@ -235,7 +236,7 @@ export function ManufacturerManagementModal({
           </button>
           <div className="flex items-center gap-3">
             <span className="text-sm text-[var(--muted-foreground)]">
-              {manufacturerList.length} manufacturer{manufacturerList.length !== 1 ? 's' : ''} · {folders.length} folder{folders.length !== 1 ? 's' : ''}
+              {manufacturers.length} manufacturer{manufacturers.length !== 1 ? 's' : ''} · {folders.length} folder{folders.length !== 1 ? 's' : ''}
             </span>
             <button
               onClick={handleClose}

@@ -1,14 +1,22 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   useManufacturersWithSpecSheets,
   useSpecSheetSearch,
   useUpdateSpecSheet,
+  useDeleteSpecSheet,
+  useMoveSpecSheetToFolder,
 } from '../api/useSpecSheetsApi';
 import type { SpecSheet, SpecSheetCategory } from '../../../lib/types/submittals';
 import { useSpecSheetsFolders } from './useSpecSheetsFolders';
-import { showSuccessToast, showErrorToast } from '../../lib/toast';
+import { showSuccessToast, showErrorToast, showInfoToast } from '../../lib/toast';
 
 export type HighlightFilter = 'all' | 'highlighted' | 'not_highlighted';
+
+// Context menu state type
+interface SpecSheetContextMenuState {
+  specSheet: SpecSheet;
+  position: { x: number; y: number };
+}
 
 export function useSpecSheetsContent() {
   const [selectedSpecSheet, setSelectedSpecSheet] = useState<SpecSheet | null>(null);
@@ -39,6 +47,14 @@ export function useSpecSheetsContent() {
   // Spec sheet drag to folder state
   const [specSheetDragOverFolderId, setSpecSheetDragOverFolderId] = useState<string | null>(null);
   const updateSpecSheetMutation = useUpdateSpecSheet();
+  const deleteSpecSheetMutation = useDeleteSpecSheet();
+  const moveSpecSheetToFolderMutation = useMoveSpecSheetToFolder();
+
+  // Spec sheet context menu state
+  const [specSheetContextMenu, setSpecSheetContextMenu] = useState<SpecSheetContextMenuState | null>(null);
+  const [renamingSpecSheetId, setRenamingSpecSheetId] = useState<string | null>(null);
+  const [renamingSpecSheetName, setRenamingSpecSheetName] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<SpecSheet | null>(null);
 
   // API Hooks
   const {
@@ -153,10 +169,10 @@ export function useSpecSheetsContent() {
   const handleDragLeave = () => setDragOverIndex(null);
   const handleDrop = () => { setDraggedManufacturerIndex(null); setDragOverIndex(null); };
   const handleDragEnd = () => { setDraggedManufacturerIndex(null); setDragOverIndex(null); };
-  const handleRenameManufacturer = () => alert('To rename a manufacturer, please use the Manufacturers page in Settings.');
+  const handleRenameManufacturer = () => showInfoToast('Manufacturer Management', { description: 'To rename a manufacturer, please use the Manufacturers page in Settings.' });
   const handleSaveManufacturerRename = () => { setEditingManufacturerIndex(null); setEditingManufacturerName(''); };
-  const handleDeleteManufacturer = () => alert('To delete a manufacturer, please use the Manufacturers page in Settings.');
-  const handleAddManufacturer = () => alert('To add a new manufacturer, please use the Manufacturers page in Settings.');
+  const handleDeleteManufacturer = () => showInfoToast('Manufacturer Management', { description: 'To delete a manufacturer, please use the Manufacturers page in Settings.' });
+  const handleAddManufacturer = () => showInfoToast('Manufacturer Management', { description: 'To add a new manufacturer, please use the Manufacturers page in Settings.' });
 
   const allCategories = useMemo(() => {
     const cats = new Set<SpecSheetCategory>();
@@ -230,24 +246,24 @@ export function useSpecSheetsContent() {
   };
 
   // Handler for dropping spec sheet(s) on a folder - supports single ID or array
-  const handleSpecSheetDrop = async (specSheetIdOrIds: string | string[], folderPath: string) => {
+  const handleSpecSheetDrop = async (specSheetIdOrIds: string | string[], folderId: string, folderName?: string) => {
     const ids = Array.isArray(specSheetIdOrIds) ? specSheetIdOrIds : [specSheetIdOrIds];
     const count = ids.length;
 
     try {
-      // Move all spec sheets in parallel
+      // Move all spec sheets in parallel using the dedicated mutation
       await Promise.all(
         ids.map(id =>
-          updateSpecSheetMutation.mutateAsync({
-            id,
-            input: { folderPath },
+          moveSpecSheetToFolderMutation.mutateAsync({
+            specSheetId: id,
+            folderId,
           })
         )
       );
 
       showSuccessToast(
         count === 1 ? 'Spec sheet moved' : `${count} spec sheets moved`,
-        { description: `Moved to ${folderPath}` }
+        { description: folderName ? `Moved to ${folderName}` : 'Moved successfully' }
       );
 
       // Clear selection after successful move
@@ -264,6 +280,115 @@ export function useSpecSheetsContent() {
     allSpecSheets.forEach(s => { counts[s.manufacturer] = (counts[s.manufacturer] || 0) + 1; });
     return counts;
   }, [allSpecSheets]);
+
+  // Spec sheet context menu handlers
+  const handleSpecSheetContextMenu = useCallback((e: React.MouseEvent, specSheet: SpecSheet) => {
+    e.preventDefault();
+    setSpecSheetContextMenu({
+      specSheet,
+      position: { x: e.clientX, y: e.clientY },
+    });
+  }, []);
+
+  const handleSpecSheetView = useCallback((specSheet: SpecSheet) => {
+    setSelectedSpecSheet(specSheet);
+    setSpecSheetContextMenu(null);
+  }, []);
+
+  const handleSpecSheetRename = useCallback((specSheet: SpecSheet) => {
+    setRenamingSpecSheetId(specSheet.id);
+    setRenamingSpecSheetName(specSheet.displayName);
+    setSpecSheetContextMenu(null);
+  }, []);
+
+  const handleSpecSheetSaveRename = useCallback(async () => {
+    if (!renamingSpecSheetId || !renamingSpecSheetName.trim()) {
+      setRenamingSpecSheetId(null);
+      setRenamingSpecSheetName('');
+      return;
+    }
+
+    try {
+      await updateSpecSheetMutation.mutateAsync({
+        id: renamingSpecSheetId,
+        input: { displayName: renamingSpecSheetName.trim() },
+      });
+      showSuccessToast('Spec sheet renamed');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to rename spec sheet';
+      showErrorToast('Failed to rename', { description: message });
+    } finally {
+      setRenamingSpecSheetId(null);
+      setRenamingSpecSheetName('');
+    }
+  }, [renamingSpecSheetId, renamingSpecSheetName, updateSpecSheetMutation]);
+
+  const handleSpecSheetDownload = useCallback(async (specSheet: SpecSheet) => {
+    setSpecSheetContextMenu(null);
+
+    try {
+      // Fetch the file as blob to force download (needed for cross-origin files)
+      const response = await fetch(specSheet.fileUrl);
+      const blob = await response.blob();
+
+      // Create a temporary URL and download link
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = specSheet.fileName || `${specSheet.displayName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+
+      // Cleanup
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      // Fallback to opening in new tab
+      window.open(specSheet.fileUrl, '_blank');
+    }
+  }, []);
+
+  const handleSpecSheetDelete = useCallback((specSheet: SpecSheet) => {
+    setShowDeleteConfirm(specSheet);
+    setSpecSheetContextMenu(null);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!showDeleteConfirm) return;
+
+    try {
+      await deleteSpecSheetMutation.mutateAsync(showDeleteConfirm.id);
+      showSuccessToast('Spec sheet deleted', { description: showDeleteConfirm.displayName });
+
+      // Clear selection if deleted item was selected
+      if (selectedSpecSheet?.id === showDeleteConfirm.id) {
+        setSelectedSpecSheet(null);
+      }
+      setSelectedSpecSheetIds(prev => {
+        const next = new Set(prev);
+        next.delete(showDeleteConfirm.id);
+        return next;
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete spec sheet';
+
+      // Check if it's a constraint error (linked records)
+      if (errorMessage.toLowerCase().includes('linked to other records') || errorMessage.toLowerCase().includes('constraint')) {
+        showErrorToast('Cannot delete spec sheet', {
+          description: 'This spec sheet has highlights or is used in submittals. Remove those references first.'
+        });
+      } else {
+        showErrorToast('Failed to delete', { description: errorMessage });
+      }
+    } finally {
+      setShowDeleteConfirm(null);
+    }
+  }, [showDeleteConfirm, deleteSpecSheetMutation, selectedSpecSheet]);
+
+  const handleCancelDelete = useCallback(() => {
+    setShowDeleteConfirm(null);
+  }, []);
 
   return {
     // State
@@ -331,6 +456,25 @@ export function useSpecSheetsContent() {
     toggleSpecSheetSelection,
     selectAllVisibleSpecSheets,
     clearSpecSheetSelection,
+
+    // Spec sheet context menu
+    specSheetContextMenu,
+    setSpecSheetContextMenu,
+    handleSpecSheetContextMenu,
+    handleSpecSheetView,
+    handleSpecSheetRename,
+    handleSpecSheetDownload,
+    handleSpecSheetDelete,
+    // Spec sheet rename
+    renamingSpecSheetId,
+    renamingSpecSheetName,
+    setRenamingSpecSheetName,
+    handleSpecSheetSaveRename,
+    setRenamingSpecSheetId,
+    // Spec sheet delete confirmation
+    showDeleteConfirm,
+    handleConfirmDelete,
+    handleCancelDelete,
 
     // Folder state (spread from folderState)
     ...folderState,

@@ -36,6 +36,9 @@ interface SpecSheetsMainContentProps {
   toggleSpecSheetSelection: (id: string, isCtrlOrCmd: boolean) => void;
   selectAllVisibleSpecSheets: () => void;
   clearSpecSheetSelection: () => void;
+
+  // Context menu
+  onContextMenu: (e: React.MouseEvent, specSheet: SpecSheet) => void;
 }
 
 export function SpecSheetsMainContent({
@@ -57,6 +60,7 @@ export function SpecSheetsMainContent({
   toggleSpecSheetSelection,
   selectAllVisibleSpecSheets,
   clearSpecSheetSelection,
+  onContextMenu,
 }: SpecSheetsMainContentProps) {
   const hasSelection = selectedSpecSheetIds.size > 0;
   return (
@@ -246,6 +250,7 @@ export function SpecSheetsMainContent({
                 isMultiSelected={selectedSpecSheetIds.has(sheet.id)}
                 onToggleSelect={toggleSpecSheetSelection}
                 selectedIds={selectedSpecSheetIds}
+                onContextMenu={onContextMenu}
               />
             ))}
           </div>
@@ -261,6 +266,7 @@ export function SpecSheetsMainContent({
                 isMultiSelected={selectedSpecSheetIds.has(sheet.id)}
                 onToggleSelect={toggleSpecSheetSelection}
                 selectedIds={selectedSpecSheetIds}
+                onContextMenu={onContextMenu}
               />
             ))}
           </div>
