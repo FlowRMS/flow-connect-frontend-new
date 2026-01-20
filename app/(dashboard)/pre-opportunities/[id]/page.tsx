@@ -12,6 +12,8 @@ import { DeleteConfirmModal } from '@/components/pre-opportunities/modals/Delete
 import { preOpportunityToasts } from '@/components/lib/toast';
 import type { EditFormData } from '@/components/pre-opportunities/detail/PreOpportunityDetailsForm';
 import type { PreOpportunityDetailInput } from '@/components/pre-opportunities/types';
+import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -20,7 +22,8 @@ interface PageProps {
 export default function PreOpportunityDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
-  
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+
   const { data: preOpp, isLoading, error, refetch } = useCRMPreOpportunity(id);
   const updateMutation = useUpdateCRMPreOpportunity();
   const deleteMutation = useDeleteCRMPreOpportunity();
@@ -62,6 +65,13 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
   }, [preOpp]);
 
   const handleBack = () => {
+    // Check for unsaved changes before allowing navigation
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/pre-opportunities', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
     router.push('/pre-opportunities');
   };
 
@@ -73,8 +83,8 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
     setEditedLineItems(items);
   }, []);
 
-  const handleSave = async () => {
-    if (!preOpp) return;
+  const handleSave = async (): Promise<boolean> => {
+    if (!preOpp) return false;
 
     // Use edited line items if available, otherwise use existing details
     const detailsToSave = editedLineItems || preOpp.details?.map(d => ({
@@ -112,11 +122,22 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
       setIsEditing(false);
       setEditedLineItems(null);
       refetch();
+      return true;
     } catch (error) {
       console.error('Failed to update:', error);
       preOpportunityToasts.updateError(error instanceof Error ? error.message : undefined);
+      return false;
     }
   };
+
+  // Unsaved changes guard - tracks pre-opportunity editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Pre-Opportunity',
+    entityId: id,
+    entityName: preOpp?.entityNumber || null,
+    hasChanges: isEditing && (Object.keys(editFormData).length > 0 || editedLineItems !== null),
+    onSave: handleSave,
+  });
 
   const handleCancel = () => {
     setIsEditing(false);

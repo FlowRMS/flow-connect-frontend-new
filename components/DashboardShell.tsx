@@ -8,9 +8,11 @@ import { SidebarConfigProvider } from '@/contexts/SidebarConfigContext';
 import { NavigationMorphProvider } from '@/contexts/NavigationMorphContext';
 import { UserSettingsProvider } from '@/contexts/UserSettingsContext';
 import { OrganizationProvider } from '@/contexts/OrganizationContext';
+import { UnsavedChangesProvider } from '@/contexts/UnsavedChangesContext';
 import { useWelcomeAnimation } from '@/components/hooks/useWelcomeAnimation';
 import { FlowChatProvider } from '@/contexts/FlowChatContext';
 import { FlowChat } from '@/components/flowchat';
+import { NavigationBlockerModal } from '@/components/shared/modals/NavigationBlockerModal';
 
 // Lazy load the welcome animation for better performance
 const WelcomeAnimation = lazy(() => import('@/components/WelcomeAnimation'));
@@ -84,40 +86,45 @@ export default function DashboardShell({
         <SidebarConfigProvider>
           <NavigationMorphProvider>
             <MobileSidebarProvider>
-              <FlowChatProvider>
-                {/* Welcome Animation Overlay */}
-                {showWelcome && (
-                  <Suspense fallback={
-                    <div
-                      className="fixed inset-0 z-[9999]"
-                      style={{ backgroundColor: 'var(--background, #ffffff)' }}
-                    />
-                  }>
-                    <WelcomeAnimation onComplete={completeWelcome} />
-                  </Suspense>
-                )}
+              <UnsavedChangesProvider>
+                <FlowChatProvider>
+                  {/* Welcome Animation Overlay */}
+                  {showWelcome && (
+                    <Suspense fallback={
+                      <div
+                        className="fixed inset-0 z-[9999]"
+                        style={{ backgroundColor: 'var(--background, #ffffff)' }}
+                      />
+                    }>
+                      <WelcomeAnimation onComplete={completeWelcome} />
+                    </Suspense>
+                  )}
 
-                <div className="flex h-screen bg-[var(--background)]">
-                  {/* Shared Sidebar - only rendered once, persists across navigation */}
-                  <Sidebar />
+                  <div className="flex h-screen bg-[var(--background)]">
+                    {/* Shared Sidebar - only rendered once, persists across navigation */}
+                    <Sidebar />
 
-                  {/* Main Content Area */}
-                  <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                    {/* Shared TopBar - only rendered once, persists across navigation */}
-                    <TopBar />
-                    {/* Smooth morph transition with scale + fade + slide */}
-                    <div
-                      className="flex-1 flex flex-col overflow-hidden"
-                      style={getTransformStyle()}
-                    >
-                      {children}
+                    {/* Main Content Area */}
+                    <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                      {/* Shared TopBar - only rendered once, persists across navigation */}
+                      <TopBar />
+                      {/* Smooth morph transition with scale + fade + slide */}
+                      <div
+                        className="flex-1 flex flex-col overflow-hidden"
+                        style={getTransformStyle()}
+                      >
+                        {children}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* FlowChat - Global AI Assistant */}
-                <FlowChat />
-              </FlowChatProvider>
+                  {/* FlowChat - Global AI Assistant */}
+                  <FlowChat />
+
+                  {/* Navigation Blocker Modal - for unsaved changes */}
+                  <NavigationBlockerModal />
+                </FlowChatProvider>
+              </UnsavedChangesProvider>
             </MobileSidebarProvider>
           </NavigationMorphProvider>
         </SidebarConfigProvider>

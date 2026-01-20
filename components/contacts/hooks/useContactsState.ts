@@ -10,6 +10,8 @@ import {
   useUpdateCRMContact,
   useDeleteCRMContact
 } from '../../hooks/useCRMApi';
+import { useQuery } from '@tanstack/react-query';
+import { searchContacts, type ContactSearchResult } from '../../lib/api/search';
 
 import { mapLandingPageToUIContact } from '../types';
 import { contactToasts } from '../../lib/toast';
@@ -32,6 +34,26 @@ export function useContactsState() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // API search for contacts
+  const { data: searchResults, isLoading: isSearching } = useQuery<ContactSearchResult[], Error>({
+    queryKey: ['contactSearch', debouncedSearchQuery],
+    queryFn: () => searchContacts(debouncedSearchQuery, 50),
+    enabled: debouncedSearchQuery.length >= 2,
+    staleTime: 30 * 1000,
+  });
+
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDedupeModal, setShowDedupeModal] = useState(false);
@@ -40,6 +62,8 @@ export function useContactsState() {
   const [isEditing, setIsEditing] = useState(true);
   const [editFormData, setEditFormData] = useState<Partial<Contact>>({});
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  // Track if user has made actual edits (not just entered edit mode)
+  const [hasLocalEdits, setHasLocalEdits] = useState(false);
 
   // Initialize editFormData when a contact is selected
   useEffect(() => {
@@ -56,6 +80,8 @@ export function useContactsState() {
         tags: selectedContact.tags,
         notes: selectedContact.notes,
       });
+      // Reset hasLocalEdits when switching contacts
+      setHasLocalEdits(false);
     }
   }, [selectedContact?.id, isEditing]); // Re-initialize when contact changes or edit mode changes
 
@@ -119,10 +145,34 @@ export function useContactsState() {
     return landingPageContacts.map(mapLandingPageToUIContact);
   }, [landingPageContacts]);
 
-  // Filtered contacts (same as contacts since filtering is done server-side)
+  // Transform search results to Contact format
+  const transformSearchResultToContact = useCallback((result: ContactSearchResult): Contact => ({
+    id: result.id,
+    firstName: result.firstName,
+    lastName: result.lastName,
+    name: `${result.firstName} ${result.lastName}`.trim(),
+    email: result.email || '',
+    phone: result.phone || '',
+    role: result.role || '',
+    territory: result.territory || '',
+    tags: result.tags ? (typeof result.tags === 'string' ? result.tags.split(',').map(t => t.trim()).filter(Boolean) : result.tags) : [],
+    notes: result.notes || '',
+    createdAt: result.createdAt || '',
+    company: '',
+    companyId: undefined,
+    contactType: [],
+    lists: [],
+    lastActivity: '',
+    createdBy: '',
+  }), []);
+
+  // Filtered contacts - use search results when searching, otherwise use paginated data
   const filteredContacts = useMemo(() => {
+    if (debouncedSearchQuery.length >= 2 && searchResults) {
+      return searchResults.map(transformSearchResultToContact);
+    }
     return contacts;
-  }, [contacts]);
+  }, [contacts, debouncedSearchQuery, searchResults, transformSearchResultToContact]);
 
   // Get total count from first page
   const totalCount = useMemo(() => {
@@ -351,8 +401,9 @@ export function useContactsState() {
         role: editFormData.role || selectedContact.role,
         tags: updatedTags,
       });
-      
+
       setIsEditing(false);
+      setHasLocalEdits(false);
       refetch();
     } catch (err) {
       console.error('Failed to update contact:', err);
@@ -363,7 +414,18 @@ export function useContactsState() {
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditFormData({});
+    setHasLocalEdits(false);
   };
+
+  // Wrapper for setEditFormData that tracks changes
+  const handleEditFormChange = useCallback((updater: Partial<Contact> | ((prev: Partial<Contact>) => Partial<Contact>)) => {
+    setHasLocalEdits(true);
+    if (typeof updater === 'function') {
+      setEditFormData(updater);
+    } else {
+      setEditFormData(prev => ({ ...prev, ...updater }));
+    }
+  }, []);
 
   // Handle delete
   const handleDeleteContact = async (id: string) => {
@@ -395,6 +457,9 @@ export function useContactsState() {
     setIsEditing,
     editFormData,
     setEditFormData,
+    handleEditFormChange,
+    hasLocalEdits,
+    setHasLocalEdits,
     deleteConfirmId,
     setDeleteConfirmId,
     activeFilter,
@@ -403,6 +468,11 @@ export function useContactsState() {
     clientSortColumn,
     clientSortDirection,
     clientSortColumns,
+
+    // Search state
+    searchQuery,
+    setSearchQuery,
+    isSearching,
 
     // Data
     isConnected,

@@ -38,6 +38,8 @@ import {
 import { useAdjustmentsState } from '@/components/orders/detail/hooks/useAdjustmentsState';
 import { getTabsConfig } from './config/tabsConfig';
 import { SAVED_VIEWS, getDefaultView } from './config/viewsConfig';
+import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 interface CheckDetailContentProps {
   checkId: string;
@@ -49,6 +51,7 @@ export default function CheckDetailContent({
   const router = useRouter();
   const state = useCheckDetailState({ checkId });
   const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation, hasUnsavedChanges, clearUnsavedChanges } = useUnsavedChangesContext();
 
   // Adjustments state management - reuse from orders
   const adjustmentsState = useAdjustmentsState();
@@ -95,6 +98,37 @@ export default function CheckDetailContent({
     // Fallback: If no presigned URL, show a message (backend should always provide URL)
     console.warn('No presigned URL available from backend for posted statement');
   }, [postedStatement, state]);
+
+  // Wrapper for save handler to return boolean for unsaved changes guard
+  const handleSaveForGuard = useCallback(async (): Promise<boolean> => {
+    if (!state?.handleSave) return false;
+    try {
+      await state.handleSave();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [state]);
+
+  // Unsaved changes guard - must be before any early returns
+  useUnsavedChangesGuard({
+    entityType: 'Check',
+    entityId: state?.isCreateMode ? null : checkId,
+    entityName: state?.checkNumber || null,
+    hasChanges: state?.hasChanges || false,
+    onSave: handleSaveForGuard,
+  });
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/commissions', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/commissions');
+  };
 
   // Loading state
   if (state?.isLoading) {
@@ -179,6 +213,7 @@ export default function CheckDetailContent({
         isDeleting={state.isDeleting}
         isOriginallyPosted={state.isOriginallyPosted}
         hasChanges={state.hasChanges}
+        onBack={handleBack}
       />
 
       {/* Pricing Summary Bar */}

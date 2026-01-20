@@ -13,6 +13,8 @@ interface InventoryStatsProps {
     onStatCardClick: (filter: StatFilter) => void;
 }
 
+import { formatQuantity } from './utils';
+
 export default function InventoryStats({
     stats,
     activeStatFilter,
@@ -40,14 +42,14 @@ export default function InventoryStats({
             </div>
             <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
                 <div className="text-sm text-[var(--muted-foreground)]">Total Quantity</div>
-                <div className="text-2xl font-semibold text-[var(--foreground)] mt-1">{stats.totalQuantity.toLocaleString()}</div>
+                <div className="text-2xl font-semibold text-[var(--foreground)] mt-1">{formatQuantity(stats.totalQuantity)}</div>
             </div>
             <div
                 className={getStatCardClass('available')}
                 onClick={() => onStatCardClick('available')}
             >
                 <div className="text-sm text-[var(--muted-foreground)]">Available</div>
-                <div className="text-2xl font-semibold text-green-600 mt-1">{stats.availableQuantity.toLocaleString()}</div>
+                <div className="text-2xl font-semibold text-green-600 mt-1">{formatQuantity(stats.availableQuantity)}</div>
                 {activeStatFilter === 'available' && (
                     <div className="text-xs text-[var(--primary)] mt-1">Filter active</div>
                 )}
@@ -57,7 +59,7 @@ export default function InventoryStats({
                 onClick={() => onStatCardClick('reserved')}
             >
                 <div className="text-sm text-[var(--muted-foreground)]">Reserved</div>
-                <div className="text-2xl font-semibold text-blue-600 mt-1">{stats.reservedQuantity.toLocaleString()}</div>
+                <div className="text-2xl font-semibold text-blue-600 mt-1">{formatQuantity(stats.reservedQuantity)}</div>
                 {activeStatFilter === 'reserved' && (
                     <div className="text-xs text-[var(--primary)] mt-1">Filter active</div>
                 )}

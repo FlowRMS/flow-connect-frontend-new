@@ -22,6 +22,8 @@ import {
   useDeleteAddress,
   type Address,
 } from '@/components/hooks/useAddressApi';
+import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 type TabId = 'overview' | 'addresses' | 'split-rates' | 'connected-entities' | 'customer-xref' | 'shipto-xref' | 'freight';
 
@@ -170,15 +172,15 @@ export default function ManufacturerEditPage() {
     setHasChanges(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!formData.title?.trim()) {
       toast.error('Manufacturer name is required');
-      return;
+      return false;
     }
 
     if (!isValidSplitRate) {
       toast.error('Total split rate must equal exactly 100%');
-      return;
+      return false;
     }
 
     const splitRatesInput = entriesToFactorySplitRateInputsWithId(splitRateEntries);
@@ -205,10 +207,35 @@ export default function ManufacturerEditPage() {
       });
       toast.success('Manufacturer updated successfully');
       setHasChanges(false);
+      return true;
     } catch (err) {
       toast.error('Failed to update manufacturer');
       console.error('Update error:', err);
+      return false;
     }
+  };
+
+  // Unsaved changes guard - tracks manufacturer editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Manufacturer',
+    entityId: factoryId,
+    entityName: factory?.title || null,
+    hasChanges,
+    onSave: handleSave,
+  });
+
+  // Get unsaved changes context for back button navigation check
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/manufacturers', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/manufacturers');
   };
 
   const tabs = [
@@ -322,7 +349,7 @@ export default function ManufacturerEditPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/manufacturers')}
+              onClick={handleBack}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

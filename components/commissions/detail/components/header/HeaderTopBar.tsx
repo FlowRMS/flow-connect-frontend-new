@@ -48,6 +48,7 @@ interface HeaderTopBarProps {
   isOriginallyPosted?: boolean;
   // Unsaved changes
   hasChanges?: boolean;
+  onBack?: () => void;
 }
 
 const getStatusColor = (status: CheckStatus) => {
@@ -84,9 +85,18 @@ export function HeaderTopBar({
   isDeleting = false,
   isOriginallyPosted = false,
   hasChanges = false,
+  onBack,
 }: HeaderTopBarProps) {
   const router = useRouter();
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.push('/commissions');
+    }
+  };
 
   const handleExportCheckDetails = () => {
     onExportCheckDetails?.();
@@ -120,11 +130,11 @@ export function HeaderTopBar({
   };
 
   return (
-    <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
+    <div className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push('/commissions')}
+            onClick={handleBack}
             className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
             title="Back to Commissions"
           >

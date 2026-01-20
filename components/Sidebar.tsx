@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSidebarConfig } from '@/contexts/SidebarConfigContext';
 import { useNavigationMorph, isMorphableItem } from '@/contexts/NavigationMorphContext';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 const SCROLL_STORAGE_KEY = 'sidebar-scroll-position';
 
@@ -535,6 +536,7 @@ export default function Sidebar() {
   const { config, toggleGroup } = useSidebarConfig();
   const navRef = useRef<HTMLElement>(null);
   const { registerSidebarItem, startMorph, isAnimating, activeItemId } = useNavigationMorph();
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
 
   // Track which item was just clicked for animation
   const [clickedItemId, setClickedItemId] = useState<string | null>(null);
@@ -628,6 +630,15 @@ export default function Sidebar() {
     // Don't animate if already active
     if (isActive) return;
 
+    // Check for unsaved changes before allowing navigation
+    if (hasUnsavedChanges) {
+      e.preventDefault();
+      const canNavigate = requestNavigation(href, 'sidebar');
+      if (!canNavigate) {
+        return;
+      }
+    }
+
     // IMMEDIATELY update visual selection - this makes the pill slide instantly
     setVisuallySelectedId(itemId);
 
@@ -649,7 +660,7 @@ export default function Sidebar() {
     }
 
     // Navigation happens immediately - no delay
-  }, [startMorph]);
+  }, [startMorph, hasUnsavedChanges, requestNavigation]);
 
   return (
     <div className={`${isCollapsed ? 'w-16' : 'w-60'} bg-[var(--card)] border-r border-[var(--border)] flex flex-col transition-all duration-300`}>

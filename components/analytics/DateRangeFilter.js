@@ -6,14 +6,84 @@ import { format, parse, isValid } from "date-fns";
 import { Calendar, X, ArrowRight, ChevronDown, Check } from "lucide-react";
 import "react-day-picker/style.css";
 import "@/app/analytics-styles/date-picker.css";
-import { 
-  RELATIVE_DATE_OPTIONS, 
-  DATE_FIELD_MAPPING, 
+import {
+  RELATIVE_DATE_OPTIONS,
+  DATE_FIELD_MAPPING,
   calculateRelativeDateRange,
   formatDateRangeDisplay,
   formatDateForInput,
-  detectRelativePeriod
+  detectRelativePeriod,
+  getDefault2YearRange
 } from "@/lib/analytics/utils/relativeDateUtils";
+
+// Custom dropdown component for DayPicker that matches our design system
+function CustomDropdown({ options, value, onChange, "aria-label": ariaLabel }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Find the selected option's label
+  const selectedOption = options?.find(opt => String(opt.value) === String(value));
+  const displayLabel = selectedOption?.label || value;
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelect = (option) => {
+    // Don't allow selection of disabled options
+    if (option.disabled) return;
+
+    if (onChange) {
+      const syntheticEvent = {
+        target: { value: String(option.value) }
+      };
+      onChange(syntheticEvent);
+    }
+    setIsOpen(false);
+  };
+
+  return (
+    <div ref={dropdownRef} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        aria-label={ariaLabel}
+        className="flex items-center justify-between gap-1 px-2 py-1 bg-white dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 rounded-md shadow-sm hover:border-blue-400 dark:hover:border-blue-500 transition-colors text-sm min-w-[80px]"
+      >
+        <span className="text-gray-700 dark:text-gray-200">{displayLabel}</span>
+        <ChevronDown size={14} className={`text-gray-500 dark:text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 z-[100] bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-gray-200 dark:border-zinc-700 py-1 min-w-[100px] max-h-[200px] overflow-y-auto">
+          {options?.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => handleSelect(option)}
+              disabled={option.disabled}
+              className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                option.disabled
+                  ? "text-gray-300 dark:text-gray-600 cursor-not-allowed"
+                  : String(option.value) === String(value)
+                    ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                    : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-700"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function DateRangeFilter({ 
   startDate, 
@@ -150,8 +220,9 @@ export function DateRangeFilter({
   };
 
   const handleClear = () => {
-    setPendingStartDate("");
-    setPendingEndDate("");
+    const defaults = getDefault2YearRange();
+    setPendingStartDate(defaults.startDate);
+    setPendingEndDate(defaults.endDate);
     setPendingFilterByDate("ENTITY_DATE");
     if (onClear) {
       onClear();
@@ -284,9 +355,14 @@ export function DateRangeFilter({
                 <DayPicker
                   mode="single"
                   selected={startDateObj}
+                  defaultMonth={startDateObj || new Date()}
                   onSelect={handleStartDateSelect}
                   disabled={{ after: endDateObj }}
                   className="rdp-custom"
+                  captionLayout="dropdown"
+                  startMonth={new Date(2015, 0)}
+                  endMonth={new Date()}
+                  components={{ Dropdown: CustomDropdown }}
                   modifiersClassNames={{
                     selected: "bg-blue-500 text-white hover:bg-blue-600",
                     today: "font-bold text-blue-600 dark:text-blue-400"
@@ -316,9 +392,14 @@ export function DateRangeFilter({
                 <DayPicker
                   mode="single"
                   selected={endDateObj}
+                  defaultMonth={endDateObj || new Date()}
                   onSelect={handleEndDateSelect}
                   disabled={{ before: startDateObj }}
                   className="rdp-custom"
+                  captionLayout="dropdown"
+                  startMonth={new Date(2015, 0)}
+                  endMonth={new Date()}
+                  components={{ Dropdown: CustomDropdown }}
                   modifiersClassNames={{
                     selected: "bg-blue-500 text-white hover:bg-blue-600",
                     today: "font-bold text-blue-600 dark:text-blue-400"

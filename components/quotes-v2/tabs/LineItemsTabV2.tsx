@@ -1035,8 +1035,10 @@ export function LineItemsTabV2({
             )}
           </span>
         </div>
-        <div className="border border-gray-200 rounded-lg overflow-x-auto">
-          <table className="w-full min-w-[1200px]">
+        <div className="border border-gray-200 rounded-lg flex flex-col h-full">
+          {/* Scrollable table container - both horizontal and vertical scroll */}
+          <div className="flex-1 overflow-auto min-h-0 max-h-[60vh] scrollbar-always-visible">
+            <table className="w-full min-w-[1200px]">
             <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
               <tr>
                 <th className="w-10 px-3 py-2 bg-gray-50">
@@ -1106,6 +1108,7 @@ export function LineItemsTabV2({
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

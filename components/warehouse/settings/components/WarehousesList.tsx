@@ -15,6 +15,9 @@ interface WarehousesListProps {
   setShowLayoutModal: (warehouseId: string | null) => void;
   setShowQRCodesModal: (warehouseId: string | null) => void;
   getWorkerById: (workerId: string) => WarehouseWorker | undefined;
+  hasChanges: boolean;
+  isSaving: boolean;
+  onSave: () => Promise<void>;
 }
 
 export default function WarehousesList({
@@ -29,6 +32,9 @@ export default function WarehousesList({
   setShowLayoutModal,
   setShowQRCodesModal,
   getWorkerById,
+  hasChanges,
+  isSaving,
+  onSave,
 }: WarehousesListProps) {
   if (warehouses.length === 0) {
     return (
@@ -73,6 +79,9 @@ export default function WarehousesList({
             onShowLayout={() => setShowLayoutModal(warehouse.id)}
             onShowQRCodes={() => setShowQRCodesModal(warehouse.id)}
             getWorkerById={getWorkerById}
+            hasChanges={hasChanges}
+            isSaving={isSaving}
+            onSave={onSave}
           />
         );
       })}

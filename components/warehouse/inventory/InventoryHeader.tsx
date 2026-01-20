@@ -3,8 +3,20 @@ import Link from 'next/link';
 import WarehouseSelector from '../WarehouseSelector';
 import { useWarehouse } from '../WarehouseContext';
 
-export default function InventoryHeader() {
+import CreateInventoryModal from '../modals/CreateInventoryModal';
+import { useState } from 'react';
+
+interface InventoryHeaderProps {
+    onRequestClick: () => void;
+    onExportClick: () => void;
+    onImportClick: () => void;
+    onRefresh?: () => void;
+}
+
+export default function InventoryHeader({ onRequestClick, onExportClick, onImportClick, onRefresh }: InventoryHeaderProps) {
     const { isManagerView } = useWarehouse();
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
     return (
         <div className="p-6 pb-0">
             <div className="flex items-center justify-between mb-6">
@@ -19,7 +31,19 @@ export default function InventoryHeader() {
                     {/* Export/Import/Request buttons only visible to managers */}
                     {isManagerView && (
                         <>
-                            <button className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors">
+                            <button
+                                onClick={() => setIsCreateModalOpen(true)}
+                                className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M12 5v14M5 12h14" />
+                                </svg>
+                                Create Inventory
+                            </button>
+                            <button
+                                onClick={onExportClick}
+                                className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                            >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
                                     <polyline points="7 10 12 15 17 10" />
@@ -27,7 +51,10 @@ export default function InventoryHeader() {
                                 </svg>
                                 Export
                             </button>
-                            <button className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors">
+                            <button
+                                onClick={onImportClick}
+                                className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                            >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
                                     <polyline points="17 8 12 3 7 8" />
@@ -35,19 +62,27 @@ export default function InventoryHeader() {
                                 </svg>
                                 Import
                             </button>
-                            <Link
-                                href="/warehouse/inventory/request/new"
+                            <button
+                                onClick={onRequestClick}
                                 className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
                             >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                                 </svg>
                                 Request Inventory
-                            </Link>
+                            </button>
                         </>
                     )}
                 </div>
             </div>
+            {isCreateModalOpen && (
+                <CreateInventoryModal
+                    onClose={() => setIsCreateModalOpen(false)}
+                    onSuccess={() => {
+                        if (onRefresh) onRefresh();
+                    }}
+                />
+            )}
         </div>
     );
 }

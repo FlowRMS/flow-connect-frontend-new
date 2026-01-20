@@ -781,7 +781,7 @@ function UploadCompleteContent() {
         <div className="flex justify-end pt-4">
           <Button size="lg" onClick={handleDone}>
             <CheckCircle2 className="w-4 h-4 mr-2" />
-            Done
+            Back to Queue
           </Button>
         </div>
       </div>
