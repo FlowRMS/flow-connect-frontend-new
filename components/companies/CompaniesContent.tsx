@@ -14,25 +14,25 @@ import type { RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useFlowChat } from '@/contexts/FlowChatContext';
-import AdvancedFilters, { ActiveFilter, ActiveSort } from './advancedFilters/AdvancedFilters';
-import SortButton from './SortButton';
-import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany, useCompanyTypes, type CompanyType } from './hooks/useCRMApi';
+import AdvancedFilters, { ActiveFilter, ActiveSort } from '../advancedFilters/AdvancedFilters';
+import SortButton from '../SortButton';
+import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany, useCompanyTypes, type CompanyType } from '../hooks/useCRMApi';
 
-import { companyToasts } from './lib/toast';
-import { useInfiniteScroll } from './hooks/useInfiniteScroll';
-import type { RelatedEntityContact, RelatedEntityJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
+import { companyToasts } from '../lib/toast';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import type { RelatedEntityContact, RelatedEntityJob, LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
 import { useQuery } from '@tanstack/react-query';
-import { searchCompanies, type CompanySearchResult } from './lib/api/search';
+import { searchCompanies, type CompanySearchResult } from '../lib/api/search';
 
 // Modular imports
-import { useCompaniesState } from './companies/hooks/useCompaniesState';
-import { getCompanyFilterOptions, getCompanySortOptions } from './companies/config/filterConfig';
-import { mapAPICompanyToUICompany } from './companies/types';
-import CompanyDetailView from './companies/detail/CompanyDetailView';
-import GridView from './companies/views/GridView';
-import ListView from './companies/views/ListView';
-import { ManageCompanyTypesModal } from './companies/modals/ManageCompanyTypesModal';
-import { useUnsavedChangesGuard } from './shared/hooks/useUnsavedChangesGuard';
+import { useCompaniesState } from './hooks/useCompaniesState';
+import { getCompanyFilterOptions, getCompanySortOptions } from './config/filterConfig';
+import { mapAPICompanyToUICompany } from './types';
+import CompanyDetailView from './detail/CompanyDetailView';
+import GridView from './views/grid/GridView';
+import ListView from './views/list/ListView';
+import { ManageCompanyTypesModal } from './modals/ManageCompanyTypesModal';
+import { useUnsavedChangesGuard } from '../shared/hooks/useUnsavedChangesGuard';
 import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 // Company Type Filter Dropdown Component - uses dynamic company types from API
@@ -259,7 +259,7 @@ export default function CompaniesContent() {
 
   const isReceivingAnimation = floatingIcon?.itemId === 'companies';
 
-  // Hydration-safe mounted state
+  // Hydration-safe mounted state (kept for potential future use)
   const [isMounted, setIsMounted] = useState(false);
 
   // Search state
@@ -749,25 +749,9 @@ export default function CompaniesContent() {
     );
   }
 
-  // Show loading state (also check isMounted for hydration safety)
-  if (!isMounted || isLoading) {
-    return (
-      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Companies</h1>
-        </div>
-        <div className="flex items-center justify-center py-12">
-          <div className="flex items-center gap-3 text-[var(--muted-foreground)]">
-            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-            </svg>
-            <span>Loading companies from CRM...</span>
-          </div>
-        </div>
-      </main>
-    );
-  }
+  // Determine table loading state:
+  // When isLoading is true, we show skeleton rows inside the table (not a full-page loader)
+  const tableLoading = isLoading;
 
   // Show error state
   if (error) {
@@ -824,6 +808,30 @@ export default function CompaniesContent() {
               >
                 Companies
               </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                {(() => {
+                  // Prefer showing search result count when searching
+                  if (debouncedSearchQuery.length >= 2 && searchResults) {
+                    return `${displayedCompanies.length} results for "${debouncedSearchQuery}"`;
+                  }
+
+                  // When using landing page data, show loaded vs total
+                  const total = companiesData?.pages?.[0]?.total ?? 0;
+                  const loaded = displayedCompanies.length;
+
+                  if (total > 0) {
+                    return `Showing ${loaded} of ${total} companies`;
+                  }
+
+                  // Fallback when total is not available yet
+                  return `Showing ${loaded} companies`;
+                })()}
+              </motion.p>
             </div>
           </div>
           <motion.div
@@ -955,9 +963,17 @@ export default function CompaniesContent() {
       ) : (
         <>
           {viewMode === 'grid' ? (
-            <GridView companies={displayedCompanies} onCompanyClick={setSelectedCompany} />
+            <GridView 
+              companies={displayedCompanies} 
+              onCompanyClick={setSelectedCompany}
+              isLoading={tableLoading}
+            />
           ) : (
-            <ListView companies={displayedCompanies} onCompanyClick={setSelectedCompany} />
+            <ListView 
+              companies={displayedCompanies} 
+              onCompanyClick={setSelectedCompany}
+              isLoading={tableLoading}
+            />
           )}
 
           {/* Infinite scroll trigger */}

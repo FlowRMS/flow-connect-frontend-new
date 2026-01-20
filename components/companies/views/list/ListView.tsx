@@ -3,8 +3,9 @@
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { Company, CompanyHierarchyRole } from '../types';
-import { getCompanyInitials, getLogoColor, formatDate } from '../utils';
+import type { Company } from '../../types';
+import { getCompanyInitials, getLogoColor, formatDate } from '../../utils';
+import { CompaniesTableSkeleton } from './components/CompaniesTableSkeleton';
 
 // Sort direction type
 type SortDirection = 'asc' | 'desc' | null;
@@ -184,9 +185,10 @@ function ColumnHeader({
 interface ListViewProps {
   companies: Company[];
   onCompanyClick: (company: Company) => void;
+  isLoading?: boolean;
 }
 
-export default function ListView({ companies, onCompanyClick }: ListViewProps) {
+export default function ListView({ companies, onCompanyClick, isLoading = false }: ListViewProps) {
   // Column sorting state
   const [sortState, setSortState] = useState<SortState | null>(null);
 
@@ -194,24 +196,23 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({
     name: '',
     companyTypeName: '',
-    hierarchyRole: '',
-    parentCompanyName: '',
     phone: '',
     website: '',
     tags: '',
-    isDocumentSpecific: '',
     lastActivity: '',
+    createdBy: '',
   });
 
   // Get unique values for dropdown filters
   const filterOptions = useMemo(() => {
     // Get unique company type names from the data
     const companyTypeNames = [...new Set(companies.map(c => c.companyTypeName || c.type?.[0]).filter(Boolean))].sort();
+    // Get unique createdBy values
+    const createdByValues = [...new Set(companies.map(c => c.createdBy).filter(Boolean))].sort();
     return {
       companyTypeName: companyTypeNames as string[],
-      hierarchyRole: ['None', 'Parent', 'Grandparent'],
       tags: [...new Set(companies.flatMap(c => c.tags))].sort(),
-      isDocumentSpecific: ['Yes', 'No'],
+      createdBy: createdByValues as string[],
     };
   }, [companies]);
 
@@ -247,15 +248,6 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
         (c.companyTypeName || c.type?.[0]) === columnFilters.companyTypeName
       );
     }
-    if (columnFilters.hierarchyRole) {
-      const roleMap: Record<string, CompanyHierarchyRole> = { 'None': 'none', 'Parent': 'parent', 'Grandparent': 'grandparent' };
-      const role = roleMap[columnFilters.hierarchyRole];
-      result = result.filter(c => (c.hierarchyRole ?? 'none') === role);
-    }
-    if (columnFilters.parentCompanyName) {
-      const query = columnFilters.parentCompanyName.toLowerCase();
-      result = result.filter(c => (c.parentCompanyName || '').toLowerCase().includes(query));
-    }
     if (columnFilters.phone) {
       const query = columnFilters.phone.toLowerCase();
       result = result.filter(c => (c.phone || '').toLowerCase().includes(query));
@@ -267,13 +259,13 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
     if (columnFilters.tags) {
       result = result.filter(c => c.tags.includes(columnFilters.tags));
     }
-    if (columnFilters.isDocumentSpecific) {
-      const isDocSpecific = columnFilters.isDocumentSpecific === 'Yes';
-      result = result.filter(c => (c.isDocumentSpecific ?? false) === isDocSpecific);
-    }
     if (columnFilters.lastActivity) {
       const filterDate = new Date(columnFilters.lastActivity).toDateString();
       result = result.filter(c => new Date(c.lastActivity).toDateString() === filterDate);
+    }
+    if (columnFilters.createdBy) {
+      const query = columnFilters.createdBy.toLowerCase();
+      result = result.filter(c => (c.createdBy || '').toLowerCase().includes(query));
     }
 
     // Apply sorting
@@ -291,14 +283,6 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
             aVal = a.companyTypeName || a.type?.[0] || '';
             bVal = b.companyTypeName || b.type?.[0] || '';
             break;
-          case 'hierarchyRole':
-            aVal = a.hierarchyRole ?? 'none';
-            bVal = b.hierarchyRole ?? 'none';
-            break;
-          case 'parentCompanyName':
-            aVal = a.parentCompanyName ?? '';
-            bVal = b.parentCompanyName ?? '';
-            break;
           case 'phone':
             aVal = a.phone || '';
             bVal = b.phone || '';
@@ -311,13 +295,13 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
             aVal = a.tags.join(', ');
             bVal = b.tags.join(', ');
             break;
-          case 'isDocumentSpecific':
-            aVal = a.isDocumentSpecific ? 'Yes' : 'No';
-            bVal = b.isDocumentSpecific ? 'Yes' : 'No';
-            break;
           case 'lastActivity':
             aVal = a.lastActivity;
             bVal = b.lastActivity;
+            break;
+          case 'createdBy':
+            aVal = a.createdBy || '';
+            bVal = b.createdBy || '';
             break;
           default:
             return 0;
@@ -332,199 +316,194 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
   }, [companies, columnFilters, sortState]);
 
   return (
-    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-      {/* Scrollable Table Container */}
-      <div className="overflow-x-auto">
-        <div className="min-w-[1200px]">
-          {/* Table Header */}
-          <div className="grid gap-2 md:gap-4 px-4 md:px-6 py-2.5 md:py-3 border-b border-[var(--border)] bg-[var(--muted)]/30" style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}>
-            <ColumnHeader
-              label="Company Name"
-              columnKey="name"
-              sortState={sortState}
-              onSort={handleSort}
-              filterType="text"
-              filterValue={columnFilters.name}
-              onFilterChange={handleFilterChange}
-              colSpan={3}
-            />
-            <ColumnHeader
-              label="Type"
-              columnKey="companyTypeName"
-              sortState={sortState}
-              onSort={handleSort}
-              filterType="dropdown"
-              filterValue={columnFilters.companyTypeName}
-              onFilterChange={handleFilterChange}
-              filterOptions={filterOptions.companyTypeName}
-              colSpan={2}
-            />
-            <ColumnHeader
-              label="Role"
-              columnKey="hierarchyRole"
-              sortState={sortState}
-              onSort={handleSort}
-              filterType="dropdown"
-              filterValue={columnFilters.hierarchyRole}
-              onFilterChange={handleFilterChange}
-              filterOptions={filterOptions.hierarchyRole}
-              colSpan={2}
-            />
-            <ColumnHeader
-              label="Parent Company"
-              columnKey="parentCompanyName"
-              sortState={sortState}
-              onSort={handleSort}
-              filterType="text"
-              filterValue={columnFilters.parentCompanyName}
-              onFilterChange={handleFilterChange}
-              colSpan={2}
-            />
-            <ColumnHeader
-              label="Phone"
-              columnKey="phone"
-              sortState={sortState}
-              onSort={handleSort}
-              filterType="text"
-              filterValue={columnFilters.phone}
-              onFilterChange={handleFilterChange}
-              colSpan={2}
-            />
-            <ColumnHeader
-              label="Website"
-              columnKey="website"
-              sortState={sortState}
-              onSort={handleSort}
-              filterType="text"
-              filterValue={columnFilters.website}
-              onFilterChange={handleFilterChange}
-              colSpan={2}
-            />
-            <ColumnHeader
-              label="Tags"
-              columnKey="tags"
-              sortState={sortState}
-              onSort={handleSort}
-              filterType="dropdown"
-              filterValue={columnFilters.tags}
-              onFilterChange={handleFilterChange}
-              filterOptions={filterOptions.tags}
-              colSpan={1}
-            />
-            <ColumnHeader
-              label="Doc Specific"
-              columnKey="isDocumentSpecific"
-              sortState={sortState}
-              onSort={handleSort}
-              filterType="dropdown"
-              filterValue={columnFilters.isDocumentSpecific}
-              onFilterChange={handleFilterChange}
-              filterOptions={filterOptions.isDocumentSpecific}
-              colSpan={1}
-            />
-            <ColumnHeader
-              label="Created"
-              columnKey="lastActivity"
-              sortState={sortState}
-              onSort={handleSort}
-              filterType="date"
-              filterValue={columnFilters.lastActivity}
-              onFilterChange={handleFilterChange}
-              colSpan={1}
-            />
-          </div>
-
-          {/* Table Body */}
-          <div className="divide-y divide-[var(--border)]">
-            {filteredAndSortedCompanies.map((company) => (
-              <div
-                key={company.id}
-                onClick={() => onCompanyClick(company)}
-                className="grid gap-2 md:gap-4 px-4 md:px-6 py-3 md:py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
-                style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}
-              >
-                <div className="col-span-3 flex items-center gap-2 md:gap-3 min-w-0">
-                  <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg ${getLogoColor(company.id)} flex items-center justify-center text-white text-[10px] md:text-xs font-bold flex-shrink-0`}>
-                    {getCompanyInitials(company.name)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-medium text-sm md:text-base text-[var(--foreground)] truncate">{company.name}</h3>
-                    <p className="text-[10px] md:text-xs text-[var(--muted-foreground)] truncate">{company.id.slice(0, 8)}...</p>
-                  </div>
-                </div>
-                <div className="col-span-2 flex items-center">
-                  <span className={`px-1.5 md:px-2 py-0.5 rounded text-[10px] md:text-xs font-medium whitespace-nowrap ${
-                    company.companyTypeName?.toLowerCase() === 'manufacturer'
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'bg-green-100 text-green-700'
-                  }`}>
-                    {company.companyTypeName || company.type?.[0] || 'Customer'}
-                  </span>
-                </div>
-                <div className="col-span-2 flex items-center">
-                  {company.hierarchyRole && company.hierarchyRole !== 'none' ? (
-                    <span className={`px-1.5 md:px-2 py-0.5 rounded text-[10px] md:text-xs font-medium whitespace-nowrap ${
-                      company.hierarchyRole === 'grandparent'
-                        ? 'bg-orange-100 text-orange-700'
-                        : 'bg-blue-100 text-blue-700'
-                    }`}>
-                      {company.hierarchyRole === 'grandparent' ? 'Grandparent' : 'Parent'}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] md:text-xs text-[var(--muted-foreground)]">—</span>
-                  )}
-                </div>
-                <div className="col-span-2 flex items-center min-w-0">
-                  <span className="text-xs md:text-sm text-[var(--foreground)] truncate">{company.parentCompanyName || '—'}</span>
-                </div>
-                <div className="col-span-2 flex items-center min-w-0">
-                  <span className="text-xs md:text-sm text-[var(--foreground)] truncate">{company.phone || '-'}</span>
-                </div>
-                <div className="col-span-2 flex items-center min-w-0">
-                  {company.website ? (
-                    <a
-                      href={`https://${company.website}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs md:text-sm text-[var(--primary)] hover:underline truncate"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {company.website}
-                    </a>
-                  ) : (
-                    <span className="text-xs md:text-sm text-[var(--muted-foreground)]">-</span>
-                  )}
-                </div>
-                <div className="col-span-1 flex items-center gap-1 flex-wrap">
-                  {company.tags.slice(0, 1).map((tag, idx) => (
+    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden flex flex-col flex-1 min-h-0">
+      {/* Scrollable Table Container with fixed max height and always-visible scrollbars */}
+      <div
+        className="overflow-auto scrollbar-always-visible flex-1"
+        style={{ maxHeight: 'calc(100vh - 320px)' }}
+      >
+        <table className="w-full min-w-[1200px]">
+          <thead className="bg-[var(--card)] border-b border-[var(--border)] sticky top-0 z-10">
+            <tr>
+              <th className="px-4 md:px-6 py-2.5 md:py-3 text-left align-top">
+                <ColumnHeader
+                  label="Company Name"
+                  columnKey="name"
+                  sortState={sortState}
+                  onSort={handleSort}
+                  filterType="text"
+                  filterValue={columnFilters.name}
+                  onFilterChange={handleFilterChange}
+                  colSpan={3}
+                />
+              </th>
+              <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
+                <ColumnHeader
+                  label="Type"
+                  columnKey="companyTypeName"
+                  sortState={sortState}
+                  onSort={handleSort}
+                  filterType="dropdown"
+                  filterValue={columnFilters.companyTypeName}
+                  onFilterChange={handleFilterChange}
+                  filterOptions={filterOptions.companyTypeName}
+                  colSpan={2}
+                />
+              </th>
+              <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
+                <ColumnHeader
+                  label="Phone"
+                  columnKey="phone"
+                  sortState={sortState}
+                  onSort={handleSort}
+                  filterType="text"
+                  filterValue={columnFilters.phone}
+                  onFilterChange={handleFilterChange}
+                  colSpan={2}
+                />
+              </th>
+              <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
+                <ColumnHeader
+                  label="Website"
+                  columnKey="website"
+                  sortState={sortState}
+                  onSort={handleSort}
+                  filterType="text"
+                  filterValue={columnFilters.website}
+                  onFilterChange={handleFilterChange}
+                  colSpan={2}
+                />
+              </th>
+              <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
+                <ColumnHeader
+                  label="Tags"
+                  columnKey="tags"
+                  sortState={sortState}
+                  onSort={handleSort}
+                  filterType="dropdown"
+                  filterValue={columnFilters.tags}
+                  onFilterChange={handleFilterChange}
+                  filterOptions={filterOptions.tags}
+                  colSpan={1}
+                />
+              </th>
+              <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
+                <ColumnHeader
+                  label="Created By"
+                  columnKey="createdBy"
+                  sortState={sortState}
+                  onSort={handleSort}
+                  filterType="dropdown"
+                  filterValue={columnFilters.createdBy}
+                  onFilterChange={handleFilterChange}
+                  filterOptions={filterOptions.createdBy}
+                  colSpan={2}
+                />
+              </th>
+              <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
+                <ColumnHeader
+                  label="Created"
+                  columnKey="lastActivity"
+                  sortState={sortState}
+                  onSort={handleSort}
+                  filterType="date"
+                  filterValue={columnFilters.lastActivity}
+                  onFilterChange={handleFilterChange}
+                  colSpan={1}
+                />
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[var(--border)]">
+            {isLoading ? (
+              <CompaniesTableSkeleton rowCount={8} />
+            ) : (
+              filteredAndSortedCompanies.map((company) => (
+                <tr
+                  key={company.id}
+                  onClick={() => onCompanyClick(company)}
+                  className="hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
+                >
+                  <td className="px-4 md:px-6 py-3 md:py-4">
+                    <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                      <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg ${getLogoColor(company.id)} flex items-center justify-center text-white text-[10px] md:text-xs font-bold flex-shrink-0`}>
+                        {getCompanyInitials(company.name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-medium text-sm md:text-base text-[var(--foreground)] truncate">
+                          {company.name}
+                        </h3>
+                        <p className="text-[10px] md:text-xs text-[var(--muted-foreground)] truncate">
+                          {company.id.slice(0, 8)}...
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-2 md:px-3 py-3 md:py-4">
                     <span
-                      key={idx}
-                      className="px-1.5 md:px-2 py-0.5 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded text-[10px] md:text-xs truncate max-w-[60px]"
+                      className={`px-1.5 md:px-2 py-0.5 rounded text-[10px] md:text-xs font-medium whitespace-nowrap ${
+                        company.companyTypeName?.toLowerCase() === 'manufacturer'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-green-100 text-green-700'
+                      }`}
                     >
-                      {tag}
+                      {company.companyTypeName || company.type?.[0] || 'Customer'}
                     </span>
-                  ))}
-                  {company.tags.length > 1 && (
-                    <span className="text-[10px] md:text-xs text-[var(--muted-foreground)]">+{company.tags.length - 1}</span>
-                  )}
-                </div>
-                <div className="col-span-1 flex items-center justify-center">
-                  {company.isDocumentSpecific ? (
-                    <span className="px-1.5 md:px-2 py-0.5 text-[10px] md:text-xs font-medium rounded bg-purple-100 text-purple-700">
-                      Yes
+                  </td>
+                  <td className="px-2 md:px-3 py-3 md:py-4 min-w-0">
+                    <span className="text-xs md:text-sm text-[var(--foreground)] truncate">
+                      {company.phone || '-'}
                     </span>
-                  ) : (
-                    <span className="text-[10px] md:text-xs text-[var(--muted-foreground)]">—</span>
-                  )}
-                </div>
-                <div className="col-span-1 flex items-center">
-                  <span className="text-[10px] md:text-xs text-[var(--muted-foreground)]">{formatDate(company.lastActivity)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+                  </td>
+                  <td className="px-2 md:px-3 py-3 md:py-4 min-w-0">
+                    {company.website ? (
+                      <a
+                        href={`https://${company.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs md:text-sm text-[var(--primary)] hover:underline truncate"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {company.website}
+                      </a>
+                    ) : (
+                      <span className="text-xs md:text-sm text-[var(--muted-foreground)]">-</span>
+                    )}
+                  </td>
+                  <td className="px-2 md:px-3 py-3 md:py-4">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {company.tags.slice(0, 1).map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="px-1.5 md:px-2 py-0.5 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded text-[10px] md:text-xs truncate max-w-[60px]"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                      {company.tags.length > 1 && (
+                        <span className="text-[10px] md:text-xs text-[var(--muted-foreground)]">
+                          +{company.tags.length - 1}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-2 md:px-3 py-3 md:py-4 min-w-0">
+                    <span className="text-xs md:text-sm text-[var(--foreground)] truncate">
+                      {company.createdBy || '—'}
+                    </span>
+                  </td>
+                  <td className="px-2 md:px-3 py-3 md:py-4">
+                    <span className="text-[10px] md:text-xs text-[var(--muted-foreground)]">
+                      {formatDate(company.lastActivity)}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
+
