@@ -9,9 +9,11 @@ import { NumberFilter } from './filter-types/NumberFilter';
 import { DateRangeFilter } from './filter-types/DateRangeFilter';
 import { BooleanFilter } from './filter-types/BooleanFilter';
 import { MonthYearFilter } from './filter-types/MonthYearFilter';
+import { FactoryFilter } from './filter-types/FactoryFilter';
+import { CategoryFilter } from './filter-types/CategoryFilter';
 import { parseDateString, formatDateToBackend } from '../utils';
 
-export type ColumnFilterType = 'text' | 'dropdown' | 'number' | 'date' | 'boolean' | 'month';
+export type ColumnFilterType = 'text' | 'dropdown' | 'number' | 'date' | 'boolean' | 'month' | 'factory' | 'category';
 
 // Keep ColumnFilterValue for backward compatibility during migration
 export interface ColumnFilterValue {
@@ -36,6 +38,7 @@ export interface ColumnFilterProps {
   isOpen: boolean;
   onToggle: () => void;
   filterOption?: FilterOption; // Optional: full filter option with numberFormat, etc.
+  factoryId?: string; // Optional: factory ID for category filter
 }
 
 /**
@@ -52,6 +55,7 @@ export function ColumnFilter({
   isOpen,
   onToggle,
   filterOption: externalFilterOption,
+  factoryId,
 }: ColumnFilterProps) {
   // Ensure value is always an array
   const safeValue = Array.isArray(value) ? value : [];
@@ -65,6 +69,15 @@ export function ColumnFilter({
   const getSelectedValues = () => {
     const filter = safeValue.find(f => f.columnName === columnName && f.operator === 'IN' && f.values);
     return filter?.values || [];
+  };
+
+  // Get factoryId from active filters (for category filter)
+  const getFactoryIdFromFilters = () => {
+    // Look for factoryTitle filter in the parent filters
+    // This is a bit of a hack - we need to check if there's a factory filter active
+    // Since we don't have direct access to all filters, we'll need to pass this as a prop
+    // For now, return undefined and handle it in the component that uses ColumnFilter
+    return undefined;
   };
 
   const getDateStart = () => {
@@ -181,6 +194,10 @@ export function ColumnFilter({
         if ((filter.operator === 'GTE' || filter.operator === 'LTE') && filter.value) {
           return true;
         }
+      } else if (type === 'factory' || type === 'category') {
+        if (filter.values && Array.isArray(filter.values) && filter.values.length > 0) {
+          return true;
+        }
       }
     }
     
@@ -205,6 +222,9 @@ export function ColumnFilter({
     }
     if (type === 'date') {
       return localDateStart !== null || localDateEnd !== null;
+    }
+    if (type === 'factory' || type === 'category') {
+      return localSelectedValues.length > 0;
     }
     return false;
   }, [hasActiveFilterInValue, type, localTextValue, localSelectedValues, localBooleanValue, localDateStart, localDateEnd]);
@@ -392,7 +412,7 @@ export function ColumnFilter({
           </svg>
           {hasValue && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--primary)] text-white text-[10px] rounded-full flex items-center justify-center">
-              {type === 'dropdown' ? localSelectedValues.length : '•'}
+              {(type === 'dropdown' || type === 'factory' || type === 'category') ? localSelectedValues.length : '•'}
             </span>
           )}
         </button>
@@ -481,6 +501,29 @@ export function ColumnFilter({
               selectedMonthYear={localMonthYear}
               onMonthYearChange={setLocalMonthYear}
               onApply={handleMonthYearApply}
+            />
+          )}
+
+          {type === 'factory' && (
+            <FactoryFilter
+              option={filterOption}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
+            />
+          )}
+
+          {type === 'category' && (
+            <CategoryFilter
+              option={filterOption}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
+              factoryId={factoryId}
             />
           )}
         </PopoverPrimitive.Content>
