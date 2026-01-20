@@ -1024,8 +1024,20 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     hasChanges: isCreateMode || hasLocalEdits,
     resetChanges: () => {
       setHasLocalEdits(false);
-      // Also reset hasInitialized so that refetch can update localOrder with fresh data
-      setHasInitialized(false);
+      // NOTE: We intentionally do NOT reset hasInitialized here.
+      // Resetting it causes a race condition where the useMemo returns stale API data
+      // (because both hasLocalEdits and hasInitialized become false) before the
+      // refetch completes, causing the UI to revert to old data until refresh.
+    },
+    // Apply mutation result to local state (prevents stale data after save)
+    applyMutationResult: (savedOrder: ApiOrder) => {
+      const transformed = transformApiOrderToUiOrder(savedOrder);
+      // Preserve any display names we already have (factory, customer, rep names)
+      setLocalOrder(prev => ({
+        ...transformed,
+        manufacturerName: prev.manufacturerName || transformed.manufacturerName,
+        customerName: prev.customerName || transformed.customerName,
+      }));
     },
     // Order data
     order,

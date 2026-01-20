@@ -538,7 +538,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             jobId: (order as any).jobId || undefined,
           };
 
-          await state.updateOrderMutation.mutateAsync(updateInput);
+          const savedOrder = await state.updateOrderMutation.mutateAsync(updateInput);
+          // Apply the mutation result to local state immediately to prevent stale data
+          state.applyMutationResult(savedOrder);
           state.resetChanges();
           // Refetch order data to get fresh UUIDs for any newly created line items
           await state.refetch();
