@@ -5,6 +5,7 @@ import type { FilterOption } from '../../types';
 import { useDebounce } from '@/components/pre-opportunities/hooks/useDebounce';
 import { useQuery } from '@tanstack/react-query';
 import { searchCompanies, type CompanySearchResult } from '@/components/lib/api/search';
+import { iconMap } from '@/components/Sidebar';
 
 type CompanyFilterProps = {
   option: FilterOption;
@@ -90,6 +91,9 @@ export function CompanyFilter({
                 onChange={() => onToggleValue(company.name)}
                 className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
+              <div className="w-6 h-6 flex items-center justify-center text-gray-400">
+                {iconMap['companies']}
+              </div>
               <div className="flex flex-col">
                 <span className="text-sm text-gray-700 font-normal">{company.name}</span>
                 {company.companyType?.name && (
