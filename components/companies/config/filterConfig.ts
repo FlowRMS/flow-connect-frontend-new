@@ -1,31 +1,25 @@
 /**
  * Filter Configuration for Companies
- * Note: columnName should match the UI Company type field names
+ * Note: columnName should match the backend CompanyLandingPage field names
  */
 
 import type { FilterOption, SortOption } from '../../lib/filter-utils';
 
-export function getCompanyFilterOptions(
-  uniqueCompanyNames: string[],
-  uniqueCompanyTypes: string[],
-  uniqueCreatedBy: string[]
-): FilterOption[] {
+export function getCompanyFilterOptions(): FilterOption[] {
   return [
     {
       id: 'name',
       label: 'Company Name',
-      type: 'dropdown',
+      type: 'text',
       columnName: 'name',
       available: true,
-      options: uniqueCompanyNames
     },
     {
       id: 'type',
       label: 'Company Type',
-      type: 'dropdown',
+      type: 'text',
       columnName: 'companySourceType',
       available: true,
-      options: uniqueCompanyTypes
     },
     {
       id: 'phone',
@@ -44,10 +38,9 @@ export function getCompanyFilterOptions(
     {
       id: 'createdBy',
       label: 'Created By',
-      type: 'dropdown',
+      type: 'text',
       columnName: 'createdBy',
       available: true,
-      options: uniqueCreatedBy
     },
     {
       id: 'company-id',
@@ -66,21 +59,21 @@ export function getCompanyFilterOptions(
     {
       id: 'territory',
       label: 'Territory',
-      type: 'dropdown',
+      type: 'text',
       columnName: 'territory',
       available: false
     },
     {
       id: 'tags',
       label: 'Tags',
-      type: 'dropdown',
+      type: 'text',
       columnName: 'tags',
       available: false
     },
     {
       id: 'lists',
       label: 'Lists',
-      type: 'dropdown',
+      type: 'text',
       columnName: 'lists',
       available: false
     },
@@ -102,7 +95,7 @@ export function getCompanyFilterOptions(
       id: 'last-activity',
       label: 'Last Activity',
       type: 'date',
-      columnName: 'lastActivity',
+      columnName: 'createdAt',
       available: false
     },
   ];

@@ -552,10 +552,10 @@ export default function CompaniesContent() {
     router.push(`/jobs?id=${job.id}`);
   };
 
-  // Filter and sort options with unique values
+  // Filter and sort options (backend-driven, no local option hydration)
   const companyFilterOptions = useMemo(
-    () => getCompanyFilterOptions(uniqueCompanyNames, uniqueCompanyTypes, uniqueCreatedBy),
-    [uniqueCompanyNames, uniqueCompanyTypes, uniqueCreatedBy]
+    () => getCompanyFilterOptions(),
+    []
   );
 
   const companySortOptions = useMemo(() => getCompanySortOptions(), []);
