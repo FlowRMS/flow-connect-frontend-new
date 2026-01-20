@@ -125,11 +125,17 @@ export interface ProductUom {
   description: string | null;
 }
 
+export interface Factory {
+  id: string;
+  title: string;
+}
+
 export interface Product {
   id: string;
   factoryPartNumber: string;
   description: string | null;
   uom: ProductUom | null;
+  factory: Factory | null;
 }
 
 export interface FulfillmentOrderLineItem {
@@ -486,6 +492,10 @@ const FULFILLMENT_ORDER_FRAGMENT = `
           id
           title
           description
+        }
+        factory {
+          id
+          title
         }
       }
       orderDetailId
@@ -1459,6 +1469,15 @@ const RESOLVE_BACKORDER = `
   }
 `;
 
+const LINK_SHIPMENT_REQUEST = `
+  ${FULFILLMENT_ORDER_FRAGMENT}
+  mutation LinkShipmentRequest($input: LinkShipmentRequestInput!) {
+    linkShipmentRequest(input: $input) {
+      ...FulfillmentOrderFields
+    }
+  }
+`;
+
 // Input types for backorder
 export interface MarkManufacturerFulfilledInput {
   fulfillmentOrderId: string;
@@ -1475,6 +1494,12 @@ export interface CancelBackorderInput {
   fulfillmentOrderId: string;
   lineItemIds: string[];
   reason: string;
+}
+
+export interface LinkShipmentRequestInput {
+  fulfillmentOrderId: string;
+  lineItemIds: string[];
+  shipmentRequestId: string;
 }
 
 /**
@@ -1575,6 +1600,26 @@ export async function resolveBackorder(
   }
 
   return response.data!.resolveBackorder;
+}
+
+/**
+ * Link line items to a shipment request for inventory replenishment
+ */
+export async function linkShipmentRequest(
+  input: LinkShipmentRequestInput
+): Promise<FulfillmentOrder> {
+  const response = await crmGraphQLRequest<{
+    linkShipmentRequest: FulfillmentOrder;
+  }>({
+    query: LINK_SHIPMENT_REQUEST,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to link shipment request');
+  }
+
+  return response.data!.linkShipmentRequest;
 }
 
 

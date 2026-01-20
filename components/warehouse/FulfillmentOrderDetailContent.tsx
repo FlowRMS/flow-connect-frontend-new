@@ -26,6 +26,7 @@ import {
   useMarkManufacturerFulfilled,
   useSplitFulfillmentLineItem,
   useCancelBackorderItems,
+  useLinkShipmentRequest,
 } from './api/useFulfillmentApi';
 import type {
   FulfillmentOrderStatus,
@@ -128,6 +129,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const markManufacturerFulfilledMutation = useMarkManufacturerFulfilled();
   const splitLineItemMutation = useSplitFulfillmentLineItem();
   const cancelBackorderMutation = useCancelBackorderItems();
+  const linkShipmentRequestMutation = useLinkShipmentRequest();
 
   // Shipment request hooks
   const createShipmentRequestMutation = useCreateShipmentRequest();
@@ -1242,52 +1244,51 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     try {
       // Validate warehouse is assigned
       if (!fulfillmentOrder.warehouseId) {
-      alert('Error: No warehouse assigned to this fulfillment order. Please assign a warehouse before creating a shipment request.');
-      return;
-    }
-
-    // Group items by manufacturer
-    const byManufacturer = items.reduce((acc, item) => {
-      const inv = backorderItems.find(bi => bi.lineItem.id === item.lineItem.id);
-      if (inv && inv.manufacturerId) {
-        const mfrId = inv.manufacturerId;
-        if (!acc[mfrId]) {
-          acc[mfrId] = { name: inv.manufacturerName, items: [] };
-        }
-        acc[mfrId].items.push({
-          productId: item.lineItem.productId,
-          quantity: item.requestedQty,
-        });
+        alert('Error: No warehouse assigned to this fulfillment order. Please assign a warehouse before creating a shipment request.');
+        return;
       }
-      return acc;
-    }, {} as Record<string, { name: string; items: Array<{ productId: string; quantity: number }> }>);
 
-    // Create shipment requests for each manufacturer
-    Object.entries(byManufacturer).forEach(([mfrId, { name, items: reqItems }]) => {
-      addShipmentRequest({
-        vendorId: mfrId,
-        vendorName: name,
-        warehouseId: fulfillmentOrder.warehouseId,
-        warehouseName: fulfillmentOrder.warehouseName,
-        requestMethod: 'EMAIL',
-        status: 'DRAFT',
-        priority: 'standard',
-        requestedDeliveryDate: fulfillmentOrder.needByDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        items: reqItems,
-        totalQuantity: reqItems.reduce((sum, item) => sum + item.requestedQuantity, 0),
-        notes: `Created from fulfillment order ${fulfillmentOrder.fulfillmentOrderNumber}`,
-        createdBy: 'Current User',
-      });
-    });
+      // Group items by manufacturer
+      const byManufacturer = items.reduce((acc, item) => {
+        const inv = backorderItems.find(bi => bi.lineItem.id === item.lineItem.id);
+        if (inv && inv.manufacturerId) {
+          const mfrId = inv.manufacturerId;
+          if (!acc[mfrId]) {
+            acc[mfrId] = { name: inv.manufacturerName, items: [], lineItemIds: [] };
+          }
+          acc[mfrId].items.push({
+            productId: item.lineItem.productId,
+            quantity: item.requestedQty,
+          });
+          acc[mfrId].lineItemIds.push(item.lineItem.id);
+        }
+        return acc;
+      }, {} as Record<string, { name: string; items: Array<{ productId: string; quantity: number }>; lineItemIds: string[] }>);
 
-      // Update the fulfillment order to show it's pending delivery
-      updateOrderMutation.mutate({
-        id: fulfillmentOrderId,
-        input: { holdReason: 'Pending inventory delivery request' },
-      });
+      // Create shipment requests for each manufacturer and link to line items
+      for (const [mfrId, { items: reqItems, lineItemIds }] of Object.entries(byManufacturer)) {
+        // Create shipment request
+        const shipmentRequest = await createShipmentRequestMutation.mutateAsync({
+          factoryId: mfrId,
+          warehouseId: fulfillmentOrder.warehouseId,
+          requestDate: new Date().toISOString(),
+          priority: 'STANDARD',
+          items: reqItems,
+          notes: `Created from fulfillment order ${fulfillmentOrder.fulfillmentOrderNumber}`,
+        });
+
+        // Link the shipment request to the line items
+        if (shipmentRequest?.id) {
+          await linkShipmentRequestMutation.mutateAsync({
+            fulfillmentOrderId: fulfillmentOrderId,
+            lineItemIds: lineItemIds,
+            shipmentRequestId: shipmentRequest.id,
+          });
+        }
+      }
 
       setShowRequestInventoryModal(false);
-      alert('Shipment request created successfully!');
+      alert('Shipment request created and linked successfully!');
       setForceUpdate(prev => prev + 1);
     } catch (error) {
       console.error('Failed to create shipment request:', error);

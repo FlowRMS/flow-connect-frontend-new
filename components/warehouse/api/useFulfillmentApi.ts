@@ -37,6 +37,7 @@ import {
   splitFulfillmentLineItem,
   cancelBackorderItems,
   resolveBackorder,
+  linkShipmentRequest,
   type FulfillmentOrder,
   type FulfillmentOrderLineItem,
   type FulfillmentStats,
@@ -54,6 +55,7 @@ import {
   type MarkManufacturerFulfilledInput,
   type SplitLineItemInput,
   type CancelBackorderInput,
+  type LinkShipmentRequestInput,
 } from './fulfillmentApi';
 
 // ============================================================================
@@ -547,6 +549,22 @@ export function useResolveBackorder() {
 
   return useMutation<FulfillmentOrder, Error, string>({
     mutationFn: resolveBackorder,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.order(data.id) });
+      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.stats() });
+    },
+  });
+}
+
+/**
+ * Link line items to a shipment request for inventory replenishment
+ */
+export function useLinkShipmentRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation<FulfillmentOrder, Error, LinkShipmentRequestInput>({
+    mutationFn: linkShipmentRequest,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.order(data.id) });
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.orders() });
