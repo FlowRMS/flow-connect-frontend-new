@@ -1,319 +1,86 @@
+'use client';
+
 /**
  * List View Component for Companies
+ * - Uses shared ColumnFilter component for column-level filters
+ * - Sorting is handled globally via SortButton (no per-column sort here)
  */
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React from 'react';
 import type { Company } from '../../types';
 import { getCompanyInitials, getLogoColor, formatDate } from '../../utils';
 import { CompaniesTableSkeleton } from './components/CompaniesTableSkeleton';
-
-// Sort direction type
-type SortDirection = 'asc' | 'desc' | null;
-
-// Column sort state
-interface SortState {
-  column: string;
-  direction: SortDirection;
-}
-
-// Sortable/Filterable column header component
-interface ColumnHeaderProps {
-  label: string;
-  columnKey: string;
-  sortState: SortState | null;
-  onSort: (column: string) => void;
-  filterType: 'text' | 'dropdown' | 'date';
-  filterValue: string;
-  onFilterChange: (column: string, value: string) => void;
-  filterOptions?: string[];
-  colSpan: number;
-}
-
-function ColumnHeader({
-  label,
-  columnKey,
-  sortState,
-  onSort,
-  filterType,
-  filterValue,
-  onFilterChange,
-  filterOptions = [],
-  colSpan,
-}: ColumnHeaderProps) {
-  const [showFilter, setShowFilter] = useState(false);
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const filterRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
-        setShowFilter(false);
-        setDropdownSearch('');
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const isSorted = sortState?.column === columnKey;
-  const sortDirection = isSorted ? sortState.direction : null;
-
-  const filteredOptions = filterOptions.filter(opt =>
-    opt.toLowerCase().includes(dropdownSearch.toLowerCase())
-  );
-
-  return (
-    <div className={`col-span-${colSpan} relative`} ref={filterRef}>
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => onSort(columnKey)}
-          className="flex items-center gap-1 text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider hover:text-[var(--foreground)] transition-colors"
-        >
-          {label}
-          <span className="flex flex-col">
-            <svg
-              width="8"
-              height="8"
-              viewBox="0 0 8 8"
-              className={`${sortDirection === 'asc' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/40'}`}
-            >
-              <path d="M4 0L8 4H0L4 0Z" fill="currentColor" />
-            </svg>
-            <svg
-              width="8"
-              height="8"
-              viewBox="0 0 8 8"
-              className={`-mt-0.5 ${sortDirection === 'desc' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/40'}`}
-            >
-              <path d="M4 8L0 4H8L4 8Z" fill="currentColor" />
-            </svg>
-          </span>
-        </button>
-        {/* Column filter button - hidden for now */}
-        {/* <button
-          onClick={() => setShowFilter(!showFilter)}
-          className={`p-0.5 rounded hover:bg-[var(--muted)] transition-colors ${filterValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/60'}`}
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-          </svg>
-        </button> */}
-      </div>
-
-      {/* Column filter dropdown - hidden for now */}
-      {/* {showFilter && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg min-w-[180px]">
-          {filterType === 'text' ? (
-            <div className="p-2">
-              <input
-                type="text"
-                placeholder={`Filter ${label.toLowerCase()}...`}
-                value={filterValue}
-                onChange={(e) => onFilterChange(columnKey, e.target.value)}
-                className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                autoFocus
-              />
-              {filterValue && (
-                <button
-                  onClick={() => onFilterChange(columnKey, '')}
-                  className="mt-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                >
-                  Clear filter
-                </button>
-              )}
-            </div>
-          ) : filterType === 'date' ? (
-            <div className="p-2">
-              <input
-                type="date"
-                value={filterValue}
-                onChange={(e) => onFilterChange(columnKey, e.target.value)}
-                className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-              />
-              {filterValue && (
-                <button
-                  onClick={() => onFilterChange(columnKey, '')}
-                  className="mt-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                >
-                  Clear filter
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="p-2">
-              <input
-                type="text"
-                placeholder="Search..."
-                value={dropdownSearch}
-                onChange={(e) => setDropdownSearch(e.target.value)}
-                className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] mb-2"
-                autoFocus
-              />
-              <div className="max-h-[200px] overflow-y-auto">
-                <button
-                  onClick={() => {
-                    onFilterChange(columnKey, '');
-                    setShowFilter(false);
-                    setDropdownSearch('');
-                  }}
-                  className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-[var(--muted)] ${!filterValue ? 'bg-[var(--muted)] font-medium' : ''}`}
-                >
-                  All
-                </button>
-                {filteredOptions.map((option) => (
-                  <button
-                    key={option}
-                    onClick={() => {
-                      onFilterChange(columnKey, option);
-                      setShowFilter(false);
-                      setDropdownSearch('');
-                    }}
-                    className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-[var(--muted)] ${filterValue === option ? 'bg-[var(--muted)] font-medium' : ''}`}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )} */}
-    </div>
-  );
-}
+import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
+import type { ActiveFilter, FilterOption } from '@/components/advancedFilters/types';
 
 interface ListViewProps {
   companies: Company[];
   onCompanyClick: (company: Company) => void;
   isLoading?: boolean;
+  columnFilters: Record<string, ActiveFilter[]>;
+  onColumnFiltersChange: (filters: Record<string, ActiveFilter[]>) => void;
+  filterOptions: FilterOption[];
 }
 
-export default function ListView({ companies, onCompanyClick, isLoading = false }: ListViewProps) {
-  // Column sorting state
-  const [sortState, setSortState] = useState<SortState | null>(null);
-
-  // Column filter state
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({
-    name: '',
-    companyTypeName: '',
-    phone: '',
-    website: '',
-    tags: '',
-    lastActivity: '',
-    createdBy: '',
-  });
-
-  // Get unique values for dropdown filters
-  const filterOptions = useMemo(() => {
-    // Get unique company type names from the data
-    const companyTypeNames = [...new Set(companies.map(c => c.companyTypeName || c.type?.[0]).filter(Boolean))].sort();
-    // Get unique createdBy values
-    const createdByValues = [...new Set(companies.map(c => c.createdBy).filter(Boolean))].sort();
-    return {
-      companyTypeName: companyTypeNames as string[],
-      tags: [...new Set(companies.flatMap(c => c.tags))].sort(),
-      createdBy: createdByValues as string[],
-    };
-  }, [companies]);
-
-  // Handle sort toggle
-  const handleSort = (column: string) => {
-    setSortState((prev) => {
-      if (prev?.column !== column) {
-        return { column, direction: 'asc' };
-      }
-      if (prev.direction === 'asc') {
-        return { column, direction: 'desc' };
-      }
-      return null;
-    });
+export default function ListView({
+  companies,
+  onCompanyClick,
+  isLoading = false,
+  columnFilters,
+  onColumnFiltersChange,
+  filterOptions,
+}: ListViewProps) {
+  // Map from UI column keys to filter option IDs
+  const columnKeyToFilterId: Record<string, string> = {
+    name: 'name',
+    companyTypeName: 'type',
+    phone: 'phone',
+    website: 'website',
+    tags: 'tags',
+    createdBy: 'createdBy',
+    lastActivity: 'last-activity',
   };
 
-  // Handle filter change
-  const handleFilterChange = (column: string, value: string) => {
-    setColumnFilters((prev) => ({ ...prev, [column]: value }));
+  const renderColumnFilter = (columnKey: string) => {
+    const filterId = columnKeyToFilterId[columnKey];
+    if (!filterId) return null;
+
+    const filterOption = filterOptions.find((f) => f.id === filterId);
+    if (!filterOption || !filterOption.columnName) return null;
+
+    const columnFiltersForThisColumn = columnFilters[columnKey] || [];
+
+    // Preserve full type (supports companyType, etc.)
+    const filterType = filterOption.type as
+      | 'text'
+      | 'dropdown'
+      | 'number'
+      | 'date'
+      | 'boolean'
+      | 'month'
+      | 'factory'
+      | 'category'
+      | 'company'
+      | 'companyType';
+
+    return (
+      <ColumnFilter
+        type={filterType}
+        columnName={filterOption.columnName}
+        value={columnFiltersForThisColumn}
+        onChange={(filtersForColumn) => {
+          const next = { ...columnFilters };
+          if (!filtersForColumn || filtersForColumn.length === 0) {
+            delete next[columnKey];
+          } else {
+            next[columnKey] = filtersForColumn;
+          }
+          onColumnFiltersChange(next);
+        }}
+        filterOption={filterOption as any}
+      />
+    );
   };
-
-  // Apply filters and sorting
-  const filteredAndSortedCompanies = useMemo(() => {
-    let result = [...companies];
-
-    // Apply column filters
-    if (columnFilters.name) {
-      const query = columnFilters.name.toLowerCase();
-      result = result.filter(c => c.name.toLowerCase().includes(query));
-    }
-    if (columnFilters.companyTypeName) {
-      result = result.filter(c =>
-        (c.companyTypeName || c.type?.[0]) === columnFilters.companyTypeName
-      );
-    }
-    if (columnFilters.phone) {
-      const query = columnFilters.phone.toLowerCase();
-      result = result.filter(c => (c.phone || '').toLowerCase().includes(query));
-    }
-    if (columnFilters.website) {
-      const query = columnFilters.website.toLowerCase();
-      result = result.filter(c => (c.website || '').toLowerCase().includes(query));
-    }
-    if (columnFilters.tags) {
-      result = result.filter(c => c.tags.includes(columnFilters.tags));
-    }
-    if (columnFilters.lastActivity) {
-      const filterDate = new Date(columnFilters.lastActivity).toDateString();
-      result = result.filter(c => new Date(c.lastActivity).toDateString() === filterDate);
-    }
-    if (columnFilters.createdBy) {
-      const query = columnFilters.createdBy.toLowerCase();
-      result = result.filter(c => (c.createdBy || '').toLowerCase().includes(query));
-    }
-
-    // Apply sorting
-    if (sortState) {
-      result.sort((a, b) => {
-        let aVal: string;
-        let bVal: string;
-
-        switch (sortState.column) {
-          case 'name':
-            aVal = a.name;
-            bVal = b.name;
-            break;
-          case 'companyTypeName':
-            aVal = a.companyTypeName || a.type?.[0] || '';
-            bVal = b.companyTypeName || b.type?.[0] || '';
-            break;
-          case 'phone':
-            aVal = a.phone || '';
-            bVal = b.phone || '';
-            break;
-          case 'website':
-            aVal = a.website || '';
-            bVal = b.website || '';
-            break;
-          case 'tags':
-            aVal = a.tags.join(', ');
-            bVal = b.tags.join(', ');
-            break;
-          case 'lastActivity':
-            aVal = a.lastActivity;
-            bVal = b.lastActivity;
-            break;
-          case 'createdBy':
-            aVal = a.createdBy || '';
-            bVal = b.createdBy || '';
-            break;
-          default:
-            return 0;
-        }
-
-        const cmp = aVal.toLowerCase().localeCompare(bVal.toLowerCase());
-        return sortState.direction === 'asc' ? cmp : -cmp;
-      });
-    }
-
-    return result;
-  }, [companies, columnFilters, sortState]);
 
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden flex flex-col flex-1 min-h-0">
@@ -326,91 +93,64 @@ export default function ListView({ companies, onCompanyClick, isLoading = false 
           <thead className="bg-[var(--card)] border-b border-[var(--border)] sticky top-0 z-10">
             <tr>
               <th className="px-4 md:px-6 py-2.5 md:py-3 text-left align-top">
-                <ColumnHeader
-                  label="Company Name"
-                  columnKey="name"
-                  sortState={sortState}
-                  onSort={handleSort}
-                  filterType="text"
-                  filterValue={columnFilters.name}
-                  onFilterChange={handleFilterChange}
-                  colSpan={3}
-                />
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                    Company Name
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('name')}
+                  </div>
+                </div>
               </th>
               <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
-                <ColumnHeader
-                  label="Type"
-                  columnKey="companyTypeName"
-                  sortState={sortState}
-                  onSort={handleSort}
-                  filterType="dropdown"
-                  filterValue={columnFilters.companyTypeName}
-                  onFilterChange={handleFilterChange}
-                  filterOptions={filterOptions.companyTypeName}
-                  colSpan={2}
-                />
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                    Type
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('companyTypeName')}
+                  </div>
+                </div>
               </th>
               <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
-                <ColumnHeader
-                  label="Phone"
-                  columnKey="phone"
-                  sortState={sortState}
-                  onSort={handleSort}
-                  filterType="text"
-                  filterValue={columnFilters.phone}
-                  onFilterChange={handleFilterChange}
-                  colSpan={2}
-                />
+                <span className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                  Phone
+                </span>
               </th>
               <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
-                <ColumnHeader
-                  label="Website"
-                  columnKey="website"
-                  sortState={sortState}
-                  onSort={handleSort}
-                  filterType="text"
-                  filterValue={columnFilters.website}
-                  onFilterChange={handleFilterChange}
-                  colSpan={2}
-                />
+                <span className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                  Website
+                </span>
               </th>
               <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
-                <ColumnHeader
-                  label="Tags"
-                  columnKey="tags"
-                  sortState={sortState}
-                  onSort={handleSort}
-                  filterType="dropdown"
-                  filterValue={columnFilters.tags}
-                  onFilterChange={handleFilterChange}
-                  filterOptions={filterOptions.tags}
-                  colSpan={1}
-                />
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                    Tags
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('tags')}
+                  </div>
+                </div>
               </th>
               <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
-                <ColumnHeader
-                  label="Created By"
-                  columnKey="createdBy"
-                  sortState={sortState}
-                  onSort={handleSort}
-                  filterType="dropdown"
-                  filterValue={columnFilters.createdBy}
-                  onFilterChange={handleFilterChange}
-                  filterOptions={filterOptions.createdBy}
-                  colSpan={2}
-                />
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                    Created By
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('createdBy')}
+                  </div>
+                </div>
               </th>
               <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
-                <ColumnHeader
-                  label="Created"
-                  columnKey="lastActivity"
-                  sortState={sortState}
-                  onSort={handleSort}
-                  filterType="date"
-                  filterValue={columnFilters.lastActivity}
-                  onFilterChange={handleFilterChange}
-                  colSpan={1}
-                />
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                    Created
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('lastActivity')}
+                  </div>
+                </div>
               </th>
             </tr>
           </thead>
@@ -418,7 +158,7 @@ export default function ListView({ companies, onCompanyClick, isLoading = false 
             {isLoading ? (
               <CompaniesTableSkeleton rowCount={8} />
             ) : (
-              filteredAndSortedCompanies.map((company) => (
+              companies.map((company) => (
                 <tr
                   key={company.id}
                   onClick={() => onCompanyClick(company)}

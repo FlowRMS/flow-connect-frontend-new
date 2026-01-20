@@ -11,7 +11,6 @@ import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext
 import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
 import { iconMap } from '@/components/Sidebar';
 import type { RefObject } from 'react';
-import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from '../advancedFilters/AdvancedFilters';
@@ -26,6 +25,8 @@ import { searchCompanies, type CompanySearchResult } from '../lib/api/search';
 
 // Modular imports
 import { useCompaniesState } from './hooks/useCompaniesState';
+import { useFilterSync } from '../advancedFilters/hooks/useFilterSync';
+import type { FilterOption } from '../advancedFilters/types';
 import { getCompanyFilterOptions, getCompanySortOptions } from './config/filterConfig';
 import { mapAPICompanyToUICompany } from './types';
 import CompanyDetailView from './detail/CompanyDetailView';
@@ -34,208 +35,6 @@ import ListView from './views/list/ListView';
 import { ManageCompanyTypesModal } from './modals/ManageCompanyTypesModal';
 import { useUnsavedChangesGuard } from '../shared/hooks/useUnsavedChangesGuard';
 import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
-
-// Company Type Filter Dropdown Component - uses dynamic company types from API
-function CompanyTypeFilterDropdown({
-  value,
-  onChange,
-  companyTypes,
-  isLoading,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  companyTypes: CompanyType[];
-  isLoading?: boolean;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Build options: "All" at top, then active company types sorted by displayOrder
-  const sortedTypes = useMemo(() => {
-    return [...companyTypes]
-      .filter(t => t.isActive)
-      .sort((a, b) => a.displayOrder - b.displayOrder);
-  }, [companyTypes]);
-
-  // Filter options based on search term
-  const filteredTypes = useMemo(() => {
-    if (!searchTerm) return sortedTypes;
-    const term = searchTerm.toLowerCase();
-    return sortedTypes.filter(t => t.name.toLowerCase().includes(term));
-  }, [sortedTypes, searchTerm]);
-
-  // Check if "All" matches search
-  const showAllOption = !searchTerm || 'all types'.includes(searchTerm.toLowerCase());
-
-  useEffect(() => {
-    setPortalTarget(document.body);
-  }, []);
-
-  useEffect(() => {
-    if (isOpen && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownHeight = 320;
-
-      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
-        setPosition({
-          top: rect.top + window.scrollY - dropdownHeight - 4,
-          left: rect.left + window.scrollX,
-          width: Math.max(rect.width, 220),
-        });
-      } else {
-        setPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-          width: Math.max(rect.width, 220),
-        });
-      }
-      setTimeout(() => searchInputRef.current?.focus(), 0);
-    } else {
-      setSearchTerm('');
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const isInsideTrigger = triggerRef.current?.contains(target);
-      const isInsideDropdown = dropdownRef.current?.contains(target);
-
-      if (!isInsideTrigger && !isInsideDropdown) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Find the selected type name for display
-  const selectedLabel = useMemo(() => {
-    if (value === 'All') return 'All Types';
-    const selectedType = companyTypes.find(t => t.name === value);
-    return selectedType?.name || 'All Types';
-  }, [value, companyTypes]);
-
-  const dropdownContent = isOpen && portalTarget && createPortal(
-    <div
-      ref={dropdownRef}
-      className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
-      style={{ top: position.top, left: position.left, width: position.width }}
-    >
-      {/* Search input */}
-      <div className="p-2 border-b border-gray-100">
-        <input
-          ref={searchInputRef}
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search types..."
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-      </div>
-      {/* Options list */}
-      <div className="max-h-60 overflow-y-auto py-1">
-        {isLoading ? (
-          <div className="px-4 py-3 text-sm text-gray-500 text-center">Loading types...</div>
-        ) : !showAllOption && filteredTypes.length === 0 ? (
-          <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching types found</div>
-        ) : (
-          <>
-            {/* All Types option */}
-            {showAllOption && (
-              <button
-                type="button"
-                onClick={() => {
-                  onChange('All');
-                  setIsOpen(false);
-                }}
-                className={`
-                  w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
-                  transition-colors hover:bg-gray-50
-                  ${value === 'All' ? 'bg-blue-50' : ''}
-                `}
-              >
-                <span className="w-2 h-2 rounded-full flex-shrink-0 bg-gray-400" />
-                <span className={`flex-1 ${value === 'All' ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-                  All Types
-                </span>
-                {value === 'All' && (
-                  <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            )}
-            {/* Dynamic company types */}
-            {filteredTypes.map((companyType) => {
-              const isSelected = value === companyType.name;
-              return (
-                <button
-                  key={companyType.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(companyType.name);
-                    setIsOpen(false);
-                  }}
-                  className={`
-                    w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
-                    transition-colors hover:bg-gray-50
-                    ${isSelected ? 'bg-blue-50' : ''}
-                  `}
-                >
-                  <span className="w-2 h-2 rounded-full flex-shrink-0 bg-green-500" />
-                  <span className={`flex-1 ${isSelected ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-                    {companyType.name}
-                  </span>
-                  {isSelected && (
-                    <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              );
-            })}
-          </>
-        )}
-      </div>
-    </div>,
-    portalTarget
-  );
-
-  return (
-    <div className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`
-          px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white
-          flex items-center gap-2 transition-all min-w-[140px]
-          hover:border-blue-300 hover:shadow-sm cursor-pointer
-          ${isOpen ? 'ring-2 ring-blue-500 border-transparent shadow-sm' : ''}
-        `}
-      >
-        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${value === 'All' ? 'bg-gray-400' : 'bg-green-500'}`} />
-        <span className="text-gray-900 truncate flex-1 text-left">{selectedLabel}</span>
-        <svg
-          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {dropdownContent}
-    </div>
-  );
-}
 
 export default function CompaniesContent() {
   // Router for navigation
@@ -285,12 +84,9 @@ export default function CompaniesContent() {
   // Manage Company Types modal state
   const [showCompanyTypesModal, setShowCompanyTypesModal] = useState(false);
 
-  // Fetch company types from API for display
+  // Fetch company types from API for display (used when editing and in Manage Types modal)
   const { data: companyTypesData } = useCompanyTypes();
   const companyTypes: CompanyType[] = companyTypesData ?? [];
-
-  // Selected company type filter (from dropdown)
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('All');
 
   // Server-side filters - defined BEFORE API hook so they can be passed to the query
   // Initial filter excludes manufacturers (they are managed in /manufacturers)
@@ -302,37 +98,6 @@ export default function CompaniesContent() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  // Always exclude manufacturers - they are managed in /manufacturers
-  const excludeManufacturerFilter: LandingPageFilter = {
-    operator: 'NE',
-    columnName: 'companySourceType',
-    value: 'MANUFACTURER'
-  };
-
-  // Update server filters when type filter changes
-  const updateFiltersWithType = useCallback((typeFilter: string, additionalFilters: LandingPageFilter[]) => {
-    if (typeFilter === 'All') {
-      // No specific type filter - but still exclude manufacturers
-      setServerFilters([excludeManufacturerFilter, ...additionalFilters]);
-    } else {
-      // Filter by specific company type (manufacturer already excluded from dropdown options)
-      const typeFilterObj: LandingPageFilter = {
-        operator: 'EQ',
-        columnName: 'companySourceType',
-        value: typeFilter
-      };
-      setServerFilters([typeFilterObj, ...additionalFilters]);
-    }
-  }, []);
-
-  // Handler for type filter dropdown change
-  const handleTypeFilterChange = useCallback((newType: string) => {
-    setSelectedTypeFilter(newType);
-    // Get current additional filters (exclude any existing companySourceType filter)
-    const currentAdditionalFilters = serverFilters.filter(f => f.columnName !== 'companySourceType');
-    updateFiltersWithType(newType, currentAdditionalFilters);
-  }, [serverFilters, updateFiltersWithType]);
 
   // Handler for server-side filter changes (from advanced filters)
   const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
@@ -351,9 +116,8 @@ export default function CompaniesContent() {
         value: f.value,
       };
     });
-    // Apply type filter along with advanced filters
-    updateFiltersWithType(selectedTypeFilter, apiFilters);
-  }, [selectedTypeFilter, updateFiltersWithType]);
+    setServerFilters(apiFilters);
+  }, []);
 
   // Handler for server-side sort changes
   const handleServerSortChange = useCallback((sorts: ActiveSort[]) => {
@@ -412,9 +176,6 @@ export default function CompaniesContent() {
     setDeleteConfirmId,
     activeFilters,
     clientSortColumns,
-    uniqueCompanyNames,
-    uniqueCompanyTypes,
-    uniqueCreatedBy,
     handleFiltersChange: stateHandleFiltersChange,
     handleMultiSortChange: stateHandleMultiSortChange,
     handleStartEdit,
@@ -557,6 +318,66 @@ export default function CompaniesContent() {
     () => getCompanyFilterOptions(),
     []
   );
+
+  // Column filters state for table header
+  const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+
+  // Map from UI column keys to filter option IDs (for sync)
+  const columnKeyToFilterId: Record<string, string> = useMemo(() => ({
+    name: 'name',
+    companyTypeName: 'type',
+    phone: 'phone',
+    website: 'website',
+    tags: 'tags',
+    createdBy: 'createdBy',
+    lastActivity: 'last-activity',
+  }), []);
+
+  // Hook for synchronizing filters between AdvancedFilters and ColumnFilters
+  const { syncAdvancedToColumn, syncColumnToAdvanced } = useFilterSync({
+    filterOptions: companyFilterOptions as unknown as FilterOption[],
+    columnKeyToFilterId,
+  });
+
+  // Refs to prevent infinite loops during synchronization
+  const isSyncingFromAdvanced = useRef(false);
+  const isSyncingFromColumn = useRef(false);
+
+  // Handle multi-filter change (from AdvancedFilters) with sync to column filters
+  const handleFiltersChangeWithSync = useCallback((filters: ActiveFilter[]) => {
+    handleFiltersChange(filters);
+
+    if (!isSyncingFromColumn.current) {
+      isSyncingFromAdvanced.current = true;
+      const syncedColumnFilters = syncAdvancedToColumn(filters);
+
+      setColumnFilters((prev) => {
+        if (filters.length === 0) {
+          return {};
+        }
+        return { ...prev, ...syncedColumnFilters };
+      });
+
+      setTimeout(() => {
+        isSyncingFromAdvanced.current = false;
+      }, 0);
+    }
+  }, [handleFiltersChange, syncAdvancedToColumn]);
+
+  // Handler for column filter changes (from ListView ColumnFilters)
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ActiveFilter[]>) => {
+    setColumnFilters(filters);
+
+    if (!isSyncingFromAdvanced.current) {
+      isSyncingFromColumn.current = true;
+      const syncedActiveFilters = syncColumnToAdvanced(filters);
+      handleFiltersChange(syncedActiveFilters);
+
+      setTimeout(() => {
+        isSyncingFromColumn.current = false;
+      }, 0);
+    }
+  }, [handleFiltersChange, syncColumnToAdvanced]);
 
   const companySortOptions = useMemo(() => getCompanySortOptions(), []);
 
@@ -840,14 +661,6 @@ export default function CompaniesContent() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
           >
-            {/* Type Filter Dropdown - uses dynamic company types */}
-            <CompanyTypeFilterDropdown
-              value={selectedTypeFilter}
-              onChange={handleTypeFilterChange}
-              companyTypes={companyTypes}
-              isLoading={!companyTypesData}
-            />
-
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               <button
@@ -886,7 +699,7 @@ export default function CompaniesContent() {
 
             <AdvancedFilters
               filterOptions={companyFilterOptions}
-              onFiltersChange={handleFiltersChange}
+              onFiltersChange={handleFiltersChangeWithSync}
               activeFilters={activeFilters}
             />
 
@@ -973,6 +786,9 @@ export default function CompaniesContent() {
               companies={displayedCompanies} 
               onCompanyClick={setSelectedCompany}
               isLoading={tableLoading}
+              columnFilters={columnFilters}
+              onColumnFiltersChange={handleColumnFiltersChange}
+              filterOptions={companyFilterOptions}
             />
           )}
 
