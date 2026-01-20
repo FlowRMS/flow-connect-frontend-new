@@ -3,28 +3,29 @@
  * Scroll-based navigation with sticky tabs
  */
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { CONTACT_ROLES } from '../constants';
 import { getInitials, getAvatarColor } from '../utils';
 import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
-import type { Contact, ContactAddress, AddressType } from '../types';
+import type { Contact } from '../types';
 import type { RelatedEntityCompany, RelatedEntityJob } from '../../lib/crm-graphql';
 import type { CompanyLandingPage } from '../../lib/graphql/types';
-import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
+import {
+  GoogleMapsAddressModal,
+  type Address,
+} from '../../shared/google-maps-address';
+import {
+  useAddressesBySource,
+  useCreateAddress,
+  useUpdateAddress,
+  useDeleteAddress,
+} from '../../hooks/useAddressApi';
+import { toast } from 'sonner';
 import { useCRMCompanyLandingPages } from '../../hooks/useCRMApi';
 
 type TabId = 'overview' | 'sales-reps' | 'addresses' | 'emails' | 'meetings' | 'connected-entities';
-
-// US States for dropdown
-const US_STATES = [
-  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
-  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
-  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
-  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
-];
 
 interface ContactDetailViewProps {
   contact: Contact;
@@ -42,169 +43,6 @@ interface ContactDetailViewProps {
   setDeleteConfirmId: (id: string | null) => void;
   onJobClick?: (job: RelatedEntityJob) => void;
   onCompanyClick?: (company: RelatedEntityCompany) => void;
-}
-
-// Address Card Component
-interface AddressCardProps {
-  address: ContactAddress;
-  isEditing: boolean;
-  onUpdate: (updates: Partial<ContactAddress>) => void;
-  onDelete: () => void;
-}
-
-function AddressCard({ address, isEditing, onUpdate, onDelete }: AddressCardProps) {
-  const handleTypeToggle = (type: AddressType) => {
-    const newTypes = address.types.includes(type)
-      ? address.types.filter(t => t !== type)
-      : [...address.types, type];
-    onUpdate({ types: newTypes });
-  };
-
-  const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
-  const readOnlyClass = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600";
-
-  return (
-    <div className="border border-gray-200 rounded-lg p-4 bg-white">
-      {/* Address Type Checkboxes */}
-      <div className="flex items-center gap-6 mb-4">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={address.types.includes('shipping')}
-            onChange={() => isEditing && handleTypeToggle('shipping')}
-            disabled={!isEditing}
-            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-          />
-          <span className="text-sm text-gray-700">Shipping</span>
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={address.types.includes('billing')}
-            onChange={() => isEditing && handleTypeToggle('billing')}
-            disabled={!isEditing}
-            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-          />
-          <span className="text-sm text-gray-700">Billing</span>
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={address.types.includes('mailing')}
-            onChange={() => isEditing && handleTypeToggle('mailing')}
-            disabled={!isEditing}
-            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-          />
-          <span className="text-sm text-gray-700">Mailing</span>
-        </label>
-
-        {isEditing && (
-          <button
-            onClick={onDelete}
-            className="ml-auto p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
-            title="Remove address"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-            </svg>
-          </button>
-        )}
-      </div>
-
-      {/* Address Fields */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Country */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Country</label>
-          {isEditing ? (
-            <select
-              value={address.country}
-              onChange={(e) => onUpdate({ country: e.target.value })}
-              className={inputClass}
-            >
-              <option value="">Select Country</option>
-              <option value="US">United States</option>
-              <option value="CA">Canada</option>
-              <option value="MX">Mexico</option>
-            </select>
-          ) : (
-            <div className={readOnlyClass}>{address.country || '-'}</div>
-          )}
-        </div>
-
-        {/* State */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
-          {isEditing ? (
-            <select
-              value={address.state}
-              onChange={(e) => onUpdate({ state: e.target.value })}
-              className={inputClass}
-            >
-              <option value="">Select State</option>
-              {US_STATES.map(state => (
-                <option key={state} value={state}>{state}</option>
-              ))}
-            </select>
-          ) : (
-            <div className={readOnlyClass}>{address.state || '-'}</div>
-          )}
-        </div>
-
-        {/* Address Line 1 */}
-        <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Address Line 1</label>
-          <input
-            type="text"
-            value={address.addressLine1}
-            onChange={(e) => onUpdate({ addressLine1: e.target.value })}
-            className={isEditing ? inputClass : readOnlyClass}
-            readOnly={!isEditing}
-            placeholder="Street address"
-          />
-        </div>
-
-        {/* Address Line 2 */}
-        <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Address Line 2</label>
-          <input
-            type="text"
-            value={address.addressLine2 || ''}
-            onChange={(e) => onUpdate({ addressLine2: e.target.value })}
-            className={isEditing ? inputClass : readOnlyClass}
-            readOnly={!isEditing}
-            placeholder="Suite, unit, building, floor, etc."
-          />
-        </div>
-
-        {/* City */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
-          <input
-            type="text"
-            value={address.city}
-            onChange={(e) => onUpdate({ city: e.target.value })}
-            className={isEditing ? inputClass : readOnlyClass}
-            readOnly={!isEditing}
-            placeholder="City"
-          />
-        </div>
-
-        {/* ZIP Code */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">ZIP Code</label>
-          <input
-            type="text"
-            value={address.zipCode}
-            onChange={(e) => onUpdate({ zipCode: e.target.value })}
-            className={isEditing ? inputClass : readOnlyClass}
-            readOnly={!isEditing}
-            placeholder="ZIP Code"
-          />
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // Portaled Role Select Component
@@ -580,10 +418,14 @@ export default function ContactDetailView({
   onCompanyClick,
 }: ContactDetailViewProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
-  const [showAddAddressModal, setShowAddAddressModal] = useState(false);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
 
-  // Local state for addresses (since they're managed locally until save)
-  const [localAddresses, setLocalAddresses] = useState<ContactAddress[]>(contact.addresses || []);
+  // Address API hooks
+  const { data: addresses = [], isLoading: addressesLoading } = useAddressesBySource(contact.id, 'CONTACT');
+  const createAddressMutation = useCreateAddress();
+  const updateAddressMutation = useUpdateAddress();
+  const deleteAddressMutation = useDeleteAddress();
 
   // Section refs for scroll-to functionality
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
@@ -672,29 +514,75 @@ export default function ContactDetailView({
     { id: 'connected-entities', label: 'Connected Entities' },
   ];
 
-  // Address management functions
-  const handleAddAddress = (address: Address) => {
-    const newAddress: ContactAddress = {
-      id: address.id,
-      types: address.types,
-      country: address.country,
-      addressLine1: address.addressLine1,
-      addressLine2: address.addressLine2,
-      city: address.city,
-      state: address.state,
-      zipCode: address.zipCode,
-    };
-    setLocalAddresses([...localAddresses, newAddress]);
+  // Address handlers - API backed
+  const handleAddressSave = async (addressData: Omit<Address, 'id' | 'createdAt'>) => {
+    try {
+      if (editingAddress) {
+        // Update existing address
+        await updateAddressMutation.mutateAsync({
+          id: editingAddress.id,
+          input: {
+            sourceId: contact.id,
+            sourceType: 'CONTACT',
+            addressTypes: addressData.addressTypes || [addressData.addressType],
+            line1: addressData.line1,
+            line2: addressData.line2,
+            city: addressData.city,
+            state: addressData.state,
+            zipCode: addressData.zipCode,
+            country: addressData.country,
+            notes: addressData.notes,
+            isPrimary: addressData.isPrimary,
+          },
+        });
+        toast.success('Address updated successfully');
+        setEditingAddress(null);
+      } else {
+        // Create new address
+        await createAddressMutation.mutateAsync({
+          sourceId: contact.id,
+          sourceType: 'CONTACT',
+          addressTypes: addressData.addressTypes || [addressData.addressType],
+          line1: addressData.line1,
+          line2: addressData.line2,
+          city: addressData.city,
+          state: addressData.state,
+          zipCode: addressData.zipCode,
+          country: addressData.country,
+          notes: addressData.notes,
+          isPrimary: addressData.isPrimary,
+        });
+        toast.success('Address added successfully');
+      }
+    } catch (err) {
+      toast.error(editingAddress ? 'Failed to update address' : 'Failed to add address');
+      throw err;
+    }
   };
 
-  const updateAddress = (addressId: string, updates: Partial<ContactAddress>) => {
-    setLocalAddresses(localAddresses.map(addr =>
-      addr.id === addressId ? { ...addr, ...updates } : addr
-    ));
+  const handleEditAddress = (address: Address) => {
+    setEditingAddress(address);
+    setIsAddressModalOpen(true);
   };
 
-  const deleteAddress = (addressId: string) => {
-    setLocalAddresses(localAddresses.filter(addr => addr.id !== addressId));
+  const handleAddressModalClose = () => {
+    setIsAddressModalOpen(false);
+    setEditingAddress(null);
+  };
+
+  const handleAddressDelete = async (address: Address) => {
+    if (!confirm('Are you sure you want to delete this address?')) return;
+
+    try {
+      await deleteAddressMutation.mutateAsync({
+        id: address.id,
+        sourceId: contact.id,
+        sourceType: 'CONTACT',
+      });
+      toast.success('Address deleted');
+    } catch (err) {
+      toast.error('Failed to delete address');
+    }
   };
 
   const inputClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
@@ -1058,24 +946,13 @@ export default function ContactDetailView({
 
         {/* ============ SALES REPS SECTION ============ */}
         <div ref={el => { sectionRefs.current['sales-reps'] = el; }} id="section-sales-reps">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden opacity-60">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-gray-900">Sales Reps</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-                  0
+                <span className="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700 rounded-full">
+                  Coming Soon
                 </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Sales Rep
-                </button>
               </div>
             </div>
             <div className="p-6">
@@ -1083,10 +960,7 @@ export default function ContactDetailView({
                 <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                <p className="text-sm">No sales reps assigned</p>
-                <button className="mt-2 text-sm text-blue-600 hover:underline">
-                  + Add a sales rep
-                </button>
+                <p className="text-sm font-medium text-gray-400">Sales rep management coming soon</p>
               </div>
             </div>
           </div>
@@ -1095,77 +969,153 @@ export default function ContactDetailView({
         {/* ============ ADDRESSES SECTION ============ */}
         <div ref={el => { sectionRefs.current['addresses'] = el; }} id="section-addresses">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Addresses</h2>
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Addresses
+            </h2>
             <button
-              onClick={() => setShowAddAddressModal(true)}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              onClick={() => setIsAddressModalOpen(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
             >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
               Add Address
             </button>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="p-6">
-              {localAddresses.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            {addressesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : addresses.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  <p className="text-sm">No addresses added</p>
-                  {isEditing && (
-                    <button
-                      onClick={() => setShowAddAddressModal(true)}
-                      className="mt-2 text-sm text-blue-600 hover:underline"
-                    >
-                      + Add an address
-                    </button>
-                  )}
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {localAddresses.map((address) => (
-                    <AddressCard
-                      key={address.id}
-                      address={address}
-                      isEditing={isEditing}
-                      onUpdate={(updates) => updateAddress(address.id, updates)}
-                      onDelete={() => deleteAddress(address.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No addresses yet</h3>
+                <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+                  Add billing, shipping, or mailing addresses for this contact using Google Maps search.
+                </p>
+                <button
+                  onClick={() => setIsAddressModalOpen(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors inline-flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add First Address
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {addresses.map((address) => (
+                  <div
+                    key={address.id}
+                    className="relative flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors group"
+                  >
+                    {/* Address Type Icon */}
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      address.addressType === 'BILLING' ? 'bg-blue-100' :
+                      address.addressType === 'SHIPPING' ? 'bg-green-100' :
+                      address.addressType === 'MAILING' ? 'bg-purple-100' : 'bg-gray-100'
+                    }`}>
+                      {address.addressType === 'BILLING' && (
+                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                      )}
+                      {address.addressType === 'SHIPPING' && (
+                        <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12l-4 9H8l-4-9h4m0 0V4m0 3v10m4-10v10m-4 0h4" />
+                        </svg>
+                      )}
+                      {address.addressType === 'MAILING' && (
+                        <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                      {address.addressType === 'OTHER' && (
+                        <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* Address Details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          address.addressType === 'BILLING' ? 'bg-blue-100 text-blue-700' :
+                          address.addressType === 'SHIPPING' ? 'bg-green-100 text-green-700' :
+                          address.addressType === 'MAILING' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {address.addressType.charAt(0) + address.addressType.slice(1).toLowerCase()}
+                        </span>
+                        {address.isPrimary && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-medium text-gray-900">{address.line1}</p>
+                      {address.line2 && <p className="text-sm text-gray-600">{address.line2}</p>}
+                      <p className="text-sm text-gray-600">
+                        {[address.city, address.state, address.zipCode].filter(Boolean).join(', ')}
+                      </p>
+                      <p className="text-sm text-gray-500">{address.country}</p>
+                      {address.notes && (
+                        <p className="text-xs text-gray-400 mt-1 italic">{address.notes}</p>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Edit Button */}
+                      <button
+                        onClick={() => handleEditAddress(address)}
+                        className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit address"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      {/* Delete Button */}
+                      <button
+                        onClick={() => handleAddressDelete(address)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete address"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* ============ EMAILS SECTION ============ */}
         <div ref={el => { sectionRefs.current['emails'] = el; }} id="section-emails">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden opacity-60">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-gray-900">Emails</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-                  0
+                <span className="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700 rounded-full">
+                  Coming Soon
                 </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Email
-                </button>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Email
-                </button>
               </div>
             </div>
             <div className="p-6">
@@ -1173,10 +1123,7 @@ export default function ContactDetailView({
                 <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                <p className="text-sm">No emails linked</p>
-                <button className="mt-2 text-sm text-blue-600 hover:underline">
-                  + Add an email
-                </button>
+                <p className="text-sm font-medium text-gray-400">Email integration coming soon</p>
               </div>
             </div>
           </div>
@@ -1184,28 +1131,13 @@ export default function ContactDetailView({
 
         {/* ============ MEETINGS SECTION ============ */}
         <div ref={el => { sectionRefs.current['meetings'] = el; }} id="section-meetings">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden opacity-60">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-gray-900">Meetings</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-                  0
+                <span className="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700 rounded-full">
+                  Coming Soon
                 </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Meeting
-                </button>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Meeting
-                </button>
               </div>
             </div>
             <div className="p-6">
@@ -1213,10 +1145,7 @@ export default function ContactDetailView({
                 <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <p className="text-sm">No meetings scheduled</p>
-                <button className="mt-2 text-sm text-blue-600 hover:underline">
-                  + Add a meeting
-                </button>
+                <p className="text-sm font-medium text-gray-400">Meeting scheduling coming soon</p>
               </div>
             </div>
           </div>
@@ -1235,10 +1164,16 @@ export default function ContactDetailView({
         </div>
       </div>
 
-      <AddAddressModal
-        isOpen={showAddAddressModal}
-        onClose={() => setShowAddAddressModal(false)}
-        onSave={handleAddAddress}
+      {/* Google Maps Address Modal */}
+      <GoogleMapsAddressModal
+        isOpen={isAddressModalOpen}
+        onClose={handleAddressModalClose}
+        onSave={handleAddressSave}
+        sourceId={contact.id}
+        sourceType="CONTACT"
+        defaultAddressType={editingAddress?.addressType || "BILLING"}
+        initialAddress={editingAddress || undefined}
+        mode={editingAddress ? 'edit' : 'create'}
       />
 
       {/* Delete Confirmation Modal */}

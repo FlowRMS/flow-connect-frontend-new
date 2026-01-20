@@ -5,8 +5,9 @@
 
 import React, { useState } from 'react';
 import type { PreOpportunity, PreOpportunityStatus } from '../types';
-import { formatDate, formatCurrency } from '../utils';
+import { formatDate, formatCurrency, getOwnerInitials, getOwnerColor } from '../utils';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import { ExcelBuilder } from '@/components/shared/excel-builder';
 
 // Status color mapping
 const STATUS_COLORS: Record<PreOpportunityStatus, { bg: string; text: string; dot: string }> = {
@@ -54,25 +55,7 @@ export function PreOpportunityDetailHeader({
 }: PreOpportunityDetailHeaderProps) {
   const statusColors = STATUS_COLORS[preOpp.status] || STATUS_COLORS.QUALIFIED;
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
-
-  // Get owner initials and color
-  const getOwnerInitials = (owner: string) => {
-    if (!owner) return '?';
-    const parts = owner.split(/[\s._-]+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return owner.substring(0, 2).toUpperCase();
-  };
-
-  const getOwnerColor = (id: string) => {
-    const colors = [
-      'bg-blue-500', 'bg-green-500', 'bg-purple-500', 
-      'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'
-    ];
-    const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
-  };
+  const [showExcelBuilder, setShowExcelBuilder] = useState(false);
 
   const ownerInitials = getOwnerInitials(preOpp.createdBy);
   const ownerColor = getOwnerColor(preOpp.id);
@@ -180,6 +163,21 @@ export function PreOpportunityDetailHeader({
               </>
             ) : (
               <>
+                {/* Excel Button */}
+                <button
+                  onClick={() => setShowExcelBuilder(true)}
+                  disabled={!preOpp.id}
+                  className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-medium transition-all ${
+                    !preOpp.id
+                      ? 'bg-emerald-600 text-white opacity-50 cursor-not-allowed'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <span className="hidden sm:inline">Excel</span>
+                </button>
                 {/* PDF Button */}
                 <button
                   onClick={() => setShowPDFBuilder(true)}
@@ -243,6 +241,14 @@ export function PreOpportunityDetailHeader({
         entityType="PRE_OPPORTUNITIES"
         isOpen={showPDFBuilder}
         onClose={() => setShowPDFBuilder(false)}
+      />
+
+      {/* Excel Builder */}
+      <ExcelBuilder
+        entityId={preOpp.id}
+        entityType="PRE_OPPORTUNITIES"
+        isOpen={showExcelBuilder}
+        onClose={() => setShowExcelBuilder(false)}
       />
     </div>
   );

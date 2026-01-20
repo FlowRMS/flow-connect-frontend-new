@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import type { PreOpportunityLandingPage, PreOpportunityStatus } from '../types';
-import { formatCurrency, formatDate, getStatusLabel } from '../utils';
+import { formatCurrency, formatDate, getStatusLabel, getOwnerInitials, getOwnerColor } from '../utils';
 import { useDeleteCRMPreOpportunity } from '../../hooks/useCRMApi';
 import { preOpportunityToasts } from '../../lib/toast';
 import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
@@ -65,24 +65,6 @@ export function ListView({ preOpps, onRefresh }: ListViewProps) {
     return STATUS_COLORS[status]?.dot || 'bg-blue-500';
   };
 
-  // Get owner initials and color
-  const getOwnerInitials = (owner: string) => {
-    if (!owner) return '?';
-    const parts = owner.split(/[\s._-]+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return owner.substring(0, 2).toUpperCase();
-  };
-
-  const getOwnerColor = (id: string) => {
-    const colors = [
-      'bg-blue-500', 'bg-green-500', 'bg-purple-500',
-      'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'
-    ];
-    const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
-  };
 
   return (
     <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-hidden shadow-sm">

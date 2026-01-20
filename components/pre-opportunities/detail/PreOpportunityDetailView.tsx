@@ -87,7 +87,12 @@ export function PreOpportunityDetailView({
 
         {/* Sidebar - 1 column, appears first on mobile for summary visibility */}
         <div className="order-1 lg:order-2">
-          <PreOpportunitySummary preOpp={preOpp} />
+          <PreOpportunitySummary 
+            preOpp={preOpp}
+            isEditing={isEditing}
+            editFormData={editFormData}
+            onChange={onEditChange}
+          />
         </div>
       </div>
 

@@ -744,6 +744,8 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
       } else {
         await updateInvoiceMutation.mutateAsync(input as UpdateInvoiceInput);
       }
+      // Clear the unsaved changes state after successful save
+      setHasLocalEdits(false);
       return true;
     } catch (error) {
       console.error('Failed to save invoice:', error);

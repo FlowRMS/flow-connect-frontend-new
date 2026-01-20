@@ -59,7 +59,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const router = useRouter();
   const state = useOrderDetailState({ orderId });
   const { setFullEntityContext } = useFlowChat();
-  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+  const { requestNavigation, hasUnsavedChanges, clearUnsavedChanges } = useUnsavedChangesContext();
 
   // Credits state management
   const creditsState = useCreditsState({ orderId: orderId !== 'new' ? orderId : null });
@@ -504,6 +504,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         const result = await state.createOrderMutation.mutateAsync(createInput);
         console.log('Order created:', result);
         orderToasts.createSuccess(result.orderNumber || createInput.orderNumber);
+        // Clear unsaved changes before navigation to prevent beforeunload alert
+        clearUnsavedChanges();
         // Navigate to the newly created order detail page instead of landing page
         router.push(`/orders/${result.id}`);
       } else {
@@ -536,7 +538,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             jobId: (order as any).jobId || undefined,
           };
 
-          await state.updateOrderMutation.mutateAsync(updateInput);
+          const savedOrder = await state.updateOrderMutation.mutateAsync(updateInput);
+          // Apply the mutation result to local state immediately to prevent stale data
+          state.applyMutationResult(savedOrder);
           state.resetChanges();
           // Refetch order data to get fresh UUIDs for any newly created line items
           await state.refetch();
