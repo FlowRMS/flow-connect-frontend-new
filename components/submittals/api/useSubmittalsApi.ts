@@ -30,6 +30,7 @@ import {
   type UpdateSubmittalItemInput,
   type SubmittalStakeholderInput,
   type SendSubmittalEmailInput,
+  type SendSubmittalEmailResponse,
   type GenerateSubmittalPdfInput,
   type GenerateSubmittalPdfResponse,
   type SubmittalStatusGQL,
@@ -263,7 +264,7 @@ export function useCreateSubmittalRevision() {
 export function useSendSubmittalEmail() {
   const queryClient = useQueryClient();
 
-  return useMutation<boolean, Error, SendSubmittalEmailInput>({
+  return useMutation<SendSubmittalEmailResponse, Error, SendSubmittalEmailInput>({
     mutationFn: sendSubmittalEmail,
     onSuccess: (_, { submittalId }) => {
       // Invalidate both detail and list queries to refresh revision data
@@ -306,6 +307,7 @@ export type {
   UpdateSubmittalItemInput,
   SubmittalStakeholderInput,
   SendSubmittalEmailInput,
+  SendSubmittalEmailResponse,
   GenerateSubmittalPdfInput,
   GenerateSubmittalPdfResponse,
   SubmittalStatusGQL,

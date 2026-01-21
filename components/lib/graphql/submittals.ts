@@ -474,7 +474,11 @@ const CREATE_SUBMITTAL_REVISION = `
 
 const SEND_SUBMITTAL_EMAIL = `
   mutation SendSubmittalEmail($input: SendSubmittalEmailInput!) {
-    sendSubmittalEmail(input: $input)
+    sendSubmittalEmail(input: $input) {
+      success
+      error
+      provider
+    }
   }
 `;
 
@@ -711,8 +715,14 @@ export async function createSubmittalRevision(
   return response.data.createSubmittalRevision;
 }
 
-export async function sendSubmittalEmail(input: SendSubmittalEmailInput): Promise<boolean> {
-  const response = await crmGraphQLRequest<{ sendSubmittalEmail: boolean }>({
+export interface SendSubmittalEmailResponse {
+  success: boolean;
+  error?: string;
+  provider?: string;
+}
+
+export async function sendSubmittalEmail(input: SendSubmittalEmailInput): Promise<SendSubmittalEmailResponse> {
+  const response = await crmGraphQLRequest<{ sendSubmittalEmail: SendSubmittalEmailResponse }>({
     query: SEND_SUBMITTAL_EMAIL,
     variables: { input },
   });
@@ -721,7 +731,16 @@ export async function sendSubmittalEmail(input: SendSubmittalEmailInput): Promis
     throw new Error(response.errors[0]?.message || 'Failed to send email');
   }
 
-  return response.data?.sendSubmittalEmail || false;
+  if (!response.data?.sendSubmittalEmail) {
+    throw new Error('No response returned from send email mutation');
+  }
+
+  const result = response.data.sendSubmittalEmail;
+  if (!result.success && result.error) {
+    throw new Error(result.error);
+  }
+
+  return result;
 }
 
 export async function generateSubmittalPdf(
