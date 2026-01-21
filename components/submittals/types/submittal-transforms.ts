@@ -56,7 +56,9 @@ export function transformSubmittalResponse(response: SubmittalResponse): Submitt
     submittalDate: response.createdAt,
     updatedAt: response.createdAt,
     createdBy: response.createdBy?.fullName || 'Unknown',
-    currentRevision: response.revisions?.length ? response.revisions.length - 1 : 0,
+    currentRevision: response.revisions?.length
+      ? Math.max(...response.revisions.map(r => r.revisionNumber))
+      : 0,
     customers: response.stakeholders
       ?.filter(s => s.role === 'CUSTOMER')
       .map(s => ({
@@ -120,7 +122,9 @@ export function transformToFullSubmittal(response: SubmittalResponse): Submittal
     createdAt: response.createdAt,
     updatedAt: response.createdAt,
     status: statusApiToFrontend[response.status] || 'draft',
-    currentRevision: response.revisions?.length ? response.revisions.length - 1 : 0,
+    currentRevision: response.revisions?.length
+      ? Math.max(...response.revisions.map(r => r.revisionNumber))
+      : 0,
     items: response.items?.map((item, index) => ({
       id: item.id,
       submittalId: response.id,
