@@ -117,6 +117,7 @@ const defaultConfig: SidebarConfig = {
       items: [
         { id: 'analytics-order-dashboard', name: 'Order Dashboard', href: '/analytics/order-dashboard', enabled: true },
         { id: 'analytics-product-dashboard', name: 'Product Dashboard', href: '/analytics/product-dashboard', enabled: true },
+        { id: 'analytics-product-pricing', name: 'Product Pricing', href: '/analytics/product-pricing', enabled: true },
         { id: 'analytics-commission-gap', name: 'Commission Gap Reports', href: '/analytics/commission-gap-reports', enabled: true },
         { id: 'analytics-orders-report', name: 'Orders Detail', href: '/analytics/orders-report', enabled: true },
         { id: 'analytics-check-detail', name: 'Check Detail', href: '/analytics/check-detail', enabled: true },
