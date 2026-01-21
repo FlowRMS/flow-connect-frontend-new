@@ -160,39 +160,18 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
           }
         }
 
-        // Collect unique end user IDs to fetch their names (factory names come from detail.factory now)
-        const endUserIds = new Set<string>();
-        transformedLineItems.forEach((li) => {
-          if (li.endUserId) endUserIds.add(li.endUserId);
-        });
-
-        // Fetch end user names
-        if (endUserIds.size > 0) {
-          searchCustomers('', true)
-            .then((customers) => {
-              const customerMap = new Map(customers.map((c) => [c.id, c.companyName]));
-              setLineItems((prev) =>
-                prev.map((li) => ({
-                  ...li,
-                  endUserName: li.endUserId ? customerMap.get(li.endUserId) || '' : '',
-                }))
-              );
-
-              // When endUserPerLineItem is false, populate header-level end user from first line item
-              // (all line items should have the same end user when this setting is off)
-              if (apiQuote.endUserPerLineItem === false && transformedLineItems.length > 0) {
-                const firstLineItemWithEndUser = transformedLineItems.find(li => li.endUserId);
-                if (firstLineItemWithEndUser?.endUserId) {
-                  const endUserName = customerMap.get(firstLineItemWithEndUser.endUserId) || '';
-                  setQuote(prev => ({
-                    ...prev,
-                    endUserId: firstLineItemWithEndUser.endUserId,
-                    endUserName: endUserName,
-                  }));
-                }
-              }
-            })
-            .catch((err) => console.error('Failed to fetch end user names:', err));
+        // When endUserPerLineItem is false, populate header-level end user from first line item
+        // The endUserName is already extracted from the embedded endUser object in transformQuoteDetailToLineItemV2
+        // (all line items should have the same end user when this setting is off)
+        if (apiQuote.endUserPerLineItem === false && transformedLineItems.length > 0) {
+          const firstLineItemWithEndUser = transformedLineItems.find(li => li.endUserId);
+          if (firstLineItemWithEndUser?.endUserId) {
+            setQuote(prev => ({
+              ...prev,
+              endUserId: firstLineItemWithEndUser.endUserId,
+              endUserName: firstLineItemWithEndUser.endUserName || '',
+            }));
+          }
         }
 
         // DO NOT fetch CPN/tier pricing on initial load
