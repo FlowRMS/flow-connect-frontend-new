@@ -6,10 +6,8 @@ import React, {
   useMemo,
   useRef,
   useCallback,
-  useImperativeHandle,
-  forwardRef,
 } from "react";
-import { useInvoiceDetailSubscription } from "@/lib/analytics/hooks/useInvoiceDetailSubscription";
+import { useJobDetailSubscription } from "@/lib/analytics/hooks/useJobDetailSubscription";
 import { RevoGrid } from "@revolist/react-datagrid";
 import NumberColumnType from "@revolist/revogrid-column-numeral";
 import {
@@ -23,10 +21,6 @@ import {
 } from "@revolist/revogrid-pro";
 import {
   Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/analytics/ui/card";
 import { TableConfigDialog } from "@/components/analytics/table-config/TableConfigDialog";
 import { PivotConfigManager } from "@/components/analytics/table-config/PivotConfigManager";
@@ -43,8 +37,6 @@ import { ActiveFilters } from "@/components/analytics/filters/ActiveFilters";
 import { PivotSortingModal } from "@/components/analytics/pivot-config/PivotSortingModal";
 import "@/app/analytics-styles/pivot-table.css";
 import {
-  Save,
-  Settings,
   Loader2,
   Download,
   FileSpreadsheet,
@@ -52,67 +44,26 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import { exportGridCsv, exportGridXlsxWithHeaders } from "@/lib/analytics/utils/exportGridCsv";
-import { attachYtdFields } from "@/lib/analytics/lib/pivot/attachYtdFields";
-import { sumSkipNulls, percentageDiffAggregator } from "@/lib/analytics/lib/pivot/aggregators";
-import { normalizePivotConfig, pivotConfigsEqual, computePivotValueTotals } from "@/lib/analytics/lib/pivot/pivotUtils";
-import { formatYTDHelperText, getYTDRanges } from "@/lib/analytics/lib/pivot/ytdUtils";
-import { toNumericSortValue } from "@/lib/analytics/lib/pivot/sortHelpers";
+import { normalizePivotConfig, pivotConfigsEqual } from "@/lib/analytics/lib/pivot/pivotUtils";
 import { FullScreenModal, ExpandButton } from "@/components/analytics/ui/FullScreenModal";
 import { DateFormatDropdown, DATE_FORMATS, formatDateByType } from "@/components/analytics/ui/DateFormatDropdown";
 import { RefreshButton } from "@/components/analytics/ui/RefreshButton";
-import { extractYear, extractQuarter, extractMonth } from "@/lib/analytics/utils/dateExtractors";
-import { getDefault2YearRange } from "@/lib/analytics/utils/relativeDateUtils";
-
-// Mock data generator for testing without GraphQL connection
-const generateMockData = (count = 50) => {
-  const customers = ["Acme Corp", "TechStart Inc", "Global Supplies", "Mega Retail", "Premium Partners"];
-  const factories = ["Factory A", "Factory B", "Factory C", "Factory D"];
-  const reps = ["John Smith", "Jane Doe", "Bob Johnson", "Alice Williams", "Charlie Brown"];
-  const statuses = ["Pending", "Shipped", "Delivered", "Cancelled"];
-
-  return Array.from({ length: count }, (_, i) => ({
-    id: `mock_invoice_${i}`,
-    invoiceNumber: `INV-${1000 + i}`,
-    customerTitle: customers[Math.floor(Math.random() * customers.length)],
-    factoryTitle: factories[Math.floor(Math.random() * factories.length)],
-    outsideRep: reps[Math.floor(Math.random() * reps.length)],
-    factoryPartNumber: `FPN-${1000 + i}`,
-    total: (Math.random() * 10000 + 1000).toFixed(2),
-    unitPrice: (Math.random() * 500 + 50).toFixed(2),
-    commission: (Math.random() * 500 + 10).toFixed(2),
-    outsideRepCommission: (Math.random() * 200 + 5).toFixed(2),
-    outsideRepTotalPortion: (Math.random() * 200 + 5).toFixed(2),
-    quantityOrdered: Math.floor(Math.random() * 100) + 1,
-    quantityShipped: Math.floor(Math.random() * 100) + 1,
-    outsideRepSplitRate: Math.floor(Math.random() * 30 + 10),
-    entityDate: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString(),
-    entryDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-    jobName: `Project ${i}`,
-    endUser: `End User ${i}`,
-    status: statuses[Math.floor(Math.random() * statuses.length)],
-    invoiceId: `INV-${1000 + i}`,
-    orderId: `ORD-${1000 + i}`,
-    orderNumber: `ORD-${1000 + i}`,
-  }));
-};
+import { toNumericSortValue } from "@/lib/analytics/lib/pivot/sortHelpers";
 
 const formatDate = (value, formatType = DATE_FORMATS.DEFAULT) => {
   return formatDateByType(value, formatType);
 };
 
-export function InvoicePivotGrid() {
-  // Date range state - defaults to last 2 years
-  const [startDate, setStartDate] = useState(() => getDefault2YearRange().startDate);
-  const [endDate, setEndDate] = useState(() => getDefault2YearRange().endDate);
+export function JobPivotGrid() {
+  // Date range state
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [filterByDate, setFilterByDate] = useState("ENTITY_DATE");
-
-  // YTD Mode state
-  const [ytdModeEnabled, setYtdModeEnabled] = useState(false);
 
   // Advanced filter state
   const [advancedFilters, setAdvancedFilters] = useState({});
 
-  // Sorting state for pivot table
+  // Sorting state
   const [sortingConfig, setSortingConfig] = useState([]);
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
 
@@ -124,9 +75,9 @@ export function InvoicePivotGrid() {
 
   const [pivotConfigState, setPivotConfigState] = useState(() =>
     normalizePivotConfig({
-      rows: ["customer", "factory"],
-      columns: ["outsideRep"],
-      values: [{ prop: "detailTotal", aggregator: "sumSkipNulls" }],
+      rows: ["status", "jobType"],
+      columns: [],
+      values: [{ prop: "jobName", aggregator: "count" }],
     })
   );
   const pivotConfig = pivotConfigState;
@@ -139,10 +90,7 @@ export function InvoicePivotGrid() {
     });
   }, []);
 
-  // Toggle between mock and real data - set to true to use mock data
-  const USE_MOCK_DATA = false;
-
-  // Use real API data instead of dummy data
+  // Use real API data
   const {
     data: subscriptionData,
     error: apiError,
@@ -153,28 +101,15 @@ export function InvoicePivotGrid() {
     lastUpdated,
     resetCache,
     hasCachedData,
-  } = useInvoiceDetailSubscription(null, startDate, endDate, filterByDate);
+  } = useJobDetailSubscription(null, startDate, endDate, filterByDate);
 
-  const [mockRows, setMockRows] = useState([]);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
     setIsHydrated(true);
   }, []);
 
-  // Load mock data on mount if enabled
   useEffect(() => {
-    if (USE_MOCK_DATA) {
-      console.log("[InvoicePivotGrid] Using MOCK DATA (GraphQL disabled)");
-      const mockData = generateMockData(100);
-      setMockRows(mockData);
-    }
-  }, [USE_MOCK_DATA]);
-
-  useEffect(() => {
-    // Skip API data processing if using mock data
-    if (USE_MOCK_DATA) return;
-
     const logData = {
       hasData: !!subscriptionData,
       hasGetReport: !!subscriptionData?.getReport,
@@ -185,38 +120,19 @@ export function InvoicePivotGrid() {
       reportLength: subscriptionData?.getReport?.length,
     };
 
-    console.log("[InvoicePivotGrid] Subscription data updated:");
+    console.log("[JobPivotGrid] Subscription data updated:");
     console.log(JSON.stringify(logData, null, 2));
 
     if (subscriptionData?.getReport?.length) {
-      console.log(
-        "[InvoicePivotGrid] Sample of first item:",
-        subscriptionData.getReport[0]
-      );
+      console.log("[JobPivotGrid] Sample of first item:", subscriptionData.getReport[0]);
     }
-  }, [subscriptionData, cachedRows, apiError, USE_MOCK_DATA]);
+  }, [subscriptionData, cachedRows, apiError]);
 
-  const sourceRows = USE_MOCK_DATA ? mockRows : cachedRows;
-  const filterCacheKey = USE_MOCK_DATA ? undefined : cacheKey;
-  const filterDataVersion = USE_MOCK_DATA ? undefined : lastUpdated;
+  const sourceRows = cachedRows;
+  const filterCacheKey = cacheKey;
+  const filterDataVersion = lastUpdated;
   const displayFetching =
-    isHydrated && !USE_MOCK_DATA && (isFetching || initialLoading) && sourceRows.length === 0;
-
-  // YTD Mode: Automatically set date range to cover both current and previous YTD
-  useEffect(() => {
-    if (ytdModeEnabled) {
-      const ranges = getYTDRanges();
-      // Set date filter to cover from Jan 1 of previous year to today
-      const prevYearStart = ranges.previous.start;
-      const today = ranges.current.end;
-      
-      setStartDate(prevYearStart.toISOString().split('T')[0]);
-      setEndDate(today.toISOString().split('T')[0]);
-    }
-    
-    // Force grid re-render when YTD mode changes to clear old columns
-    setGridKey(prev => prev + 1);
-  }, [ytdModeEnabled]);
+    isHydrated && (isFetching || initialLoading) && sourceRows.length === 0;
 
   const [gridDimensions, setGridDimensions] = useState({
     width: 0,
@@ -227,10 +143,10 @@ export function InvoicePivotGrid() {
   const containerRef = useRef(null);
 
   // Table configuration management
-  // Use useCallback to ensure the callback always has the latest state values
   const getAdditionalState = useCallback(() => {
-    console.log('[InvoicePivotGrid] getAdditionalState called - advancedFilters:', advancedFilters);
-    console.log('[InvoicePivotGrid] getAdditionalState called - dateRange:', { startDate, endDate });
+    console.log('[JobPivotGrid] getAdditionalState called - advancedFilters:', advancedFilters);
+    console.log('[JobPivotGrid] getAdditionalState called - dateRange:', { startDate, endDate });
+    console.log('[JobPivotGrid] getAdditionalState called - sorting:', sortingConfig);
     return {
       advancedFilters,
       setAdvancedFilters,
@@ -250,21 +166,14 @@ export function InvoicePivotGrid() {
     loadConfig,
     getSavedConfigs,
     deleteConfig,
-    exportConfig,
-    importConfig,
     isConfigDialogOpen,
-    openConfigDialog,
     closeConfigDialog,
     handleConfigApplied,
-    hasUnsavedChanges,
-    lastSavedConfig,
-    autoSaveEnabled,
-    toggleAutoSave,
     scheduleAutoSave,
     refreshTrigger,
   } = useTableConfig(
     gridRef,
-    "invoice-pivot",
+    "job-pivot",
     getAdditionalState
   );
 
@@ -272,42 +181,22 @@ export function InvoicePivotGrid() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const handlePendingLoad = (pendingData) => {
-      // Handle both old format (tableId) and new format (reportType)
-      const isMatch = (pendingData.tableId === "invoice-pivot") || (pendingData.reportType === "PIVOT_INVOICE_REPORT");
-      if (isMatch) {
-        // Clear the pending load
-        sessionStorage.removeItem("pendingConfigLoad");
-        // Load the config
-        setTimeout(() => {
-          loadConfig(pendingData.configId);
-        }, 500);
-      }
-    };
-
-    // Check sessionStorage on mount (for cross-page navigation)
     try {
       const pendingLoad = sessionStorage.getItem("pendingConfigLoad");
       if (pendingLoad) {
         const pendingData = JSON.parse(pendingLoad);
-        handlePendingLoad(pendingData);
+
+        const isMatch = (pendingData.tableId === "job-pivot") || (pendingData.reportType === "PIVOT_JOB_REPORT");
+        if (isMatch) {
+          sessionStorage.removeItem("pendingConfigLoad");
+          setTimeout(() => {
+            loadConfig(pendingData.configId);
+          }, 500);
+        }
       }
     } catch (error) {
       console.error("Error loading pending config:", error);
     }
-
-    // Listen for custom event (for same-page config loading from GlobalConfigManager)
-    const handleLoadPendingConfigEvent = (event) => {
-      if (event.detail) {
-        handlePendingLoad(event.detail);
-      }
-    };
-
-    window.addEventListener("loadPendingConfig", handleLoadPendingConfigEvent);
-
-    return () => {
-      window.removeEventListener("loadPendingConfig", handleLoadPendingConfigEvent);
-    };
   }, [loadConfig]);
 
   // Export functionality
@@ -337,7 +226,7 @@ export function InvoicePivotGrid() {
           }
         } catch (error) {
           console.warn(
-            "[InvoicePivotGrid] Failed to retrieve grid data for CSV:",
+            "[JobPivotGrid] Failed to retrieve grid data for CSV:",
             error
           );
         }
@@ -348,17 +237,12 @@ export function InvoicePivotGrid() {
       }
 
       if (exportRows.length === 0) {
-        console.warn("[InvoicePivotGrid] No data to export");
+        console.warn("[JobPivotGrid] No data to export");
         return;
       }
 
-      // Add totals row if present
-      if (grid.pinnedBottomSource && Array.isArray(grid.pinnedBottomSource) && grid.pinnedBottomSource.length > 0) {
-        exportRows = [...exportRows, ...grid.pinnedBottomSource];
-      }
-
       const dateStamp = new Date().toISOString().split("T")[0];
-      const filename = `invoice-pivot-${dateStamp}`;
+      const filename = `job-pivot-${dateStamp}`;
 
       await exportGridCsv({
         filename,
@@ -370,127 +254,74 @@ export function InvoicePivotGrid() {
     } finally {
       setIsExporting(false);
     }
-  }, [resolveColumnsForExport]);
+  }, []);
 
-  // Transform API data with robust error handling to prevent layout issues
+  // Transform API data with robust error handling
   const transformedRows = useMemo(() => {
     if (!sourceRows || sourceRows.length === 0) {
-      console.log("[InvoicePivotGrid] No data available - returning empty array");
+      console.log("[JobPivotGrid] No data available - returning empty array");
       return [];
     }
 
     const rawRecords = sourceRows;
 
     try {
-      const validRecords = rawRecords.filter((record, index) => {
+      const validRecords = rawRecords.filter((record) => {
         const isValid =
           record &&
           typeof record === "object" &&
-          record.customerTitle !== null &&
-          record.customerTitle !== undefined &&
-          record.customerTitle !== "";
+          record.jobName !== null &&
+          record.jobName !== undefined &&
+          record.jobName !== "";
 
         return isValid;
       });
 
       const transformedData = validRecords.map((record, index) => {
-        const invoiceDateSource = record.invoiceDate ?? record.entityDate ?? null;
-        const invoiceDateValue =
-          invoiceDateSource && !Number.isNaN(new Date(invoiceDateSource).getTime())
-            ? new Date(invoiceDateSource)
+        const startDateValue =
+          record.startDate && !Number.isNaN(new Date(record.startDate).getTime())
+            ? new Date(record.startDate)
             : null;
-        const invoiceDateIso = invoiceDateValue
-          ? invoiceDateValue.toISOString()
-          : typeof invoiceDateSource === "string"
-          ? invoiceDateSource
+        const startDateIso = startDateValue
+          ? startDateValue.toISOString()
+          : typeof record.startDate === "string"
+          ? record.startDate
           : null;
-        const invoiceDateDisplay = formatDate(invoiceDateValue ?? invoiceDateSource, dateFormat);
+        const startDateDisplay = formatDate(startDateValue ?? record.startDate, dateFormat);
 
-        const baseRow = {
-          id: record.id || `invoice_${index}`,
-          invoiceNumber: record.invoiceNumber || record.invoiceId || "N/A",
-          customer: String(record.customerTitle || "Unknown Customer"),
-          customerId: record.customerId || "N/A",
-          factory: String(record.factoryTitle || "Unknown Factory"),
-          factoryTitle: String(record.factoryTitle || "Unknown Factory"),
-          factoryId: record.factoryId || "N/A",
-          outsideRep: record.outsideRep || "N/A",
-          factoryPartNumber: record.factoryPartNumber || "N/A",
-
-          // Financial metrics - ensure proper number conversion
-          revenue: parseFloat(record.total) || 0,
-          detailTotal: parseFloat(record.total) || 0,
-          unitPrice: parseFloat(record.unitPrice) || 0,
-          commission: parseFloat(record.commission) || 0,
-          outsideRepCommission: parseFloat(record.outsideRepCommission) || 0,
-          outsideRepTotalPortion: parseFloat(record.outsideRepTotalPortion) || 0,
-
-          // Quantity metrics
-          quantity: parseInt(record.quantityOrdered, 10) || 0,
-          quantityOrdered: parseInt(record.quantityOrdered, 10) || 0,
-          quantityShipped: parseInt(record.quantityShipped, 10) || 0,
-          outsideRepSplitRate: parseFloat(record.outsideRepSplitRate) || 0,
-
-          // Dates
-          invoiceDate: invoiceDateIso,
-          entityDate: formatDate(record.entityDate, dateFormat),
-          entryDate: formatDate(record.entryDate, dateFormat),
-          orderDate: formatDate(record.entityDate, dateFormat),
-
-          // Additional fields
-          jobName: record.jobName || "N/A",
-          endUser: record.endUser || "N/A",
-          status: record.status || "Pending",
-          invoiceId: record.invoiceId || "N/A",
-          orderId: record.orderId || "N/A",
-          orderNumber: record.orderNumber || "N/A",
-
-          // Computed fields for better analysis
-          profitMargin:
-            record.total && record.unitPrice
-              ? (
-                  ((parseFloat(record.total) -
-                    parseFloat(record.unitPrice)) /
-                    parseFloat(record.total)) *
-                  100
-                ).toFixed(2)
-              : 0,
-
-          // Additional computed fields to match order structure for pivot compatibility
-          discount: 0, // Not available in invoice data
-          commissionDiscount: 0, // Not available in invoice data
-          dueDate: "N/A", // Not available in invoice data
-          category: "Invoice", // Default category for invoices
-          itemNumber: record.invoiceNumber || "N/A",
-
-          // Date-based grouping fields extracted from invoiceDate
-          year: extractYear(invoiceDateValue),
-          quarter: extractQuarter(invoiceDateValue),
-          month: extractMonth(invoiceDateValue, true), // Use month names
-        };
-
-        // attachYtdFields now adds commissionDiffPct and salesDiffPct as objects
-        // containing { ytd, prevYtd } for correct percentage aggregation
-        const rowWithYtd = attachYtdFields(baseRow, "invoiceDate");
+        const endDateValue =
+          record.endDate && !Number.isNaN(new Date(record.endDate).getTime())
+            ? new Date(record.endDate)
+            : null;
+        const endDateDisplay = formatDate(endDateValue ?? record.endDate, dateFormat);
 
         return {
-          ...rowWithYtd,
-          invoiceDate: invoiceDateDisplay,
-          invoiceDateRaw: invoiceDateIso,
+          id: record.id || `job_${index}`,
+          jobName: String(record.jobName || "Unknown Job"),
+          status: record.status || "Unknown",
+          jobType: record.jobType || "N/A",
+
+          // Dates
+          startDate: startDateDisplay,
+          startDateRaw: startDateIso,
+          endDate: endDateDisplay,
+          createdAt: formatDate(record.createdAt, dateFormat),
+
+          // Additional fields
+          description: record.description || "N/A",
+          structuralDetails: record.structuralDetails || "N/A",
+          structuralInformation: record.structuralInformation || "N/A",
+          additionalInformation: record.additionalInformation || "N/A",
+          jobOwner: record.jobOwner || "N/A",
+          requester: record.requester || "N/A",
+          createdBy: record.createdBy || "N/A",
         };
       });
 
-      // Calculate revenue totals for verification
-      const totalRevenue = transformedData.reduce(
-        (sum, row) => sum + (row.revenue || 0),
-        0
-      );
-
       return transformedData;
     } catch (error) {
-      console.error("[InvoicePivotGrid] Error transforming data:", error);
-      console.error("[InvoicePivotGrid] Error stack:", error.stack);
-      // Return empty array on error to prevent layout breaking
+      console.error("[JobPivotGrid] Error transforming data:", error);
+      console.error("[JobPivotGrid] Error stack:", error.stack);
       return [];
     }
   }, [sourceRows, dateFormat]);
@@ -499,7 +330,7 @@ export function InvoicePivotGrid() {
   const filteredRows = useMemo(() => {
     let filtered = [...transformedRows];
 
-    // Apply year 
+    // Apply year filter
     if (advancedFilters._year && advancedFilters._year !== "all") {
       const currentYear = new Date().getFullYear();
       let yearThreshold;
@@ -523,7 +354,7 @@ export function InvoicePivotGrid() {
 
       if (yearThreshold) {
         filtered = filtered.filter((row) => {
-          const dateStr = row.entryDate;
+          const dateStr = row.startDateRaw;
           if (!dateStr || dateStr === "N/A") return false;
           const date = new Date(dateStr);
           if (isNaN(date.getTime())) return false;
@@ -539,8 +370,8 @@ export function InvoicePivotGrid() {
 
     // Apply column filters
     Object.keys(advancedFilters).forEach((columnProp) => {
-      if (columnProp === "_year") return; // Skip year filter as it's already applied
-      
+      if (columnProp === "_year") return;
+
       const selectedValues = advancedFilters[columnProp];
       if (selectedValues && selectedValues.length > 0) {
         filtered = filtered.filter((row) => {
@@ -594,7 +425,7 @@ export function InvoicePivotGrid() {
     return dataToSort;
   }, [filteredRows, sortingConfig]);
 
-  // Performance metrics for monitoring with filtered record tracking
+  // Performance metrics
   const dataMetrics = useMemo(() => {
     if (!sortedRows || !sortedRows.length) {
       return null;
@@ -610,95 +441,27 @@ export function InvoicePivotGrid() {
         rawRecords: rawRecordCount,
         transformedRecords: transformedCount,
         filteredRecords: filteredCount,
-        totalRevenue: sortedRows.reduce(
-          (sum, row) => sum + (row.revenue || 0),
-          0
-        ),
-        totalCommission: sortedRows.reduce(
-          (sum, row) => sum + (row.commission || 0),
-          0
-        ),
-        avgInvoiceValue:
-          sortedRows.length > 0
-            ? sortedRows.reduce(
-                (sum, row) => sum + (row.revenue || 0),
-                0
-              ) / sortedRows.length
-            : 0,
-        uniqueCustomers: new Set(
-          sortedRows.map((row) => row.customerId).filter(Boolean)
+        uniqueStatuses: new Set(
+          sortedRows.map((row) => row.status).filter(Boolean)
         ).size,
-        uniqueFactories: new Set(
-          sortedRows.map((row) => row.factoryId).filter(Boolean)
+        uniqueJobTypes: new Set(
+          sortedRows.map((row) => row.jobType).filter(Boolean)
         ).size,
       };
 
       return metrics;
     } catch (error) {
-      console.error("[InvoicePivotGrid] Error calculating metrics:", error);
+      console.error("[JobPivotGrid] Error calculating metrics:", error);
       return null;
     }
   }, [filteredRows, sourceRows, transformedRows]);
 
-  // Export function for XLSX with headers (defined after sortedRows is available)
-  // Loading state - only show loading if actually loading and no error (skip if using mock data)
+  // Loading state
   const isLoading =
     isHydrated &&
-    !USE_MOCK_DATA &&
     (initialLoading || isFetching) &&
     !apiError &&
     sourceRows.length === 0;
-
-  // Calculate totals row for pinned bottom
-  const totalsRow = useMemo(() => {
-    if (!sortedRows || sortedRows.length === 0) return null;
-
-    const currencyFields = ["detailTotal", "revenue", "commission", "unitPrice"];
-
-    if (ytdModeEnabled) {
-      currencyFields.push(
-        "outsideRepCommissionYTD",
-        "outsideRepCommissionPrevYTD",
-        "outsideRepTotalPortionYTD",
-        "outsideRepTotalPortionPrevYTD"
-      );
-    } else {
-      currencyFields.push("outsideRepCommission", "outsideRepTotalPortion");
-    }
-
-    const integerFields = ["quantity", "quantityOrdered", "quantityShipped"];
-
-    const totals = {
-      id: "TOTAL_ROW",
-      invoiceNumber: "TOTAL",
-      customer: "TOTAL",
-      factory: "",
-      outsideRep: "",
-      category: "",
-      itemNumber: "",
-      factoryPartNumber: "",
-      orderNumber: "",
-      entityDate: "",
-      entryDate: "",
-      orderDate: "",
-      jobName: "",
-      endUser: "",
-      status: "",
-    };
-
-    const accumulate = (field) => {
-      totals[field] = sumSkipNulls(sortedRows.map((row) => row?.[field]));
-    };
-
-    currencyFields.forEach(accumulate);
-    integerFields.forEach(accumulate);
-
-    const pivotValueTotals = computePivotValueTotals(sortedRows, pivotConfig);
-    Object.assign(totals, pivotValueTotals);
-
-    return totals;
-  }, [sortedRows, ytdModeEnabled, pivotConfig]);
-
 
   const runPivotExcelExport = useCallback(
     async ({ includeHeaderInfo, filenamePrefix, reportTitle }) => {
@@ -727,14 +490,10 @@ export function InvoicePivotGrid() {
             }
           } catch (error) {
             console.warn(
-              "[InvoicePivotGrid] Failed to retrieve grid data, falling back to sortedRows:",
+              "[JobPivotGrid] Failed to retrieve grid data, falling back to sortedRows:",
               error
             );
           }
-        }
-
-        if (totalsRow) {
-          exportRows = [...exportRows, totalsRow];
         }
 
         if (exportColumns.length === 0) {
@@ -754,7 +513,7 @@ export function InvoicePivotGrid() {
           filename,
           columns: exportColumns,
           rows: exportRows,
-          sheetName: "Invoice Pivot Data",
+          sheetName: "Job Pivot Data",
           filters: filtersPayload,
           dateRange: dateRangePayload,
           sorting: sortingPayload,
@@ -770,41 +529,26 @@ export function InvoicePivotGrid() {
     [
       advancedFilters,
       endDate,
-      resolveColumnsForExport,
       sortedRows,
       sortingConfig,
       startDate,
-      totalsRow,
     ]
   );
 
   const exportToExcel = useCallback(async () => {
     await runPivotExcelExport({
       includeHeaderInfo: false,
-      filenamePrefix: "invoice-pivot",
+      filenamePrefix: "job-pivot",
     });
   }, [runPivotExcelExport]);
 
   const exportToExcelWithHeaders = useCallback(async () => {
     await runPivotExcelExport({
       includeHeaderInfo: true,
-      filenamePrefix: "invoice-pivot-with-headers",
-      reportTitle: "Invoice Pivot Report",
+      filenamePrefix: "job-pivot-with-headers",
+      reportTitle: "Job Pivot Report",
     });
   }, [runPivotExcelExport]);
-
-  const pinnedBottomRows = useMemo(
-    () => (totalsRow ? [totalsRow] : []),
-    [totalsRow]
-  );
-
-  useEffect(() => {
-    const gridElement = internalGridRef.current;
-    if (!gridElement) return;
-
-    gridElement.pinnedBottomSource = pinnedBottomRows;
-    gridElement.refresh?.();
-  }, [pinnedBottomRows]);
 
   const handleResize = useCallback(() => {
     if (containerRef.current) {
@@ -824,9 +568,7 @@ export function InvoicePivotGrid() {
 
   const columnTypes = useMemo(
     () => ({
-      currency: new NumberColumnType("$0,0.00"),
       integer: new NumberColumnType("0,0"),
-      percentage: new NumberColumnType("0.00%"),
     }),
     []
   );
@@ -849,18 +591,17 @@ export function InvoicePivotGrid() {
   // Clean up sorting config when pivot configuration changes
   useEffect(() => {
     if (!pivotConfig) return;
-    
-    // Get all currently visible column props from pivot config
+
     const visibleProps = new Set();
-    
+
     if (Array.isArray(pivotConfig.rows)) {
       pivotConfig.rows.forEach(prop => visibleProps.add(prop));
     }
-    
+
     if (Array.isArray(pivotConfig.columns)) {
       pivotConfig.columns.forEach(prop => visibleProps.add(prop));
     }
-    
+
     if (Array.isArray(pivotConfig.values)) {
       pivotConfig.values.forEach(value => {
         if (typeof value === 'string') {
@@ -870,19 +611,17 @@ export function InvoicePivotGrid() {
         }
       });
     }
-    
-    // Remove any sorting columns that are no longer visible in the pivot
+
     setSortingConfig(currentSorting => {
       if (!currentSorting || currentSorting.length === 0) return currentSorting;
-      
+
       const cleanedSorting = currentSorting.filter(sortCol => visibleProps.has(sortCol.prop));
-      
-      // Only update if something changed to avoid infinite loops
+
       if (cleanedSorting.length !== currentSorting.length) {
-        console.log('[InvoicePivotGrid] Cleaning up sorting config - removed columns no longer in pivot');
+        console.log('[JobPivotGrid] Cleaning up sorting config - removed columns no longer in pivot');
         return cleanedSorting;
       }
-      
+
       return currentSorting;
     });
   }, [pivotConfig]);
@@ -911,300 +650,116 @@ export function InvoicePivotGrid() {
   const config = useMemo(
     () => ({
       dimensions: [
-        // Hide base measures in YTD Mode, show only in normal mode
-        ...(!ytdModeEnabled ? [
-          {
-            prop: "outsideRepCommission",
-            name: "Commissions",
-            columnType: "currency",
-            size: 180,
-            minSize: 150,
-            sortable: true,
-            aggregators: {
-              sum: commonAggregators.sum,
-              sumSkipNulls: sumSkipNulls,
-              avg: commonAggregators.avg,
-              count: commonAggregators.count,
-            },
-          },
-          {
-            prop: "outsideRepTotalPortion",
-            name: "Sales",
-            columnType: "currency",
-            size: 200,
-            minSize: 170,
-            sortable: true,
-            aggregators: {
-              sum: commonAggregators.sum,
-              sumSkipNulls: sumSkipNulls,
-              avg: commonAggregators.avg,
-              count: commonAggregators.count,
-            },
-          },
-        ] : []),
-        // Show YTD measures only in YTD Mode
-        ...(ytdModeEnabled ? [
-          {
-            prop: "outsideRepCommissionYTD",
-            name: "Commissions YTD",
-            columnType: "currency",
-            size: 210,
-            minSize: 180,
-            sortable: true,
-            aggregators: {
-              sumSkipNulls: sumSkipNulls,
-              sum: commonAggregators.sum,
-              avg: commonAggregators.avg,
-              count: commonAggregators.count,
-            },
-            source: "derived",
-          },
-          {
-            prop: "outsideRepCommissionPrevYTD",
-            name: "Commissions Previous YTD",
-            columnType: "currency",
-            size: 250,
-            minSize: 220,
-            sortable: true,
-            aggregators: {
-              sumSkipNulls: sumSkipNulls,
-              sum: commonAggregators.sum,
-              avg: commonAggregators.avg,
-              count: commonAggregators.count,
-            },
-            source: "derived",
-          },
-          {
-            prop: "commissionDiff",
-            name: "Commission Difference",
-            columnType: "currency",
-            size: 200,
-            minSize: 170,
-            sortable: true,
-            aggregators: {
-              sumSkipNulls: sumSkipNulls,
-              sum: commonAggregators.sum,
-              avg: commonAggregators.avg,
-              count: commonAggregators.count,
-            },
-            source: "derived",
-          },
-          {
-            prop: "commissionDiffPct",
-            name: "Commission Difference %",
-            columnType: "percentage",
-            size: 220,
-            minSize: 190,
-            sortable: true,
-            aggregators: {
-              // Custom aggregator that calculates percentage from aggregated YTD values
-              percentageDiff: percentageDiffAggregator,
-            },
-            source: "derived",
-          },
-          {
-            prop: "outsideRepTotalPortionYTD",
-            name: "Sales YTD",
-            columnType: "currency",
-            size: 230,
-            minSize: 200,
-            sortable: true,
-            aggregators: {
-              sumSkipNulls: sumSkipNulls,
-              sum: commonAggregators.sum,
-              avg: commonAggregators.avg,
-              count: commonAggregators.count,
-            },
-            source: "derived",
-          },
-          {
-            prop: "outsideRepTotalPortionPrevYTD",
-            name: "Sales Previous YTD",
-            columnType: "currency",
-            size: 270,
-            minSize: 240,
-            sortable: true,
-            aggregators: {
-              sumSkipNulls: sumSkipNulls,
-              sum: commonAggregators.sum,
-              avg: commonAggregators.avg,
-              count: commonAggregators.count,
-            },
-            source: "derived",
-          },
-          {
-            prop: "salesDiff",
-            name: "Sales Difference",
-            columnType: "currency",
-            size: 180,
-            minSize: 150,
-            sortable: true,
-            aggregators: {
-              sumSkipNulls: sumSkipNulls,
-              sum: commonAggregators.sum,
-              avg: commonAggregators.avg,
-              count: commonAggregators.count,
-            },
-            source: "derived",
-          },
-          {
-            prop: "salesDiffPct",
-            name: "Sales Difference %",
-            columnType: "percentage",
-            size: 200,
-            minSize: 170,
-            sortable: true,
-            aggregators: {
-              // Custom aggregator that calculates percentage from aggregated YTD values
-              percentageDiff: percentageDiffAggregator,
-            },
-            source: "derived",
-          },
-        ] : []),
-        {
-          prop: "detailTotal",
-          name: "Invoice Total",
-          columnType: "currency",
-          size: 160,
-          minSize: 130,
-          sortable: true,
-          aggregators: {
-            sum: commonAggregators.sum,
-            sumSkipNulls: sumSkipNulls,
-            avg: commonAggregators.avg,
-            max: commonAggregators.max,
-            min: commonAggregators.min,
-          },
-        },
-
         // Dimensional Data - for grouping and filtering
         {
-          prop: "customer",
-          name: "Customer",
+          prop: "jobName",
+          name: "Job Name",
           sortable: true,
           size: 200,
           minSize: 150,
-        },
-        {
-          prop: "outsideRep",
-          name: "Outside Rep",
-          sortable: true,
-          size: 160,
-          minSize: 120,
-        },
-        {
-          prop: "factory",
-          name: "Factory",
-          sortable: true,
-          size: 140,
-          minSize: 100,
-        },
-        {
-          prop: "factoryTitle",
-          name: "Factory Title",
-          sortable: true,
-          size: 160,
-          minSize: 120,
+          aggregators: {
+            count: commonAggregators.count,
+          },
         },
         {
           prop: "status",
           name: "Status",
           sortable: true,
-          size: 120,
-          minSize: 80,
-        },
-        {
-          prop: "entityDate",
-          name: "Entity Date",
-          sortable: true,
-          size: 120,
+          size: 140,
           minSize: 100,
         },
         {
-          prop: "year",
-          name: "Year",
+          prop: "jobType",
+          name: "Job Type",
           sortable: true,
-          size: 100,
-          minSize: 80,
-        },
-        {
-          prop: "quarter",
-          name: "Quarter",
-          sortable: true,
-          size: 100,
-          minSize: 80,
-        },
-        {
-          prop: "month",
-          name: "Month",
-          sortable: true,
-          size: 120,
+          size: 140,
           minSize: 100,
         },
         {
-          prop: "entryDate",
-          name: "Entry Date",
-          sortable: true,
-          size: 120,
-          minSize: 100,
-        },
-        {
-          prop: "invoiceNumber",
-          name: "Invoice Number",
-          sortable: true,
-          size: 130,
-          minSize: 100,
-        },
-        {
-          prop: "orderNumber",
-          name: "Order Number",
-          sortable: true,
-          size: 130,
-          minSize: 100,
-        },
-        {
-          prop: "jobName",
-          name: "Job Name",
-          sortable: true,
-          size: 150,
-          minSize: 120,
-        },
-        {
-          prop: "endUser",
-          name: "End User",
-          sortable: true,
-          size: 150,
-          minSize: 120,
-        },
-        {
-          prop: "factoryPartNumber",
-          name: "Factory Part Number",
+          prop: "jobOwner",
+          name: "Job Owner",
           sortable: true,
           size: 160,
-          minSize: 130,
+          minSize: 120,
+        },
+        {
+          prop: "requester",
+          name: "Requester",
+          sortable: true,
+          size: 160,
+          minSize: 120,
+        },
+        {
+          prop: "createdBy",
+          name: "Created By",
+          sortable: true,
+          size: 150,
+          minSize: 120,
+        },
+        {
+          prop: "startDate",
+          name: "Start Date",
+          sortable: true,
+          size: 140,
+          minSize: 110,
+        },
+        {
+          prop: "endDate",
+          name: "End Date",
+          sortable: true,
+          size: 140,
+          minSize: 110,
+        },
+        {
+          prop: "createdAt",
+          name: "Created At",
+          sortable: true,
+          size: 140,
+          minSize: 110,
+        },
+        {
+          prop: "description",
+          name: "Description",
+          sortable: true,
+          size: 200,
+          minSize: 150,
+        },
+        {
+          prop: "structuralDetails",
+          name: "Structural Details",
+          sortable: true,
+          size: 180,
+          minSize: 140,
+        },
+        {
+          prop: "structuralInformation",
+          name: "Structural Information",
+          sortable: true,
+          size: 180,
+          minSize: 140,
+        },
+        {
+          prop: "additionalInformation",
+          name: "Additional Information",
+          sortable: true,
+          size: 180,
+          minSize: 140,
         },
       ],
-      // Use pivot configuration from state
       rows: pivotConfig.rows,
       columns: pivotConfig.columns,
       values: pivotConfig.values,
       hasConfigurator: true,
       flatHeaders: true,
       aggregatorNames: {
-        sum: "Sum",
-        sumSkipNulls: "Sum (skip blanks)",
-        avg: "Average",
         count: "Count",
-        max: "Maximum",
-        min: "Minimum",
       },
     }),
-    [pivotConfig, ytdModeEnabled]
+    [pivotConfig]
   );
 
   const additionalData = useMemo(() => ({ pivot: { ...config } }), [config]);
 
-  // Use dimensions from config as columns to avoid duplication
   const columns = useMemo(() => config.dimensions, [config]);
 
   async function resolveColumnsForExport() {
@@ -1217,7 +772,7 @@ export function InvoicePivotGrid() {
         }
       } catch (error) {
         console.warn(
-          "[InvoicePivotGrid] Failed to retrieve columns from grid for export:",
+          "[JobPivotGrid] Failed to retrieve columns from grid for export:",
           error
         );
       }
@@ -1235,48 +790,23 @@ export function InvoicePivotGrid() {
     return [];
   }
 
-  async function fallbackCSVExport() {
-    const exportColumns = await resolveColumnsForExport();
-    if (!exportColumns.length || !sortedRows.length) {
-      console.warn("[InvoicePivotGrid] CSV fallback skipped: nothing to export.");
-      return;
-    }
-    await exportGridCsv({
-      filename: `invoice-pivot-${new Date().toISOString().split("T")[0]}`,
-      columns: exportColumns,
-      rows: sortedRows,
-    });
-  }
-
-  // Helper function to capture CSV content from export plugin
-  // Expose methods to get/set pivot configuration for TableConfigManager
+  // Expose methods for TableConfigManager
   useEffect(() => {
     if (!gridRef.current) {
       gridRef.current = {};
     }
 
-    // Add custom pivot configuration methods
     gridRef.current.getPivotConfig = async () => {
-      console.log("[InvoicePivotGrid] Getting pivot config from React state:", pivotConfig);
+      console.log("[JobPivotGrid] Getting pivot config from React state:", pivotConfig);
 
-      // Try to get the ACTUAL pivot state from the plugin
       if (internalGridRef.current) {
         try {
           const plugins = await internalGridRef.current.getPlugins();
           const pivotPlugin = plugins.find(p => p.pivotRows || p.pivotColumns || p.pivotValues);
 
           if (pivotPlugin) {
-            console.log("[InvoicePivotGrid] Found pivot plugin with state:", pivotPlugin);
-            console.log("[InvoicePivotGrid] Plugin keys:", Object.keys(pivotPlugin));
-            console.log("[InvoicePivotGrid] Plugin.pivotConfig:", pivotPlugin.pivotConfig);
-
-            // The PivotPlugin stores configuration in pivotConfig property
             const pluginConfig = pivotPlugin.pivotConfig || {};
-            console.log("[InvoicePivotGrid] Plugin.pivotConfig.rows:", pluginConfig.rows);
-            console.log("[InvoicePivotGrid] Plugin.pivotConfig.columns:", pluginConfig.columns);
-            console.log("[InvoicePivotGrid] Plugin.pivotConfig.values:", pluginConfig.values);
 
-            // Helper to normalize fields to strings (extract prop from objects)
             const normalizeFieldArray = (fields) => {
               if (!Array.isArray(fields)) return [];
               return fields.map(field => {
@@ -1286,16 +816,11 @@ export function InvoicePivotGrid() {
               }).filter(Boolean);
             };
 
-            // Extract the actual configuration from the plugin and normalize to strings only
-            // IMPORTANT: Preserve the user's configuration exactly as they set it
             const actualConfig = {
               rows: normalizeFieldArray(pluginConfig.rows),
               columns: normalizeFieldArray(pluginConfig.columns),
               values: normalizeFieldArray(pluginConfig.values),
-              ytdMode: ytdModeEnabled, // Include YTD mode state
             };
-
-            console.log("[InvoicePivotGrid] Actual pivot config from plugin (preserved as-is):", actualConfig);
 
             return {
               ...actualConfig,
@@ -1305,15 +830,12 @@ export function InvoicePivotGrid() {
             };
           }
         } catch (error) {
-          console.warn("[InvoicePivotGrid] Could not get pivot plugin state:", error);
+          console.warn("[JobPivotGrid] Could not get pivot plugin state:", error);
         }
       }
 
-      // Fallback to React state if plugin not available
-      console.warn("[InvoicePivotGrid] Using fallback React state (may be outdated)");
       return {
         ...pivotConfig,
-        ytdMode: ytdModeEnabled,
         pluginState: {
           dimensions: columns,
         }
@@ -1321,20 +843,14 @@ export function InvoicePivotGrid() {
     };
 
     gridRef.current.setPivotConfig = (newConfig) => {
-      console.log("[InvoicePivotGrid] Setting pivot config:", newConfig);
+      console.log("[JobPivotGrid] Setting pivot config:", newConfig);
       if (newConfig && typeof newConfig === 'object') {
         setPivotConfig({
           rows: newConfig.rows || pivotConfig.rows,
           columns: newConfig.columns || pivotConfig.columns,
           values: newConfig.values || pivotConfig.values,
         });
-        // Restore YTD mode if present
-        if (typeof newConfig.ytdMode === 'boolean') {
-          setYtdModeEnabled(newConfig.ytdMode);
-        }
-        // Force grid remount to apply new pivot configuration
         setGridKey(prev => prev + 1);
-        console.log("[InvoicePivotGrid] Forcing grid re-render with new key");
         return true;
       }
       return false;
@@ -1350,13 +866,7 @@ export function InvoicePivotGrid() {
     gridRef.current.setPivotState = (newConfig) => {
       if (newConfig) {
         setPivotConfig(newConfig);
-        // Restore YTD mode if present
-        if (typeof newConfig.ytdMode === 'boolean') {
-          setYtdModeEnabled(newConfig.ytdMode);
-        }
-        // Force grid remount to apply new pivot configuration
         setGridKey(prev => prev + 1);
-        console.log("[InvoicePivotGrid] Forcing grid re-render with new key (setPivotState)");
         return true;
       }
       return false;
@@ -1365,30 +875,25 @@ export function InvoicePivotGrid() {
     gridRef.current.setSelectedRows = () => true;
     gridRef.current.getSelectedCells = () => [];
 
-    // Also expose grid element methods if available
     if (internalGridRef.current) {
       const gridElement = internalGridRef.current;
       gridRef.current.getPlugins = gridElement.getPlugins?.bind(gridElement);
     }
-  }, [pivotConfig, columns, ytdModeEnabled, setPivotConfig, setYtdModeEnabled]);
+  }, [pivotConfig, columns, setPivotConfig]);
 
   useEffect(() => {
     if (!internalGridRef.current) return;
 
     const grid = internalGridRef.current;
 
-    // Check if addEventListener is available (RevoGrid may not support standard DOM events)
     if (typeof grid.addEventListener !== 'function') {
-      console.log('[InvoicePivotGrid] Grid does not support addEventListener, skipping event listeners');
       return;
     }
 
-    // Event handlers for various table interactions
     const handleTableChange = () => {
       scheduleAutoSave();
     };
 
-    // Add listeners for events that should trigger auto-save
     const events = [
       "aftercolumnresize",
       "aftersort",
@@ -1397,7 +902,6 @@ export function InvoicePivotGrid() {
       "afteredit",
     ];
 
-    // Note: RevoGrid events might have different names, adjust as needed
     events.forEach((eventName) => {
       try {
         grid.addEventListener(eventName, handleTableChange);
@@ -1444,25 +948,20 @@ export function InvoicePivotGrid() {
     gridElement.addEventListener("beforeedit", preventCellEditing);
 
     return () => {
-      gridElement.removeEventListener(
-        "beforeheaderclick",
-        preventHeaderSort
-      );
+      gridElement.removeEventListener("beforeheaderclick", preventHeaderSort);
       gridElement.removeEventListener("beforeedit", preventCellEditing);
     };
   }, [gridKey, isHydrated]);
 
-  // Error handling and data validation
   useEffect(() => {
     if (apiError) {
-      console.error("[InvoicePivotGrid] API Error:", apiError);
+      console.error("[JobPivotGrid] API Error:", apiError);
     }
   }, [apiError]);
 
-  // Performance monitoring
   useEffect(() => {
     if (dataMetrics) {
-      console.info("[InvoicePivotGrid] Data Metrics:", dataMetrics);
+      console.info("[JobPivotGrid] Data Metrics:", dataMetrics);
     }
   }, [dataMetrics]);
 
@@ -1488,10 +987,10 @@ export function InvoicePivotGrid() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-1">
-              Invoice Pivot 
+              Job Pivot
             </h1>
             <p className="text-sm text-blue-900/70 font-medium">
-              Detailed invoice analysis and commissions
+              Job analysis by status, type, and owner
             </p>
           </div>
         </div>
@@ -1506,8 +1005,7 @@ export function InvoicePivotGrid() {
               onStartDateChange={setStartDate}
               onEndDateChange={setEndDate}
               onClear={handleClearDates}
-              disabled={ytdModeEnabled}
-              pageKey="invoice-pivot"
+              pageKey="job-pivot"
               filterByDate={filterByDate}
               onFilterByDateChange={setFilterByDate}
               onApply={handleApplyDateFilter}
@@ -1515,43 +1013,6 @@ export function InvoicePivotGrid() {
               appliedEndDate={endDate}
               appliedFilterByDate={filterByDate}
             />
-            
-            {/* YTD Mode Toggle */}
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-zinc-900 dark:to-zinc-800 rounded-xl border border-purple-100 dark:border-zinc-700">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={ytdModeEnabled}
-                  onChange={(e) => setYtdModeEnabled(e.target.checked)}
-                  className="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 focus:ring-2 cursor-pointer"
-                />
-                <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                  Enable YTD Mode
-                </span>
-              </label>
-              {ytdModeEnabled && (
-                <div className="ml-auto text-xs text-purple-700 dark:text-purple-300 font-medium">
-                  Date filter locked
-                </div>
-              )}
-            </div>
-            
-            {/* YTD Helper Text */}
-            {ytdModeEnabled && (
-              <div className="px-4 py-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                  YTD ranges in effect:
-                </p>
-                <div className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
-                  <div>
-                    <span className="font-medium">Current YTD:</span> {formatYTDHelperText().current}
-                  </div>
-                  <div>
-                    <span className="font-medium">Previous YTD:</span> {formatYTDHelperText().previous}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
           <div className="flex items-start pt-3">
             <FilterPane
@@ -1602,9 +1063,6 @@ export function InvoicePivotGrid() {
           <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-4">
-                <h2 className="text-2xl font-semibold text-gray-900">
-                  {/* Invoice Pivot  */}
-                </h2>
                 {isHydrated && sourceRows.length > 0 && (
                   <span className="text-sm text-muted-foreground">
                     ({sortedRows.length.toLocaleString()}{sortedRows.length !== sourceRows.length ? ` of ${sourceRows.length.toLocaleString()}` : ""} records)
@@ -1741,7 +1199,6 @@ export function InvoicePivotGrid() {
               range
               resize
               canMoveColumns={false}
-              
               exporting={true}
               autoSizeColumn={false}
               colSize={140}
@@ -1750,7 +1207,6 @@ export function InvoicePivotGrid() {
                   ? sortedRows
                   : []
               }
-              pinnedBottomSource={pinnedBottomRows}
               columns={columns}
               additionalData={additionalData}
               plugins={plugins}
@@ -1776,10 +1232,10 @@ export function InvoicePivotGrid() {
             />
           )}
 
-          {/* Error overlay - shows over the grid without breaking layout (hidden when using mock data) */}
-          {!USE_MOCK_DATA && apiError && (
-            <div className="absolute  inset-0 bg-white/95 backdrop-blur-sm flex items-center justify-center z-30">
-              <div className="bg-white  p-8 w-full mx-4">
+          {/* Error overlay */}
+          {apiError && (
+            <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex items-center justify-center z-30">
+              <div className="bg-white p-8 w-full mx-4">
                 <div className="text-center space-y-4">
                   <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto">
                     <svg
@@ -1814,7 +1270,7 @@ export function InvoicePivotGrid() {
             </div>
           )}
 
-          {/* Loading overlay - shows over the grid without breaking layout */}
+          {/* Loading overlay */}
           {isLoading && (
             <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex items-center justify-center z-20">
               <div className="text-center space-y-4">
@@ -1851,112 +1307,28 @@ export function InvoicePivotGrid() {
         refreshTrigger={refreshTrigger}
       />
 
-      {/* Pivot Sorting Modal */}
+      {/* Sorting Configuration Modal */}
       <PivotSortingModal
         isOpen={isSortModalOpen}
         onClose={() => setIsSortModalOpen(false)}
-        sortingConfig={sortingConfig}
-        onSortingChange={setSortingConfig}
+        sortingConfig={sortingConfig || []}
+        onSortingChange={(newSorting) => {
+          console.log('[JobPivotGrid] Applying sorting:', newSorting);
+          setSortingConfig(newSorting);
+        }}
         pivotConfig={pivotConfig}
         dimensions={columns}
         getPivotConfig={gridRef.current?.getPivotConfig}
       />
 
-      {/* Instructions Footer */}
-      {/* <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200/50 shadow-sm">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="flex items-start gap-3">
-              <div className="bg-blue-500 rounded-full p-2 mt-1">
-                <svg
-                  className="w-4 h-4 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-                  />
-                </svg>
-              </div>
-              <div>
-                <h4 className="font-semibold text-slate-800 mb-1">
-                  Drag & Drop
-                </h4>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  Reorganize dimensions by dragging fields between Rows,
-                  Columns, and Values areas
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <div className="bg-emerald-500 rounded-full p-2 mt-1">
-                <svg
-                  className="w-4 h-4 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.414A1 1 0 013 6.707V4z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <h4 className="font-semibold text-slate-800 mb-1">
-                  Advanced Filtering
-                </h4>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  Use column headers to filter data and refine your analysis
-                  with precision
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <div className="bg-purple-500 rounded-full p-2 mt-1">
-                <svg
-                  className="w-4 h-4 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <h4 className="font-semibold text-slate-800 mb-1">
-                  Smart Aggregation
-                </h4>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  Change aggregation methods (Sum, Average, Count, Min, Max) for
-                  numerical fields
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card> */}
-
       {/* Full Screen Modal */}
       <FullScreenModal
         isOpen={isFullScreen}
         onClose={() => setIsFullScreen(false)}
-        title="Invoice Pivot - Full Screen View"
+        title="Job Pivot - Full Screen View"
       >
         <div
+          ref={containerRef}
           className="pivot-grid-container bg-white rounded-lg relative w-full h-full"
           style={{
             height: "100%",
@@ -1972,7 +1344,6 @@ export function InvoicePivotGrid() {
               range
               resize
               canMoveColumns={false}
-              
               exporting={true}
               autoSizeColumn={false}
               colSize={140}
@@ -1981,7 +1352,6 @@ export function InvoicePivotGrid() {
                   ? sortedRows
                   : []
               }
-              pinnedBottomSource={pinnedBottomRows}
               columns={columns}
               additionalData={additionalData}
               plugins={plugins}
@@ -2011,8 +1381,3 @@ export function InvoicePivotGrid() {
     </div>
   );
 }
-
-
-
-
-

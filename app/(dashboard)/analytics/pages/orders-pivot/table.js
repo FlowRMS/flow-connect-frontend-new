@@ -60,6 +60,7 @@ import { formatYTDHelperText, getYTDRanges } from "@/lib/analytics/lib/pivot/ytd
 import { FullScreenModal, ExpandButton } from "@/components/analytics/ui/FullScreenModal";
 import { DateFormatDropdown, DATE_FORMATS, formatDateByType } from "@/components/analytics/ui/DateFormatDropdown";
 import { RefreshButton } from "@/components/analytics/ui/RefreshButton";
+import { extractYear, extractQuarter, extractMonth } from "@/lib/analytics/utils/dateExtractors";
 import { getDefault2YearRange } from "@/lib/analytics/utils/relativeDateUtils";
 
 // Mock data generator for testing without GraphQL connection
@@ -489,6 +490,11 @@ export function OrderPivotGrid() {
           status: record.status || "N/A",
 
           daysUntilDueDate,
+
+          // Date-based grouping fields extracted from orderDate
+          year: extractYear(orderDateValue),
+          quarter: extractQuarter(orderDateValue),
+          month: extractMonth(orderDateValue, true), // Use month names
         };
 
         // attachYtdFields now adds commissionDiffPct and salesDiffPct as objects
@@ -1098,6 +1104,27 @@ export function OrderPivotGrid() {
         {
           prop: "orderDate",
           name: "Order Date",
+          sortable: true,
+          size: 120,
+          minSize: 100,
+        },
+        {
+          prop: "year",
+          name: "Year",
+          sortable: true,
+          size: 100,
+          minSize: 80,
+        },
+        {
+          prop: "quarter",
+          name: "Quarter",
+          sortable: true,
+          size: 100,
+          minSize: 80,
+        },
+        {
+          prop: "month",
+          name: "Month",
           sortable: true,
           size: 120,
           minSize: 100,

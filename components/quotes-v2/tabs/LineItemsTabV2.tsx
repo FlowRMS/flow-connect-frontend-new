@@ -569,10 +569,14 @@ export function LineItemsTabV2({
 
     // Read-only display columns (customerPartNumber and description)
     // These show the value but can't be edited - they're populated when product is selected
+    // Text is now selectable for copying
     if (isReadOnlyDisplayColumn) {
       return (
         <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm">
-          <span className={`truncate ${!displayValue || displayValue === '—' ? 'text-gray-400' : ''}`}>
+          <span 
+            className={`truncate select-text ${!displayValue || displayValue === '—' ? 'text-gray-400' : ''}`}
+            style={{ userSelect: 'text' }}
+          >
             {displayValue || '—'}
           </span>
         </td>
@@ -604,29 +608,43 @@ export function LineItemsTabV2({
         );
       }
 
+      // All dropdown columns use selectable text + chevron button pattern
       return (
         <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm relative">
-          <button
-            onClick={(e) => handleCellClick(item.id, column.key, e)}
-            onFocus={(e) => {
-              // Auto-open dropdown when tabbed to
-              const rect = e.currentTarget.getBoundingClientRect();
-              setDropdownOpen({
-                itemId: item.id,
-                column: column.key,
-                position: { top: rect.bottom + 4, left: rect.left },
-              });
-              setSearchQuery('');
-            }}
-            className="w-full text-left px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center justify-between gap-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <span className={`truncate ${!hasValue ? 'text-gray-400' : ''}`}>
+          <div className="w-full flex items-center gap-1">
+            <span 
+              className="flex-1 py-1 select-text truncate"
+              style={{ userSelect: 'text' }}
+              onMouseDown={(e) => {
+                // Allow text selection without opening dropdown
+                e.stopPropagation();
+              }}
+            >
               {displayValue}
             </span>
-            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400 flex-shrink-0">
-              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-            </svg>
-          </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCellClick(item.id, column.key, e);
+              }}
+              onFocus={(e) => {
+                // Auto-open dropdown when tabbed to
+                const rect = e.currentTarget.getBoundingClientRect();
+                setDropdownOpen({
+                  itemId: item.id,
+                  column: column.key,
+                  position: { top: rect.bottom + 4, left: rect.left },
+                });
+                setSearchQuery('');
+              }}
+              className="flex-shrink-0 p-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              title="Open dropdown"
+            >
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
+                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </td>
       );
     }
