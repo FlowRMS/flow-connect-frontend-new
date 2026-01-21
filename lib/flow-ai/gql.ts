@@ -87,6 +87,7 @@ export const Q_GET_CORRECTIONS = gql`
       newValue
       oldValue
       pendingDocumentId
+      reasoning
     }
   }
 `;
