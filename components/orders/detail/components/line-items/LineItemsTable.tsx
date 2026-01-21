@@ -707,15 +707,18 @@ export function LineItemsTable({
       const isEmpty = column === 'manufacturer' ? !(item as any).manufacturerName :
                       column === 'endUser' ? !(item as any).endUserName :
                       !item[column as keyof OrderLineItem];
-      
+
       return (
         <div className={`w-full ${alignClass} flex items-center gap-1`}>
-          <span 
-            className="flex-1 py-1 select-text truncate"
+          <span
+            className="flex-1 py-1 select-text truncate cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
             style={{ userSelect: 'text' }}
-            onMouseDown={(e) => {
-              // Allow text selection without opening dropdown
-              e.stopPropagation();
+            onClick={(e) => {
+              // Only open dropdown if no text is selected (user clicked, not dragged to select)
+              const selection = window.getSelection();
+              if (!selection || selection.toString().length === 0) {
+                handleCellClick(item.id, column, e);
+              }
             }}
           >
             {displayValue}

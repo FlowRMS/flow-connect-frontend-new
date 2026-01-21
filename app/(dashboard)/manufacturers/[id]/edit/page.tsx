@@ -14,6 +14,7 @@ import {
   entriesToFactorySplitRateInputsWithId,
 } from '@/components/warehouse/components/FactorySplitRatesInput';
 import { ConnectedEntitiesSection } from '@/components/shared/ConnectedEntitiesSection';
+import { EntityAliasesSection } from '@/components/shared/EntityAliasesSection';
 import { GoogleMapsAddressModal } from '@/components/shared/google-maps-address/GoogleMapsAddressModal';
 import {
   useAddressesBySource,
@@ -25,7 +26,7 @@ import {
 import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
 import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
-type TabId = 'overview' | 'addresses' | 'split-rates' | 'connected-entities' | 'customer-xref' | 'shipto-xref' | 'freight';
+type TabId = 'overview' | 'addresses' | 'aliases' | 'split-rates' | 'connected-entities' | 'customer-xref' | 'shipto-xref' | 'freight';
 
 export default function ManufacturerEditPage() {
   const params = useParams();
@@ -46,6 +47,7 @@ export default function ManufacturerEditPage() {
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
     'addresses': null,
+    'aliases': null,
     'split-rates': null,
     'connected-entities': null,
     'customer-xref': null,
@@ -110,7 +112,7 @@ export default function ManufacturerEditPage() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'addresses', 'split-rates', 'connected-entities', 'customer-xref', 'shipto-xref', 'freight'];
+    const tabIds: TabId[] = ['overview', 'addresses', 'aliases', 'split-rates', 'connected-entities', 'customer-xref', 'shipto-xref', 'freight'];
 
     const handleScroll = () => {
       // Skip scroll spy updates during programmatic scrolling
@@ -241,6 +243,7 @@ export default function ManufacturerEditPage() {
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview' },
     { id: 'addresses' as TabId, label: 'Addresses', count: addresses.length || null },
+    { id: 'aliases' as TabId, label: 'Aliases' },
     { id: 'split-rates' as TabId, label: 'Split Rates', count: splitRateEntries.length || null },
     { id: 'connected-entities' as TabId, label: 'Connected Entities' },
     { id: 'customer-xref' as TabId, label: 'Customer X-Ref' },
@@ -745,6 +748,18 @@ export default function ManufacturerEditPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* ============ ALIASES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['aliases'] = el; }} id="section-aliases">
+          <EntityAliasesSection
+            entityId={factoryId}
+            entityType="FACTORY"
+            entityName={formData.title || 'Untitled Manufacturer'}
+            title="Manufacturer Aliases"
+            subTypes={['END_USER', 'SOLD_TO', 'BILL_TO']}
+            infoText="Add alternative manufacturer names that should match to this manufacturer during data imports and commission statement processing."
+          />
         </div>
 
         {/* ============ SPLIT RATES SECTION ============ */}

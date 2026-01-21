@@ -28,6 +28,7 @@ import {
   useDeleteAddress,
 } from '../../../../../components/hooks/useAddressApi';
 import { ConnectedEntitiesSection } from '../../../../../components/shared/ConnectedEntitiesSection';
+import { EntityAliasesSection } from '../../../../../components/shared/EntityAliasesSection';
 import { useUnsavedChangesGuard } from '../../../../../components/shared/hooks/useUnsavedChangesGuard';
 import { useUnsavedChangesContext } from '../../../../../contexts/UnsavedChangesContext';
 
@@ -35,7 +36,7 @@ import { useUnsavedChangesContext } from '../../../../../contexts/UnsavedChanges
 // Types
 // ============================================================================
 
-type TabId = 'overview' | 'addresses' | 'connected-entities' | 'child-customers' | 'buying-group-members' | 'inside-reps' | 'outside-reps' | 'settings';
+type TabId = 'overview' | 'addresses' | 'aliases' | 'connected-entities' | 'child-customers' | 'buying-group-members' | 'inside-reps' | 'outside-reps' | 'settings';
 
 // Generate unique temp ID
 const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -147,6 +148,7 @@ export default function CustomerEditPage() {
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
     'addresses': null,
+    'aliases': null,
     'connected-entities': null,
     'child-customers': null,
     'buying-group-members': null,
@@ -231,7 +233,7 @@ export default function CustomerEditPage() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'addresses', 'child-customers', 'buying-group-members', 'inside-reps', 'outside-reps', 'settings', 'connected-entities'];
+    const tabIds: TabId[] = ['overview', 'addresses', 'aliases', 'child-customers', 'buying-group-members', 'inside-reps', 'outside-reps', 'settings', 'connected-entities'];
 
     const handleScroll = () => {
       // Skip scroll spy updates during programmatic scrolling
@@ -523,6 +525,7 @@ export default function CustomerEditPage() {
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview' },
     { id: 'addresses' as TabId, label: 'Addresses', count: addresses.length || null },
+    { id: 'aliases' as TabId, label: 'Aliases' },
     // Show Child Customers tab only for parent customers
     ...(isParent ? [{ id: 'child-customers' as TabId, label: 'Child Customers', count: childCustomers.length || null }] : []),
     // Show Buying Group Members tab only for buying groups (parent customers at the top of hierarchy)
@@ -1101,6 +1104,18 @@ export default function CustomerEditPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* ============ ALIASES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['aliases'] = el; }} id="section-aliases">
+          <EntityAliasesSection
+            entityId={customerId}
+            entityType="CUSTOMER"
+            entityName={companyName || 'Untitled Customer'}
+            title="Customer Aliases"
+            subTypes={['END_USER', 'SOLD_TO', 'BILL_TO']}
+            infoText="Add alternative company names that should match to this customer during commission statement processing. Different alias types are used for matching different fields in commission statements."
+          />
         </div>
 
         {/* ============ CHILD CUSTOMERS SECTION (only for parent customers) ============ */}

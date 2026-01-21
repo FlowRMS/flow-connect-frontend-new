@@ -34,12 +34,13 @@ import {
 import { ManageCategoriesModal, ManageUomsModal } from '../../../../../components/products/modals';
 import { useUnsavedChangesGuard } from '../../../../../components/shared/hooks/useUnsavedChangesGuard';
 import { useUnsavedChangesContext } from '../../../../../contexts/UnsavedChangesContext';
+import { EntityAliasesSection } from '../../../../../components/shared/EntityAliasesSection';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-type TabId = 'overview' | 'customer-part-numbers' | 'quantity-pricing' | 'factory-details' | 'uom-details' | 'category-details';
+type TabId = 'overview' | 'customer-part-numbers' | 'quantity-pricing' | 'factory-details' | 'uom-details' | 'category-details' | 'aliases';
 
 interface FormData {
   id: string;
@@ -182,6 +183,7 @@ export default function ProductEditPage() {
     'factory-details': null,
     'uom-details': null,
     'category-details': null,
+    'aliases': null,
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -253,7 +255,7 @@ export default function ProductEditPage() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'customer-part-numbers', 'quantity-pricing', 'factory-details', 'uom-details', 'category-details'];
+    const tabIds: TabId[] = ['overview', 'customer-part-numbers', 'quantity-pricing', 'factory-details', 'uom-details', 'category-details', 'aliases'];
 
     const handleScroll = () => {
       // Skip scroll spy updates during programmatic scrolling
@@ -648,6 +650,7 @@ export default function ProductEditPage() {
     { id: 'factory-details' as TabId, label: 'Factory Details', count: null },
     { id: 'uom-details' as TabId, label: 'UOM Details', count: null },
     { id: 'category-details' as TabId, label: 'Category Details', count: null },
+    { id: 'aliases' as TabId, label: 'Aliases', count: null },
   ];
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
@@ -2122,6 +2125,18 @@ export default function ProductEditPage() {
               )}
             </div>
           )}
+        </div>
+
+        {/* ============ ALIASES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['aliases'] = el; }} id="section-aliases">
+          <EntityAliasesSection
+            entityId={productId}
+            entityType="PRODUCT"
+            entityName={formData.factoryPartNumber || 'Untitled Product'}
+            title="Product Aliases"
+            subTypes={['END_USER', 'SOLD_TO', 'BILL_TO']}
+            infoText="Add alternative part numbers or descriptions that should match to this product during data imports and commission statement processing."
+          />
         </div>
 
         {/* Coming Soon Sections */}
