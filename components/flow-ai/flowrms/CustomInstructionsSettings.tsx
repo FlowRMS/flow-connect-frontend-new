@@ -142,6 +142,11 @@ export function CustomInstructionsSettings({ isAdmin = false }: CustomInstructio
     setIsCreateDialogOpen(true);
   };
 
+  const cleanScope = (scope: CustomInstructionScope): CustomInstructionScope => {
+    const { __typename, ...rest } = scope as CustomInstructionScope & { __typename?: string };
+    return rest;
+  };
+
   const handleSubmit = async () => {
     if (!formData.name.trim() || !formData.instruction.trim()) {
       toast.error('Please fill in all required fields');
@@ -154,7 +159,7 @@ export function CustomInstructionsSettings({ isAdmin = false }: CustomInstructio
           id: editingInstruction.id,
           name: formData.name,
           instruction: formData.instruction,
-          scope: formData.scope,
+          scope: cleanScope(formData.scope),
           isDefault: formData.isDefault,
         };
         await updateInstruction({ variables: { input } });
@@ -164,7 +169,7 @@ export function CustomInstructionsSettings({ isAdmin = false }: CustomInstructio
           name: formData.name,
           instruction: formData.instruction,
           level: formData.level,
-          scope: formData.scope,
+          scope: cleanScope(formData.scope),
           isDefault: formData.isDefault,
         };
         await createInstruction({ variables: { input } });
