@@ -837,6 +837,7 @@ function FlowRMSPageContent() {
   const shouldShowWorkspace = Boolean(pendingId);
 
   // Auto-show Select Template modal when reaching prompting step without a template applied
+  // Skip showing the modal if the document already has an associated template (activeTemplateName)
   useEffect(() => {
     if (
       shouldShowWorkspace &&
@@ -846,7 +847,8 @@ function FlowRMSPageContent() {
       !isSelectTemplateOpen &&
       pendingId &&
       hasShownTemplateModalRef.current !== pendingId &&
-      (!suggestedPrompts || suggestedPrompts.length === 0)
+      (!suggestedPrompts || suggestedPrompts.length === 0) &&
+      !activeTemplateName
     ) {
       setIsSelectTemplateOpen(true);
       hasShownTemplateModalRef.current = pendingId;
@@ -859,6 +861,7 @@ function FlowRMSPageContent() {
     isSelectTemplateOpen,
     pendingId,
     suggestedPrompts,
+    activeTemplateName,
   ]);
 
   // Reset the ref when pendingId changes (new document)
