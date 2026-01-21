@@ -33,14 +33,9 @@ export function useRevisionWorkflow({
 
     setIsSendingEmail(true);
     try {
-      // Find the revision ID from the submittal
-      const revision = submittal.revisions.find(
-        r => r.revisionNumber === emailDialogRevision.revisionNumber
-      );
-
       await sendEmailMutation.mutateAsync({
         submittalId: submittal.id,
-        revisionId: revision?.id,
+        revisionId: emailDialogRevision.id,
         subject: emailRecord.subject,
         body: emailRecord.body,
         recipientEmails: emailRecord.recipients,
@@ -58,7 +53,7 @@ export function useRevisionWorkflow({
     } finally {
       setIsSendingEmail(false);
     }
-  }, [emailDialogRevision, submittal.id, submittal.revisions, sendEmailMutation]);
+  }, [emailDialogRevision, submittal.id, sendEmailMutation]);
 
   const handleUploadReturned = (returnedPdf: Omit<ReturnedPdf, 'id' | 'uploadedAt' | 'uploadedBy'>) => {
     if (!uploadDialogRevision || !onUpdate) return;
