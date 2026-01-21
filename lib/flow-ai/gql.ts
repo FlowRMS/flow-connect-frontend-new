@@ -1190,6 +1190,14 @@ export const M_EXECUTE_DOCUMENT_WORKFLOW = gql`
   }
 `;
 
+// Retry Document Processing Mutation - called to retry failed document processing
+// Endpoint: NEXT_PUBLIC_FLOWRMS_HTTP_GRAPHQL_URL (staging.hive.flowrms.com)
+export const M_RETRY_DOCUMENT_PROCESSING = gql`
+  mutation RetryDocumentProcessing($pendingId: UUID!) {
+    retryDocumentProcessing(pendingId: $pendingId)
+  }
+`;
+
 // Query to get processing results for a pending document
 export const Q_PENDING_DOCUMENT_PROCESSINGS = gql`
   query PendingDocumentProcessings($pendingDocumentId: UUID!) {

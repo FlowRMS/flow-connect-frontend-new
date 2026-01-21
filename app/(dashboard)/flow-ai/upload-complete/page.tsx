@@ -34,7 +34,7 @@ import { WorkflowBreadcrumb } from '@/components/flow-ai/flowrms/WorkflowBreadcr
 import { fetchRelatedEntities } from '@/components/lib/graphql/entity-links';
 import type { RelatedEntities } from '@/components/lib/graphql/types';
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
-import { Q_GET_PENDING, Q_PENDING_DOCUMENT_PROCESSINGS, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
+import { Q_GET_PENDING, Q_PENDING_DOCUMENT_PROCESSINGS, M_RETRY_DOCUMENT_PROCESSING } from '@/lib/flow-ai/gql';
 import * as XLSX from 'xlsx';
 
 // Constants for pagination
@@ -641,27 +641,22 @@ function UploadCompleteContent() {
 
     setIsRetrying(true);
     try {
-      // Call the executeDocumentWorkflow mutation to re-process the document
+      // Call the retryDocumentProcessing mutation to re-process the document
       const result = await flowrmsApolloClient.mutate<{
-        executeDocumentWorkflow: {
-          success: boolean;
-          message: string | null;
-          taskId: string | null;
-        };
+        retryDocumentProcessing: boolean;
       }>({
-        mutation: M_EXECUTE_DOCUMENT_WORKFLOW,
+        mutation: M_RETRY_DOCUMENT_PROCESSING,
         variables: {
-          pendingDocumentId: pendingId,
+          pendingId: pendingId,
         },
       });
 
-      if (result.data?.executeDocumentWorkflow?.success) {
+      if (result.data?.retryDocumentProcessing) {
         toast.success('Document queued for reprocessing');
         // Navigate to queue page
         router.push('/flow-ai/queue');
       } else {
-        const errorMsg = result.data?.executeDocumentWorkflow?.message || 'Unknown error occurred';
-        toast.error(`Retry failed: ${errorMsg}`);
+        toast.error('Retry failed: Unable to queue document for reprocessing');
       }
     } catch (error) {
       console.error('Retry failed:', error);
