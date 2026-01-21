@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useSubmittalsState } from './submittals/hooks/useSubmittalsState';
 import { SubmittalsHeader } from './submittals/SubmittalsHeader';
@@ -76,6 +76,10 @@ export default function SubmittalsContent() {
     refetch,
   } = useSubmittalsState();
 
+  // Resubmit mode state
+  const [resubmitMode, setResubmitMode] = useState(false);
+  const [resubmitItemIds, setResubmitItemIds] = useState<string[]>([]);
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-6">
@@ -129,8 +133,10 @@ export default function SubmittalsContent() {
         }
         submittalToasts.pdfSuccess();
 
-        // Update status to "for_approval" if currently in draft
-        if (selectedSubmittalFull.status === 'draft') {
+        // Update status based on mode
+        if (resubmitMode) {
+          await handleSubmittalUpdate({ status: 'resubmit_for_approval' });
+        } else if (selectedSubmittalFull.status === 'draft') {
           await handleSubmittalUpdate({ status: 'for_approval' });
         }
 
@@ -145,6 +151,8 @@ export default function SubmittalsContent() {
       submittalToasts.pdfError(err instanceof Error ? err.message : 'Unknown error');
     }
     setShowPrintDialog(false);
+    setResubmitMode(false);
+    setResubmitItemIds([]);
   };
 
   return (
@@ -215,6 +223,11 @@ export default function SubmittalsContent() {
               onClose={() => setSelectedSubmittalId(null)}
               onUpdate={handleSubmittalUpdate}
               onPrint={() => setShowPrintDialog(true)}
+              onResubmit={(itemIds) => {
+                setResubmitMode(true);
+                setResubmitItemIds(itemIds);
+                setShowPrintDialog(true);
+              }}
               onAddItem={handleAddItem}
               onDeleteItem={handleDeleteItem}
               onEditItem={handleEditItem}
@@ -245,9 +258,15 @@ export default function SubmittalsContent() {
       {showPrintDialog && selectedSubmittalFull && (
         <PrintSubmittalDialog
           submittal={selectedSubmittalFull}
-          onClose={() => setShowPrintDialog(false)}
+          onClose={() => {
+            setShowPrintDialog(false);
+            setResubmitMode(false);
+            setResubmitItemIds([]);
+          }}
           onPrint={handlePrint}
           onAddContact={handleAddContact}
+          resubmitMode={resubmitMode}
+          resubmitItemIds={resubmitItemIds}
         />
       )}
     </div>

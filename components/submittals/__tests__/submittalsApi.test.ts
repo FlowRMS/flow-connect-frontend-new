@@ -207,6 +207,7 @@ describe('Submittals API - Type Contracts', () => {
           id: 'user-uuid',
           fullName: 'Test User',
         },
+        emailsSent: [],
       };
 
       expect(mockRevision.id).toBeDefined();
