@@ -29,7 +29,7 @@ export function getContactFilterOptions(): FilterOption[] {
     { 
       id: 'company', 
       label: 'Company', 
-      type: 'text' as const, 
+      type: 'company' as const, 
       columnName: 'companyName', 
       available: true 
     },
