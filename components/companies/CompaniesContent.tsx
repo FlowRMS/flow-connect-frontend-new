@@ -379,6 +379,20 @@ export default function CompaniesContent() {
     }
   }, [handleFiltersChange, syncColumnToAdvanced]);
 
+  // Clear all user-applied filters (advanced + column filters) while keeping the default backend filter
+  const handleClearAllFilters = useCallback(() => {
+    // Clear client-side active filters
+    stateHandleFiltersChange([]);
+
+    // Reset server-side filters to the initial default (exclude manufacturers)
+    setServerFilters([
+      { operator: 'NE', columnName: 'companySourceType', value: 'MANUFACTURER' },
+    ]);
+
+    // Clear column-level filters
+    setColumnFilters({});
+  }, [stateHandleFiltersChange, setServerFilters]);
+
   const companySortOptions = useMemo(() => getCompanySortOptions(), []);
 
   // Handle delete company
@@ -574,6 +588,12 @@ export default function CompaniesContent() {
   // When isLoading is true, we show skeleton rows inside the table (not a full-page loader)
   const tableLoading = isLoading;
 
+  // Detect if there are any user-applied filters (advanced filters or column filters)
+  const hasActiveFilters = activeFilters.length > 0 || Object.keys(columnFilters).length > 0;
+
+  // Detect if there is an active search query (debounced to match displayedCompanies logic)
+  const hasSearchQuery = debouncedSearchQuery.length >= 2;
+
   // Show error state
   if (error) {
     return (
@@ -754,27 +774,71 @@ export default function CompaniesContent() {
 
       {/* Empty State */}
       {displayedCompanies.length === 0 && !isLoading ? (
-        <div className="flex flex-col items-center justify-center py-16 px-4">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
-              <path d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4zM8 14v3M12 14v3M16 14v3" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+        hasSearchQuery ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                <path d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4zM8 14v3M12 14v3M16 14v3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">No companies found</h3>
+            <p className="text-[var(--muted-foreground)] text-center max-w-md mb-6">
+              We couldn&apos;t find any companies matching &quot;{debouncedSearchQuery}&quot;. Try a different search term or clear your search.
+            </p>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="inline-flex items-center gap-2 px-6 py-2.5 border border-red-500 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 5l10 10M15 5L5 15" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Clear search
+            </button>
           </div>
-          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">No Companies Yet</h3>
-          <p className="text-[var(--muted-foreground)] text-center max-w-md mb-6">
-            Start by adding your first company. Companies you create will appear here.
-          </p>
-          <button
-            onClick={() => router.push('/companies/new')}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--primary)] text-white font-medium rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="10" cy="10" r="7"/>
-              <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
-            </svg>
-            Add Your First Company
-          </button>
-        </div>
+        ) : hasActiveFilters ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                <path d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4zM8 14v3M12 14v3M16 14v3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">No companies match your filters</h3>
+            <p className="text-[var(--muted-foreground)] text-center max-w-md mb-6">
+              Try adjusting or clearing your filters to see more companies.
+            </p>
+            <button
+              onClick={handleClearAllFilters}
+              className="inline-flex items-center gap-2 px-6 py-2.5 border border-red-500 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 5l10 10M15 5L5 15" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                <path d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4zM8 14v3M12 14v3M16 14v3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">No Companies Yet</h3>
+            <p className="text-[var(--muted-foreground)] text-center max-w-md mb-6">
+              Start by adding your first company. Companies you create will appear here.
+            </p>
+            <button
+              onClick={() => router.push('/companies/new')}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--primary)] text-white font-medium rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="10" cy="10" r="7"/>
+                <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
+              </svg>
+              Add Your First Company
+            </button>
+          </div>
+        )
       ) : (
         <>
           {viewMode === 'grid' ? (
