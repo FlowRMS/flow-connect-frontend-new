@@ -177,6 +177,7 @@ export function transformToFullSubmittal(response: SubmittalResponse): Submittal
       generatedBy: rev.createdBy?.fullName || 'Unknown',
       generatedPdfUrl: rev.pdfFileUrl || undefined,
       generatedPdfName: rev.pdfFileName || undefined,
+      generatedPdfSize: rev.pdfFileSizeBytes || undefined,
       outputOptions: {
         includeCoverPage: true,
         includeTransmittalPage: true,

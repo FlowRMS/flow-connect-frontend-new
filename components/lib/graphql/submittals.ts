@@ -86,6 +86,7 @@ export interface SubmittalRevisionResponse {
   pdfFileId: string | null;
   pdfFileUrl: string | null;
   pdfFileName: string | null;
+  pdfFileSizeBytes: number | null;
   notes: string | null;
   createdAt: string;
   createdBy: {
@@ -295,6 +296,7 @@ const SUBMITTAL_REVISION_FRAGMENT = `
     pdfFileId
     pdfFileUrl
     pdfFileName
+    pdfFileSizeBytes
     notes
     createdAt
     createdBy {
