@@ -39,21 +39,24 @@ export default function SendSubmittalEmailDialog({
     return all.filter(s => s.email);
   }, [submittal]);
 
-  // Pre-select recipients based on addressedTo from output options
-  const preSelectedEmails = useMemo(() => {
-    return revision.outputOptions.addressedTo
-      .filter(s => s.email)
-      .map(s => s.email!);
-  }, [revision.outputOptions.addressedTo]);
+  // Pre-select recipients based on addressedTo from output options, or fall back to all stakeholders
+  const initialRecipients = useMemo(() => {
+    // First try addressedTo from revision output options
+    const addressedTo = revision.outputOptions?.addressedTo || [];
+    const addressedEmails = addressedTo.filter(s => s.email).map(s => s.email!);
+    if (addressedEmails.length > 0) {
+      return addressedEmails;
+    }
+    // Fall back to all stakeholders with emails
+    return allStakeholders.map(s => s.email!);
+  }, [revision.outputOptions?.addressedTo, allStakeholders]);
 
-  const [selectedRecipients, setSelectedRecipients] = useState<string[]>(
-    preSelectedEmails.length > 0 ? preSelectedEmails : allStakeholders.map(s => s.email!)
-  );
+  const [selectedRecipients, setSelectedRecipients] = useState<string[]>(initialRecipients);
   const [customRecipient, setCustomRecipient] = useState('');
   const [showAddRecipient, setShowAddRecipient] = useState(false);
 
   // Generate default subject
-  const isResubmit = revision.outputOptions.transmittedFor.includes('resubmit_for_approval');
+  const isResubmit = revision.outputOptions?.transmittedFor?.includes('resubmit_for_approval') || false;
   const defaultSubject = isResubmit
     ? `Resubmittal - ${submittal.jobName} - Rev ${revision.revisionNumber}`
     : `Submittal - ${submittal.jobName} - Rev ${revision.revisionNumber}`;
