@@ -6,10 +6,20 @@
 
 'use client';
 
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import { useFactoriesInfinite, useDeleteFactory, type FactoryLandingPage } from './api/useFactoriesApi';
+import { fetchAllFactoryIds } from './api/factoriesApi';
 import DeleteFactoryModal from './modals/DeleteFactoryModal';
+import { useBulkSelection, BulkDeleteModal, BulkActionsToolbar } from '../shared';
+import { toast } from 'sonner';
+import { searchFactories, type FactorySearchResult } from '../lib/api/search';
+import { useQuery } from '@tanstack/react-query';
 
 type SortField = 'title' | 'accountNumber' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
@@ -20,11 +30,45 @@ interface ManufacturerProfilesContentProps {
 
 export default function ManufacturerProfilesContent({ basePath = '/warehouse/manufacturer-profiles' }: ManufacturerProfilesContentProps) {
   const router = useRouter();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'manufacturers';
+
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [sortField, setSortField] = useState<SortField>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [filterPublished, setFilterPublished] = useState<'all' | 'published' | 'unpublished'>('all');
+
+  // Debounce search query for API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // API search for factories - only when search query is present
+  const { data: searchResults, isLoading: isSearching } = useQuery<FactorySearchResult[], Error>({
+    queryKey: ['factorySearch', debouncedSearchQuery],
+    queryFn: () => searchFactories(debouncedSearchQuery, undefined, 50),
+    enabled: debouncedSearchQuery.length >= 2,
+    staleTime: 30 * 1000,
+  });
 
   // Fetch factories from API with infinite scroll
   const {
@@ -53,6 +97,23 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
     return factoriesData.pages[0].total;
   }, [factoriesData]);
 
+  // Bulk selection with shared hook
+  const {
+    selectAllMode,
+    selectedCount,
+    isAllSelected,
+    isPartiallySelected,
+    isItemSelected,
+    handleSelectAll,
+    handleSelectOne,
+    clearSelection,
+    getAllSelectedIds,
+  } = useBulkSelection({
+    items: factories,
+    totalCount,
+    fetchAllIds: fetchAllFactoryIds,
+  });
+
   // Handle scroll for infinite loading
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
@@ -65,21 +126,52 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, searchQuery]);
 
-  // Filter and sort factories
+  // Filter and sort factories - use API search results when searching, otherwise use paginated data
   const filteredFactories = useMemo(() => {
-    let result = [...factories];
+    // If search query is active and we have search results, use them
+    if (debouncedSearchQuery.length >= 2 && searchResults) {
+      // Map search results to match FactoryLandingPage shape for display
+      let result: FactoryLandingPage[] = searchResults.map(sr => ({
+        id: sr.id,
+        title: sr.title,
+        accountNumber: sr.accountNumber || '',
+        email: '',
+        phone: '',
+        published: sr.published ?? true,
+        createdAt: '',
+        baseCommissionRate: undefined,
+        overallDiscountRate: undefined,
+        paymentTerms: undefined,
+        leadTime: undefined,
+      }));
 
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (f) =>
-          f.title?.toLowerCase().includes(query) ||
-          f.accountNumber?.toLowerCase().includes(query) ||
-          f.email?.toLowerCase().includes(query) ||
-          f.phone?.toLowerCase().includes(query)
-      );
+      // Apply published filter to search results
+      if (filterPublished !== 'all') {
+        result = result.filter((f) => (filterPublished === 'published' ? f.published : !f.published));
+      }
+
+      // Apply sorting
+      result.sort((a, b) => {
+        let comparison = 0;
+        switch (sortField) {
+          case 'title':
+            comparison = (a.title || '').localeCompare(b.title || '');
+            break;
+          case 'accountNumber':
+            comparison = (a.accountNumber || '').localeCompare(b.accountNumber || '');
+            break;
+          case 'createdAt':
+            comparison = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+            break;
+        }
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+
+      return result;
     }
+
+    // No search query - use paginated data with client-side filtering
+    let result = [...factories];
 
     // Apply published filter
     if (filterPublished !== 'all') {
@@ -104,7 +196,7 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
     });
 
     return result;
-  }, [factories, searchQuery, sortField, sortDirection, filterPublished]);
+  }, [factories, debouncedSearchQuery, searchResults, sortField, sortDirection, filterPublished]);
 
   const handleSort = useCallback((field: SortField) => {
     if (sortField === field) {
@@ -122,12 +214,23 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
   const handleDeleteFactory = useCallback(async (id: string) => {
     try {
       await deleteFactoryMutation.mutateAsync(id);
+      toast.success('Manufacturer deleted successfully');
       setDeleteConfirmId(null);
       refetch();
     } catch (err) {
       console.error('Failed to delete factory:', err);
+      // Extract error message from GraphQL error
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete manufacturer';
+      toast.error(errorMessage);
     }
   }, [deleteFactoryMutation, refetch]);
+
+  // Bulk delete success handler
+  const handleBulkDeleteSuccess = useCallback(() => {
+    clearSelection();
+    setShowBulkDeleteModal(false);
+    refetch();
+  }, [clearSelection, refetch]);
 
   const factoryToDelete = factories.find(f => f.id === deleteConfirmId);
 
@@ -164,15 +267,42 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
       className="flex-1 overflow-y-auto bg-[var(--background)]"
     >
       {/* Header */}
-      <div className="mb-4 sm:mb-6">
+      <div className="p-3 sm:p-6 pb-0 overflow-visible">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Manufacturer Profiles</h1>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Configure manufacturer settings, commission rates, and payment terms
-            </p>
+          <div className="flex items-start gap-4 overflow-visible">
+            {/* Morphing Icon Target - Factory Pulse Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="factory-pulse"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['manufacturers']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Manufacturer Profiles
+              </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                Configure manufacturer settings, commission rates, and payment terms
+              </motion.p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             {/* Status Filter */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               {(['all', 'published', 'unpublished'] as const).map((status) => (
@@ -201,18 +331,25 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
               <span className="hidden sm:inline">New Manufacturer</span>
               <span className="sm:hidden">New</span>
             </button>
-          </div>
+          </motion.div>
         </div>
 
         {/* Search Bar */}
         <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
-          </svg>
+          {isSearching ? (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--primary)] animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          ) : (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
+            </svg>
+          )}
           <input
             type="text"
-            placeholder="Search manufacturers by name, account, email, or phone..."
+            placeholder="Search manufacturers by name or account number..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
@@ -220,8 +357,21 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
         </div>
       </div>
 
+      {/* Bulk Actions Toolbar */}
+      <div className="px-3 sm:px-6">
+        <BulkActionsToolbar
+          entityType="FACTORIES"
+          selectedCount={selectedCount}
+          totalCount={totalCount}
+          loadedCount={factories.length}
+          selectAllMode={selectAllMode}
+          onClearSelection={clearSelection}
+          onDelete={() => setShowBulkDeleteModal(true)}
+        />
+      </div>
+
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="px-3 sm:px-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
@@ -265,7 +415,7 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
 
       {/* Loading State */}
       {isLoading && (
-        <div className="flex items-center justify-center py-20">
+        <div className="px-3 sm:px-6 flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-4">
             <svg className="animate-spin h-10 w-10 text-[var(--primary)]" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -278,7 +428,7 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
 
       {/* Error State */}
       {error && !isLoading && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
+        <div className="mx-3 sm:mx-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
           <svg className="mx-auto mb-4 w-12 h-12 text-red-500" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
@@ -295,11 +445,22 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
 
       {/* Data Table */}
       {!isLoading && !error && (
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+        <div className="mx-3 sm:mx-6 mb-6 bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="bg-[var(--muted)]/50 border-b border-[var(--border)]">
+                  <th className="px-4 py-3 text-left w-12">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = isPartiallySelected;
+                      }}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 sm:px-6 py-3 text-left">
                     <button
                       onClick={() => handleSort('title')}
@@ -349,8 +510,18 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
                   <tr
                     key={factory.id}
                     onClick={() => handleFactoryClick(factory)}
-                    className="hover:bg-[var(--muted)]/30 cursor-pointer transition-colors"
+                    className={`hover:bg-[var(--muted)]/30 cursor-pointer transition-colors ${
+                      isItemSelected(factory.id) ? 'bg-[var(--primary)]/5' : ''
+                    }`}
                   >
+                    <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isItemSelected(factory.id)}
+                        onChange={(e) => handleSelectOne(factory.id, e.target.checked)}
+                        className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                      />
+                    </td>
                     <td className="px-4 sm:px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center flex-shrink-0">
@@ -514,17 +685,17 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
             <div className="px-6 py-3 border-t border-[var(--border)] bg-[var(--muted)]/30">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  {searchQuery
-                    ? `${filteredFactories.length} results for "${searchQuery}"`
+                  {debouncedSearchQuery.length >= 2
+                    ? `${filteredFactories.length} search result${filteredFactories.length !== 1 ? 's' : ''} for "${debouncedSearchQuery}"`
                     : `Showing ${factories.length} of ${totalCount} manufacturers`}
                 </p>
-                {isFetchingNextPage && (
+                {(isFetchingNextPage || isSearching) && (
                   <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
                     <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                     </svg>
-                    Loading more...
+                    {isSearching ? 'Searching...' : 'Loading more...'}
                   </div>
                 )}
               </div>
@@ -543,6 +714,17 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
           isDeleting={deleteFactoryMutation.isPending}
         />
       )}
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="FACTORIES"
+        selectedCount={selectedCount}
+        getAllSelectedIds={getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['factories']]}
+      />
     </div>
   );
 }

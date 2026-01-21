@@ -4,6 +4,7 @@
  */
 
 import { crmGraphQLRequest } from '../../lib/crm-graphql';
+import { LandingSourceType } from '../../lib/graphql/types';
 
 // ============================================================================
 // Enums
@@ -37,6 +38,7 @@ export interface QuoteCustomer {
   isParent: boolean;
   parentId?: string;
   published: boolean;
+  buyingGroupId?: string;
 }
 
 export interface QuoteCreatedBy {
@@ -55,7 +57,6 @@ export interface QuoteCreatedBy {
 
 export interface QuoteSplitRate {
   id: string;
-  createdAt?: string;
   position?: number;
   quoteId?: string;
   quoteDetailId?: string;
@@ -89,6 +90,14 @@ export interface QuoteUom {
   title?: string;
 }
 
+// Factory object returned in quote detail
+export interface QuoteDetailFactory {
+  id: string;
+  title?: string;
+  accountNumber?: string;
+  published?: boolean;
+}
+
 export interface QuoteDetail {
   id: string;
   commission?: number;
@@ -99,7 +108,9 @@ export interface QuoteDetail {
   discountRate?: string;
   divisionFactor?: string;
   endUserId?: string;
+  endUser?: QuoteCustomer;
   factoryId?: string;
+  factory?: QuoteDetailFactory;
   itemNumber?: number;
   leadTime?: string;
   note?: string;
@@ -121,7 +132,6 @@ export interface QuoteDetail {
 
 export interface QuoteInsideRep {
   id: string;
-  createdAt?: string;
   position?: number;
   quoteId?: string;
   splitRate?: string;
@@ -130,7 +140,6 @@ export interface QuoteInsideRep {
 
 export interface QuoteOutsideRep {
   id: string;
-  createdAt?: string;
   position?: number;
   quoteId?: string;
   splitRate?: string;
@@ -188,6 +197,12 @@ export interface Quote {
   factoryPerLineItem?: boolean;
 }
 
+export interface QuoteLandingPageSalesRep {
+  avgSplitRate?: number;
+  fullName?: string;
+  total?: number;
+}
+
 export interface QuoteLandingPage {
   id: string;
   createdAt?: string;
@@ -201,6 +216,13 @@ export interface QuoteLandingPage {
   total?: number;
   commission?: number;
   userIds?: string[];
+  // New fields from query
+  partNumbers?: string[];
+  salesReps?: QuoteLandingPageSalesRep[];
+  soldToCustomerName?: string;
+  factories?: string[];
+  endUsers?: string[];
+  categories?: string[];
 }
 
 // Input Types
@@ -289,9 +311,9 @@ export interface PaginatedQuotesResult {
 // ============================================================================
 
 const QUOTE_LANDING_PAGES = `
-  query QuoteLandingPages($filters: [Filter!], $limit: Int, $offset: Int, $orderBy: [OrderBy!]) {
+  query QuoteLandingPages($sourceType: LandingSourceType!, $filters: [Filter!], $limit: Int, $offset: Int, $orderBy: [OrderBy!]) {
     findLandingPages(
-      sourceType: QUOTES
+      sourceType: $sourceType
       filters: $filters
       limit: $limit
       offset: $offset
@@ -311,6 +333,16 @@ const QUOTE_LANDING_PAGES = `
           total
           commission
           userIds
+          partNumbers
+          salesReps {
+            avgSplitRate
+            fullName
+            total
+          }
+          soldToCustomerName
+          factories
+          endUsers
+          categories
         }
       }
       total
@@ -371,7 +403,21 @@ const FIND_QUOTE_BY_ID = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note
@@ -406,7 +452,6 @@ const FIND_QUOTE_BY_ID = `
         }
         outsideSplitRates {
           id
-          createdAt
           position
           quoteDetailId
           splitRate
@@ -523,7 +568,21 @@ const CREATE_QUOTE = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note
@@ -540,7 +599,6 @@ const CREATE_QUOTE = `
         }
         outsideSplitRates {
           id
-          createdAt
           position
           quoteDetailId
           splitRate
@@ -653,7 +711,21 @@ const UPDATE_QUOTE = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note
@@ -670,7 +742,6 @@ const UPDATE_QUOTE = `
         }
         outsideSplitRates {
           id
-          createdAt
           position
           quoteDetailId
           splitRate
@@ -759,7 +830,7 @@ const DELETE_QUOTE = `
 `;
 
 const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
-  mutation CreateQuoteFromPreOpportunity($preOpportunityId: UUID!, $quoteNumber: String!, $preOpportunityDetailIds: String) {
+  mutation CreateQuoteFromPreOpportunity($preOpportunityId: UUID!, $quoteNumber: String!, $preOpportunityDetailIds: [UUID!]) {
     createQuoteFromPreOpportunity(preOpportunityId: $preOpportunityId, quoteNumber: $quoteNumber, preOpportunityDetailIds: $preOpportunityDetailIds) {
       id
       acceptDate
@@ -811,7 +882,21 @@ const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
         discount
         discountRate
         endUserId
+        endUser {
+          id
+          companyName
+          isParent
+          parentId
+          published
+          buyingGroupId
+        }
         factoryId
+        factory {
+          id
+          title
+          accountNumber
+          published
+        }
         itemNumber
         leadTime
         note
@@ -828,7 +913,6 @@ const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
         }
         outsideSplitRates {
           id
-          createdAt
           position
           quoteDetailId
           splitRate
@@ -981,6 +1065,22 @@ const GET_PRODUCT_CPN_BY_PRODUCT_AND_CUSTOMER = `
 `;
 
 // ============================================================================
+// Product Pricing Tiers Query (for Volume Discounts)
+// ============================================================================
+
+const LIST_PRODUCT_QUANTITY_PRICING = `
+  query ListProductQuantityPricingByProductId($productId: UUID!) {
+    listProductQuantityPricingByProductId(productId: $productId) {
+      id
+      productId
+      quantityLow
+      quantityHigh
+      unitPrice
+    }
+  }
+`;
+
+// ============================================================================
 // Product UOMs Query (for Unit of Measure)
 // ============================================================================
 
@@ -1038,6 +1138,14 @@ export interface ProductCpnResult {
   unitPrice?: string;
 }
 
+export interface ProductPricingTierResult {
+  id: string;
+  productId: string;
+  quantityLow: number;
+  quantityHigh: number;
+  unitPrice: number;
+}
+
 export interface ProductUomResult {
   id: string;
   description?: string;
@@ -1076,6 +1184,7 @@ export async function fetchQuotesWithPagination(
   }>({
     query: QUOTE_LANDING_PAGES,
     variables: {
+      sourceType: LandingSourceType.QUOTES,
       filters,
       orderBy,
       limit: pagination?.limit ?? 50,
@@ -1197,12 +1306,12 @@ export async function deleteQuote(id: string): Promise<boolean> {
  * Create a quote from a pre-opportunity
  * @param preOpportunityId - The ID of the pre-opportunity
  * @param quoteNumber - The quote number to assign
- * @param preOpportunityDetailIds - Optional comma-separated list of detail IDs to include (if not provided, all details are included)
+ * @param preOpportunityDetailIds - Optional array of detail IDs to include (if null or not provided, all details are included)
  */
 export async function createQuoteFromPreOpportunity(
   preOpportunityId: string,
   quoteNumber: string,
-  preOpportunityDetailIds?: string
+  preOpportunityDetailIds?: string[] | null
 ): Promise<Quote> {
   const response = await crmGraphQLRequest<{ createQuoteFromPreOpportunity: Quote }>({
     query: CREATE_QUOTE_FROM_PRE_OPPORTUNITY,
@@ -1365,6 +1474,52 @@ export async function listProductUoms(): Promise<ProductUomResult[]> {
   return response.data?.productUoms || [];
 }
 
+/**
+ * List pricing tiers for a product (volume discounts)
+ * Used to determine unit price based on quantity
+ */
+export async function listProductPricingTiers(productId: string): Promise<ProductPricingTierResult[]> {
+  if (!productId) return [];
+
+  const response = await crmGraphQLRequest<{ listProductQuantityPricingByProductId: ProductPricingTierResult[] }>({
+    query: LIST_PRODUCT_QUANTITY_PRICING,
+    variables: { productId },
+  });
+
+  if (response.errors) {
+    // If no pricing tiers found, this is not an error - just return empty array
+    console.log('No pricing tiers found for product:', response.errors[0]?.message);
+    return [];
+  }
+
+  return response.data?.listProductQuantityPricingByProductId || [];
+}
+
+/**
+ * Get the applicable unit price based on quantity and pricing tiers
+ * Returns the tier unit price if quantity falls within a tier, otherwise returns default price
+ */
+export function getPriceForQuantity(
+  quantity: number,
+  pricingTiers: ProductPricingTierResult[],
+  defaultUnitPrice: number
+): number {
+  if (!pricingTiers || pricingTiers.length === 0) {
+    return defaultUnitPrice;
+  }
+
+  // Find the tier that matches the quantity (using quantityLow and quantityHigh)
+  const applicableTier = pricingTiers.find(
+    tier => quantity >= tier.quantityLow && quantity <= tier.quantityHigh
+  );
+
+  if (applicableTier) {
+    return applicableTier.unitPrice;
+  }
+
+  return defaultUnitPrice;
+}
+
 // ============================================================================
 // Job Search Types and API
 // ============================================================================
@@ -1459,4 +1614,30 @@ export async function searchJobs(searchTerm: string, limit?: number): Promise<Jo
     createdAt: job.createdAt,
     createdBy: job.createdBy?.fullName,
   }));
+}
+
+/**
+ * Fetch all quote IDs for bulk operations
+ * Used when user selects all including unloaded items
+ */
+export async function fetchAllQuoteIds(
+  filters?: QuoteLandingPageFilter[],
+  orderBy?: QuoteLandingPageOrderBy[]
+): Promise<string[]> {
+  // First get the total count
+  const initialResult = await fetchQuotesWithPagination(filters, orderBy, { limit: 1, offset: 0 });
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all IDs in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await fetchQuotesWithPagination(filters, orderBy, { limit: batchSize, offset });
+    allIds.push(...result.records.map(r => r.id));
+  }
+
+  return allIds;
 }

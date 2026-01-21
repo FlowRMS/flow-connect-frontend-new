@@ -80,6 +80,20 @@ export type TaskPriority = 'LOW' | 'NORMAL' | 'URGENT' | 'CRITICAL';
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 // CRMEntityType is re-exported from entity-links.ts above
 
+// TaskAssignee type for the user objects returned in assignees array
+export interface TaskAssignee {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  email?: string;
+}
+
+export interface TaskCategoryRef {
+  id: string;
+  name: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -89,7 +103,10 @@ export interface Task {
   dueDate: string;
   reminderDate: string;
   tags: string;
-  assignedToId: string;
+  assigneeIds?: string[];
+  assignees?: TaskAssignee[]; // Array of user objects
+  categoryId?: string;
+  category?: TaskCategoryRef;
   createdBy: string;
   createdAt: string;
 }
@@ -108,7 +125,8 @@ export interface TaskLandingPage {
   }>;
   reminderDate: string;
   tags: string[];
-  assignedTo: string;
+  assignees: string[]; // Array of assignee names from findLandingPages
+  category?: string; // Category name as string from landing page
   createdBy: string;
   createdAt: string;
 }
@@ -150,7 +168,8 @@ export interface CreateTaskInput {
   dueDate?: string;
   reminderDate?: string;
   tags?: string;
-  assignedToId?: string;
+  assigneeIds?: string[];
+  categoryId?: string;
 }
 
 export interface UpdateTaskInput {
@@ -161,7 +180,8 @@ export interface UpdateTaskInput {
   dueDate?: string;
   reminderDate?: string;
   tags?: string;
-  assignedToId?: string;
+  assigneeIds?: string[];
+  categoryId?: string;
 }
 
 // Task relation types
@@ -191,7 +211,8 @@ export interface TaskByEntity {
   dueDate: string;
   reminderDate: string;
   tags: string;
-  assignedToId: string;
+  assigneeIds?: string[];
+  assignees?: TaskAssignee[]; // Array of user objects
   createdBy: string;
   createdAt: string;
 }
@@ -227,7 +248,8 @@ const FIND_TASKS_LANDING_PAGES = `
       records {
         ... on TaskLandingPage {
           id
-          assignedTo
+          assignees
+          category
           createdAt
           createdBy
           description
@@ -252,7 +274,13 @@ const FIND_TASKS_LANDING_PAGES = `
 const GET_TASK = `
   query GetTask($id: UUID!) {
     task(id: $id) {
-      assignedToId
+      assignees {
+        id
+        firstName
+        lastName
+        fullName
+        email
+      }
       createdAt
       createdBy {
         email
@@ -269,6 +297,11 @@ const GET_TASK = `
       status
       tags
       title
+      categoryId
+      category {
+        id
+        name
+      }
     }
   }
 `;
@@ -276,7 +309,13 @@ const GET_TASK = `
 const CREATE_TASK = `
   mutation CreateTask($input: TaskInput!) {
     createTask(input: $input) {
-      assignedToId
+      assignees {
+        id
+        firstName
+        lastName
+        fullName
+        email
+      }
       createdAt
       createdBy {
         email
@@ -293,6 +332,11 @@ const CREATE_TASK = `
       status
       tags
       title
+      categoryId
+      category {
+        id
+        name
+      }
     }
   }
 `;
@@ -300,7 +344,13 @@ const CREATE_TASK = `
 const UPDATE_TASK = `
   mutation UpdateTask($id: UUID!, $input: TaskInput!) {
     updateTask(id: $id, input: $input) {
-      assignedToId
+      assignees {
+        id
+        firstName
+        lastName
+        fullName
+        email
+      }
       createdAt
       createdBy {
         email
@@ -317,6 +367,11 @@ const UPDATE_TASK = `
       status
       tags
       title
+      categoryId
+      category {
+        id
+        name
+      }
     }
   }
 `;
@@ -451,7 +506,13 @@ const GET_TASKS_BY_ENTITY = `
       dueDate
       reminderDate
       tags
-      assignedToId
+      assignees {
+        id
+        firstName
+        lastName
+        fullName
+        email
+      }
       createdBy {
         email
         firstName

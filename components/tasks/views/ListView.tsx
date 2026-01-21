@@ -50,14 +50,43 @@ export default function ListView({ tasks, onUpdateTask, onToggleComplete, onSele
                 onClick={(e) => e.stopPropagation()}
                 className="w-5 h-5 accent-[var(--primary)] rounded mt-1 flex-shrink-0 cursor-pointer"
               />
-              <div className={`w-10 h-10 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0`}>
-                {getInitials(task.assignedTo)}
-              </div>
+              {/* Assignees display */}
+              {task.assigneeNames && task.assigneeNames.length > 0 ? (
+                <div className="flex -space-x-2 flex-shrink-0">
+                  {task.assigneeNames.slice(0, 3).map((name, idx) => {
+                    const displayName = name.trim() || 'Unknown';
+                    return (
+                      <div
+                        key={`${task.id}-assignee-${idx}`}
+                        className={`w-10 h-10 rounded-full ${getAvatarColor(displayName)} flex items-center justify-center text-white text-sm font-semibold border-2 border-white`}
+                        style={{ zIndex: 3 - idx }}
+                        title={displayName}
+                      >
+                        {getInitials(displayName)}
+                      </div>
+                    );
+                  })}
+                  {task.assigneeNames.length > 3 && (
+                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-sm font-semibold border-2 border-white">
+                      +{task.assigneeNames.length - 3}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className={`w-10 h-10 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0`}>
+                  {getInitials(task.assignedTo)}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <h3 className={`font-semibold text-[var(--foreground)] text-base ${task.completed ? 'line-through opacity-60' : ''}`}>
                     {task.title}
                   </h3>
+                  {task.category && (
+                    <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-xs font-medium">
+                      {task.category}
+                    </span>
+                  )}
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(task.status)}`}>
                     {task.status}
                   </span>
@@ -103,7 +132,11 @@ export default function ListView({ tasks, onUpdateTask, onToggleComplete, onSele
                       <circle cx="10" cy="6" r="3"/>
                       <path d="M3 18c0-3 3-5 7-5s7 2 7 5" strokeLinecap="round"/>
                     </svg>
-                    {task.assignedTo}
+                    {task.assigneeNames && task.assigneeNames.length > 0
+                      ? (task.assigneeNames.length === 1
+                          ? task.assigneeNames[0].trim() || 'Unknown'
+                          : `${task.assigneeNames.length} assignees`)
+                      : task.assignedTo}
                   </span>
                 </div>
 

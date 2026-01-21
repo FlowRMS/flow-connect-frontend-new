@@ -17,6 +17,9 @@ interface WarehouseAccordionItemProps {
   onShowLayout: () => void;
   onShowQRCodes: () => void;
   getWorkerById: (workerId: string) => WarehouseWorker | undefined;
+  hasChanges: boolean;
+  isSaving: boolean;
+  onSave: () => Promise<void>;
 }
 
 export default function WarehouseAccordionItem({
@@ -31,15 +34,18 @@ export default function WarehouseAccordionItem({
   onShowLayout,
   onShowQRCodes,
   getWorkerById,
+  hasChanges,
+  isSaving,
+  onSave,
 }: WarehouseAccordionItemProps) {
   const enabledLevels = warehouse.settings.locationLevels.filter((l) => l.enabled);
 
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-      {/* Warehouse Header */}
-      <button
+      {/* Warehouse Header - Clickable */}
+      <div
         onClick={onToggleExpansion}
-        className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)]/50 transition-colors"
+        className="w-full flex items-center justify-between p-4 hover:bg-[var(--muted)]/50 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-4">
           <div
@@ -76,6 +82,34 @@ export default function WarehouseAccordionItem({
           <div className="text-sm text-[var(--muted-foreground)] hidden sm:block">
             {enabledLevels.length} levels
           </div>
+          {/* Save button in header when there are changes */}
+          {hasChanges && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSave();
+              }}
+              disabled={isSaving}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {isSaving ? (
+                <>
+                  <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Save
+                </>
+              )}
+            </button>
+          )}
           <svg
             className={`w-5 h-5 text-[var(--muted-foreground)] transition-transform ${isExpanded ? 'rotate-180' : ''}`}
             fill="none"
@@ -85,7 +119,7 @@ export default function WarehouseAccordionItem({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </div>
-      </button>
+      </div>
 
       {/* Expanded Content */}
       {isExpanded && (
@@ -113,6 +147,29 @@ export default function WarehouseAccordionItem({
               getWorkerById={getWorkerById}
             />
           </div>
+
+          {/* Save Button */}
+          {hasChanges && (
+            <div className="mt-6 pt-4 border-t border-[var(--border)] flex justify-end">
+              <button
+                onClick={onSave}
+                disabled={isSaving}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+              >
+                {isSaving ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

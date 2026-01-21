@@ -34,6 +34,7 @@ export {
   updateAcknowledgement,
   deleteAcknowledgement,
   type OrderAcknowledgement,
+  type OrderAcknowledgementDetail,
   type AcknowledgementLandingPage,
   type AcknowledgementCreationType,
   type CreateAcknowledgementInput,
@@ -106,8 +107,11 @@ export function useCreateAcknowledgement() {
     onSuccess: (data) => {
       // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ['orderAcknowledgements', data.orderId] });
-      if (data.orderDetailId) {
-        queryClient.invalidateQueries({ queryKey: ['orderDetailAcknowledgements', data.orderDetailId] });
+      // Invalidate detail queries for all linked line items
+      if (data.details && data.details.length > 0) {
+        data.details.forEach((detail) => {
+          queryClient.invalidateQueries({ queryKey: ['orderDetailAcknowledgements', detail.orderDetailId] });
+        });
       }
     },
   });
@@ -125,8 +129,11 @@ export function useUpdateAcknowledgement() {
       // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ['acknowledgement', data.id] });
       queryClient.invalidateQueries({ queryKey: ['orderAcknowledgements', data.orderId] });
-      if (data.orderDetailId) {
-        queryClient.invalidateQueries({ queryKey: ['orderDetailAcknowledgements', data.orderDetailId] });
+      // Invalidate detail queries for all linked line items
+      if (data.details && data.details.length > 0) {
+        data.details.forEach((detail) => {
+          queryClient.invalidateQueries({ queryKey: ['orderDetailAcknowledgements', detail.orderDetailId] });
+        });
       }
     },
   });

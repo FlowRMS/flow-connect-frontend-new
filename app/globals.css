@@ -44,7 +44,7 @@
   --warning-foreground: #FFFFFF;
   --success: #10B981;
   --success-foreground: #FFFFFF;
-  --info: #3B82F6;
+  --info: #9333EA;
   --info-foreground: #FFFFFF;
 
   /* Extended neutrals */
@@ -137,4 +137,62 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* Sonner Toast Customization - All toasts have white background and black text */
+[data-sonner-toast] {
+  background: white !important;
+  color: #1A1D29 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-sonner-toast] [data-title],
+[data-sonner-toast] [data-description] {
+  color: #1A1D29 !important;
+}
+
+[data-sonner-toast] [data-close-button] {
+  color: #6B7280 !important;
+}
+
+/* All toast icons use the same blue color */
+[data-sonner-toast] [data-icon] svg {
+  color: #2563EB !important;
+}
+
+/* Always visible scrollbar for table containers */
+.scrollbar-always-visible {
+  overflow: auto !important;
+}
+
+.scrollbar-always-visible::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+  background-color: #f3f4f6;
+}
+
+.scrollbar-always-visible::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+  border-radius: 6px;
+}
+
+.scrollbar-always-visible::-webkit-scrollbar-thumb {
+  background-color: #9ca3af;
+  border-radius: 6px;
+  border: 2px solid #f3f4f6;
+}
+
+.scrollbar-always-visible::-webkit-scrollbar-thumb:hover {
+  background-color: #6b7280;
+}
+
+.scrollbar-always-visible::-webkit-scrollbar-corner {
+  background-color: #f3f4f6;
+}
+
+/* Firefox scrollbar styling */
+.scrollbar-always-visible {
+  scrollbar-width: auto;
+  scrollbar-color: #9ca3af #f3f4f6;
 }

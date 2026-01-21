@@ -3,38 +3,31 @@
  * Main table component that assembles header, rows, bulk actions, etc.
  */
 
+import { useRef } from 'react';
 import type { Order } from '@/lib/types/rms';
-import type { SortField, SortDirection, ColumnFilters } from '../../types';
-import { getGridTemplateColumns } from '../../config/columnConfig';
 import { isOrderLinked, getOrderLinkedReason } from '../../utils';
 import { BulkActionsBar } from './BulkActionsBar';
 import { OrdersTableHeader } from './OrdersTableHeader';
 import { OrderRow } from './OrderRow';
 import { OrdersEmptyState } from './OrdersEmptyState';
+import { OrdersTableSkeleton } from './OrdersTableSkeleton';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { getOrderFilterOptions } from '../../config/filterConfig';
+import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
 
 interface OrdersTableProps {
   // Data
   filteredOrders: Order[];
+  // Loading state
+  isLoading?: boolean;
+  // Filters state
+  hasFilters?: boolean;
   // Selection
   selectedOrderIds: Set<string>;
   toggleOrderSelection: (orderId: string) => void;
   selectAllOrders: (orders: Order[]) => void;
   clearSelection: () => void;
   areAllEligibleSelected: (orders: Order[]) => boolean;
-  // Sorting
-  sortField: SortField;
-  sortDirection: SortDirection;
-  handleSort: (field: SortField) => void;
-  // Filters
-  columnFilters: ColumnFilters;
-  setColumnFilters: (filters: ColumnFilters | ((prev: ColumnFilters) => ColumnFilters)) => void;
-  openFilter: string | null;
-  setOpenFilter: (filterId: string | null) => void;
-  uniqueCustomers: string[];
-  uniqueManufacturers: string[];
-  uniqueStatuses: string[];
-  uniqueTotals: number[];
-  uniqueCommissions: number[];
   // Bulk actions
   showBulkActionsMenu: boolean;
   setShowBulkActionsMenu: (show: boolean) => void;
@@ -42,37 +35,54 @@ interface OrdersTableProps {
   bulkDelete: () => void;
   // Selected order for preview
   setSelectedOrder: (order: Order) => void;
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  filterOptions?: ReturnType<typeof getOrderFilterOptions>;
+  columnFilters?: Record<string, ActiveFilter[]>;
+  // Pagination props for infinite scroll
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
+  searchQuery?: string;
 }
 
 export function OrdersTable({
   filteredOrders,
+  isLoading = false,
+  hasFilters = false,
   selectedOrderIds,
   toggleOrderSelection,
   selectAllOrders,
   clearSelection,
   areAllEligibleSelected,
-  sortField,
-  sortDirection,
-  handleSort,
-  columnFilters,
-  setColumnFilters,
-  openFilter,
-  setOpenFilter,
-  uniqueCustomers,
-  uniqueManufacturers,
-  uniqueStatuses,
-  uniqueTotals,
-  uniqueCommissions,
   showBulkActionsMenu,
   setShowBulkActionsMenu,
   bulkSetStatus,
   bulkDelete,
   setSelectedOrder,
+  onColumnFiltersChange,
+  filterOptions,
+  columnFilters,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+  searchQuery = '',
 }: OrdersTableProps) {
-  const gridColumns = getGridTemplateColumns();
+  // Ref for the scrollable container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Use scroll pagination hook to detect when scrolling near bottom of table
+  // Only enable pagination when not searching (search results are handled differently)
+  const shouldPaginate = (hasNextPage ?? false) && !searchQuery;
+  useScrollPagination(scrollContainerRef, {
+    hasNextPage: shouldPaginate,
+    isFetchingNextPage: isFetchingNextPage ?? false,
+    fetchNextPage: fetchNextPage ?? (() => {}),
+    threshold: 200, // Trigger when within 200px of bottom
+  });
 
   return (
-    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
       {/* Bulk Actions Bar */}
       {selectedOrderIds.size > 0 && (
         <BulkActionsBar
@@ -85,49 +95,45 @@ export function OrdersTable({
         />
       )}
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[1990px]">
-          {/* Table Header */}
-          <OrdersTableHeader
-            filteredOrders={filteredOrders}
-            areAllEligibleSelected={areAllEligibleSelected(filteredOrders)}
-            onSelectAll={() => selectAllOrders(filteredOrders)}
-            sortField={sortField}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            columnFilters={columnFilters}
-            setColumnFilters={setColumnFilters}
-            openFilter={openFilter}
-            setOpenFilter={setOpenFilter}
-            uniqueCustomers={uniqueCustomers}
-            uniqueManufacturers={uniqueManufacturers}
-            uniqueStatuses={uniqueStatuses}
-            uniqueTotals={uniqueTotals}
-            uniqueCommissions={uniqueCommissions}
-            gridColumns={gridColumns}
-          />
-
-          {/* Table Body */}
-          <div className="divide-y divide-[var(--border)]">
-            {filteredOrders.length === 0 ? (
-              <OrdersEmptyState />
-            ) : (
-              filteredOrders.map((order) => (
-                <OrderRow
-                  key={order.id}
-                  order={order}
-                  isSelected={selectedOrderIds.has(order.id)}
-                  isLinked={isOrderLinked(order)}
-                  linkedReason={getOrderLinkedReason(order)}
-                  onToggleSelection={() => toggleOrderSelection(order.id)}
-                  onPreview={() => setSelectedOrder(order)}
-                  gridColumns={gridColumns}
-                />
-              ))
-            )}
+      {!isLoading && filteredOrders.length === 0 ? (
+        // Empty state - don't show table structure
+        null
+      ) : (
+        <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+          <div 
+            ref={scrollContainerRef}
+            className="overflow-auto scrollbar-always-visible flex-1"
+          >
+            <table className="w-full min-w-[1800px]">
+              <OrdersTableHeader
+                filteredOrders={filteredOrders}
+                areAllEligibleSelected={areAllEligibleSelected(filteredOrders)}
+                onSelectAll={() => selectAllOrders(filteredOrders)}
+                onColumnFiltersChange={onColumnFiltersChange}
+                filterOptions={filterOptions}
+                columnFilters={columnFilters}
+              />
+              <tbody className="divide-y divide-gray-200">
+                {isLoading ? (
+                  <OrdersTableSkeleton rowCount={8} />
+                ) : (
+                  filteredOrders.map((order) => (
+                    <OrderRow
+                      key={order.id}
+                      order={order}
+                      isSelected={selectedOrderIds.has(order.id)}
+                      isLinked={isOrderLinked(order)}
+                      linkedReason={getOrderLinkedReason(order)}
+                      onToggleSelection={() => toggleOrderSelection(order.id)}
+                      onPreview={() => setSelectedOrder(order)}
+                    />
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

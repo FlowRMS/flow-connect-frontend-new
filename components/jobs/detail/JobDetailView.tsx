@@ -2,9 +2,10 @@
  * Job Detail View Component
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { JobDetailHeader } from './JobDetailHeader';
 import { JobDetailsForm } from './JobDetailsForm';
+import { JobCompanyLinksSection } from './JobCompanyLinksSection';
 import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import { RepTypeModal } from '../modals/RepTypeModal';
 import { DeleteJobConfirmModal } from '../modals/DeleteJobConfirmModal';
@@ -81,6 +82,15 @@ export function JobDetailView({
         isEditing={isEditing}
         editFormData={editFormData}
         onChange={onEditChange}
+      />
+
+      <JobCompanyLinksSection
+        jobId={job.id}
+        onCompanyClick={onCompanyClick ? (companyId) => {
+          // Find the company in related entities or create a minimal object
+          const company = { id: companyId } as RelatedEntityCompany;
+          onCompanyClick(company);
+        } : undefined}
       />
 
       <ConnectedEntitiesSection

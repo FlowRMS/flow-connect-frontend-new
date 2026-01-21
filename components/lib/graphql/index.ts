@@ -218,6 +218,37 @@ export {
   type FileEntityType,
 } from './files';
 
+// Takeoffs module
+export {
+  fetchUserTakeoffs,
+  fetchTakeoff,
+  createTakeoff,
+  updateTakeoff,
+  deleteTakeoff,
+  updateTakeoffDocument,
+  type TakeoffStatusEnum,
+  type TakeoffDocumentResponse,
+  type TakeoffResponse,
+  type PageAnalysis,
+  type ParsedItem,
+  type TakeoffDocumentInput,
+  type CreateTakeoffInput,
+  type UpdateTakeoffInput,
+  type UpdateTakeoffDocumentInput,
+} from './takeoffs';
+
+// Product Crosses module
+export {
+  crossProducts,
+  crossProductsFromDocument,
+  transformResultsToDisplayItems,
+  type ProductCrossTypeEnum,
+  type ProductAlternative,
+  type ProductCrossResult,
+  type ParsedProductCross,
+  type ProductCrossDisplayItem,
+} from './product-crosses';
+
 // Orders module
 export {
   fetchOrdersWithPagination,
@@ -252,6 +283,7 @@ export {
   type OrderLandingPageOrderBy,
   type PaginatedOrdersResult,
   type CreateOrderFromQuoteInput,
+  type QuoteDetailToOrderDetailInput,
 } from './orders';
 
 // Invoices module
@@ -384,3 +416,88 @@ export {
   type UpdateAcknowledgementInput,
   type FindAcknowledgementsLandingPagesResponse,
 } from './acknowledgements';
+
+// Organization module
+export {
+  fetchOrganization,
+  createOrganization,
+  updateOrganization,
+  type Organization,
+  type OrganizationInput,
+} from './organization';
+
+// PDF Entities module
+export {
+  fetchPreOpportunityForPDF,
+  fetchQuoteForPDF,
+  fetchOrderForPDF,
+  fetchInvoiceForPDF,
+  fetchCheckForPDF,
+  fetchEntityForPDF,
+  type PDFEntityType,
+  type PDFEntityData,
+  type PDFPreOpportunity,
+  type PDFQuote,
+  type PDFOrder,
+  type PDFInvoice,
+  type PDFCheck,
+  type PDFPreOpportunityDetail,
+  type PDFQuoteDetail,
+  type PDFOrderDetail,
+  type PDFInvoiceDetail,
+  type PDFCheckDetail,
+  type PDFBalance,
+  type PDFUser,
+  type PDFCustomer,
+  type PDFFactory,
+  type PDFProduct,
+  type PDFJob,
+  type PDFSplitRate,
+  type PDFUom,
+} from './pdf-entities';
+
+// Bulk Operations module
+export {
+  bulkDelete,
+  type BulkDeleteEntityType,
+  type BulkDeleteResult,
+  type BulkDeleteFailure,
+} from './bulk-operations';
+
+// Company Types module
+export {
+  fetchCompanyTypes,
+  fetchCompanyType,
+  createCompanyType,
+  updateCompanyType,
+  deleteCompanyType,
+  type CompanyType,
+  type CreateCompanyTypeInput,
+  type UpdateCompanyTypeInput,
+} from './company-types';
+
+// Task Categories module
+export {
+  fetchTaskCategories,
+  fetchTaskCategory,
+  createTaskCategory,
+  updateTaskCategory,
+  deleteTaskCategory,
+  type TaskCategory,
+  type CreateTaskCategoryInput,
+  type UpdateTaskCategoryInput,
+} from './task-categories';
+
+// Job Company Links module
+export {
+  fetchJobCompanyLinks,
+  fetchJobSpecifiers,
+  fetchJobAwardees,
+  addCompanyToJob,
+  removeCompanyFromJob,
+  type JobCompanyRole,
+  type JobCompanyLink,
+  type JobCompanyLinkCompany,
+  type AddCompanyToJobInput,
+  type RemoveCompanyFromJobInput,
+} from './job-company-links';

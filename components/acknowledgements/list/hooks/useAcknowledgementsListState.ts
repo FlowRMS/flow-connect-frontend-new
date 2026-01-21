@@ -56,7 +56,7 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     manufacturerName: apiOrder.factory?.title || '',
     customerId: apiOrder.soldToCustomerId || '',
     customerName: apiOrder.soldToCustomer?.companyName || '',
-    status: 'open',
+    status: 'OPEN',
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
     commissionStatus: 'pending',
@@ -97,10 +97,17 @@ export function useAcknowledgementsListState() {
     100
   );
 
-  // Flatten paginated data
+  // Flatten paginated data and deduplicate by ID
   const allAcknowledgementsData = useMemo(() => {
     if (!acknowledgementsData?.pages) return [];
-    return acknowledgementsData.pages.flatMap(page => page.records);
+    const flattened = acknowledgementsData.pages.flatMap(page => page.records);
+    // Deduplicate by ID
+    const seen = new Set<string>();
+    return flattened.filter(ack => {
+      if (seen.has(ack.id)) return false;
+      seen.add(ack.id);
+      return true;
+    });
   }, [acknowledgementsData]);
 
   // Get total count
@@ -110,9 +117,15 @@ export function useAcknowledgementsListState() {
   }, [acknowledgementsData]);
 
   // Use search results when searching, otherwise use paginated data
+  // Also deduplicate search results
   const acknowledgements = useMemo(() => {
     if (searchQuery.length >= 2 && searchResults) {
-      return searchResults;
+      const seen = new Set<string>();
+      return searchResults.filter(ack => {
+        if (seen.has(ack.id)) return false;
+        seen.add(ack.id);
+        return true;
+      });
     }
     return allAcknowledgementsData;
   }, [allAcknowledgementsData, searchQuery, searchResults]);

@@ -27,6 +27,30 @@ export type SortDirection = 'ASC' | 'DESC';
 
 export type SourceType = 'JOBS' | 'COMPANIES' | 'CONTACTS';
 
+// Landing Source Types - used for findLandingPages query
+export enum LandingSourceType {
+  JOBS = 'JOBS',
+  COMPANIES = 'COMPANIES',
+  CONTACTS = 'CONTACTS',
+  TASKS = 'TASKS',
+  NOTES = 'NOTES',
+  PRE_OPPORTUNITIES = 'PRE_OPPORTUNITIES',
+  CAMPAIGNS = 'CAMPAIGNS',
+  CUSTOMERS = 'CUSTOMERS',
+  FACTORIES = 'FACTORIES',
+  PRODUCTS = 'PRODUCTS',
+  QUOTES = 'QUOTES',
+  ORDERS = 'ORDERS',
+  FILES = 'FILES',
+  FOLDERS = 'FOLDERS',
+  INVOICES = 'INVOICES',
+  CREDITS = 'CREDITS',
+  ADJUSTMENTS = 'ADJUSTMENTS',
+  CHECKS = 'CHECKS',
+  ORDER_ACKNOWLEDGEMENTS = 'ORDER_ACKNOWLEDGEMENTS',
+  PENDING_DOCUMENTS = 'PENDING_DOCUMENTS',
+}
+
 // Related Entities Source Types - used for the generic relatedEntities endpoint
 export type RelatedEntitiesSourceType =
   | 'JOBS'
@@ -164,12 +188,107 @@ export interface JobSearchResult {
 // Company Types
 // ============================================================================
 
-export type CompanySourceType = 'CUSTOMER' | 'MANUFACTURER';
+// CompanySourceType - all industry-specific company types used by the GraphQL API
+export type CompanySourceType =
+  | 'CUSTOMER'
+  | 'MANUFACTURER'
+  | 'ENGINEERING_FIRM'
+  | 'CONSULTING_ENGINEER'
+  | 'ELECTRICAL_ENGINEER'
+  | 'MEP_ENGINEER'
+  | 'ARCHITECT'
+  | 'LIGHTING_DESIGNER'
+  | 'SPECIFIER'
+  | 'ELECTRICAL_CONTRACTOR'
+  | 'GENERAL_CONTRACTOR'
+  | 'DESIGN_BUILD_FIRM'
+  | 'EPC'
+  | 'SYSTEMS_INTEGRATOR'
+  | 'CONTROLS_CONTRACTOR'
+  | 'LOW_VOLTAGE_CONTRACTOR'
+  | 'BUILDING_OWNER'
+  | 'DEVELOPER'
+  | 'PROPERTY_MANAGEMENT_COMPANY'
+  | 'FACILITY_MANAGEMENT_COMPANY'
+  | 'UTILITY_COMPANY'
+  | 'MUNICIPALITY_PUBLIC_AUTHORITY'
+  | 'AHJ'
+  | 'COMMISSIONING_AGENT'
+  | 'TESTING_INSPECTION_AGENCY'
+  | 'ENERGY_PROGRAM_ADMINISTRATOR'
+  | 'TRADE_ASSOCIATION';
+
+// Human-readable labels for CompanySourceType enum
+export const COMPANY_SOURCE_TYPE_LABELS: Record<CompanySourceType, string> = {
+  CUSTOMER: 'Customer',
+  MANUFACTURER: 'Manufacturer',
+  ENGINEERING_FIRM: 'Engineering Firm',
+  CONSULTING_ENGINEER: 'Consulting Engineer',
+  ELECTRICAL_ENGINEER: 'Electrical Engineer',
+  MEP_ENGINEER: 'MEP Engineer',
+  ARCHITECT: 'Architect',
+  LIGHTING_DESIGNER: 'Lighting Designer',
+  SPECIFIER: 'Specifier',
+  ELECTRICAL_CONTRACTOR: 'Electrical Contractor',
+  GENERAL_CONTRACTOR: 'General Contractor',
+  DESIGN_BUILD_FIRM: 'Design Build Firm',
+  EPC: 'EPC',
+  SYSTEMS_INTEGRATOR: 'Systems Integrator',
+  CONTROLS_CONTRACTOR: 'Controls Contractor',
+  LOW_VOLTAGE_CONTRACTOR: 'Low Voltage Contractor',
+  BUILDING_OWNER: 'Building Owner',
+  DEVELOPER: 'Developer',
+  PROPERTY_MANAGEMENT_COMPANY: 'Property Management Company',
+  FACILITY_MANAGEMENT_COMPANY: 'Facility Management Company',
+  UTILITY_COMPANY: 'Utility Company',
+  MUNICIPALITY_PUBLIC_AUTHORITY: 'Municipality / Public Authority',
+  AHJ: 'AHJ',
+  COMMISSIONING_AGENT: 'Commissioning Agent',
+  TESTING_INSPECTION_AGENCY: 'Testing & Inspection Agency',
+  ENERGY_PROGRAM_ADMINISTRATOR: 'Energy Program Administrator',
+  TRADE_ASSOCIATION: 'Trade Association',
+};
+
+// Array of all company source types for dropdown options (excludes MANUFACTURER - use Factories for manufacturers)
+export const COMPANY_SOURCE_TYPE_OPTIONS: CompanySourceType[] = [
+  'ENGINEERING_FIRM',
+  'CONSULTING_ENGINEER',
+  'ELECTRICAL_ENGINEER',
+  'MEP_ENGINEER',
+  'ARCHITECT',
+  'LIGHTING_DESIGNER',
+  'SPECIFIER',
+  'ELECTRICAL_CONTRACTOR',
+  'GENERAL_CONTRACTOR',
+  'DESIGN_BUILD_FIRM',
+  'EPC',
+  'SYSTEMS_INTEGRATOR',
+  'CONTROLS_CONTRACTOR',
+  'LOW_VOLTAGE_CONTRACTOR',
+  'BUILDING_OWNER',
+  'DEVELOPER',
+  'PROPERTY_MANAGEMENT_COMPANY',
+  'FACILITY_MANAGEMENT_COMPANY',
+  'UTILITY_COMPANY',
+  'MUNICIPALITY_PUBLIC_AUTHORITY',
+  'AHJ',
+  'COMMISSIONING_AGENT',
+  'TESTING_INSPECTION_AGENCY',
+  'ENERGY_PROGRAM_ADMINISTRATOR',
+  'TRADE_ASSOCIATION',
+];
+
+// CompanyTypeRef - reference to a company type
+export interface CompanyTypeRef {
+  id: string;
+  name: string;
+}
 
 export interface Company {
   id: string;
   name: string;
-  companySourceType: CompanySourceType;
+  companyTypeId?: string | null;      // UUID reference to CompanyType
+  companyType?: CompanyTypeRef | null; // Nested company type object
   parentCompanyId?: string | null;
   phone?: string | null;
   website?: string | null;
@@ -182,7 +301,7 @@ export interface Company {
 
 export interface CompanyInput {
   name: string;
-  companySourceType: CompanySourceType;
+  companyTypeId: string;              // UUID reference to CompanyType
   parentCompanyId?: string;
   phone?: string;
   website?: string;
@@ -193,7 +312,7 @@ export interface CompanyInput {
 
 export interface UpdateCompanyInput {
   name?: string;
-  companySourceType?: CompanySourceType;
+  companyTypeId?: string;             // UUID reference to CompanyType
   parentCompanyId?: string;
   phone?: string;
   website?: string;
@@ -205,7 +324,9 @@ export interface UpdateCompanyInput {
 export interface CompanyLandingPage {
   id: string;
   name: string;
-  companySourceType: CompanySourceType;
+  companySourceType?: string;         // Type name from landing page
+  companyTypeId?: string;             // UUID reference to CompanyType (detail view only)
+  companyType?: CompanyTypeRef;       // Nested company type object (detail view only)
   phone?: string;
   website?: string;
   standardCommissionRate?: number;
@@ -491,7 +612,9 @@ export interface CustomerSearchResult {
   id: string;
   companyName: string;
   parentId?: string;
+  buyingGroupId?: string;
   insideRepId?: string;
+  isParent?: boolean;
 }
 
 export interface CustomerLandingPage {
@@ -503,6 +626,8 @@ export interface CustomerLandingPage {
   outsideReps?: string;
   isParent: boolean;
   published: boolean;
+  buyingGroup?: string;
+  parent?: string;
 }
 
 export interface FactoryLandingPage {
@@ -580,6 +705,7 @@ export interface UserLite {
   enabled?: boolean;
   inside?: boolean;
   outside?: boolean;
+  visible?: boolean;
   role?: string;
   username?: string;
 }
@@ -589,6 +715,7 @@ export interface CustomerLite {
   companyName: string;
   isParent?: boolean;
   parentId?: string;
+  buyingGroupId?: string;
   published?: boolean;
 }
 
@@ -868,6 +995,7 @@ export interface JobRelatedCustomer {
   companyName: string;
   isParent?: boolean;
   parentId?: string;
+  buyingGroupId?: string;
   published?: boolean;
   createdBy?: UserLite | string;
   insideReps?: CustomerRep[];
@@ -992,6 +1120,7 @@ export interface RelatedEntityCustomer {
   companyName: string;
   isParent?: boolean;
   parentId?: string;
+  buyingGroupId?: string;
   published?: boolean;
 }
 
@@ -1051,6 +1180,7 @@ export interface RelatedEntityNote {
   content?: string;
   mentions?: string;
   tags?: string;
+  isPublic?: boolean;
   createdAt?: string;
   createdBy?: UserLite;
 }
@@ -1160,7 +1290,7 @@ export interface RelatedEntityTask {
   priority?: string;
   dueDate?: string;
   reminderDate?: string;
-  assignedToId?: string;
+  assignees?: string[]; // Array of user UUIDs
   createdAt?: string;
   createdBy?: UserLite;
   tags?: string;

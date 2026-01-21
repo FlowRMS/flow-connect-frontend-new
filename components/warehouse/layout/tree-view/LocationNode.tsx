@@ -16,6 +16,7 @@ interface LocationNodeProps {
   showProductSearch: string | null;
   productSearchQuery: string;
   filteredProducts: AvailableProduct[];
+  isSearchingProducts?: boolean;
   onToggle: (id: string) => void;
   onStartEdit: (id: string | null) => void;
   onRename: (id: string, name: string) => void;
@@ -26,7 +27,7 @@ interface LocationNodeProps {
   onShowProductSearch: (binId: string | null) => void;
   onProductSearchChange: (query: string) => void;
   onAddProduct: (binId: string, product: AvailableProduct) => void;
-  onRemoveProduct: (binId: string, productAssignmentId: string) => void;
+  onRemoveProduct: (binId: string, productAssignmentId: string, productId: string) => void;
 }
 
 export default function LocationNode({
@@ -37,6 +38,7 @@ export default function LocationNode({
   showProductSearch,
   productSearchQuery,
   filteredProducts,
+  isSearchingProducts = false,
   onToggle,
   onStartEdit,
   onRename,
@@ -54,6 +56,7 @@ export default function LocationNode({
 
   const expanded = expandedNodes.has(location.id);
   const hasChildren = location.children && location.children.length > 0;
+  const hasProducts = location.products && location.products.length > 0;
   const isEditing = editingId === location.id;
   const colors = levelColors[location.type];
   const atBottom = isBottomLevel(location.type);
@@ -99,7 +102,7 @@ export default function LocationNode({
     <div ref={setNodeRef} style={style}>
       {/* Location Row */}
       <div
-        className="flex items-center gap-1 py-0.5 px-1 rounded hover:bg-[var(--accent)] group"
+        className="flex items-center gap-1 py-0.5 px-1 rounded hover:bg-[var(--muted)]/50 group"
         style={{ paddingLeft: `${depth * 16 + 4}px` }}
       >
         {/* Drag Handle */}
@@ -116,7 +119,7 @@ export default function LocationNode({
         {/* Expand/Collapse Button */}
         <button
           onClick={() => onToggle(location.id)}
-          className={`p-0.5 rounded hover:bg-[var(--muted)] ${hasChildren || !atBottom ? '' : 'invisible'}`}
+          className={`p-0.5 rounded hover:bg-[var(--muted)] ${hasChildren || hasProducts || !atBottom ? '' : 'invisible'}`}
         >
           <svg
             className={`w-3 h-3 text-[var(--muted-foreground)] transition-transform ${expanded ? 'rotate-90' : ''}`}
@@ -140,7 +143,7 @@ export default function LocationNode({
             onChange={(e) => setEditValue(e.target.value)}
             onBlur={() => onRename(location.id, editValue)}
             onKeyDown={handleKeyDown}
-            className="flex-1 px-1.5 py-0.5 text-xs font-medium bg-white dark:bg-gray-800 border border-blue-500 rounded outline-none min-w-0"
+            className="flex-1 px-1.5 py-0.5 text-xs font-medium bg-[var(--background)] text-[var(--foreground)] border border-[var(--ring)] rounded outline-none min-w-0"
           />
         ) : (
           <span
@@ -204,11 +207,12 @@ export default function LocationNode({
               productSearchQuery={productSearchQuery}
               filteredProducts={filteredProducts}
               assignedProducts={location.products}
+              isSearching={isSearchingProducts}
               onToggleExpand={() => onToggle(location.id)}
               onShowProductSearch={(show) => onShowProductSearch(show ? location.id : null)}
               onProductSearchChange={onProductSearchChange}
               onAddProduct={(product) => onAddProduct(location.id, product)}
-              onRemoveProduct={(productId) => onRemoveProduct(location.id, productId)}
+              onRemoveProduct={(assignmentId, productId) => onRemoveProduct(location.id, assignmentId, productId)}
             />
           )}
 
@@ -225,6 +229,7 @@ export default function LocationNode({
                   showProductSearch={showProductSearch}
                   productSearchQuery={productSearchQuery}
                   filteredProducts={filteredProducts}
+                  isSearchingProducts={isSearchingProducts}
                   onToggle={onToggle}
                   onStartEdit={onStartEdit}
                   onRename={onRename}

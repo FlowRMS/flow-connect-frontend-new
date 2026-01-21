@@ -198,19 +198,19 @@ export function UserSearchDropdown({
                       type="button"
                       onClick={() => handleSelect(user)}
                       className={cn(
-                        'relative flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs outline-none',
+                        'group relative flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs outline-none',
                         'hover:bg-accent hover:text-accent-foreground',
                         'focus:bg-accent focus:text-accent-foreground',
                         isSelected && 'bg-accent/50'
                       )}
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        {isSelected && <Check className="h-3 w-3 flex-shrink-0 text-primary" />}
+                        {isSelected && <Check className="h-3 w-3 flex-shrink-0 text-primary group-hover:text-inherit" />}
                         <div className="flex flex-col items-start min-w-0">
                           <span className={cn('truncate', isSelected && 'font-medium')}>
                             {user.fullName}
                           </span>
-                          <span className="text-[10px] text-muted-foreground truncate">
+                          <span className="text-[10px] text-muted-foreground group-hover:text-inherit truncate">
                             {user.email}
                           </span>
                         </div>

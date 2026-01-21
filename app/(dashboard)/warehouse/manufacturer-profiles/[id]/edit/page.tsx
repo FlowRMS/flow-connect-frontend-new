@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import {
   useFactory,
   useUpdateFactory,
@@ -20,6 +21,15 @@ import {
 
 type TabId = 'overview' | 'split-rates' | 'customer-xref' | 'shipto-xref' | 'freight';
 
+// Helper to format decimal strings (removes trailing zeros)
+function formatDecimal(value: string | undefined | null): string {
+  if (!value) return '';
+  const num = parseFloat(value);
+  if (isNaN(num)) return value;
+  // Remove trailing zeros but keep up to 2 decimal places if needed
+  return num.toString();
+}
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -32,6 +42,17 @@ export default function ManufacturerEditPage() {
   // API Hooks
   const { data: factory, isLoading, error } = useFactory(factoryId);
   const updateFactory = useUpdateFactory();
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and manufacturer name)
+  useEffect(() => {
+    if (factory?.title && factoryId) {
+      setFullEntityContext('manufacturer', factoryId, factory.title);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [factory?.title, factoryId, setFullEntityContext]);
 
   // State
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -61,7 +82,13 @@ export default function ManufacturerEditPage() {
   // Initialize form data when factory loads
   useEffect(() => {
     if (factory) {
-      setFormData({ ...factory });
+      // Format decimal values to remove trailing zeros
+      setFormData({
+        ...factory,
+        baseCommissionRate: formatDecimal(factory.baseCommissionRate),
+        commissionDiscountRate: formatDecimal(factory.commissionDiscountRate),
+        overallDiscountRate: formatDecimal(factory.overallDiscountRate),
+      });
 
       // Convert factory splitRates to editable entries
       if (factory.splitRates && factory.splitRates.length > 0) {
@@ -174,7 +201,19 @@ export default function ManufacturerEditPage() {
       toast.success('Manufacturer updated successfully');
       setHasChanges(false);
     } catch (err) {
-      toast.error('Failed to update manufacturer');
+      // Parse error message to show user-friendly messages
+      const errorMessage = err instanceof Error ? err.message : String(err);
+
+      if (errorMessage.includes('inside flag is not set')) {
+        // Extract user name from error message if possible
+        const userMatch = errorMessage.match(/User '([^']+)'/);
+        const userName = userMatch ? userMatch[1] : 'Selected user';
+        toast.error(`${userName} cannot be a factory rep. Only inside sales reps can be assigned to commission splits.`);
+      } else if (errorMessage.includes('cannot be a factory rep')) {
+        toast.error(errorMessage);
+      } else {
+        toast.error('Failed to update manufacturer. Please try again.');
+      }
       console.error('Update error:', err);
     }
   };
@@ -533,40 +572,12 @@ export default function ManufacturerEditPage() {
 
         {/* ============ SPLIT RATES SECTION ============ */}
         <div ref={el => { sectionRefs.current['split-rates'] = el; }} id="section-split-rates">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Commission Split Rates</h2>
-          </div>
-
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <p className="text-sm text-gray-500 mb-6">
-              Configure how commissions are split between team members for this manufacturer.
-              The total must equal 100%.
-            </p>
-
             <FactorySplitRatesInput
               entries={splitRateEntries}
               onChange={handleSplitRateChange}
               disabled={updateFactory.isPending}
             />
-
-            {/* Split Rate Summary */}
-            {splitRateEntries.length > 0 && (
-              <div className={`mt-6 p-4 rounded-lg ${isValidSplitRate ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`text-sm font-medium ${isValidSplitRate ? 'text-green-700' : 'text-red-700'}`}>
-                    Total Split Rate
-                  </span>
-                  <span className={`text-lg font-semibold ${isValidSplitRate ? 'text-green-700' : 'text-red-700'}`}>
-                    {splitRateTotal.toFixed(1)}%
-                  </span>
-                </div>
-                {!isValidSplitRate && (
-                  <p className="text-xs text-red-600 mt-1">
-                    Split rates must total exactly 100%. Currently {splitRateTotal > 100 ? 'over' : 'under'} by {Math.abs(100 - splitRateTotal).toFixed(1)}%
-                  </p>
-                )}
-              </div>
-            )}
           </div>
         </div>
 

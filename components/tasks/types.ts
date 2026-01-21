@@ -18,6 +18,7 @@ import type {
   JobSearchResult,
   NoteSearchResult,
   RelatedEntities,
+  TaskAssignee,
 } from './api';
 
 // Re-export API types for backward compatibility
@@ -35,6 +36,7 @@ export type {
   JobSearchResult,
   NoteSearchResult,
   RelatedEntities,
+  TaskAssignee,
 };
 
 // Legacy type alias for backward compatibility
@@ -97,7 +99,8 @@ export interface Task {
   dueDate: string;
   reminderDate?: string;
   assignedTo: string;
-  assignedToId?: string;
+  assigneeNames?: string[]; // Array of assignee names for display (from landing pages)
+  assignees?: TaskAssignee[]; // Array of user objects (from single task query)
   taskType: string;
   status: TaskStatus;
   apiStatus: TaskStatusAPI;
@@ -110,6 +113,8 @@ export interface Task {
   comments?: number;
   createdBy?: string;
   createdAt?: string;
+  categoryId?: string; // Category ID for editing
+  category?: string; // Category name for display (from landing page)
 }
 
 // Connected entities for tasks
@@ -192,7 +197,7 @@ export interface ParsedTask {
   dueDate: string;
   reminderDate: string;
   assignedTo: string;
-  assignedToId: string;
+  assignees?: TaskAssignee[]; // Array of user objects
   status: TaskStatus;
   apiStatus: TaskStatusAPI;
   priority: TaskPriority;

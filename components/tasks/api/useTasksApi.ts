@@ -101,7 +101,7 @@ export const tasksQueryKeys = {
 // Task Hooks
 // ============================================================================
 
-const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 30;
 
 /**
  * Fetch all tasks using landing pages endpoint
@@ -265,7 +265,7 @@ export function useUpdateTask() {
             dueDate: input.dueDate ?? task.dueDate,
             reminderDate: input.reminderDate ?? task.reminderDate,
             tags: newTags,
-            assignedTo: input.assignedToId ?? task.assignedTo,
+            assignees: input.assigneeIds ?? task.assignees,
           };
         }
         return task;

@@ -2,14 +2,33 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApolloClient } from '@apollo/client/react';
-import { Search, Sparkles, Loader2, RefreshCw, FileText, Hash } from 'lucide-react';
+import { Search, Sparkles, Loader2, FileText, Hash, AlertTriangle, Plus, Building2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/flow-ai/ui/dialog';
 import { Input } from '@/components/flow-ai/ui/input';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Badge } from '@/components/flow-ai/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/flow-ai/ui/select';
 import { cn } from '@/lib/flow-ai/cn';
 import { Q_GET_CLUSTERS } from '@/lib/flow-ai/gql';
 import { toast } from 'sonner';
+import { EntityType, ENTITY_TYPE_OPTIONS } from '@/components/flow-ai/types/queue';
+
+// Filter entity types to only those relevant for templates
+const TEMPLATE_ENTITY_TYPES: EntityType[] = [
+  'QUOTES',
+  'ORDERS',
+  'INVOICES',
+  'CHECKS',
+  'PRODUCTS',
+  'FACTORIES',
+  'CUSTOMERS',
+  'ORDER_ACKNOWLEDGEMENTS',
+];
+
+// Create filtered options for templates
+const TEMPLATE_ENTITY_TYPE_OPTIONS = ENTITY_TYPE_OPTIONS.filter((opt) =>
+  TEMPLATE_ENTITY_TYPES.includes(opt.value)
+);
 
 interface Cluster {
   id: string;
@@ -33,6 +52,7 @@ interface SelectTemplateModalProps {
   onOpenChange: (open: boolean) => void;
   onApplyTemplate: (clusterId: string) => Promise<boolean> | boolean;
   isApplyingTemplate?: boolean;
+  entityType?: string | null;
 }
 
 export function SelectTemplateModal({
@@ -40,12 +60,17 @@ export function SelectTemplateModal({
   onOpenChange,
   onApplyTemplate,
   isApplyingTemplate = false,
+  entityType,
 }: SelectTemplateModalProps) {
   const apolloClient = useApolloClient();
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
+  const [showNoInstructionsWarning, setShowNoInstructionsWarning] = useState(false);
+  const [entityTypeFilter, setEntityTypeFilter] = useState<EntityType | 'all'>(
+    (entityType as EntityType) || 'all'
+  );
 
   const fetchClusters = useCallback(async () => {
     setLoading(true);
@@ -74,8 +99,17 @@ export function SelectTemplateModal({
     if (!open) {
       setSearchTerm('');
       setSelectedClusterId(null);
+      setShowNoInstructionsWarning(false);
     }
-  }, [open]);
+  }, [open, entityType]);
+
+  const handleSelectCluster = useCallback((cluster: EnrichedCluster) => {
+    if (cluster.additionalInstructions.length === 0) {
+      setShowNoInstructionsWarning(true);
+    } else {
+      setSelectedClusterId(cluster.id);
+    }
+  }, []);
 
   const enrichedClusters = useMemo<EnrichedCluster[]>(() => {
     return clusters.map((cluster) => {
@@ -110,10 +144,26 @@ export function SelectTemplateModal({
   }, [clusters]);
 
   const filteredClusters = useMemo(() => {
-    const value = searchTerm.trim().toLowerCase();
-    if (!value) return enrichedClusters;
+    // First filter by entityType if selected
+    let filtered = enrichedClusters;
+    
+    if (entityTypeFilter !== 'all') {
+      const normalizedEntityType = entityTypeFilter.toUpperCase().trim();
+      filtered = enrichedClusters.filter((cluster) => {
+        // If cluster has no entityType in metadata, show it (for backward compatibility)
+        if (!cluster.metadata.entityType) {
+          return true;
+        }
+        // Compare case-insensitively
+        return cluster.metadata.entityType.toUpperCase().trim() === normalizedEntityType;
+      });
+    }
 
-    return enrichedClusters.filter((cluster) => {
+    // Then apply search filter if there's a search term
+    const value = searchTerm.trim().toLowerCase();
+    if (!value) return filtered;
+
+    return filtered.filter((cluster) => {
       const matchesId = cluster.id.toLowerCase().includes(value);
       const matchesName = cluster.clusterName?.toLowerCase().includes(value);
       const matchesSource = cluster.metadata.sourceName?.toLowerCase().includes(value);
@@ -122,7 +172,7 @@ export function SelectTemplateModal({
       );
       return matchesId || matchesName || matchesSource || matchesInstructions;
     });
-  }, [enrichedClusters, searchTerm]);
+  }, [enrichedClusters, searchTerm, entityTypeFilter]);
 
   const handleApply = useCallback(async () => {
     if (!selectedClusterId) {
@@ -155,29 +205,35 @@ export function SelectTemplateModal({
         </DialogHeader>
 
         <div className="space-y-4 flex-1 min-h-0 flex flex-col">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-              <Input
-                value={searchTerm}
-                placeholder="Search by template name, ID, source, or instruction"
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="pl-9"
-              />
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div className="flex gap-2 flex-1">
+              <Select
+                value={entityTypeFilter}
+                onValueChange={(v) => setEntityTypeFilter(v as EntityType | 'all')}
+              >
+                <SelectTrigger className="w-[190px] focus:ring-0 focus:ring-offset-0">
+                  <Building2 className="w-4 h-4 mr-2 shrink-0" />
+                  <SelectValue placeholder="Entity Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Entity Types</SelectItem>
+                  {TEMPLATE_ENTITY_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  value={searchTerm}
+                  placeholder="Search by template name, ID, source, or instruction"
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="pl-9"
+                />
+              </div>
             </div>
-            <Button variant="outline" size="sm" onClick={() => fetchClusters()} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Refreshing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh
-                </>
-              )}
-            </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto pr-2">
@@ -195,16 +251,19 @@ export function SelectTemplateModal({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
                 {filteredClusters.map((cluster) => {
                   const isSelected = cluster.id === selectedClusterId;
+                  const hasNoInstructions = cluster.additionalInstructions.length === 0;
                   return (
                     <button
                       key={cluster.id}
                       type="button"
-                      onClick={() => setSelectedClusterId(cluster.id)}
+                      onClick={() => handleSelectCluster(cluster)}
                       className={cn(
-                        'text-left border rounded-xl p-4 transition-colors focus:outline-none focus-visible:ring-2 h-full',
+                        'text-left border-2 rounded-xl p-4 transition-colors focus:outline-none focus-visible:ring-2 h-full',
                         isSelected
-                          ? 'border-primary/70 bg-primary/5 ring-primary/40'
-                          : 'border-border hover:border-primary/50'
+                          ? 'border-primary bg-primary/5 ring-2 ring-primary/40'
+                          : hasNoInstructions
+                            ? 'border-border opacity-60 hover:border-amber-400/50'
+                            : 'border-border hover:border-primary/50'
                       )}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -285,8 +344,9 @@ export function SelectTemplateModal({
             <div className="text-xs text-muted-foreground">Select a template to continue.</div>
           )}
           <div className="flex gap-2 sm:flex-shrink-0">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
+            <Button variant="outline" className="justify-center" onClick={() => onOpenChange(false)}>
+              <Plus className="w-4 h-4" />
+              Create New Template
             </Button>
             <Button
               onClick={handleApply}
@@ -307,6 +367,26 @@ export function SelectTemplateModal({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      {/* No Instructions Warning Modal */}
+      <Dialog open={showNoInstructionsWarning} onOpenChange={setShowNoInstructionsWarning}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Template Has No Instructions
+            </DialogTitle>
+            <DialogDescription>
+              This template does not have any saved instructions, so it cannot be applied to your document. Please select a different template that has instructions configured.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowNoInstructionsWarning(false)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

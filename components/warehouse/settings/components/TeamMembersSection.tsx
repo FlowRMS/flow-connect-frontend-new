@@ -26,7 +26,7 @@ export default function TeamMembersSection({
         <h3 className="text-sm font-medium text-[var(--foreground)]">Team Members</h3>
         <button
           onClick={onShowAddWorker}
-          className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1"
+          className="text-xs text-[var(--primary)] hover:text-[var(--primary-hover)] flex items-center gap-1"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
@@ -124,7 +124,7 @@ export default function TeamMembersSection({
             <p className="text-sm text-[var(--muted-foreground)]">No team members assigned</p>
             <button
               onClick={onShowAddWorker}
-              className="mt-2 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+              className="mt-2 text-xs text-[var(--primary)] hover:text-[var(--primary-hover)]"
             >
               Add team members
             </button>

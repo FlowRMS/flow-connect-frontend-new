@@ -3,9 +3,11 @@
  * Enhanced with Jobs-style styling and visual hierarchy
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { PreOpportunity, PreOpportunityStatus } from '../types';
-import { formatDate, formatCurrency } from '../utils';
+import { formatDate, formatCurrency, getOwnerInitials, getOwnerColor } from '../utils';
+import { PDFBuilder } from '@/components/shared/pdf-builder';
+import { ExcelBuilder } from '@/components/shared/excel-builder';
 
 // Status color mapping
 const STATUS_COLORS: Record<PreOpportunityStatus, { bg: string; text: string; dot: string }> = {
@@ -52,25 +54,8 @@ export function PreOpportunityDetailHeader({
   onCreateQuote,
 }: PreOpportunityDetailHeaderProps) {
   const statusColors = STATUS_COLORS[preOpp.status] || STATUS_COLORS.QUALIFIED;
-
-  // Get owner initials and color
-  const getOwnerInitials = (owner: string) => {
-    if (!owner) return '?';
-    const parts = owner.split(/[\s._-]+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return owner.substring(0, 2).toUpperCase();
-  };
-
-  const getOwnerColor = (id: string) => {
-    const colors = [
-      'bg-blue-500', 'bg-green-500', 'bg-purple-500', 
-      'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'
-    ];
-    const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
-  };
+  const [showPDFBuilder, setShowPDFBuilder] = useState(false);
+  const [showExcelBuilder, setShowExcelBuilder] = useState(false);
 
   const ownerInitials = getOwnerInitials(preOpp.createdBy);
   const ownerColor = getOwnerColor(preOpp.id);
@@ -178,6 +163,38 @@ export function PreOpportunityDetailHeader({
               </>
             ) : (
               <>
+                {/* Excel Button */}
+                <button
+                  onClick={() => setShowExcelBuilder(true)}
+                  disabled={!preOpp.id}
+                  className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-medium transition-all ${
+                    !preOpp.id
+                      ? 'bg-emerald-600 text-white opacity-50 cursor-not-allowed'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <span className="hidden sm:inline">Excel</span>
+                </button>
+                {/* PDF Button */}
+                <button
+                  onClick={() => setShowPDFBuilder(true)}
+                  disabled={!preOpp.id}
+                  className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-medium transition-all ${
+                    !preOpp.id
+                      ? 'bg-red-600 text-white opacity-50 cursor-not-allowed'
+                      : 'bg-red-600 text-white hover:bg-red-700'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M14 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round"/>
+                  </svg>
+                  <span className="hidden sm:inline">PDF</span>
+                </button>
                 <button
                   onClick={onDelete}
                   className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-2 md:py-2.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all text-xs md:text-sm font-medium"
@@ -217,6 +234,22 @@ export function PreOpportunityDetailHeader({
           </div>
         </div>
       </div>
+
+      {/* PDF Builder */}
+      <PDFBuilder
+        entityId={preOpp.id}
+        entityType="PRE_OPPORTUNITIES"
+        isOpen={showPDFBuilder}
+        onClose={() => setShowPDFBuilder(false)}
+      />
+
+      {/* Excel Builder */}
+      <ExcelBuilder
+        entityId={preOpp.id}
+        entityType="PRE_OPPORTUNITIES"
+        isOpen={showExcelBuilder}
+        onClose={() => setShowExcelBuilder(false)}
+      />
     </div>
   );
 }

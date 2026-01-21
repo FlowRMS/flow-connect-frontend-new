@@ -88,17 +88,19 @@ function ColumnHeader({
             </svg>
           </span>
         </button>
-        <button
+        {/* Column filter button - hidden for now */}
+        {/* <button
           onClick={() => setShowFilter(!showFilter)}
           className={`p-0.5 rounded hover:bg-[var(--muted)] transition-colors ${filterValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/60'}`}
         >
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
           </svg>
-        </button>
+        </button> */}
       </div>
 
-      {showFilter && (
+      {/* Column filter dropdown - hidden for now */}
+      {/* {showFilter && (
         <div className="absolute top-full left-0 mt-1 z-50 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg min-w-[180px]">
           {filterType === 'text' ? (
             <div className="p-2">
@@ -174,7 +176,7 @@ function ColumnHeader({
             </div>
           )}
         </div>
-      )}
+      )} */}
     </div>
   );
 }
@@ -191,7 +193,7 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
   // Column filter state
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({
     name: '',
-    companySourceType: '',
+    companyTypeName: '',
     hierarchyRole: '',
     parentCompanyName: '',
     phone: '',
@@ -203,8 +205,10 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
 
   // Get unique values for dropdown filters
   const filterOptions = useMemo(() => {
+    // Get unique company type names from the data
+    const companyTypeNames = [...new Set(companies.map(c => c.companyTypeName || c.type?.[0]).filter(Boolean))].sort();
     return {
-      companySourceType: ['Manufacturer', 'Customer'],
+      companyTypeName: companyTypeNames as string[],
       hierarchyRole: ['None', 'Parent', 'Grandparent'],
       tags: [...new Set(companies.flatMap(c => c.tags))].sort(),
       isDocumentSpecific: ['Yes', 'No'],
@@ -238,9 +242,10 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
       const query = columnFilters.name.toLowerCase();
       result = result.filter(c => c.name.toLowerCase().includes(query));
     }
-    if (columnFilters.companySourceType) {
-      const isManufacturer = columnFilters.companySourceType === 'Manufacturer';
-      result = result.filter(c => (c.companySourceType === 'MANUFACTURER') === isManufacturer);
+    if (columnFilters.companyTypeName) {
+      result = result.filter(c =>
+        (c.companyTypeName || c.type?.[0]) === columnFilters.companyTypeName
+      );
     }
     if (columnFilters.hierarchyRole) {
       const roleMap: Record<string, CompanyHierarchyRole> = { 'None': 'none', 'Parent': 'parent', 'Grandparent': 'grandparent' };
@@ -282,9 +287,9 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
             aVal = a.name;
             bVal = b.name;
             break;
-          case 'companySourceType':
-            aVal = a.companySourceType;
-            bVal = b.companySourceType;
+          case 'companyTypeName':
+            aVal = a.companyTypeName || a.type?.[0] || '';
+            bVal = b.companyTypeName || b.type?.[0] || '';
             break;
           case 'hierarchyRole':
             aVal = a.hierarchyRole ?? 'none';
@@ -345,13 +350,13 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
             />
             <ColumnHeader
               label="Type"
-              columnKey="companySourceType"
+              columnKey="companyTypeName"
               sortState={sortState}
               onSort={handleSort}
               filterType="dropdown"
-              filterValue={columnFilters.companySourceType}
+              filterValue={columnFilters.companyTypeName}
               onFilterChange={handleFilterChange}
-              filterOptions={filterOptions.companySourceType}
+              filterOptions={filterOptions.companyTypeName}
               colSpan={2}
             />
             <ColumnHeader
@@ -449,11 +454,11 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
                 </div>
                 <div className="col-span-2 flex items-center">
                   <span className={`px-1.5 md:px-2 py-0.5 rounded text-[10px] md:text-xs font-medium whitespace-nowrap ${
-                    company.companySourceType === 'MANUFACTURER'
+                    company.companyTypeName?.toLowerCase() === 'manufacturer'
                       ? 'bg-purple-100 text-purple-700'
                       : 'bg-green-100 text-green-700'
                   }`}>
-                    {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
+                    {company.companyTypeName || company.type?.[0] || 'Customer'}
                   </span>
                 </div>
                 <div className="col-span-2 flex items-center">

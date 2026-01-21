@@ -1,19 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useFlowAISettings } from '@/contexts/UserSettingsContext';
+import type { FlowAISettingsValue, ProcessingMode } from '@/components/lib/graphql/settings';
 
-export type ProcessingMode = 'automatic' | 'manual';
+export type { ProcessingMode };
 
-export interface FlowSettingsType {
-  quotes: ProcessingMode;
-  orders: ProcessingMode;
-  invoices: ProcessingMode;
-  checks: ProcessingMode;
-  associations: ProcessingMode;
-  jobs: ProcessingMode;
-  preOpportunities: ProcessingMode;
-  confidenceThreshold: number; // 0-100
-}
+export type FlowSettingsType = FlowAISettingsValue;
 
 const defaultSettings: FlowSettingsType = {
   quotes: 'manual',
@@ -34,41 +27,84 @@ interface FlowSettingsProps {
 }
 
 export default function FlowSettings({ isOpen, onClose }: FlowSettingsProps) {
+  const { settings: apiSettings, saveSettings, isInitialized } = useFlowAISettings();
   const [settings, setSettings] = useState<FlowSettingsType>(defaultSettings);
   const [tempThreshold, setTempThreshold] = useState(defaultSettings.confidenceThreshold);
+  const [hasChanges, setHasChanges] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load settings from localStorage on mount
+  // Load settings from API or localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setSettings(parsed);
-        setTempThreshold(parsed.confidenceThreshold);
-      } catch (e) {
-        console.error('Failed to parse stored settings:', e);
+    if (isInitialized && apiSettings) {
+      // Use API settings
+      setSettings(apiSettings);
+      setTempThreshold(apiSettings.confidenceThreshold);
+      // Also update localStorage cache
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(apiSettings));
+    } else {
+      // Fallback to localStorage while API loads
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setSettings(parsed);
+          setTempThreshold(parsed.confidenceThreshold);
+        } catch (e) {
+          console.error('Failed to parse stored settings:', e);
+        }
       }
     }
+  }, [isInitialized, apiSettings]);
+
+  // Save settings to API with debounce and update localStorage cache
+  const saveToApi = useCallback(async (newSettings: FlowSettingsType) => {
+    // Update localStorage cache immediately
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
+
+    // Debounce API save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        // Save FlowAI settings directly
+        await saveSettings(newSettings, 'my');
+        setHasChanges(false);
+      } catch (error) {
+        console.error('Failed to save settings to API:', error);
+      }
+    }, 1000);
+  }, [saveSettings]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
   }, []);
 
-  // Save settings to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  }, [settings]);
-
   const handleToggle = (key: keyof Omit<FlowSettingsType, 'confidenceThreshold'>) => {
-    setSettings((prev) => ({
-      ...prev,
-      [key]: prev[key] === 'automatic' ? 'manual' : 'automatic',
-    }));
+    const newSettings = {
+      ...settings,
+      [key]: settings[key] === 'automatic' ? 'manual' : 'automatic',
+    };
+    setSettings(newSettings);
+    setHasChanges(true);
+    saveToApi(newSettings);
   };
 
   const handleThresholdChange = (value: number) => {
     setTempThreshold(value);
-    setSettings((prev) => ({
-      ...prev,
+    const newSettings = {
+      ...settings,
       confidenceThreshold: value,
-    }));
+    };
+    setSettings(newSettings);
+    setHasChanges(true);
+    saveToApi(newSettings);
   };
 
   const setThresholdForAll = () => {
@@ -209,6 +245,31 @@ export default function FlowSettings({ isOpen, onClose }: FlowSettingsProps) {
                 >
                   Apply {tempThreshold}% Threshold to All Automatic Items
                 </button>
+              </div>
+            </div>
+
+            {/* Note about settings page */}
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="text-blue-500 flex-shrink-0 mt-0.5"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Settings Sync</p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    These settings are automatically saved to your account and can also be managed
+                    from Settings &gt; Preferences &gt; Chat Settings.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

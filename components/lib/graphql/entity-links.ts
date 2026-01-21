@@ -144,6 +144,7 @@ const GET_NOTES_BY_ENTITY = `
       content
       mentions
       tags
+      isPublic
       createdBy {
         email
         firstName
@@ -180,7 +181,7 @@ const GET_RELATED_ENTITIES = `
         url
       }
       companies {
-        companySourceType
+        companyTypeId
         createdAt
         id
         name
@@ -272,6 +273,7 @@ const GET_RELATED_ENTITIES = `
           username
         }
         id
+        isPublic
         mentions
         tags
         title
@@ -370,7 +372,13 @@ const GET_RELATED_ENTITIES = `
         versionOf
       }
       tasks {
-        assignedToId
+        assignees {
+          id
+          firstName
+          lastName
+          fullName
+          email
+        }
         createdAt
         createdBy {
           authProviderId
@@ -477,6 +485,7 @@ interface Note {
   content: string;
   mentions: string;
   tags: string;
+  isPublic: boolean;
   createdBy: string;
   createdAt: string;
 }
@@ -534,11 +543,11 @@ export async function fetchRelatedEntities(
     factories: data?.factories || [],
     invoices: data?.invoices || [],
     jobs: data?.jobs || [],
-    notes: mapFormattedCreatedBy(data?.notes) || [],
+    notes: data?.notes || [],
     orders: data?.orders || [],
     preOpportunities: data?.preOpportunities || [],
     products: data?.products || [],
     quotes: data?.quotes || [],
-    tasks: mapFormattedCreatedBy(data?.tasks) || [],
+    tasks: data?.tasks || [],
   };
 }

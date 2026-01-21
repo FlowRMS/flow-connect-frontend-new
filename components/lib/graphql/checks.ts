@@ -35,8 +35,22 @@ export interface CheckFactory {
   additionalInformation?: string;
 }
 
+export interface CheckInvoiceOrderCustomer {
+  companyName?: string;
+}
+
 export interface CheckInvoiceOrder {
   orderNumber?: string;
+  soldToCustomer?: CheckInvoiceOrderCustomer;
+}
+
+export interface CheckInvoiceSalesRep {
+  fullName?: string;
+}
+
+export interface CheckInvoiceBalance {
+  commissionRate?: string;
+  commission?: string;
 }
 
 export interface CheckInvoice {
@@ -54,6 +68,8 @@ export interface CheckInvoice {
   createdAt?: string;
   url?: string;
   order?: CheckInvoiceOrder;
+  salesReps?: CheckInvoiceSalesRep[];
+  balance?: CheckInvoiceBalance;
 }
 
 export interface CheckCreditOrder {
@@ -113,6 +129,21 @@ export interface CheckDetail {
   appliedAmount?: string;
 }
 
+export interface CheckCreatedBy {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  inside?: boolean;
+  lastName?: string;
+  role?: string;
+  outside?: boolean;
+  username?: string;
+  visible?: boolean;
+}
+
 export interface Check {
   id: string;
   checkNumber?: string;
@@ -125,6 +156,7 @@ export interface Check {
   factory?: CheckFactory;
   creationType?: CheckCreationType;
   createdById?: string;
+  createdBy?: CheckCreatedBy;
   createdAt?: string;
   url?: string;
   details?: CheckDetail[];
@@ -165,6 +197,45 @@ export interface FindChecksLandingPagesResponse {
   records: CheckLandingPage[];
 }
 
+// Posted Statement Types
+export interface PostedStatementRepSummary {
+  commissionReceived?: string;
+  expectedCommission?: string;
+  outsideSalesRepId?: string;
+  outsideSalesRepName?: string;
+}
+
+export interface PostedStatementHeader {
+  checkNumber?: string;
+  commissionAmount?: string;
+  commissionMonth?: string;
+  entityDate?: string;
+  factoryId?: string;
+  factoryName?: string;
+  postDate?: string;
+}
+
+export interface PostedStatementDetail {
+  commissionMonth?: string;
+  commissionReceived?: string;
+  entityNumber?: string;
+  entityType?: string;
+  expectedCommission?: string;
+  factoryName?: string;
+  orderNumber?: string;
+  outsideSalesRepId?: string;
+  outsideSalesRepName?: string;
+  postedMonth?: string;
+  salesAmount?: string;
+}
+
+export interface PostedStatement {
+  presignedUrl?: string;
+  repSummaries?: PostedStatementRepSummary[];
+  header?: PostedStatementHeader;
+  details?: PostedStatementDetail[];
+}
+
 // Input Types
 export interface CheckDetailInput {
   id?: string;
@@ -182,7 +253,6 @@ export interface CreateCheckInput {
   commissionMonth?: string;
   enteredCommissionAmount: string;
   factoryId: string;
-  status?: CheckStatus;
   creationType?: CheckCreationType;
   details?: CheckDetailInput[];
 }
@@ -215,6 +285,16 @@ const CHECK_DETAIL_FIELDS = `
     url
     order {
       orderNumber
+      soldToCustomer {
+        companyName
+      }
+    }
+    salesReps {
+      fullName
+    }
+    balance {
+      commissionRate
+      commission
     }
   }
   creditId
@@ -288,6 +368,20 @@ const CHECK_FIELDS = `
   }
   creationType
   createdById
+  createdBy {
+    id
+    authProviderId
+    email
+    enabled
+    firstName
+    fullName
+    inside
+    lastName
+    role
+    outside
+    username
+    visible
+  }
   createdAt
   url
   details {
@@ -408,6 +502,50 @@ const UNPOST_CHECK = `
   }
 `;
 
+const POST_CHECK = `
+  mutation PostCheck($checkId: UUID!) {
+    postCheck(checkId: $checkId) {
+      ${CHECK_FIELDS}
+    }
+  }
+`;
+
+const GET_POSTED_STATEMENT = `
+  query GetPostedStatement($checkId: UUID!) {
+    postedStatement(checkId: $checkId) {
+      presignedUrl
+      repSummaries {
+        commissionReceived
+        expectedCommission
+        outsideSalesRepId
+        outsideSalesRepName
+      }
+      header {
+        checkNumber
+        commissionAmount
+        commissionMonth
+        entityDate
+        factoryId
+        factoryName
+        postDate
+      }
+      details {
+        commissionMonth
+        commissionReceived
+        entityNumber
+        entityType
+        expectedCommission
+        factoryName
+        orderNumber
+        outsideSalesRepId
+        outsideSalesRepName
+        postedMonth
+        salesAmount
+      }
+    }
+  }
+`;
+
 // ============================================================================
 // API Functions
 // ============================================================================
@@ -466,10 +604,23 @@ export async function fetchChecksByFactory(factoryId: string): Promise<CheckSear
 /**
  * Fetch all checks using findLandingPages
  */
+export interface CheckLandingPageOrderBy {
+  columnName: string;
+  direction: 'ASC' | 'DESC';
+}
+
+export interface CheckLandingPageFilter {
+  columnName: string;
+  operator: string;
+  value?: string;
+  values?: string[];
+}
+
 export async function fetchChecksLandingPage(
-  filters?: Array<{ columnName: string; operator: string; value: string }>,
+  filters?: CheckLandingPageFilter[],
   limit: number = 100,
-  offset: number = 0
+  offset: number = 0,
+  orderBy?: CheckLandingPageOrderBy[]
 ): Promise<{ total: number; records: CheckLandingPage[] }> {
   try {
     const response = await crmGraphQLRequest<{ findLandingPages: FindChecksLandingPagesResponse }>({
@@ -478,7 +629,7 @@ export async function fetchChecksLandingPage(
         filters: filters || [],
         limit,
         offset,
-        orderBy: [
+        orderBy: orderBy || [
           {
             columnName: 'createdAt',
             direction: 'DESC',
@@ -593,4 +744,42 @@ export async function unpostCheck(checkId: string): Promise<Check> {
   }
 
   return response.data.unpostCheck;
+}
+
+/**
+ * Fetch posted statement data for a check
+ * Returns summary, header, and detail information for a posted check
+ */
+export async function fetchPostedStatement(checkId: string): Promise<PostedStatement | null> {
+  const response = await crmGraphQLRequest<{ postedStatement: PostedStatement }>({
+    query: GET_POSTED_STATEMENT,
+    variables: { checkId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch posted statement');
+  }
+
+  return response.data?.postedStatement || null;
+}
+
+/**
+ * Post a check - changes status from OPEN to POSTED
+ * This finalizes the check and prevents further editing
+ */
+export async function postCheck(checkId: string): Promise<Check> {
+  const response = await crmGraphQLRequest<{ postCheck: Check }>({
+    query: POST_CHECK,
+    variables: { checkId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to post check');
+  }
+
+  if (!response.data?.postCheck) {
+    throw new Error('No check returned from post mutation');
+  }
+
+  return response.data.postCheck;
 }

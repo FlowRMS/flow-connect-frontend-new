@@ -2,7 +2,7 @@
  * Company Types and Interfaces
  */
 
-import type { CompanyLandingPage, CompanySourceType, Company as APICompany } from '../lib/crm-graphql';
+import type { CompanyLandingPage, Company as APICompany } from '../lib/crm-graphql';
 
 // Address type for company addresses
 export type AddressType = 'shipping' | 'billing' | 'mailing';
@@ -36,7 +36,8 @@ export type CompanyHierarchyRole = 'none' | 'parent' | 'grandparent';
 export interface ChildCompanyRef {
   id: string;
   name: string;
-  companySourceType: CompanySourceType;
+  companyTypeId?: string;
+  companyTypeName?: string;
 }
 
 // Manufacturer-specific fields
@@ -72,7 +73,8 @@ export interface Company {
   jobCount: number;
   lastActivity: string;
   followers: string[];
-  companySourceType: CompanySourceType;
+  companyTypeId?: string;             // UUID reference to CompanyType
+  companyTypeName?: string;           // Display name of the company type
   standardCommissionRate?: number;    // Standard/direct commission rate (e.g., 0.10 for 10%)
   warehouseCommissionRate?: number;   // Warehouse commission rate (e.g., 0.05 for 5%)
   insideRep?: string;
@@ -98,25 +100,6 @@ export interface Company {
 
 // View mode type
 export type ViewMode = 'grid' | 'list';
-
-/**
- * Normalize company source type to ensure it's a valid enum value
- */
-function normalizeCompanySourceType(value: string | CompanySourceType | undefined): CompanySourceType {
-  // Handle numeric values that might come from API
-  if (value === '2' || value === 2 as unknown as string) {
-    return 'MANUFACTURER';
-  }
-  if (value === '1' || value === 1 as unknown as string) {
-    return 'CUSTOMER';
-  }
-  // Handle string enum values
-  if (value === 'MANUFACTURER') {
-    return 'MANUFACTURER';
-  }
-  // Default to CUSTOMER
-  return 'CUSTOMER';
-}
 
 /**
  * Parse tags from API format to string array
@@ -147,11 +130,11 @@ function parseTags(apiTags: string | string[] | null | undefined): string[] {
  * Mapper function to convert API data to UI format
  */
 export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Company {
-  // Normalize and map companySourceType
-  const normalizedSourceType = normalizeCompanySourceType(landingPage.companySourceType);
-  const type = normalizedSourceType === 'MANUFACTURER'
-    ? ['Manufacturer']
-    : ['Customer'];
+  // Use companyType.name if available, otherwise fall back to companySourceType
+  const typeName = landingPage.companyType?.name
+    || landingPage.companySourceType
+    || 'Unknown Type';
+  const type = [typeName];
 
   return {
     id: landingPage.id,
@@ -167,7 +150,8 @@ export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Comp
     jobCount: 0, // Job count not in API yet
     lastActivity: landingPage.createdAt || new Date().toISOString(),
     followers: [], // Followers not in API yet
-    companySourceType: normalizedSourceType,
+    companyTypeId: landingPage.companyTypeId,
+    companyTypeName: landingPage.companyType?.name || landingPage.companySourceType,
     standardCommissionRate: landingPage.standardCommissionRate,
     warehouseCommissionRate: landingPage.warehouseCommissionRate,
     createdBy: landingPage.createdBy || '',
@@ -178,10 +162,9 @@ export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Comp
  * Mapper function to convert full API Company to UI format
  */
 export function mapAPICompanyToUICompany(apiCompany: APICompany): Company {
-  const normalizedSourceType = normalizeCompanySourceType(apiCompany.companySourceType);
-  const type = normalizedSourceType === 'MANUFACTURER'
-    ? ['Manufacturer']
-    : ['Customer'];
+  // Use companyType.name if available
+  const typeName = apiCompany.companyType?.name || 'Unknown Type';
+  const type = [typeName];
   const tags = parseTags(apiCompany.tags);
 
   return {
@@ -198,9 +181,12 @@ export function mapAPICompanyToUICompany(apiCompany: APICompany): Company {
     jobCount: 0,
     lastActivity: apiCompany.createdAt || new Date().toISOString(),
     followers: [],
-    companySourceType: normalizedSourceType,
+    companyTypeId: apiCompany.companyTypeId ?? undefined,
+    companyTypeName: apiCompany.companyType?.name,
     standardCommissionRate: apiCompany.standardCommissionRate ?? undefined,
     warehouseCommissionRate: apiCompany.warehouseCommissionRate ?? undefined,
     createdBy: apiCompany.createdBy || '',
+    parentCompanyId: apiCompany.parentCompanyId ?? undefined,
+    // parentCompanyName is fetched separately using parentCompanyId
   };
 }

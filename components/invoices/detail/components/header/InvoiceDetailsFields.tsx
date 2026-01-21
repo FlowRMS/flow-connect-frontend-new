@@ -5,9 +5,9 @@
  *
  * Layout:
  * - Row 0: Pre-populate options (Order/Invoice search)
- * - Row 1: Editable fields (Invoice #, Due Date, Entry Date, Paid Date, Check #, Published)
- * - Row 2: Order-populated fields (read-only when connected) - Factory, Sold To, Bill To, End User, Invoice Date
- * - Row 3: Order-populated fields cont. - PO#, Job, Payment Terms, Freight Terms, Shipping Terms, Reps
+ * - Row 1: Editable fields (Invoice #, Invoice Date, Due Date, Published)
+ * - Row 2: Order-populated fields (read-only when connected) - Factory, Sold To, Bill To, End User, PO#
+ * - Row 3: Order-populated fields cont. - Job, Payment Terms, Freight Terms, Shipping Terms, Reps
  */
 
 'use client';
@@ -290,24 +290,11 @@ export function InvoiceDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Due Date<span className="text-red-500">*</span>
+                Invoice Date<span className="text-red-500">*</span>
               </label>
               <StyledDatePicker
-                selected={parseDateString(invoice.dueDate)}
-                onChange={(date) => !isReadOnly && handleFieldUpdate('dueDate', formatDateToString(date))}
-                placeholder="Select date..."
-                className={`!py-2 !px-3 !rounded-md !text-sm ${overdue ? '!text-red-600' : ''} ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
-                disabled={isReadOnly}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Entry Date
-              </label>
-              <StyledDatePicker
-                selected={parseDateString(invoice.entryDate)}
-                onChange={(date) => !isReadOnly && handleFieldUpdate('entryDate', formatDateToString(date))}
+                selected={parseDateString(invoice.invoiceDate)}
+                onChange={(date) => !isReadOnly && handleFieldUpdate('invoiceDate', formatDateToString(date))}
                 placeholder="Select date..."
                 className={`!py-2 !px-3 !rounded-md !text-sm ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
                 disabled={isReadOnly}
@@ -316,27 +303,13 @@ export function InvoiceDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Paid Date
+                Due Date<span className="text-red-500">*</span>
               </label>
               <StyledDatePicker
-                selected={parseDateString(invoice.paidDate)}
-                onChange={(date) => !isReadOnly && handleFieldUpdate('paidDate', formatDateToString(date))}
+                selected={parseDateString(invoice.dueDate)}
+                onChange={(date) => !isReadOnly && handleFieldUpdate('dueDate', formatDateToString(date))}
                 placeholder="Select date..."
-                className={`!py-2 !px-3 !rounded-md !text-sm ${invoice.paidDate ? '!text-green-600' : ''} ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
-                disabled={isReadOnly}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Check #
-              </label>
-              <input
-                type="text"
-                value={(invoice as any).checkNumber || ''}
-                onChange={(e) => !isReadOnly && handleFieldUpdate('checkNumber' as any, e.target.value)}
-                placeholder="Check number"
-                className={isReadOnly ? readOnlyInputClass : editableInputClass}
+                className={`!py-2 !px-3 !rounded-md !text-sm ${overdue ? '!text-red-600' : ''} ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
                 disabled={isReadOnly}
               />
             </div>
@@ -367,7 +340,7 @@ export function InvoiceDetailsFields({
             </div>
           )}
 
-          {/* Row 2: Order-Populated Fields - Factory, Customers, Invoice Date */}
+          {/* Row 2: Order-Populated Fields - Factory, Customers */}
           <div className="grid grid-cols-6 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
@@ -423,7 +396,7 @@ export function InvoiceDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Bill To Customer<span className="text-red-500">*</span>
+                Bill To Customer
               </label>
               <SearchableDropdownV2
                 value={(invoice as any).billToCustomerId || ''}
@@ -483,23 +456,6 @@ export function InvoiceDetailsFields({
                   className={(isConnectedToOrder || isReadOnly) ? 'opacity-60' : ''}
                 />
               )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Invoice Date<span className="text-red-500">*</span>
-              </label>
-              <StyledDatePicker
-                selected={parseDateString(invoice.invoiceDate)}
-                onChange={(date) => {
-                  if (!isConnectedToOrder && !isReadOnly) {
-                    handleFieldUpdate('invoiceDate', formatDateToString(date));
-                  }
-                }}
-                placeholder="Select date..."
-                className={`!py-2 !px-3 !rounded-md !text-sm ${(isConnectedToOrder || isReadOnly) ? '!bg-gray-100 !text-gray-500' : ''}`}
-                disabled={isConnectedToOrder || isReadOnly}
-              />
             </div>
 
             <div>
@@ -611,28 +567,74 @@ export function InvoiceDetailsFields({
                   <span className="ml-2 text-xs text-blue-600 font-normal">(Per Line Item)</span>
                 )}
               </label>
-              {(isConnectedToOrder && outsidePerLineItem) || isReadOnly ? (
+              {/* Per Line Item mode - show "Per Line Item" text */}
+              {isConnectedToOrder && outsidePerLineItem ? (
                 <input
                   type="text"
-                  value={isReadOnly ? ((invoice as any).outsideRepName || '-') : "Per Line Item"}
+                  value="Per Line Item"
+                  readOnly
+                  className={readOnlyInputClass}
+                />
+              ) : /* Connected to order but NOT per line item - show read-only reps from first line item */
+              isConnectedToOrder && !outsidePerLineItem ? (
+                <div>
+                  {(() => {
+                    const splitRates = (invoice as any).outsideSplitRates || [];
+                    if (splitRates.length === 0) {
+                      return (
+                        <input
+                          type="text"
+                          value={(invoice as any).outsideRepName || '-'}
+                          readOnly
+                          className={readOnlyInputClass}
+                        />
+                      );
+                    } else if (splitRates.length === 1) {
+                      return (
+                        <input
+                          type="text"
+                          value={splitRates[0].userName || '-'}
+                          readOnly
+                          className={readOnlyInputClass}
+                        />
+                      );
+                    } else {
+                      // Multiple reps - show names with percentages
+                      const repDisplay = splitRates.map((r: any) => `${r.userName} (${r.splitRate}%)`).join(', ');
+                      return (
+                        <input
+                          type="text"
+                          value={repDisplay}
+                          readOnly
+                          title={repDisplay}
+                          className={readOnlyInputClass}
+                        />
+                      );
+                    }
+                  })()}
+                </div>
+              ) : /* Read-only mode */
+              isReadOnly ? (
+                <input
+                  type="text"
+                  value={(invoice as any).outsideRepName || '-'}
                   readOnly
                   className={readOnlyInputClass}
                 />
               ) : (
+                /* Editable mode - not connected to order */
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <SearchableDropdownV2
-                      value={isConnectedToOrder ? ((invoice as any).outsideRepId || '') : invoiceOutsideRep}
-                      displayValue={isConnectedToOrder ? ((invoice as any).outsideRepName || '') : (outsideRepOptions.find(r => r.id === invoiceOutsideRep)?.label || '')}
+                      value={invoiceOutsideRep}
+                      displayValue={outsideRepOptions.find(r => r.id === invoiceOutsideRep)?.label || ''}
                       onChange={(id, label) => {
-                        if (!isConnectedToOrder && !isReadOnly) {
-                          setInvoiceOutsideRep(id);
-                          handleFieldUpdate('outsideRepId' as any, id);
-                          handleFieldUpdate('outsideRepName' as any, label);
-                          if (!id) {
-                            setSplitOutsideCommission(false);
-                            setOutsideRepSplits([]);
-                          }
+                        setInvoiceOutsideRep(id);
+                        handleFieldUpdate('outsideRepId' as any, id);
+                        handleFieldUpdate('outsideRepName' as any, label);
+                        if (!id) {
+                          setSplitOutsideCommission(false);
+                          setOutsideRepSplits([]);
                         }
                         setOutsideRepSearchEnabled(false);
                       }}
@@ -643,11 +645,9 @@ export function InvoiceDetailsFields({
                         setOutsideRepSearchTerm(query);
                         setOutsideRepSearchEnabled(true);
                       }}
-                      disabled={isConnectedToOrder || isReadOnly}
-                      className={(isConnectedToOrder || isReadOnly) ? 'opacity-60' : ''}
                     />
                   </div>
-                  {splitOutsideCommission && !isConnectedToOrder && !isReadOnly && (
+                  {splitOutsideCommission && (
                     <button
                       onClick={openOutsideRepModal}
                       className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
@@ -691,28 +691,74 @@ export function InvoiceDetailsFields({
                   <span className="ml-2 text-xs text-blue-600 font-normal">(Per Line Item)</span>
                 )}
               </label>
-              {(isConnectedToOrder && insidePerLineItem) || isReadOnly ? (
+              {/* Per Line Item mode - show "Per Line Item" text */}
+              {isConnectedToOrder && insidePerLineItem ? (
                 <input
                   type="text"
-                  value={isReadOnly ? ((invoice as any).insideRepName || '-') : "Per Line Item"}
+                  value="Per Line Item"
+                  readOnly
+                  className={readOnlyInputClass}
+                />
+              ) : /* Connected to order but NOT per line item - show read-only reps from first line item */
+              isConnectedToOrder && !insidePerLineItem ? (
+                <div>
+                  {(() => {
+                    const splitRates = (invoice as any).insideSplitRates || [];
+                    if (splitRates.length === 0) {
+                      return (
+                        <input
+                          type="text"
+                          value={(invoice as any).insideRepName || '-'}
+                          readOnly
+                          className={readOnlyInputClass}
+                        />
+                      );
+                    } else if (splitRates.length === 1) {
+                      return (
+                        <input
+                          type="text"
+                          value={splitRates[0].userName || '-'}
+                          readOnly
+                          className={readOnlyInputClass}
+                        />
+                      );
+                    } else {
+                      // Multiple reps - show names with percentages
+                      const repDisplay = splitRates.map((r: any) => `${r.userName} (${r.splitRate}%)`).join(', ');
+                      return (
+                        <input
+                          type="text"
+                          value={repDisplay}
+                          readOnly
+                          title={repDisplay}
+                          className={readOnlyInputClass}
+                        />
+                      );
+                    }
+                  })()}
+                </div>
+              ) : /* Read-only mode */
+              isReadOnly ? (
+                <input
+                  type="text"
+                  value={(invoice as any).insideRepName || '-'}
                   readOnly
                   className={readOnlyInputClass}
                 />
               ) : (
+                /* Editable mode - not connected to order */
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <SearchableDropdownV2
-                      value={isConnectedToOrder ? ((invoice as any).insideRepId || '') : invoiceInsideRep}
-                      displayValue={isConnectedToOrder ? ((invoice as any).insideRepName || '') : (insideRepOptions.find(r => r.id === invoiceInsideRep)?.label || '')}
+                      value={invoiceInsideRep}
+                      displayValue={insideRepOptions.find(r => r.id === invoiceInsideRep)?.label || ''}
                       onChange={(id, label) => {
-                        if (!isConnectedToOrder && !isReadOnly) {
-                          setInvoiceInsideRep(id);
-                          handleFieldUpdate('insideRepId' as any, id);
-                          handleFieldUpdate('insideRepName' as any, label);
-                          if (!id) {
-                            setSplitInsideCommission(false);
-                            setInsideRepSplits([]);
-                          }
+                        setInvoiceInsideRep(id);
+                        handleFieldUpdate('insideRepId' as any, id);
+                        handleFieldUpdate('insideRepName' as any, label);
+                        if (!id) {
+                          setSplitInsideCommission(false);
+                          setInsideRepSplits([]);
                         }
                         setInsideRepSearchEnabled(false);
                       }}
@@ -723,11 +769,9 @@ export function InvoiceDetailsFields({
                         setInsideRepSearchTerm(query);
                         setInsideRepSearchEnabled(true);
                       }}
-                      disabled={isConnectedToOrder || isReadOnly}
-                      className={(isConnectedToOrder || isReadOnly) ? 'opacity-60' : ''}
                     />
                   </div>
-                  {splitInsideCommission && !isConnectedToOrder && !isReadOnly && (
+                  {splitInsideCommission && (
                     <button
                       onClick={openInsideRepModal}
                       className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"

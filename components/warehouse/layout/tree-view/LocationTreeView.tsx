@@ -26,6 +26,7 @@ interface LocationTreeViewProps {
   showProductSearch: string | null;
   productSearchQuery: string;
   filteredProducts: AvailableProduct[];
+  isSearchingProducts?: boolean;
   enabledLevels: WarehouseLocationLevel[];
   onToggle: (id: string) => void;
   onStartEdit: (id: string | null) => void;
@@ -38,7 +39,7 @@ interface LocationTreeViewProps {
   onShowProductSearch: (binId: string | null) => void;
   onProductSearchChange: (query: string) => void;
   onAddProduct: (binId: string, product: AvailableProduct) => void;
-  onRemoveProduct: (binId: string, productAssignmentId: string) => void;
+  onRemoveProduct: (binId: string, productAssignmentId: string, productId: string) => void;
   onSearchQueryChange: (query: string) => void;
   onDragStart: (event: DragStartEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
@@ -53,6 +54,7 @@ export default function LocationTreeView({
   showProductSearch,
   productSearchQuery,
   filteredProducts,
+  isSearchingProducts = false,
   enabledLevels,
   onToggle,
   onStartEdit,
@@ -143,6 +145,7 @@ export default function LocationTreeView({
                   showProductSearch={showProductSearch}
                   productSearchQuery={productSearchQuery}
                   filteredProducts={filteredProducts}
+                  isSearchingProducts={isSearchingProducts}
                   onToggle={onToggle}
                   onStartEdit={onStartEdit}
                   onRename={onRename}

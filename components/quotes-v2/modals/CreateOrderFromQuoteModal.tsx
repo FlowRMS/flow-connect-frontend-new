@@ -5,12 +5,17 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCreateOrderFromQuote, useFactorySearch } from '../../orders/api';
-import { SearchableDropdownV2 } from '../components/SearchableDropdownV2';
+import { useCreateOrderFromQuote } from '../../orders/api';
 import type { Order } from '../../orders/api/ordersApi';
+import type { QuoteDetailToOrderDetailInput } from '../../lib/graphql/orders';
 import type { LineItemV2 } from '../types';
+
+interface LineItemOverride {
+  quantity: string;
+  unitPrice: string;
+}
 
 interface CreateOrderFromQuoteModalProps {
   isOpen: boolean;
@@ -19,6 +24,7 @@ interface CreateOrderFromQuoteModalProps {
   factoryId?: string;
   factoryName?: string;
   lineItems?: LineItemV2[];
+  initialSelectedItemIds?: Set<string>;
   onClose: () => void;
   onSuccess?: (order: Order) => void;
 }
@@ -32,6 +38,7 @@ export function CreateOrderFromQuoteModal({
   factoryId: initialFactoryId = '',
   factoryName: initialFactoryName = '',
   lineItems = [],
+  initialSelectedItemIds,
   onClose,
   onSuccess,
 }: CreateOrderFromQuoteModalProps) {
@@ -41,31 +48,61 @@ export function CreateOrderFromQuoteModal({
   const [step, setStep] = useState<ModalStep>(lineItems.length > 0 ? 'select-items' : 'input');
   const [orderNumber, setOrderNumber] = useState('');
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
-  const [factoryId, setFactoryId] = useState(initialFactoryId);
-  const [factoryName, setFactoryName] = useState(initialFactoryName);
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set(lineItems.map(item => item.id)));
+  // Use initialSelectedItemIds if provided (from detail page selection), otherwise default to all items
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(
+    initialSelectedItemIds && initialSelectedItemIds.size > 0
+      ? new Set(initialSelectedItemIds)
+      : new Set(lineItems.map(item => item.id))
+  );
 
-  // Factory search
-  const [factorySearchTerm, setFactorySearchTerm] = useState('');
-  const { data: factoryResults, isLoading: isFactoryLoading } = useFactorySearch(factorySearchTerm, true);
+  // State for quantity and unit price overrides per line item
+  const [lineItemOverrides, setLineItemOverrides] = useState<Record<string, LineItemOverride>>(() => {
+    const overrides: Record<string, LineItemOverride> = {};
+    lineItems.forEach(item => {
+      overrides[item.id] = {
+        quantity: String(item.quantity || '0'),
+        unitPrice: String(item.unitPrice || '0'),
+      };
+    });
+    return overrides;
+  });
 
-  // Transform factory results to dropdown options
-  const factoryOptions = useMemo(() => {
-    return (factoryResults || []).map(f => ({
-      id: f.id,
-      label: f.title,
-      sublabel: f.accountNumber,
-    }));
-  }, [factoryResults]);
+  // Sync selection state and overrides when modal opens or initialSelectedItemIds changes
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedItemIds(
+        initialSelectedItemIds && initialSelectedItemIds.size > 0
+          ? new Set(initialSelectedItemIds)
+          : new Set(lineItems.map(item => item.id))
+      );
+      // Initialize overrides with original values
+      const overrides: Record<string, LineItemOverride> = {};
+      lineItems.forEach(item => {
+        overrides[item.id] = {
+          quantity: String(item.quantity || '0'),
+          unitPrice: String(item.unitPrice || '0'),
+        };
+      });
+      setLineItemOverrides(overrides);
+    }
+  }, [isOpen, initialSelectedItemIds, lineItems]);
 
-  // Calculate totals for selected items
+  // Calculate totals for selected items using overridden values
   const selectedTotal = useMemo(() => {
     return lineItems
       .filter(item => selectedItemIds.has(item.id))
-      .reduce((sum, item) => sum + (Number(item.sellTotal) || Number(item.total) || 0), 0);
-  }, [lineItems, selectedItemIds]);
+      .reduce((sum, item) => {
+        const override = lineItemOverrides[item.id];
+        if (override) {
+          const qty = Number(override.quantity) || 0;
+          const price = Number(override.unitPrice) || 0;
+          return sum + (qty * price);
+        }
+        return sum + (Number(item.sellTotal) || Number(item.total) || 0);
+      }, 0);
+  }, [lineItems, selectedItemIds, lineItemOverrides]);
 
   const allSelected = selectedItemIds.size === lineItems.length && lineItems.length > 0;
   const noneSelected = selectedItemIds.size === 0;
@@ -92,6 +129,16 @@ export function CreateOrderFromQuoteModal({
     }
   };
 
+  const handleOverrideChange = (itemId: string, field: 'quantity' | 'unitPrice', value: string) => {
+    setLineItemOverrides(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        [field]: value,
+      },
+    }));
+  };
+
   const handleProceedToInput = () => {
     if (noneSelected) {
       setError('Please select at least one line item');
@@ -106,10 +153,6 @@ export function CreateOrderFromQuoteModal({
       setError('Order number is required');
       return;
     }
-    if (!factoryId) {
-      setError('Factory is required');
-      return;
-    }
     if (!dueDate) {
       setError('Due date is required');
       return;
@@ -118,17 +161,25 @@ export function CreateOrderFromQuoteModal({
     setError(null);
 
     try {
-      // Build array of selected detail IDs (only if subset selected)
-      const quoteDetailIds = lineItems.length > 0 && selectedItemIds.size < lineItems.length
-        ? Array.from(selectedItemIds)
-        : undefined;
+      // Build array of quote detail inputs with quantity and unitPrice overrides
+      const quoteDetailsInputs: QuoteDetailToOrderDetailInput[] | undefined =
+        lineItems.length > 0
+          ? Array.from(selectedItemIds).map(itemId => {
+              const override = lineItemOverrides[itemId];
+              return {
+                quoteDetailId: itemId,
+                quantity: override?.quantity || '0',
+                unitPrice: override?.unitPrice || '0',
+              };
+            })
+          : undefined;
 
       const order = await createOrderMutation.mutateAsync({
         quoteId,
         orderNumber: orderNumber.trim(),
-        factoryId,
+        factoryId: initialFactoryId,
         dueDate,
-        quoteDetailIds,
+        quoteDetailsInputs,
       });
 
       setCreatedOrder(order);
@@ -154,11 +205,23 @@ export function CreateOrderFromQuoteModal({
     setStep(lineItems.length > 0 ? 'select-items' : 'input');
     setOrderNumber('');
     setDueDate(new Date().toISOString().split('T')[0]);
-    setFactoryId(initialFactoryId);
-    setFactoryName(initialFactoryName);
     setCreatedOrder(null);
     setError(null);
-    setSelectedItemIds(new Set(lineItems.map(item => item.id)));
+    // Reset to initial selection if provided, otherwise all items
+    setSelectedItemIds(
+      initialSelectedItemIds && initialSelectedItemIds.size > 0
+        ? new Set(initialSelectedItemIds)
+        : new Set(lineItems.map(item => item.id))
+    );
+    // Reset line item overrides to original values
+    const overrides: Record<string, LineItemOverride> = {};
+    lineItems.forEach(item => {
+      overrides[item.id] = {
+        quantity: String(item.quantity || '0'),
+        unitPrice: String(item.unitPrice || '0'),
+      };
+    });
+    setLineItemOverrides(overrides);
     onClose();
   };
 
@@ -222,10 +285,13 @@ export function CreateOrderFromQuoteModal({
                 <div className="space-y-2">
                   {lineItems.map((item, index) => {
                     const isSelected = selectedItemIds.has(item.id);
+                    const override = lineItemOverrides[item.id];
+                    const currentQty = Number(override?.quantity) || 0;
+                    const currentPrice = Number(override?.unitPrice) || 0;
+                    const lineTotal = currentQty * currentPrice;
                     return (
-                      <button
+                      <div
                         key={item.id}
-                        onClick={() => handleToggleItem(item.id)}
                         className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                           isSelected
                             ? 'border-indigo-500 bg-indigo-50/50 shadow-sm'
@@ -234,15 +300,18 @@ export function CreateOrderFromQuoteModal({
                       >
                         <div className="flex items-start gap-3">
                           {/* Checkbox */}
-                          <div className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                            isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'
-                          }`}>
+                          <button
+                            onClick={() => handleToggleItem(item.id)}
+                            className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                              isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'
+                            }`}
+                          >
                             {isSelected && (
                               <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                               </svg>
                             )}
-                          </div>
+                          </button>
 
                           {/* Item Number Badge */}
                           <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
@@ -259,42 +328,52 @@ export function CreateOrderFromQuoteModal({
                               </span>
                             </div>
                             {item.description && (
-                              <p className="text-xs text-gray-500 truncate mb-2">
+                              <p className="text-xs text-gray-500 truncate mb-3">
                                 {item.description}
                               </p>
                             )}
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                              <span className="inline-flex items-center gap-1">
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-                                </svg>
-                                Qty: <span className="font-medium text-gray-700">{Math.round(Number(item.quantity) || 0)}</span>
-                              </span>
-                              <span className="inline-flex items-center gap-1">
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                Unit: <span className="font-medium text-gray-700">{formatCurrency(Number(item.unitPrice) || 0)}</span>
-                              </span>
-                              {item.leadTime && (
-                                <span className="inline-flex items-center gap-1">
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  Lead: {item.leadTime}
-                                </span>
-                              )}
+                            {/* Editable Quantity and Unit Price */}
+                            <div className="flex flex-wrap items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs text-gray-500 font-medium">Qty:</label>
+                                <input
+                                  type="number"
+                                  value={override?.quantity || ''}
+                                  onChange={(e) => handleOverrideChange(item.id, 'quantity', e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-20 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                  min="0"
+                                  step="1"
+                                />
+                                <span className="text-xs text-gray-400">(orig: {Math.round(Number(item.quantity) || 0)})</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs text-gray-500 font-medium">Unit Price:</label>
+                                <div className="relative">
+                                  <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">$</span>
+                                  <input
+                                    type="number"
+                                    value={override?.unitPrice || ''}
+                                    onChange={(e) => handleOverrideChange(item.id, 'unitPrice', e.target.value)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-24 pl-5 pr-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                </div>
+                                <span className="text-xs text-gray-400">(orig: {formatCurrency(Number(item.unitPrice) || 0)})</span>
+                              </div>
                             </div>
                           </div>
 
                           {/* Item Total */}
                           <div className="text-right flex-shrink-0">
                             <span className={`text-sm font-bold ${isSelected ? 'text-indigo-600' : 'text-gray-900'}`}>
-                              {formatCurrency(Number(item.sellTotal) || Number(item.total) || 0)}
+                              {formatCurrency(lineTotal)}
                             </span>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -397,25 +476,17 @@ export function CreateOrderFromQuoteModal({
                 />
               </div>
 
-              {/* Factory */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Factory <span className="text-red-500">*</span>
-                </label>
-                <SearchableDropdownV2
-                  value={factoryId}
-                  displayValue={factoryName}
-                  onChange={(id, label) => {
-                    setFactoryId(id);
-                    setFactoryName(label);
-                    setError(null);
-                  }}
-                  options={factoryOptions}
-                  onSearch={(term) => setFactorySearchTerm(term)}
-                  isLoading={isFactoryLoading}
-                  placeholder="Search factories..."
-                />
-              </div>
+              {/* Factory - Read-only display from quote */}
+              {initialFactoryName && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Factory
+                  </label>
+                  <div className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-700">
+                    {initialFactoryName}
+                  </div>
+                </div>
+              )}
 
               {/* Due Date */}
               <div className="mb-4">
@@ -476,7 +547,7 @@ export function CreateOrderFromQuoteModal({
                 </button>
                 <button
                   onClick={handleCreate}
-                  disabled={createOrderMutation.isPending || !orderNumber.trim() || !factoryId || !dueDate}
+                  disabled={createOrderMutation.isPending || !orderNumber.trim() || !dueDate}
                   className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {createOrderMutation.isPending ? (

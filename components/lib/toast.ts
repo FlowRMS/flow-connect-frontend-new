@@ -506,6 +506,127 @@ export const orderToasts = {
     showErrorToast('Failed to Create Invoice', {
       description: error || 'Please try again or contact support',
     }),
+
+  duplicateSuccess: (orderNumber: string) =>
+    showSuccessToast('Order Duplicated', {
+      description: `${orderNumber} has been created successfully`,
+    }),
+
+  duplicateError: (error?: string) =>
+    showErrorToast('Failed to Duplicate Order', {
+      description: error || 'Please try again or contact support',
+    }),
+};
+
+// Team Member Toasts
+export const teamMemberToasts = {
+  createSuccess: (name: string) =>
+    showSuccessToast('User Created', {
+      description: `${name} has been added to your team`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create User', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  updateSuccess: (name: string) =>
+    showSuccessToast('User Updated', {
+      description: `${name}'s information has been updated`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update User', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  deleteSuccess: (name: string) =>
+    showSuccessToast('User Deleted', {
+      description: `${name} has been removed from your team`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete User', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  statusChanged: (name: string, enabled: boolean) =>
+    showSuccessToast(enabled ? 'User Activated' : 'User Deactivated', {
+      description: `${name} has been ${enabled ? 'activated' : 'deactivated'}`,
+    }),
+};
+
+// Takeoff Toasts
+export const takeoffToasts = {
+  uploadSuccess: (projectName: string, docCount: number) =>
+    showSuccessToast('Project Uploaded Successfully', {
+      description: `${projectName} with ${docCount} document${docCount !== 1 ? 's' : ''} is ready for classification`,
+    }),
+
+  uploadError: (error?: string) =>
+    showErrorToast('Failed to Upload Project', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  classificationStarted: (docCount: number) =>
+    showInfoToast('Classification Started', {
+      description: `Analyzing ${docCount} document${docCount !== 1 ? 's' : ''}...`,
+    }),
+
+  classificationComplete: (results: { total: number; fixtures: number; specs: number; blueprints: number; other: number; irrelevant: number }) =>
+    showSuccessToast('Documents Classified', {
+      description: `Successfully classified ${results.total} documents: ${results.fixtures} fixture schedules, ${results.specs} specifications, ${results.blueprints} blueprints, ${results.other} other`,
+    }),
+
+  classificationError: (error?: string) =>
+    showErrorToast('Classification Failed', {
+      description: error || 'Some documents could not be classified',
+    }),
+
+  abridgementStarted: (docCount: number) =>
+    showInfoToast('Abridgement Started', {
+      description: `Processing ${docCount} document${docCount !== 1 ? 's' : ''}...`,
+    }),
+
+  abridgementComplete: (originalPages: number, abridgedPages: number) =>
+    showSuccessToast('Documents Abridged', {
+      description: `Reduced from ${originalPages} to ${abridgedPages} pages (${Math.round((1 - abridgedPages / originalPages) * 100)}% reduction)`,
+    }),
+
+  abridgementError: (error?: string) =>
+    showErrorToast('Abridgement Failed', {
+      description: error || 'Some documents could not be abridged',
+    }),
+
+  parsingStarted: () =>
+    showInfoToast('Schedule Parsing Started', {
+      description: 'Extracting fixture data from documents...',
+    }),
+
+  parsingComplete: (itemCount: number) =>
+    showSuccessToast('Schedules Parsed', {
+      description: `Extracted ${itemCount} fixture item${itemCount !== 1 ? 's' : ''} from documents`,
+    }),
+
+  parsingError: (error?: string) =>
+    showErrorToast('Parsing Failed', {
+      description: error || 'Could not extract fixture schedules',
+    }),
+
+  productCrossStarted: () =>
+    showInfoToast('Product Cross Started', {
+      description: 'Finding matching products...',
+    }),
+
+  productCrossComplete: (matchCount: number) =>
+    showSuccessToast('Product Cross Complete', {
+      description: `Found ${matchCount} product match${matchCount !== 1 ? 'es' : ''}`,
+    }),
+
+  productCrossError: (error?: string) =>
+    showErrorToast('Product Cross Failed', {
+      description: error || 'Could not find product matches',
+    }),
 };
 
 // Quote Toasts
@@ -558,5 +679,43 @@ export const quoteToasts = {
   stageChangeError: (error?: string) =>
     showErrorToast('Failed to Update Stage', {
       description: error || 'Please try again or contact support',
+    }),
+};
+
+// Invoice Toasts
+export const invoiceToasts = {
+  createSuccess: (invoiceNumber: string) =>
+    showSuccessToast('Invoice Created', {
+      description: `${invoiceNumber} has been created successfully`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Invoice', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  updateSuccess: (invoiceNumber: string) =>
+    showSuccessToast('Invoice Saved', {
+      description: `${invoiceNumber} has been updated successfully`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Save Invoice', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  deleteSuccess: (invoiceNumber: string) =>
+    showSuccessToast('Invoice Deleted', {
+      description: `${invoiceNumber} has been removed`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Invoice', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  statusChanged: (invoiceNumber: string, newStatus: string) =>
+    showSuccessToast('Status Updated', {
+      description: `${invoiceNumber} status changed to ${newStatus}`,
     }),
 };

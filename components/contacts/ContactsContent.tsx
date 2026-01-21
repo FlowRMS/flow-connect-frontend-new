@@ -6,32 +6,62 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import AdvancedFilters from '../AdvancedFilters';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
+import { useFlowChat } from '@/contexts/FlowChatContext';
+import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import ContactDetailView from './detail/ContactDetailView';
 import ListView from './views/ListView';
 import GridView from './views/GridView';
 import CreateContactModal from './modals/CreateContactModal';
 import { useContactsState } from './hooks/useContactsState';
-import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { useCRMContact } from '../hooks/useCRMApi';
 import { getContactFilterOptions, getContactSortOptions } from './config/filterConfig';
 import { CONTACT_TYPES } from './constants';
 import { mapAPIContactToUIContact } from './types';
 import type { DuplicateGroup } from './types';
 import type { RelatedEntityCompany, RelatedEntityJob } from '../lib/crm-graphql';
+import { useUnsavedChangesGuard } from '../shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 export default function ContactsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const state = useContactsState();
+  const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation } = useUnsavedChangesContext();
 
-  // Infinite scroll trigger
-  const { loadMoreRef } = useInfiniteScroll({
-    hasNextPage: state.hasNextPage ?? false,
-    isFetchingNextPage: state.isFetchingNextPage,
-    fetchNextPage: state.fetchNextPage,
-  });
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'contacts';
+
+  // Set full entity context for global chatbot (type, id, and contact name)
+  useEffect(() => {
+    if (state.selectedContact?.name && state.selectedContact?.id) {
+      setFullEntityContext('contact', state.selectedContact.id, state.selectedContact.name);
+    } else {
+      setFullEntityContext(null, null, null);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state.selectedContact?.name, state.selectedContact?.id, setFullEntityContext]);
+
 
   // Get contact ID from URL - this is the source of truth for navigation
   const contactIdFromUrl = searchParams.get('id');
@@ -73,11 +103,27 @@ export default function ContactsContent() {
     }
   }, [state.selectedContact?.id, state.isMounted, router, searchParams]);
 
+  // Clear editing state when contact is deselected (e.g., after discarding changes and navigating back)
+  useEffect(() => {
+    if (!state.selectedContact) {
+      state.setIsEditing(false);
+      state.setHasLocalEdits(false);
+    }
+  }, [state.selectedContact, state.setIsEditing, state.setHasLocalEdits]);
+
   // Handle back navigation
   const handleBack = () => {
+    // Check for unsaved changes before allowing navigation
+    if (state.hasLocalEdits) {
+      const canNavigate = requestNavigation('/contacts', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
     isIntentionalClearRef.current = true;
     state.setSelectedContact(null);
     state.setIsEditing(false);
+    state.setHasLocalEdits(false);
     router.replace('/contacts', { scroll: false });
   };
 
@@ -90,35 +136,29 @@ export default function ContactsContent() {
     router.push(`/companies?id=${company.id}`);
   };
 
-  // Generate filter and sort options with current data
-  const contactFilterOptions = useMemo(
-    () => getContactFilterOptions(state.contacts),
-    [state.contacts]
-  );
-
+  // Generate filter and sort options (static, no dependencies on data)
+  const contactFilterOptions = useMemo(() => getContactFilterOptions(), []);
   const contactSortOptions = useMemo(() => getContactSortOptions(), []);
 
   // Mock duplicate groups (would come from API in the future)
   const duplicateGroups: DuplicateGroup[] = [];
 
-  // Show loading state (also check isMounted for hydration safety)
-  if (!state.isMounted || state.isLoading) {
-    return (
-      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Contacts</h1>
-        </div>
-        <div className="flex items-center justify-center py-12">
-          <div className="flex items-center gap-3 text-[var(--muted-foreground)]">
-            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-            </svg>
-            <span>Loading contacts from CRM...</span>
-          </div>
-        </div>
-      </main>
-    );
+  // Unsaved changes guard - tracks contact editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Contact',
+    entityId: state.selectedContact?.id || null,
+    entityName: state.selectedContact?.name || null,
+    hasChanges: state.hasLocalEdits,
+    onSave: async () => {
+      await state.handleSaveEdit();
+      return true;
+    },
+  });
+
+  // Don't show loading state - let skeleton show in table instead
+  // Only check isMounted for hydration safety
+  if (!state.isMounted) {
+    return null;
   }
 
   // Show error state
@@ -205,7 +245,7 @@ export default function ContactsContent() {
         onCancel={state.handleCancelEdit}
         onDelete={handleDeleteWithNavigation}
         onFieldChange={(field, value) =>
-          state.setEditFormData((prev) => ({ ...prev, [field]: value }))
+          state.handleEditFormChange((prev) => ({ ...prev, [field]: value }))
         }
         setDeleteConfirmId={state.setDeleteConfirmId}
         onJobClick={handleJobClick}
@@ -216,14 +256,44 @@ export default function ContactsContent() {
 
   // Main List View
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
+    <main className="flex-1 overflow-hidden bg-[var(--background)] flex flex-col">
       {/* Header */}
-      <div className="mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Contacts</h1>
+      <div className="p-3 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Contact Ripple Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="contact-ripple"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['contacts']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Contacts
+              </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                Showing {state.filteredContacts.length} of {state.totalCount} contacts
+              </motion.p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             {/* Dedupe Button - hidden on mobile, visible on tablet+ */}
             <button
               onClick={() => state.setShowDedupeModal(true)}
@@ -290,55 +360,111 @@ export default function ContactsContent() {
               <span className="hidden sm:inline">Add Contact</span>
               <span className="sm:hidden">Add</span>
             </button>
+          </motion.div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative mt-4">
+          {state.isSearching ? (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--primary)] animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          ) : (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
+            </svg>
+          )}
+          <input
+            type="text"
+            placeholder="Search contacts by name, email, phone, or role..."
+            value={state.searchQuery}
+            onChange={(e) => state.setSearchQuery(e.target.value)}
+            className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+          />
+        </div>
+
+        {/* Quick Filters */}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-[var(--muted-foreground)] leading-none">Quick filters:</span>
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto -mx-1 px-1 items-center">
+            {CONTACT_TYPES.map((type) => {
+              // Determine if this role filter is active
+              const roleFilter = state.activeFilters.find(f => f.columnName === 'role');
+              let isActive = false;
+              
+              if (type === 'All') {
+                // "All" is active if there's no role filter in activeFilters
+                isActive = !roleFilter;
+              } else {
+                // Check if this specific role is in the active filters
+                if (roleFilter?.operator === 'IN' && roleFilter.values) {
+                  isActive = roleFilter.values.includes(type);
+                } else if (roleFilter?.operator === 'EQ' && roleFilter.value) {
+                  isActive = roleFilter.value === type;
+                }
+              }
+
+              const handleQuickFilterClick = () => {
+                // Remove any existing role filters
+                const otherFilters = state.activeFilters.filter(f => f.columnName !== 'role');
+                
+                if (type === 'All') {
+                  // Clear role filter
+                  state.handleFiltersChange(otherFilters);
+                } else {
+                  // Add role filter with IN operator
+                  state.handleFiltersChange([
+                    ...otherFilters,
+                    {
+                      columnName: 'role',
+                      operator: 'IN',
+                      values: [type],
+                    },
+                  ]);
+                }
+              };
+
+              return (
+                <button
+                  key={type}
+                  onClick={handleQuickFilterClick}
+                  className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
+                  }`}
+                >
+                  {type}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
-
-      {/* Filters */}
-      <div className="mb-4 sm:mb-6 flex items-center justify-between border-b border-[var(--border)]">
-        <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-          {CONTACT_TYPES.map((type) => (
-            <button
-              key={type}
-              onClick={() => state.setSelectedType(type)}
-              className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
-                state.selectedType === type
-                  ? 'bg-[var(--primary)] text-white'
-                  : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
-              }`}
-            >
-              {type}
-              {type === 'All' && <span className="ml-1 sm:ml-2 text-xs opacity-75">({state.contacts.length})</span>}
-              {type !== 'All' && (
-                <span className="ml-1 sm:ml-2 text-xs opacity-75">
-                  ({state.contacts.filter(c => c.contactType.includes(type)).length})
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* View Content */}
-      {state.viewMode === 'list' ? (
-        <ListView contacts={state.filteredContacts} onContactClick={state.setSelectedContact} />
-      ) : (
-        <GridView contacts={state.filteredContacts} onContactClick={state.setSelectedContact} />
-      )}
-
-      {/* Infinite scroll trigger */}
-      <div ref={loadMoreRef} className="h-4" />
-      {state.isFetchingNextPage && (
-        <div className="flex items-center justify-center py-4">
-          <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
-            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-            </svg>
-            <span>Loading more contacts...</span>
-          </div>
-        </div>
-      )}
+      <div className="flex-1 overflow-hidden p-6 pt-4">
+        {state.viewMode === 'list' ? (
+          <ListView 
+            contacts={state.filteredContacts} 
+            onContactClick={state.setSelectedContact}
+            hasNextPage={state.hasNextPage}
+            isFetchingNextPage={state.isFetchingNextPage}
+            fetchNextPage={state.fetchNextPage}
+            isLoading={state.isLoading}
+            hasFilters={state.activeFilters.length > 0}
+            onColumnFiltersChange={state.handleColumnFiltersChange}
+            filterOptions={contactFilterOptions}
+            columnFilters={state.columnFilters}
+          />
+        ) : (
+          <GridView contacts={state.filteredContacts} onContactClick={state.setSelectedContact} />
+        )}
+      </div>
 
       {/* Create Contact Modal */}
       <CreateContactModal

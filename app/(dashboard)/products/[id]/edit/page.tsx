@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import {
   useProduct,
   useUpdateProduct,
@@ -30,6 +31,9 @@ import {
   type ProductQuantityPricing,
   type ProductQuantityPricingInput,
 } from '../../../../../components/products/api';
+import { ManageCategoriesModal, ManageUomsModal } from '../../../../../components/products/modals';
+import { useUnsavedChangesGuard } from '../../../../../components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '../../../../../contexts/UnsavedChangesContext';
 
 // ============================================================================
 // Types
@@ -68,6 +72,17 @@ export default function ProductEditPage() {
   const { data: product, isLoading: isLoadingProduct, error: productError } = useProduct(productId);
   const updateProductMutation = useUpdateProduct();
   const { data: uoms = [] } = useProductUoms();
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and product part number)
+  useEffect(() => {
+    if (product?.factoryPartNumber && productId) {
+      setFullEntityContext('product', productId, product.factoryPartNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [product?.factoryPartNumber, productId, setFullEntityContext]);
 
   // CPN Hooks
   const { data: cpns = [], isLoading: isLoadingCpns, refetch: refetchCpns } = useProductCpns(productId);
@@ -155,6 +170,10 @@ export default function ProductEditPage() {
   // Portal mount state
   const [isMounted, setIsMounted] = useState(false);
 
+  // Management modals state
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
+  const [showUomsModal, setShowUomsModal] = useState(false);
+
   // Section refs for scroll-to functionality
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
@@ -165,6 +184,9 @@ export default function ProductEditPage() {
     'category-details': null,
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Flag to disable scroll spy during programmatic scrolling
+  const isScrollingRef = useRef(false);
 
   // ============================================================================
   // Effects
@@ -234,14 +256,18 @@ export default function ProductEditPage() {
     const tabIds: TabId[] = ['overview', 'customer-part-numbers', 'quantity-pricing', 'factory-details', 'uom-details', 'category-details'];
 
     const handleScroll = () => {
-      const scrollTop = container.scrollTop;
+      // Skip scroll spy updates during programmatic scrolling
+      if (isScrollingRef.current) return;
+
+      const containerRect = container.getBoundingClientRect();
       let currentSection: TabId = 'overview';
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
         if (section) {
-          const sectionTop = section.offsetTop;
-          if (scrollTop >= sectionTop - 100) {
+          const sectionRect = section.getBoundingClientRect();
+          // Check if section top is at or above the container top + offset
+          if (sectionRect.top <= containerRect.top + 100) {
             currentSection = tabId;
           }
         }
@@ -250,9 +276,8 @@ export default function ProductEditPage() {
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [isLoadingProduct]);
+  }, []);
 
   // ============================================================================
   // Handlers
@@ -262,11 +287,26 @@ export default function ProductEditPage() {
     const section = sectionRefs.current[tabId];
     const container = scrollContainerRef.current;
     if (section && container) {
+      // Disable scroll spy during programmatic scroll
+      isScrollingRef.current = true;
+      setActiveTab(tabId);
+
+      // Calculate the section's position relative to the scroll container
+      const containerRect = container.getBoundingClientRect();
+      const sectionRect = section.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
       const headerOffset = 20;
-      const sectionTop = section.offsetTop - headerOffset;
+
+      // Calculate the target scroll position
+      const sectionTop = sectionRect.top - containerRect.top + scrollTop - headerOffset;
+
       container.scrollTo({ top: sectionTop, behavior: 'smooth' });
+
+      // Re-enable scroll spy after scroll animation completes
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 500);
     }
-    setActiveTab(tabId);
   }, []);
 
   const handleFieldChange = <K extends keyof FormData>(field: K, value: FormData[K]) => {
@@ -302,15 +342,15 @@ export default function ProductEditPage() {
     setHasChanges(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!formData.factoryPartNumber.trim()) {
       toast.error('Part number is required');
-      return;
+      return false;
     }
 
     if (!formData.selectedFactoryId) {
       toast.error('Factory is required');
-      return;
+      return false;
     }
 
     setIsSaving(true);
@@ -330,12 +370,37 @@ export default function ProductEditPage() {
       await updateProductMutation.mutateAsync({ id: productId, input });
       toast.success('Product updated successfully');
       setHasChanges(false);
+      return true;
     } catch (error) {
       toast.error('Failed to update product');
       console.error('Update error:', error);
+      return false;
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Unsaved changes guard - tracks product editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Product',
+    entityId: productId,
+    entityName: product?.factoryPartNumber || null,
+    hasChanges,
+    onSave: handleSave,
+  });
+
+  // Get unsaved changes context for back button navigation check
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/products', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/products');
   };
 
   // CPN Handlers
@@ -636,7 +701,7 @@ export default function ProductEditPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/products')}
+              onClick={handleBack}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -645,16 +710,41 @@ export default function ProductEditPage() {
             </button>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">
+                {formData.factoryPartNumber || 'Untitled Product'}
+              </h1>
+              <p className="text-sm text-gray-500">
                 {formData.description
                   ? formData.description.length > 50
                     ? `${formData.description.slice(0, 50)}...`
                     : formData.description
-                  : 'Untitled Product'}
-              </h1>
-              <p className="text-sm text-gray-500">{formData.factoryPartNumber}</p>
+                  : ''}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Management Buttons */}
+            <button
+              onClick={() => setShowUomsModal(true)}
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+              Manage UOMs
+            </button>
+            <button
+              onClick={() => setShowCategoriesModal(true)}
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 6h16M4 12h16M4 18h16"/>
+              </svg>
+              Manage Categories
+            </button>
+
+            {/* Divider */}
+            <div className="h-6 w-px bg-gray-300"></div>
+
             {/* Status Badges */}
             <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
               formData.published
@@ -927,8 +1017,8 @@ export default function ProductEditPage() {
                   <input
                     type="number"
                     step="0.1"
-                    value={formData.defaultCommissionRate ? (formData.defaultCommissionRate * 100).toFixed(1) : ''}
-                    onChange={(e) => handleFieldChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) / 100 : 0)}
+                    value={formData.defaultCommissionRate ? formData.defaultCommissionRate : ''}
+                    onChange={(e) => handleFieldChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) : 0)}
                     className={`${inputClass} pr-8`}
                     placeholder="0"
                   />
@@ -1318,7 +1408,7 @@ export default function ProductEditPage() {
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
-                            {formatPercent(cpn.commissionRate / 100)}
+                            {`${Number(cpn.commissionRate || 0).toFixed(1)}%`}
                           </span>
                         </div>
                       </div>
@@ -2078,6 +2168,16 @@ export default function ProductEditPage() {
         </div>
 
       </div>
+
+      {/* Management Modals */}
+      <ManageCategoriesModal
+        isOpen={showCategoriesModal}
+        onClose={() => setShowCategoriesModal(false)}
+      />
+      <ManageUomsModal
+        isOpen={showUomsModal}
+        onClose={() => setShowUomsModal(false)}
+      />
     </main>
   );
 }

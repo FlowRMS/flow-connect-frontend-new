@@ -4,7 +4,7 @@
 
 import { STAGE_COLORS, FILTER_COLUMN_MAP, STATUS_CONFIG } from './constants';
 import type { PreOpportunity, PreOpportunityStatus, PreOpportunityLandingPage } from './types';
-import type { ActiveFilter } from '../AdvancedFilters';
+import type { ActiveFilter } from '../advancedFilters/AdvancedFilters';
 import type { LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
 
 /**
@@ -204,5 +204,39 @@ export function getPreOppsByStatus(
  */
 export function calculateTotalValue(preOpps: PreOpportunityLandingPage[]): number {
   return preOpps.reduce((sum, preOpp) => sum + (preOpp.total || 0), 0);
+}
+
+/**
+ * Get owner initials from name string
+ * Handles names with or without surnames correctly
+ */
+export function getOwnerInitials(owner: string | undefined | null): string {
+  if (!owner) return '?';
+  const parts = owner.split(/[\s._-]+/).filter(part => part.trim().length > 0);
+  if (parts.length >= 2) {
+    const first = parts[0]?.[0] || '';
+    const second = parts[1]?.[0] || '';
+    if (first && second) {
+      return (first + second).toUpperCase();
+    }
+  }
+  // If only one name or parts are invalid, use first letter(s) of the name
+  const trimmed = owner.trim();
+  if (trimmed.length >= 2) {
+    return trimmed.substring(0, 2).toUpperCase();
+  }
+  return trimmed.substring(0, 1).toUpperCase() || '?';
+}
+
+/**
+ * Get a consistent color for an owner based on their ID
+ */
+export function getOwnerColor(id: string): string {
+  const colors = [
+    'bg-blue-500', 'bg-green-500', 'bg-purple-500', 
+    'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'
+  ];
+  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[hash % colors.length];
 }
 

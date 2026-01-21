@@ -4,7 +4,7 @@
 
 import { useState, useMemo } from 'react';
 import type { Job, RepType, DuplicateGroup, ViewMode, MergeStrategy } from '../types';
-import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import { applyFilter, sortJobs, getUniqueValues } from '../utils';
 import { DEFAULT_VISIBLE_CATEGORIES, DEFAULT_STAGES } from '../constants';
 import type { JobLandingPage, JobStatus } from '../../lib/crm-graphql';
@@ -21,6 +21,8 @@ export function useJobsState(
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<Job>>({});
+  // Track if user has made actual edits (not just entered edit mode)
+  const [hasLocalEdits, setHasLocalEdits] = useState(false);
 
   // Company selection
   const [selectedCompany, setSelectedCompany] = useState<any>(null);

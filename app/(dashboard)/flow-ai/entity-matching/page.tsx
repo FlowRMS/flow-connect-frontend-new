@@ -2,7 +2,7 @@
 
 import { useState, Suspense, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ChevronRight, Loader2, Sparkles, CheckCircle2, Info, Search, Plus, HelpCircle, Ban, ChevronDown } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Loader2, Sparkles, CheckCircle2, Info, Search, Plus, HelpCircle, Ban, ChevronDown, SkipForward, FileText } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Badge } from '@/components/flow-ai/ui/badge';
 import { Checkbox } from '@/components/flow-ai/ui/checkbox';
@@ -21,8 +21,37 @@ import { BulkCreateNewPane } from '@/components/flow-ai/flowrms/entity-matching/
 import { CreateNewSpreadsheet } from '@/components/flow-ai/flowrms/entity-matching/CreateNewSpreadsheet';
 import { WorkflowBreadcrumb } from '@/components/flow-ai/flowrms/WorkflowBreadcrumb';
 import { useEntityMatching, CreateExtraFields } from '@/components/flow-ai/hooks/useEntityMatching';
-import type { PendingEntity, PendingEntityType } from '@/components/flow-ai/types/entity-matching';
+import type { PendingEntity, PendingEntityType, EntityStep } from '@/components/flow-ai/types/entity-matching';
 import { getConfidencePercentage, parseExtractedData } from '@/components/flow-ai/types/entity-matching';
+
+// Tabs that require factory to be matched first (only for CHECKS and INVOICES document types)
+const FACTORY_DEPENDENT_TABS: EntityStep[] = ['orders', 'invoices', 'credits', 'adjustments'];
+
+// All possible steps in order
+const ALL_STEPS: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices', 'credits', 'adjustments'];
+
+// Get visible steps based on document type
+function getVisibleSteps(documentType: string | null): EntityStep[] {
+  const normalizedDocType = documentType?.toUpperCase();
+
+  // For CHECKS: Show all tabs (orders, invoices, credits, adjustments all visible)
+  if (normalizedDocType === 'CHECKS') {
+    return ALL_STEPS;
+  }
+
+  // For INVOICES: Hide invoices, credits, adjustments tabs - only show orders
+  if (normalizedDocType === 'INVOICES') {
+    return ALL_STEPS.filter(step =>
+      !['invoices', 'credits', 'adjustments'].includes(step)
+    );
+  }
+
+  // For other document types (ORDERS, QUOTES, ORDER_ACKNOWLEDGEMENTS, etc.):
+  // Hide orders, invoices, credits, adjustments tabs entirely
+  return ALL_STEPS.filter(step =>
+    !FACTORY_DEPENDENT_TABS.includes(step)
+  );
+}
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import { Q_GET_PENDING, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
 
@@ -147,8 +176,8 @@ function EntityMatchingContent() {
   // State for workflow triggering (new flow)
   const [isProcessingWorkflow, setIsProcessingWorkflow] = useState(false);
 
-  // Ref to track if we've already checked for empty entities redirect
-  const hasCheckedEmptyRedirect = useRef(false);
+  // State for document type (CHECKS, INVOICES, etc.)
+  const [documentType, setDocumentType] = useState<string | null>(null);
 
   // Pagination for performance - only render a limited number of items initially
   const ITEMS_PER_PAGE = 50;
@@ -162,12 +191,45 @@ function EntityMatchingContent() {
     }
   }, [pendingId, router]);
 
+  // Fetch document type from pending document
+  useEffect(() => {
+    const fetchDocumentType = async () => {
+      if (!pendingId) return;
+
+      try {
+        const result = await flowrmsApolloClient.query<{
+          getPendingDocument?: {
+            entityType: string | null;
+          };
+        }>({
+          query: Q_GET_PENDING,
+          variables: { pendingId },
+          fetchPolicy: 'cache-first',
+        });
+
+        const entityType = result.data?.getPendingDocument?.entityType;
+        if (entityType) {
+          console.log('Document type:', entityType);
+          setDocumentType(entityType);
+        }
+      } catch (error) {
+        console.error('Error fetching document type:', error);
+      }
+    };
+
+    fetchDocumentType();
+  }, [pendingId]);
+
   const {
     factories,
     customers,
     billToCustomers,
     endUsers,
     products,
+    orders,
+    invoices,
+    credits,
+    adjustments,
     currentStep,
     setCurrentStep,
     activeFilters,
@@ -190,38 +252,51 @@ function EntityMatchingContent() {
     handleBulkApprove,
     handleBulkCreateNew,
     handleBulkReject,
+    handleBulkSkip,
+    handleBulkSetForCreation,
+    handleSingleAction,
     handleSearchEntities,
     handleSearchUsers,
     initialLoadComplete,
-  } = useEntityMatching({ pendingDocumentId: pendingId });
+    // Factory-based entities state (for CHECKS/INVOICES document types)
+    isFactoryMatched,
+    factoryEntitiesLoading,
+  } = useEntityMatching({ pendingDocumentId: pendingId, documentType });
 
   // Reset display limit when switching tabs for performance
   useEffect(() => {
     setDisplayLimit(ITEMS_PER_PAGE);
   }, [currentStep]);
 
-  // Auto-skip to upload-complete if all entity arrays are empty after loading
-  // This triggers the executeDocumentWorkflow and navigates to upload-complete
-  useEffect(() => {
-    // Wait until initial load is complete before checking
-    if (!initialLoadComplete || hasCheckedEmptyRedirect.current || !pendingId) return;
+  // Compute visible steps based on document type
+  const visibleSteps = useMemo(() => getVisibleSteps(documentType), [documentType]);
 
-    hasCheckedEmptyRedirect.current = true;
+  // Get the last visible step (for showing Complete button)
+  const lastVisibleStep = useMemo(() => visibleSteps[visibleSteps.length - 1], [visibleSteps]);
 
-    // Check if all entity arrays are empty
-    const hasNoEntities = factories.length === 0 &&
-                          customers.length === 0 &&
-                          billToCustomers.length === 0 &&
-                          endUsers.length === 0 &&
-                          products.length === 0;
+  // Check if current step is the last visible step
+  const isLastStep = currentStep === lastVisibleStep;
 
-    if (hasNoEntities) {
-      toast.info('No entities to match. Starting document processing...');
-      // Trigger the same flow as handleCompleteMatching - this will execute the workflow
-      // and navigate to upload-complete page
-      handleCompleteMatching();
+  // Get next step in navigation
+  const getNextStep = useCallback((current: EntityStep): EntityStep | null => {
+    const currentIndex = visibleSteps.indexOf(current);
+    if (currentIndex === -1 || currentIndex >= visibleSteps.length - 1) {
+      return null;
     }
-  }, [initialLoadComplete, factories, customers, billToCustomers, endUsers, products, pendingId]);
+    return visibleSteps[currentIndex + 1];
+  }, [visibleSteps]);
+
+  // Get previous step in navigation
+  const getPreviousStep = useCallback((current: EntityStep): EntityStep | null => {
+    const currentIndex = visibleSteps.indexOf(current);
+    if (currentIndex <= 0) {
+      return null;
+    }
+    return visibleSteps[currentIndex - 1];
+  }, [visibleSteps]);
+
+  // Removed auto-skip logic - user must manually click "Complete & Continue" button
+  // even when all entities are automatically matched or no entities exist
 
   const handleCompleteMatching = async () => {
     if (!pendingId) {
@@ -256,10 +331,9 @@ function EntityMatchingContent() {
         return;
       }
 
-      // Navigate directly to upload-complete page
+      // Navigate to queue page
       toast.success('Document processed successfully!');
-      const sourceParam = isFromSpreadsheet ? '&source=spreadsheet' : '';
-      router.push(`/flow-ai/upload-complete?pendingId=${pendingId}${sourceParam}`);
+      router.push(`/flow-ai/queue`);
 
     } catch (error) {
       console.error('Error in handleCompleteMatching:', error);
@@ -288,6 +362,12 @@ function EntityMatchingContent() {
         return <Badge variant="secondary" className="bg-purple-50 text-purple-700">NEW CREATED</Badge>;
       case 'REJECTED':
         return <Badge variant="secondary" className="bg-red-50 text-red-700">REJECTED</Badge>;
+      case 'SKIPPED':
+        return <Badge variant="secondary" className="bg-gray-50 text-gray-700">SKIPPED</Badge>;
+      case 'SET_FOR_CREATION':
+        return <Badge variant="secondary" className="bg-indigo-50 text-indigo-700">SET FOR CREATION</Badge>;
+      case 'EMPTY_NAME':
+        return <Badge variant="secondary" className="bg-yellow-50 text-yellow-700">EMPTY NAME</Badge>;
       default:
         if (!hasBestMatch) {
           return <Badge variant="secondary" className="bg-red-50 text-red-700">NO MATCH FOUND</Badge>;
@@ -303,6 +383,10 @@ function EntityMatchingContent() {
       case 'BILL_TO_CUSTOMERS': return 'Bill to Customer';
       case 'END_USERS': return 'End User';
       case 'PRODUCTS': return 'Product';
+      case 'ORDERS': return 'Order';
+      case 'INVOICES': return 'Invoice';
+      case 'CREDITS': return 'Credit';
+      case 'ADJUSTMENTS': return 'Adjustment';
       default: return 'Entity';
     }
   };
@@ -408,9 +492,28 @@ function EntityMatchingContent() {
     setInsideRepName(null);
     setOutsideRepId(null);
     setOutsideRepName(null);
-    // Reset factory selection
-    setFactoryId(null);
-    setFactoryName(null);
+    
+    // Auto-populate factory if we're creating a product and a factory is already matched
+    const entityType = getCurrentEntityType();
+    if (entityType === 'PRODUCTS') {
+      // Find a confirmed or auto-matched factory
+      const confirmedFactory = factories.find(
+        f => f.confirmationStatus === 'CONFIRMED' || f.confirmationStatus === 'AUTO_MATCHED'
+      );
+      
+      if (confirmedFactory && confirmedFactory.bestMatchId) {
+        setFactoryId(confirmedFactory.bestMatchId);
+        setFactoryName(confirmedFactory.bestMatchName || confirmedFactory.matchCandidates.find(m => m.entityId === confirmedFactory.bestMatchId)?.name || null);
+      } else {
+        // Reset factory selection if no confirmed factory found
+        setFactoryId(null);
+        setFactoryName(null);
+      }
+    } else {
+      // Reset factory selection for non-product entities
+      setFactoryId(null);
+      setFactoryName(null);
+    }
   };
 
   const updateFormField = (key: string, value: string) => {
@@ -458,7 +561,7 @@ function EntityMatchingContent() {
       return { needsOutsideRep: true, needsInsideRep: true, insideRepRequired: false, outsideRepRequired: true, needsFactory: false, factoryRequired: false };
     }
     if (entityType === 'FACTORIES') {
-      return { needsOutsideRep: false, needsInsideRep: true, insideRepRequired: true, outsideRepRequired: false, needsFactory: false, factoryRequired: false };
+      return { needsOutsideRep: false, needsInsideRep: true, insideRepRequired: false, outsideRepRequired: false, needsFactory: false, factoryRequired: false };
     }
     if (entityType === 'PRODUCTS') {
       return { needsOutsideRep: false, needsInsideRep: false, insideRepRequired: false, outsideRepRequired: false, needsFactory: true, factoryRequired: true };
@@ -641,9 +744,11 @@ function EntityMatchingContent() {
     const hasNoMatch = entity.matchCandidates.length === 0
       && !entity.bestMatchName
       && entity.confirmationStatus !== 'CREATED_NEW'
-      && entity.confirmationStatus !== 'CONFIRMED';
-    // Check if entity is locked (confirmed or rejected - cannot be changed)
-    const isLocked = entity.confirmationStatus === 'CONFIRMED' || entity.confirmationStatus === 'REJECTED' || entity.confirmationStatus === 'CREATED_NEW';
+      && entity.confirmationStatus !== 'CONFIRMED'
+      && entity.confirmationStatus !== 'SKIPPED'
+      && entity.confirmationStatus !== 'SET_FOR_CREATION';
+    // Check if entity is locked (confirmed, rejected, skipped, or set for creation - cannot be changed)
+    const isLocked = entity.confirmationStatus === 'CONFIRMED' || entity.confirmationStatus === 'REJECTED' || entity.confirmationStatus === 'CREATED_NEW' || entity.confirmationStatus === 'SKIPPED' || entity.confirmationStatus === 'SET_FOR_CREATION';
     // Get confirmation count from metadata if available
     const confirmationCount = topMatch?.metadata ? (() => {
       try {
@@ -809,35 +914,97 @@ function EntityMatchingContent() {
                 <span>Confirmed {confirmationCount} times by users</span>
               </div>
             )}
-            {/* Action buttons row - Approve and Create New */}
+            {/* Action buttons row - Different for Orders/Invoices/Credits/Adjustments vs other entity types */}
             {!isLocked && (
               <div className="flex gap-2">
-                {/* Approve button - grey out if no match */}
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="flex-1 text-xs"
-                  disabled={isEntityLoading || hasNoMatch}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const matchId = entity.bestMatchId || entity.matchCandidates[0]?.entityId;
-                    const matchName = entity.bestMatchName || entity.matchCandidates[0]?.name;
-                    if (matchId && matchName) {
-                      handleConfirmMatch(entity.id, matchId, matchName);
-                    }
-                  }}
-                >
-                  {isEntityLoading ? (
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-3 h-3 mr-1" />
-                  )}
-                  Approve
-                </Button>
+                {/* Orders, Invoices, Credits, and Adjustments: Skip and Set for Creation buttons */}
+                {(getCurrentEntityType() === 'ORDERS' || getCurrentEntityType() === 'INVOICES' || getCurrentEntityType() === 'CREDITS' || getCurrentEntityType() === 'ADJUSTMENTS') ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs"
+                      disabled={isEntityLoading}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSingleAction(entity.id, 'SKIP');
+                      }}
+                    >
+                      {isEntityLoading ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <SkipForward className="w-3 h-3 mr-1" />
+                      )}
+                      Skip
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="flex-1 text-xs"
+                      disabled={isEntityLoading}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSingleAction(entity.id, 'SET_FOR_CREATION');
+                      }}
+                    >
+                      {isEntityLoading ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <FileText className="w-3 h-3 mr-1" />
+                      )}
+                      Set for Creation
+                    </Button>
+                  </>
+                ) : (
+                  /* Standard entity types: Approve button */
+                  <>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="flex-1 text-xs"
+                      disabled={isEntityLoading || hasNoMatch}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const matchId = entity.bestMatchId || entity.matchCandidates[0]?.entityId;
+                        const matchName = entity.bestMatchName || entity.matchCandidates[0]?.name;
+                        if (matchId && matchName) {
+                          handleConfirmMatch(entity.id, matchId, matchName);
+                        }
+                      }}
+                    >
+                      {isEntityLoading ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-3 h-3 mr-1" />
+                      )}
+                      Approve
+                    </Button>
+                    {/* Products: Add Skip button */}
+                    {getCurrentEntityType() === 'PRODUCTS' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-xs"
+                        disabled={isEntityLoading}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSingleAction(entity.id, 'SKIP');
+                        }}
+                      >
+                        {isEntityLoading ? (
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        ) : (
+                          <SkipForward className="w-3 h-3 mr-1" />
+                        )}
+                        Skip
+                      </Button>
+                    )}
+                  </>
+                )}
               </div>
             )}
-            {/* Create New button - hidden for locked entities */}
-            {!isLocked && (
+            {/* Create New button - hidden for locked entities and for Orders/Invoices/Credits/Adjustments */}
+            {!isLocked && getCurrentEntityType() !== 'ORDERS' && getCurrentEntityType() !== 'INVOICES' && getCurrentEntityType() !== 'CREDITS' && getCurrentEntityType() !== 'ADJUSTMENTS' && (
               <Popover
                 open={createNewPopoverOpen === entity.id}
                 onOpenChange={(open) => {
@@ -973,11 +1140,13 @@ function EntityMatchingContent() {
   };
 
   const currentEntities = getCurrentEntities();
-  // Selectable entities are those that are not locked (not CONFIRMED, REJECTED, or CREATED_NEW)
+  // Selectable entities are those that are not locked (not CONFIRMED, REJECTED, CREATED_NEW, SKIPPED, or SET_FOR_CREATION)
   const selectableEntities = currentEntities.filter(
     e => e.confirmationStatus !== 'CONFIRMED' &&
          e.confirmationStatus !== 'REJECTED' &&
-         e.confirmationStatus !== 'CREATED_NEW'
+         e.confirmationStatus !== 'CREATED_NEW' &&
+         e.confirmationStatus !== 'SKIPPED' &&
+         e.confirmationStatus !== 'SET_FOR_CREATION'
   );
   const selectedCount = currentEntities.filter(e => e.selected).length;
   const selectableCount = selectableEntities.length;
@@ -1030,7 +1199,7 @@ function EntityMatchingContent() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex-1 overflow-auto bg-background">
       <div className="container max-w-7xl mx-auto py-8 px-4 space-y-6 pb-24">
         {/* Breadcrumb */}
         <WorkflowBreadcrumb currentStep="validate" showMapColumns={isFromSpreadsheet} />
@@ -1067,7 +1236,7 @@ function EntityMatchingContent() {
               <Button
                 size="lg"
                 onClick={handleCompleteMatching}
-                disabled={isProcessingWorkflow}
+                disabled={isProcessingWorkflow || factoryEntitiesLoading}
                 className="gap-2 bg-green-600 hover:bg-green-700"
               >
                 {isProcessingWorkflow ? (
@@ -1082,6 +1251,17 @@ function EntityMatchingContent() {
           </div>
         </div>
 
+        {/* Loading banner when factory entities are being loaded */}
+        {factoryEntitiesLoading && (
+          <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+            <div>
+              <p className="font-medium text-blue-800">Loading additional records...</p>
+              <p className="text-sm text-blue-600">Please wait while we fetch orders, invoices, and other related records.</p>
+            </div>
+          </div>
+        )}
+
         {/* Step Navigation */}
         <EntityStepNavigation
           currentStep={currentStep}
@@ -1091,7 +1271,14 @@ function EntityMatchingContent() {
           billToCustomersCount={billToCustomers.length}
           endUsersCount={endUsers.length}
           productsCount={products.length}
+          ordersCount={orders.length}
+          invoicesCount={invoices.length}
+          creditsCount={credits.length}
+          adjustmentsCount={adjustments.length}
           getStepStatus={getStepStatus}
+          documentType={documentType}
+          isFactoryMatched={isFactoryMatched}
+          factoryEntitiesLoading={factoryEntitiesLoading}
         />
 
         {/* Filter and Action Controls */}
@@ -1107,7 +1294,10 @@ function EntityMatchingContent() {
           onSelectAll={handleSelectAll}
           onBulkApprove={handleBulkApprove}
           onBulkCreateNew={() => setShowBulkCreatePane(true)}
+          onBulkSkip={handleBulkSkip}
+          onBulkSetForCreation={handleBulkSetForCreation}
           isLoading={bulkConfirmLoading}
+          currentEntityType={getCurrentEntityType()}
         />
 
         {/* Entities List - Show spreadsheet in Create New Mode */}
@@ -1214,11 +1404,13 @@ function EntityMatchingContent() {
             variant="outline"
             size="lg"
             onClick={() => {
-              if (currentStep === 'customers') setCurrentStep('factories');
-              else if (currentStep === 'billtocustomers') setCurrentStep('customers');
-              else if (currentStep === 'endusers') setCurrentStep('billtocustomers');
-              else if (currentStep === 'products') setCurrentStep('endusers');
-              else setShowBackWarningModal(true);
+              const prevStep = getPreviousStep(currentStep);
+              if (prevStep) {
+                setCurrentStep(prevStep);
+              } else {
+                // On first step, show back warning
+                setShowBackWarningModal(true);
+              }
             }}
           >
             <ChevronRight className="w-4 h-4 mr-2 rotate-180" />
@@ -1227,20 +1419,28 @@ function EntityMatchingContent() {
           <Button
             size="lg"
             onClick={() => {
-              if (currentStep === 'factories') setCurrentStep('customers');
-              else if (currentStep === 'customers') setCurrentStep('billtocustomers');
-              else if (currentStep === 'billtocustomers') setCurrentStep('endusers');
-              else if (currentStep === 'endusers') setCurrentStep('products');
-              else if (currentStep === 'products' && allValidated) handleCompleteMatching();
+              if (isLastStep && allValidated) {
+                handleCompleteMatching();
+              } else {
+                const nextStep = getNextStep(currentStep);
+                if (nextStep) {
+                  setCurrentStep(nextStep);
+                }
+              }
             }}
-            disabled={(currentStep === 'products' && !allValidated) || isProcessingWorkflow}
+            disabled={
+              (isLastStep && !allValidated) ||
+              isProcessingWorkflow ||
+              // Only disable for factory loading if trying to go to a factory-dependent step or completing
+              (factoryEntitiesLoading && (isLastStep || FACTORY_DEPENDENT_TABS.includes(getNextStep(currentStep) as EntityStep)))
+            }
           >
             {isProcessingWorkflow ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Processing...
               </>
-            ) : currentStep === 'products' ? (
+            ) : isLastStep ? (
               <>
                 Complete & Continue
                 <ChevronRight className="w-4 h-4 ml-2" />

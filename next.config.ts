@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Empty turbopack config to silence webpack config warning
+  turbopack: {},
   // Reduce memory usage for low-memory environments (512MB)
   experimental: {
     // Reduce build-time memory usage

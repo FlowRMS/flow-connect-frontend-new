@@ -770,7 +770,7 @@ export function useCRMPreOpportunityLandingPages(
   return useQuery<PreOpportunityLandingPage[], Error>({
     queryKey: crmQueryKeys.preOpportunityLandingPages(filters, orderBy),
     queryFn: async () => {
-      const result = await fetchPreOpportunityLandingPages(filters, orderBy);
+      const result = await fetchPreOpportunityLandingPages(filters, orderBy, { limit: 300 });
       return result.records;
     },
     enabled: true,
@@ -1051,49 +1051,66 @@ export function useRelatedEntities(entityId: string, sourceType: RelatedEntities
 export function useCreateCRMLink() {
   const queryClient = useQueryClient();
 
+  // Map entity types to their relatedEntities source types
+  const entityTypeToSourceType: Record<string, RelatedEntitiesSourceType> = {
+    'JOB': 'JOBS',
+    'CONTACT': 'CONTACTS',
+    'COMPANY': 'COMPANIES',
+    'PRE_OPPORTUNITY': 'PRE_OPPORTUNITIES',
+    'QUOTE': 'QUOTES',
+    'ORDER': 'ORDERS',
+    'INVOICE': 'INVOICES',
+    'CHECK': 'CHECKS',
+    'TASK': 'TASKS',
+    'NOTE': 'NOTES',
+    'FACTORY': 'FACTORIES',
+  };
+
   return useMutation<EntityLink, Error, CreateLinkInput>({
     mutationFn: createLink,
     onSuccess: (_, variables) => {
-      // Invalidate related entities queries based on entity types
-      if (variables.sourceEntityType === 'JOB') {
+      // Invalidate relatedEntities queries for both source and target entities
+      const sourceType = entityTypeToSourceType[variables.sourceEntityType];
+      const targetType = entityTypeToSourceType[variables.targetEntityType];
+
+      if (sourceType) {
         queryClient.invalidateQueries({
-          queryKey: crmQueryKeys.relatedEntities(variables.sourceEntityId, 'JOBS')
+          queryKey: crmQueryKeys.relatedEntities(variables.sourceEntityId, sourceType)
         });
       }
-      if (variables.targetEntityType === 'JOB') {
+      if (targetType) {
         queryClient.invalidateQueries({
-          queryKey: crmQueryKeys.relatedEntities(variables.targetEntityId, 'JOBS')
+          queryKey: crmQueryKeys.relatedEntities(variables.targetEntityId, targetType)
         });
       }
+
       // Invalidate company-related queries
       if (variables.sourceEntityType === 'COMPANY') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.contactsByCompany(variables.sourceEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.contactsByCompany(variables.sourceEntityId)
         });
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.jobsByCompany(variables.sourceEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.jobsByCompany(variables.sourceEntityId)
         });
-        // Invalidate tasks and notes for this company
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.tasksByEntity(variables.sourceEntityId, 'COMPANY') 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.tasksByEntity(variables.sourceEntityId, 'COMPANY')
         });
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.notesByEntity(variables.sourceEntityId, 'COMPANY') 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.notesByEntity(variables.sourceEntityId, 'COMPANY')
         });
       }
       if (variables.targetEntityType === 'COMPANY') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.contactsByCompany(variables.targetEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.contactsByCompany(variables.targetEntityId)
         });
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.jobsByCompany(variables.targetEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.jobsByCompany(variables.targetEntityId)
         });
-        // Invalidate tasks and notes for this company
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.tasksByEntity(variables.targetEntityId, 'COMPANY') 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.tasksByEntity(variables.targetEntityId, 'COMPANY')
         });
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.notesByEntity(variables.targetEntityId, 'COMPANY') 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.notesByEntity(variables.targetEntityId, 'COMPANY')
         });
       }
       // Invalidate contact-related queries
@@ -1101,10 +1118,6 @@ export function useCreateCRMLink() {
         queryClient.invalidateQueries({
           queryKey: crmQueryKeys.jobsByContact(variables.sourceEntityId)
         });
-        queryClient.invalidateQueries({
-          queryKey: crmQueryKeys.relatedEntities(variables.sourceEntityId, 'CONTACTS')
-        });
-        // Invalidate tasks and notes for this contact
         queryClient.invalidateQueries({
           queryKey: crmQueryKeys.tasksByEntity(variables.sourceEntityId, 'CONTACT')
         });
@@ -1117,10 +1130,6 @@ export function useCreateCRMLink() {
           queryKey: crmQueryKeys.jobsByContact(variables.targetEntityId)
         });
         queryClient.invalidateQueries({
-          queryKey: crmQueryKeys.relatedEntities(variables.targetEntityId, 'CONTACTS')
-        });
-        // Invalidate tasks and notes for this contact
-        queryClient.invalidateQueries({
           queryKey: crmQueryKeys.tasksByEntity(variables.targetEntityId, 'CONTACT')
         });
         queryClient.invalidateQueries({
@@ -1129,24 +1138,24 @@ export function useCreateCRMLink() {
       }
       // Invalidate task-related queries
       if (variables.sourceEntityType === 'TASK') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.task(variables.sourceEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.task(variables.sourceEntityId)
         });
       }
       if (variables.targetEntityType === 'TASK') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.task(variables.targetEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.task(variables.targetEntityId)
         });
       }
       // Invalidate note-related queries
       if (variables.sourceEntityType === 'NOTE') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.note(variables.sourceEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.note(variables.sourceEntityId)
         });
       }
       if (variables.targetEntityType === 'NOTE') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.note(variables.targetEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.note(variables.targetEntityId)
         });
       }
     },
@@ -1765,5 +1774,143 @@ export function useCRMCheckSearch(searchTerm: string) {
     queryFn: () => searchChecks(searchTerm),
     enabled: searchTerm.length >= 0,
     staleTime: 30 * 1000,
+  });
+}
+
+// ============================================================================
+// Company Types Hooks
+// ============================================================================
+
+import {
+  fetchCompanyTypes,
+  createCompanyType,
+  updateCompanyType,
+  deleteCompanyType,
+  type CompanyType,
+  type CreateCompanyTypeInput,
+  type UpdateCompanyTypeInput,
+} from '../lib/crm-graphql';
+
+export type { CompanyType, CreateCompanyTypeInput, UpdateCompanyTypeInput };
+
+/**
+ * Fetch all company types
+ */
+export function useCompanyTypes() {
+  return useQuery<CompanyType[], Error>({
+    queryKey: [...crmQueryKeys.all, 'companyTypes'],
+    queryFn: () => fetchCompanyTypes(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Create a new company type
+ */
+export function useCreateCompanyType() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CompanyType, Error, CreateCompanyTypeInput>({
+    mutationFn: createCompanyType,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'companyTypes'] });
+    },
+  });
+}
+
+/**
+ * Update an existing company type
+ */
+export function useUpdateCompanyType() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CompanyType, Error, { id: string; input: UpdateCompanyTypeInput }>({
+    mutationFn: ({ id, input }) => updateCompanyType(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'companyTypes'] });
+    },
+  });
+}
+
+/**
+ * Delete a company type
+ */
+export function useDeleteCompanyType() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deleteCompanyType,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'companyTypes'] });
+    },
+  });
+}
+
+// ============================================================================
+// Task Categories Hooks
+// ============================================================================
+
+import {
+  fetchTaskCategories,
+  createTaskCategory,
+  updateTaskCategory,
+  deleteTaskCategory,
+  type TaskCategory,
+  type CreateTaskCategoryInput,
+  type UpdateTaskCategoryInput,
+} from '../lib/crm-graphql';
+
+export type { TaskCategory, CreateTaskCategoryInput, UpdateTaskCategoryInput };
+
+/**
+ * Fetch all task categories
+ */
+export function useTaskCategories() {
+  return useQuery<TaskCategory[], Error>({
+    queryKey: [...crmQueryKeys.all, 'taskCategories'],
+    queryFn: () => fetchTaskCategories(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Create a new task category
+ */
+export function useCreateTaskCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskCategory, Error, CreateTaskCategoryInput>({
+    mutationFn: createTaskCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'taskCategories'] });
+    },
+  });
+}
+
+/**
+ * Update an existing task category
+ */
+export function useUpdateTaskCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskCategory, Error, { id: string; input: UpdateTaskCategoryInput }>({
+    mutationFn: ({ id, input }) => updateTaskCategory(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'taskCategories'] });
+    },
+  });
+}
+
+/**
+ * Delete a task category
+ */
+export function useDeleteTaskCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deleteTaskCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'taskCategories'] });
+    },
   });
 }

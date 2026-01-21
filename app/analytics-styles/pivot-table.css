@@ -699,4 +699,65 @@ revo-grid revogr-header .rgHeaderCell * {
 /* Ensure cursor shows text selection is possible */
 revo-grid .rgCell:not([data-editable="true"]) {
   cursor: text !important;
+} 
+
+/* Data Bar Styles (Excel-style visualization) */
+.revo-data-bar-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 8px;
+  z-index: 1;
+  color: rgb(55, 65, 81) !important; /* Force neutral gray text */
+}
+
+.revo-data-bar-container,
+.revo-data-bar-container * {
+  color: rgb(55, 65, 81) !important; /* Force neutral gray text for all children */
+}
+
+.revo-data-bar-container::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 20%;
+  height: 60%;
+  border-radius: 2px;
+  opacity: 0.3;
+  z-index: 0;
+  width: calc(var(--bar-width, 0) * 1%);
+  background: var(--bar-color, #3b82f6);
+}
+
+/* Price Bar Chart Container - Mini vertical bar chart */
+.revo-price-bar-chart-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+}
+
+.revo-price-bar-chart-container svg {
+  display: block;
+}
+
+/* Force neutral text color for ALL price columns and data bar containers */
+.revo-data-bar-container,
+.revo-data-bar-container span,
+.revo-data-bar-container div,
+revo-grid [class*="Price"] .revo-data-bar-container,
+revo-grid .rgCell .revo-data-bar-container {
+  color: #374151 !important; /* Neutral gray-700 */
+}
+
+/* Price trend bar chart hover effect */
+.revo-price-bar-chart-container svg {
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+
+.revo-price-bar-chart-container:hover svg {
+  opacity: 1;
 }

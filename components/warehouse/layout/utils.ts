@@ -1,88 +1,139 @@
 // Warehouse Layout Utilities
 
-import type { WarehouseLocation, VisualElement } from './types';
-import {
-  mockSections,
-  mockAisles,
-  mockShelves,
-  mockBays,
-  mockRows,
-  mockBins,
-  mockInventoryItems,
-} from '@/lib/data/warehouse-mock';
+import type { WarehouseLocation, VisualElement, ProductAssignment } from './types';
+import type {
+  WarehouseLocation as ApiWarehouseLocation,
+  LocationLevel,
+  BulkWarehouseLocationInput,
+} from '../settings/api/warehouseLocationsApi';
+
+/** Map API level to local type */
+const API_LEVEL_TO_TYPE: Record<LocationLevel, WarehouseLocation['type']> = {
+  SECTION: 'section',
+  AISLE: 'aisle',
+  SHELF: 'shelf',
+  BAY: 'bay',
+  ROW: 'row',
+  BIN: 'bin',
+};
+
+/** Map local type to API level */
+const TYPE_TO_API_LEVEL: Record<WarehouseLocation['type'], LocationLevel> = {
+  section: 'SECTION',
+  aisle: 'AISLE',
+  shelf: 'SHELF',
+  bay: 'BAY',
+  row: 'ROW',
+  bin: 'BIN',
+};
 
 /**
- * Build the initial location tree from mock data
+ * Convert API location to local WarehouseLocation format
  */
-export function buildLocationTree(warehouseId: string): WarehouseLocation[] {
-  return mockSections
-    .filter((s) => s.warehouseId === warehouseId)
-    .map((section) => ({
-      id: section.id,
-      name: section.name,
-      type: 'section' as const,
-      description: section.description,
-      isActive: section.isActive,
-      products: [],
-      children: mockAisles
-        .filter((a) => a.sectionId === section.id)
-        .map((aisle) => ({
-          id: aisle.id,
-          name: aisle.name,
-          type: 'aisle' as const,
-          parentId: section.id,
-          isActive: aisle.isActive,
-          products: [],
-          children: mockShelves
-            .filter((s) => s.aisleId === aisle.id)
-            .map((shelf) => ({
-              id: shelf.id,
-              name: shelf.name,
-              type: 'shelf' as const,
-              parentId: aisle.id,
-              isActive: shelf.isActive,
-              products: [],
-              children: mockBays
-                .filter((b) => b.shelfId === shelf.id)
-                .map((bay) => ({
-                  id: bay.id,
-                  name: bay.code,
-                  type: 'bay' as const,
-                  parentId: shelf.id,
-                  isActive: bay.isActive,
-                  products: [],
-                  children: mockRows
-                    .filter((r) => r.bayId === bay.id)
-                    .map((row) => ({
-                      id: row.id,
-                      name: `Row ${row.rowNumber}`,
-                      type: 'row' as const,
-                      parentId: bay.id,
-                      isActive: row.isActive,
-                      products: [],
-                      children: mockBins
-                        .filter((b) => b.rowId === row.id)
-                        .map((bin) => ({
-                          id: bin.id,
-                          name: `Bin ${bin.letterCode}`,
-                          type: 'bin' as const,
-                          parentId: row.id,
-                          isActive: bin.isActive,
-                          products: mockInventoryItems
-                            .filter((i) => i.binId === bin.id)
-                            .map((i) => ({
-                              id: i.id,
-                              productId: i.inventoryId,
-                              productName: i.binLocation || 'Product',
-                              partNumber: i.barcode || '',
-                              quantity: i.quantity,
-                            })),
-                        })),
-                    })),
-                })),
-            })),
-        })),
-    }));
+function convertApiLocationToLocal(apiLocation: ApiWarehouseLocation): WarehouseLocation {
+  const products: ProductAssignment[] = (apiLocation.productAssignments || []).map((assignment) => ({
+    id: assignment.id,
+    productId: assignment.productId,
+    productName: assignment.product?.description || assignment.product?.factoryPartNumber || '',
+    partNumber: assignment.product?.factoryPartNumber || '',
+    quantity: assignment.quantity,
+  }));
+
+  return {
+    id: apiLocation.id,
+    name: apiLocation.name,
+    type: API_LEVEL_TO_TYPE[apiLocation.level],
+    parentId: apiLocation.parentId || undefined,
+    description: apiLocation.description || undefined,
+    isActive: apiLocation.isActive,
+    // Ensure numeric values are actual numbers (API may return strings from Decimal)
+    x: apiLocation.x != null ? Number(apiLocation.x) : undefined,
+    y: apiLocation.y != null ? Number(apiLocation.y) : undefined,
+    width: apiLocation.width != null ? Number(apiLocation.width) : undefined,
+    height: apiLocation.height != null ? Number(apiLocation.height) : undefined,
+    rotation: apiLocation.rotation != null ? Number(apiLocation.rotation) : undefined,
+    products,
+    children: (apiLocation.children || []).map(convertApiLocationToLocal),
+  };
+}
+
+/**
+ * Build location tree from API response (hierarchical data)
+ */
+export function buildLocationTreeFromApi(apiLocations: ApiWarehouseLocation[]): WarehouseLocation[] {
+  return apiLocations.map(convertApiLocationToLocal);
+}
+
+/**
+ * Helper to check if an ID is a valid UUID
+ */
+function isValidUUID(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+/**
+ * Flatten location tree to array with correct parent references
+ */
+function flattenLocations(
+  locations: WarehouseLocation[],
+  parentId: string | null = null
+): Array<{ location: WarehouseLocation; parentId: string | null }> {
+  const result: Array<{ location: WarehouseLocation; parentId: string | null }> = [];
+
+  for (const location of locations) {
+    result.push({ location, parentId });
+    if (location.children && location.children.length > 0) {
+      result.push(...flattenLocations(location.children, location.id));
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Convert local locations to API bulk input format
+ *
+ * Handles temp IDs for newly created hierarchical locations:
+ * - tempId: Sent for new locations so backend can track them
+ * - tempParentId: Sent when parent is also new (has temp ID)
+ */
+export function convertLocationsToApiInput(
+  locations: WarehouseLocation[]
+): BulkWarehouseLocationInput[] {
+  const flattened = flattenLocations(locations);
+  let sortOrder = 0;
+
+  return flattened.map(({ location, parentId }) => {
+    const isNewLocation = !isValidUUID(location.id);
+    const hasNewParent = parentId && !isValidUUID(parentId);
+
+    return {
+      id: isValidUUID(location.id) ? location.id : undefined,
+      parentId: parentId && isValidUUID(parentId) ? parentId : null,
+      // Include temp IDs for new locations so backend can resolve parent relationships
+      tempId: isNewLocation ? location.id : undefined,
+      tempParentId: hasNewParent ? parentId : undefined,
+      level: TYPE_TO_API_LEVEL[location.type],
+      name: location.name,
+      code: null,
+      description: location.description || null,
+      isActive: location.isActive,
+      sortOrder: sortOrder++,
+      // Ensure numeric values are actual numbers, not strings
+      x: location.x != null ? Number(location.x) : null,
+      y: location.y != null ? Number(location.y) : null,
+      width: location.width != null ? Number(location.width) : null,
+      height: location.height != null ? Number(location.height) : null,
+      rotation: location.rotation != null ? Number(location.rotation) : null,
+    };
+  });
+}
+
+/**
+ * Build an empty location tree (for new warehouses with no locations)
+ */
+export function buildEmptyLocationTree(): WarehouseLocation[] {
+  return [];
 }
 
 /**
@@ -114,19 +165,28 @@ export function buildVisualElements(locations: WarehouseLocation[]): VisualEleme
  * Build child visual elements recursively
  */
 function buildChildVisualElements(children: WarehouseLocation[], parentId: string): VisualElement[] {
-  return children.map((child, index) => ({
-    id: child.id,
-    locationId: child.id,
-    x: child.x ?? 10 + (index % 4) * 70,
-    y: child.y ?? 30 + Math.floor(index / 4) * 35,
-    width: child.width ?? 60,
-    height: child.height ?? 30,
-    rotation: child.rotation ?? 0,
-    type: child.type,
-    name: child.name,
-    parentId: parentId,
-    children: child.children ? buildChildVisualElements(child.children, child.id) : [],
-  }));
+  return children.map((child, index) => {
+    // Ensure numeric values (API may return strings from Decimal)
+    const x = child.x != null ? Number(child.x) : undefined;
+    const y = child.y != null ? Number(child.y) : undefined;
+    const width = child.width != null ? Number(child.width) : undefined;
+    const height = child.height != null ? Number(child.height) : undefined;
+    const rotation = child.rotation != null ? Number(child.rotation) : 0;
+
+    return {
+      id: child.id,
+      locationId: child.id,
+      x: x ?? 10 + (index % 4) * 70,
+      y: y ?? 30 + Math.floor(index / 4) * 35,
+      width: width ?? 60,
+      height: height ?? 30,
+      rotation,
+      type: child.type,
+      name: child.name,
+      parentId: parentId,
+      children: child.children ? buildChildVisualElements(child.children, child.id) : [],
+    };
+  });
 }
 
 /**

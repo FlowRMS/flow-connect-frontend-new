@@ -3,38 +3,45 @@
  * Main table component that assembles header, rows, bulk actions, etc.
  */
 
+import { useRef } from 'react';
 import type { CommissionCheck } from '@/lib/types/rms';
 import type { CheckStatus } from '@/components/lib/graphql/checks';
-import type { SortField, SortDirection, ColumnFilters } from '../../types';
-import { getGridTemplateColumns } from '../../config/columnConfig';
+import type { SortField, SortDirection } from '../../types';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { getCommissionFilterOptions } from '../../config/filterConfig';
 import { isCheckLinked, getCheckLinkedReason } from '../../utils';
 import { BulkActionsBar } from './BulkActionsBar';
 import { CommissionsTableHeader } from './CommissionsTableHeader';
 import { CommissionRow } from './CommissionRow';
 import { CommissionsEmptyState } from './CommissionsEmptyState';
+import { CommissionsTableSkeleton } from './CommissionsTableSkeleton';
+import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
 
 interface CommissionsTableProps {
   // Data
   filteredChecks: CommissionCheck[];
-  // Selection
+  // Loading state
+  isLoading?: boolean;
+  // Selection (legacy API)
   selectedCheckIds: Set<string>;
   toggleCheckSelection: (checkId: string) => void;
   selectAllChecks: (checks: CommissionCheck[]) => void;
   clearSelection: () => void;
-  areAllEligibleSelected: (checks: CommissionCheck[]) => boolean;
+  areAllEligibleSelected: ((checks: CommissionCheck[]) => boolean) | boolean;
+  // Selection (new API for proper select all)
+  isItemSelected?: (id: string) => boolean;
+  isAllSelected?: boolean;
+  isPartiallySelected?: boolean;
+  handleSelectAll?: (checked: boolean) => void;
+  handleSelectOne?: (id: string, checked: boolean) => void;
   // Sorting
   sortField: SortField;
   sortDirection: SortDirection;
   handleSort: (field: SortField) => void;
-  // Filters
-  columnFilters: ColumnFilters;
-  setColumnFilters: (
-    filters: ColumnFilters | ((prev: ColumnFilters) => ColumnFilters)
-  ) => void;
-  openFilter: string | null;
-  setOpenFilter: (filterId: string | null) => void;
-  uniqueStatuses: string[];
-  uniqueManufacturers: string[];
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  filterOptions?: ReturnType<typeof getCommissionFilterOptions>;
+  columnFilters?: Record<string, ActiveFilter[]>;
   // Bulk actions
   showBulkActionsMenu: boolean;
   setShowBulkActionsMenu: (show: boolean) => void;
@@ -43,37 +50,119 @@ interface CommissionsTableProps {
   isBulkUpdating?: boolean;
   // Selected check for preview
   setSelectedCheck: (check: CommissionCheck) => void;
+  // Pagination props for infinite scroll
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
 }
 
 export function CommissionsTable({
   filteredChecks,
+  isLoading = false,
   selectedCheckIds,
   toggleCheckSelection,
   selectAllChecks,
   clearSelection,
   areAllEligibleSelected,
+  isItemSelected,
+  isAllSelected,
+  isPartiallySelected,
+  handleSelectAll,
+  handleSelectOne,
   sortField,
   sortDirection,
   handleSort,
+  onColumnFiltersChange,
+  filterOptions = getCommissionFilterOptions(),
   columnFilters,
-  setColumnFilters,
-  openFilter,
-  setOpenFilter,
-  uniqueStatuses,
-  uniqueManufacturers,
   showBulkActionsMenu,
   setShowBulkActionsMenu,
   bulkSetStatus,
   bulkDelete,
   isBulkUpdating = false,
   setSelectedCheck,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
 }: CommissionsTableProps) {
-  const gridColumns = getGridTemplateColumns();
+  // Ref for the scrollable container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Use scroll pagination hook to detect when scrolling near bottom of table
+  useScrollPagination(scrollContainerRef, {
+    hasNextPage: hasNextPage ?? false,
+    isFetchingNextPage: isFetchingNextPage ?? false,
+    fetchNextPage: fetchNextPage ?? (() => {}),
+    threshold: 200, // Trigger when within 200px of bottom
+  });
+
+  // Compatibility layer: use new API if available, fall back to legacy
+  const checkIsSelected = (id: string) =>
+    isItemSelected ? isItemSelected(id) : selectedCheckIds.has(id);
+  const allSelected = isAllSelected !== undefined
+    ? isAllSelected
+    : (typeof areAllEligibleSelected === 'function' ? areAllEligibleSelected(filteredChecks) : areAllEligibleSelected);
+  const partiallySelected = isPartiallySelected !== undefined
+    ? isPartiallySelected
+    : (selectedCheckIds.size > 0 && !allSelected);
 
   return (
-    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-      {/* Bulk Actions Bar */}
-      {(selectedCheckIds.size > 0 || isBulkUpdating) && (
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
+      {filteredChecks.length === 0 && !isLoading ? (
+        <CommissionsEmptyState />
+      ) : (
+        <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+          <div 
+            ref={scrollContainerRef}
+            className="overflow-auto scrollbar-always-visible flex-1"
+          >
+            <table className="w-full min-w-[1200px]">
+              <CommissionsTableHeader
+                filteredChecks={filteredChecks}
+                areAllEligibleSelected={allSelected}
+                isPartiallySelected={partiallySelected}
+                onSelectAll={(checked) => {
+                  if (handleSelectAll) {
+                    handleSelectAll(checked);
+                  } else if (checked) {
+                    selectAllChecks(filteredChecks);
+                  } else {
+                    clearSelection();
+                  }
+                }}
+                onColumnFiltersChange={onColumnFiltersChange}
+                filterOptions={filterOptions}
+                columnFilters={columnFilters}
+              />
+              <tbody className="divide-y divide-gray-200">
+                {isLoading ? (
+                  <CommissionsTableSkeleton rowCount={8} />
+                ) : (
+                  filteredChecks.map((check) => (
+                    <CommissionRow
+                      key={check.id}
+                      check={check}
+                      isSelected={checkIsSelected(check.id)}
+                      isLinked={isCheckLinked(check)}
+                      linkedReason={getCheckLinkedReason(check)}
+                      onToggleSelection={() => {
+                        if (handleSelectOne) {
+                          handleSelectOne(check.id, !checkIsSelected(check.id));
+                        } else {
+                          toggleCheckSelection(check.id);
+                        }
+                      }}
+                      onPreview={() => setSelectedCheck(check)}
+                    />
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {/* Bulk Actions Bar - shown when items are selected */}
+      {selectedCheckIds.size > 0 && (
         <BulkActionsBar
           selectedCount={selectedCheckIds.size}
           showBulkActionsMenu={showBulkActionsMenu}
@@ -84,47 +173,6 @@ export function CommissionsTable({
           isLoading={isBulkUpdating}
         />
       )}
-
-      <div className="overflow-x-auto">
-        <div className="min-w-[1200px]">
-          {/* Table Header */}
-          <CommissionsTableHeader
-            filteredChecks={filteredChecks}
-            areAllEligibleSelected={areAllEligibleSelected(filteredChecks)}
-            onSelectAll={() => selectAllChecks(filteredChecks)}
-            sortField={sortField}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            columnFilters={columnFilters}
-            setColumnFilters={setColumnFilters}
-            openFilter={openFilter}
-            setOpenFilter={setOpenFilter}
-            uniqueStatuses={uniqueStatuses}
-            uniqueManufacturers={uniqueManufacturers}
-            gridColumns={gridColumns}
-          />
-
-          {/* Table Body */}
-          <div className="divide-y divide-[var(--border)]">
-            {filteredChecks.length === 0 ? (
-              <CommissionsEmptyState />
-            ) : (
-              filteredChecks.map((check) => (
-                <CommissionRow
-                  key={check.id}
-                  check={check}
-                  isSelected={selectedCheckIds.has(check.id)}
-                  isLinked={isCheckLinked(check)}
-                  linkedReason={getCheckLinkedReason(check)}
-                  onToggleSelection={() => toggleCheckSelection(check.id)}
-                  onPreview={() => setSelectedCheck(check)}
-                  gridColumns={gridColumns}
-                />
-              ))
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

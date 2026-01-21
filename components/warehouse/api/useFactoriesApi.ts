@@ -21,6 +21,8 @@ import {
   type FactoryLandingPageOrderBy,
 } from './factoriesApi';
 
+import { bulkDelete, type BulkDeleteResult } from '@/components/lib/graphql/bulk-operations';
+
 // ============================================================================
 // Query Keys
 // ============================================================================
@@ -36,7 +38,7 @@ export const factoriesQueryKeys = {
 // Factory Hooks
 // ============================================================================
 
-const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 200;
 
 /**
  * Fetch all factories using landing pages endpoint
@@ -187,6 +189,20 @@ export function useDeleteFactory() {
     mutationFn: deleteFactory,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: factoriesQueryKeys.list() });
+    },
+  });
+}
+
+/**
+ * Bulk delete factories
+ */
+export function useBulkDeleteFactories() {
+  const queryClient = useQueryClient();
+
+  return useMutation<BulkDeleteResult, Error, string[]>({
+    mutationFn: (entityIds) => bulkDelete(entityIds, 'FACTORIES'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: factoriesQueryKeys.all });
     },
   });
 }

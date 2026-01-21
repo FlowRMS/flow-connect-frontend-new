@@ -28,11 +28,11 @@ export default function GridView({ companies, onCompanyClick }: GridViewProps) {
               <div className="min-w-0 flex-1">
                 <h3 className="font-semibold text-sm md:text-base text-[var(--foreground)] truncate">{company.name}</h3>
                 <span className={`text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 rounded inline-block mt-0.5 ${
-                  company.companySourceType === 'MANUFACTURER'
+                  company.companyTypeName?.toLowerCase() === 'manufacturer'
                     ? 'bg-purple-100 text-purple-700'
                     : 'bg-green-100 text-green-700'
                 }`}>
-                  {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
+                  {company.companyTypeName || company.type?.[0] || 'Customer'}
                 </span>
               </div>
             </div>

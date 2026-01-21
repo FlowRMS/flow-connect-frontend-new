@@ -1,6 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
+import { useSidebarSettings } from './UserSettingsContext';
+import type { SidebarSettingsValue } from '@/components/lib/graphql/settings';
 
 export interface NavItemConfig {
   id: string;
@@ -74,10 +76,9 @@ const defaultConfig: SidebarConfig = {
       label: 'Quotes',
       collapsed: false,
       items: [
-        // { id: 'take-offs', name: 'Take-Offs', href: '/take-offs', enabled: true },
-        // { id: 'product-crosses', name: 'Product Crosses', href: '/product-crosses', enabled: true },
+        { id: 'take-offs', name: 'Take-Offs', href: '/take-offs', enabled: true },
+        { id: 'product-crosses', name: 'Product Crosses', href: '/product-crosses', enabled: true },
         { id: 'quotes', name: 'Quotes', href: '/quotes-v2', enabled: true },
-        // { id: 'quotes-v2', name: 'Quotes V2', href: '/quotes-v2', enabled: true },
       ]
     },
     {
@@ -87,7 +88,9 @@ const defaultConfig: SidebarConfig = {
       items: [
         { id: 'orders', name: 'Orders', href: '/orders', enabled: true },
         { id: 'invoices', name: 'Invoices', href: '/invoices', enabled: true },
-        { id: 'commissions', name: 'Commissions', href: '/commissions', enabled: true },
+        { id: 'statements', name: 'Statements', href: '/statements', enabled: true },
+        { id: 'commissions', name: 'Checks', href: '/commissions', enabled: true },
+        { id: 'credits', name: 'Credits', href: '/credits', enabled: true },
         { id: 'adjustments', name: 'Adjustments', href: '/adjustments', enabled: true },
         { id: 'acknowledgements', name: 'Acknowledgements', href: '/acknowledgements', enabled: true },
         // { id: 'buysell', name: 'Buy/Sell', href: '/buysell', enabled: true },
@@ -101,7 +104,7 @@ const defaultConfig: SidebarConfig = {
         // { id: 'warehouse-overview', name: 'Overview', href: '/warehouse', enabled: true },
         // { id: 'warehouse-fulfillment', name: 'Fulfillment', href: '/warehouse/fulfillment', enabled: true },
         // { id: 'warehouse-deliveries', name: 'Deliveries', href: '/warehouse/deliveries', enabled: true },
-        // { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
+        { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
         // { id: 'warehouse-cycle-counts', name: 'Cycle Counts', href: '/warehouse/cycle-counts', enabled: true },
         // { id: 'warehouse-reports', name: 'Reports', href: '/warehouse/reports', enabled: true },
         { id: 'warehouse-settings', name: 'Settings', href: '/warehouse/settings', enabled: true },
@@ -114,6 +117,7 @@ const defaultConfig: SidebarConfig = {
       items: [
         { id: 'analytics-order-dashboard', name: 'Order Dashboard', href: '/analytics/order-dashboard', enabled: true },
         { id: 'analytics-product-dashboard', name: 'Product Dashboard', href: '/analytics/product-dashboard', enabled: true },
+        { id: 'analytics-product-pricing', name: 'Product Pricing', href: '/analytics/product-pricing', enabled: true },
         { id: 'analytics-commission-gap', name: 'Commission Gap Reports', href: '/analytics/commission-gap-reports', enabled: true },
         { id: 'analytics-orders-report', name: 'Orders Detail', href: '/analytics/orders-report', enabled: true },
         { id: 'analytics-check-detail', name: 'Check Detail', href: '/analytics/check-detail', enabled: true },
@@ -154,118 +158,204 @@ const defaultConfig: SidebarConfig = {
         // { id: 'report-scheduler', name: 'Report Scheduler', href: '/report-scheduler', enabled: true },
       ]
     },
+    {
+      id: 'preview',
+      label: 'Preview',
+      collapsed: false,
+      items: [
+        { id: 'flow-agents', name: 'Flow Agents', href: '/preview/ai-agents', enabled: true },
+      ]
+    },
   ]
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 27; // Increment this to force a reset of cached sidebar config (added Pre-Opportunity and Job Pivot)
+const CONFIG_VERSION = 35; // Increment this to force a reset of cached sidebar config
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
+
+/**
+ * Merge stored config with default config to handle version updates
+ */
+function mergeConfigWithDefaults(stored: SidebarConfig): SidebarConfig {
+  const parsed = { ...stored, groups: [...stored.groups] };
+
+  // Merge: add any new groups from defaultConfig that don't exist in stored config
+  const storedGroupIds = new Set(parsed.groups.map(g => g.id));
+  const newGroups = defaultConfig.groups.filter(g => !storedGroupIds.has(g.id));
+  if (newGroups.length > 0) {
+    // Insert new groups before 'foundational' if it exists, otherwise before 'admin', otherwise at end
+    const foundationalIndex = parsed.groups.findIndex(g => g.id === 'foundational');
+    const adminIndex = parsed.groups.findIndex(g => g.id === 'admin');
+    const insertIndex = foundationalIndex >= 0 ? foundationalIndex : (adminIndex >= 0 ? adminIndex : parsed.groups.length);
+    parsed.groups.splice(insertIndex, 0, ...newGroups);
+  }
+
+  // Merge: add any new items within existing groups, update names/hrefs, and remove items not in defaults
+  parsed.groups = parsed.groups.map(group => {
+    const defaultGroup = defaultConfig.groups.find(g => g.id === group.id);
+    if (defaultGroup) {
+      const defaultItemIds = new Set(defaultGroup.items.map(i => i.id));
+      const newItems = defaultGroup.items.filter(i => !group.items.some(gi => gi.id === i.id));
+
+      // Filter out items that no longer exist in defaults, and update names/hrefs for existing ones
+      // Preserve user's enabled preference from stored config
+      const updatedItems = group.items
+        .filter(item => defaultItemIds.has(item.id))
+        .map(item => {
+          const defaultItem = defaultGroup.items.find(i => i.id === item.id);
+          if (defaultItem) {
+            // Keep user's enabled preference, only update name/href from defaults
+            return { ...item, name: defaultItem.name, href: defaultItem.href };
+          }
+          return item;
+        });
+
+      if (newItems.length > 0) {
+        return { ...group, items: [...updatedItems, ...newItems] };
+      }
+      return { ...group, items: updatedItems };
+    }
+    return group;
+  });
+
+  return parsed;
+}
 
 export function SidebarConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<SidebarConfig>(defaultConfig);
   const [isLoaded, setIsLoaded] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasInitializedFromApi = useRef(false); // Track if we've already loaded from API
 
-  // Load config from localStorage on mount, merging with defaults for new groups and items
-  useEffect(() => {
+  // User settings hook for API persistence
+  const { settings: apiSettings, saveSettings, isInitialized: apiInitialized } = useSidebarSettings();
+
+  // Save config to API with debounce
+  const saveToApi = useCallback(async (newConfig: SidebarConfig) => {
+    // Update localStorage cache immediately
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      const storedVersion = localStorage.getItem(STORAGE_KEY + '-version');
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newConfig));
+    } catch (e) {
+      console.error('Failed to save sidebar config to localStorage:', e);
+    }
 
-      // If version doesn't match, reset to defaults
-      if (storedVersion !== String(CONFIG_VERSION)) {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.setItem(STORAGE_KEY + '-version', String(CONFIG_VERSION));
+    // Debounce API save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        const sidebarSettings: SidebarSettingsValue = {
+          groups: newConfig.groups,
+        };
+        await saveSettings(sidebarSettings, 'my');
+      } catch (error) {
+        console.error('Failed to save sidebar config to API:', error);
+      }
+    }, 1000);
+  }, [saveSettings]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Load config from API or localStorage on mount (only once)
+  useEffect(() => {
+    // Skip if we've already initialized from API - prevents overwriting local changes
+    if (hasInitializedFromApi.current) {
+      return;
+    }
+
+    if (apiInitialized) {
+      // Check if API has settings
+      if (apiSettings && apiSettings.groups && apiSettings.groups.length > 0) {
+        // Use API settings, merged with defaults
+        const merged = mergeConfigWithDefaults({ groups: apiSettings.groups });
+        setConfig(merged);
+        // Update localStorage cache
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          localStorage.setItem(STORAGE_KEY + '-version', String(CONFIG_VERSION));
+        } catch (e) {
+          console.error('Failed to update localStorage cache:', e);
+        }
+        hasInitializedFromApi.current = true;
         setIsLoaded(true);
         return;
       }
-
-      if (stored) {
-        const parsed = JSON.parse(stored) as SidebarConfig;
-        
-        // Merge: add any new groups from defaultConfig that don't exist in stored config
-        const storedGroupIds = new Set(parsed.groups.map(g => g.id));
-        const newGroups = defaultConfig.groups.filter(g => !storedGroupIds.has(g.id));
-        if (newGroups.length > 0) {
-          // Insert new groups before 'foundational' if it exists, otherwise before 'admin', otherwise at end
-          const foundationalIndex = parsed.groups.findIndex(g => g.id === 'foundational');
-          const adminIndex = parsed.groups.findIndex(g => g.id === 'admin');
-          const insertIndex = foundationalIndex >= 0 ? foundationalIndex : (adminIndex >= 0 ? adminIndex : parsed.groups.length);
-          parsed.groups.splice(insertIndex, 0, ...newGroups);
-        }
-        
-        // Merge: add any new items within existing groups, update names/hrefs, and remove items not in defaults
-        parsed.groups = parsed.groups.map(group => {
-          const defaultGroup = defaultConfig.groups.find(g => g.id === group.id);
-          if (defaultGroup) {
-            const defaultItemIds = new Set(defaultGroup.items.map(i => i.id));
-            const newItems = defaultGroup.items.filter(i => !group.items.some(gi => gi.id === i.id));
-
-            // Filter out items that no longer exist in defaults, and update names/hrefs for existing ones
-            const updatedItems = group.items
-              .filter(item => defaultItemIds.has(item.id))
-              .map(item => {
-                const defaultItem = defaultGroup.items.find(i => i.id === item.id);
-                if (defaultItem) {
-                  return { ...item, name: defaultItem.name, href: defaultItem.href };
-                }
-                return item;
-              });
-
-            if (newItems.length > 0) {
-              return { ...group, items: [...updatedItems, ...newItems] };
-            }
-            return { ...group, items: updatedItems };
-          }
-          return group;
-        });
-        
-        setConfig(parsed);
-      }
-    } catch (e) {
-      console.error('Failed to load sidebar config:', e);
+      // API is initialized but has no settings - mark as initialized to prevent future overwrites
+      hasInitializedFromApi.current = true;
     }
-    setIsLoaded(true);
-  }, []);
 
-  // Save config to localStorage whenever it changes
-  useEffect(() => {
-    if (isLoaded) {
+    // Fallback to localStorage while API loads or if API has no settings
+    if (!isLoaded) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+        const stored = localStorage.getItem(STORAGE_KEY);
+        const storedVersion = localStorage.getItem(STORAGE_KEY + '-version');
+
+        // If version doesn't match, reset to defaults
+        if (storedVersion !== String(CONFIG_VERSION)) {
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.setItem(STORAGE_KEY + '-version', String(CONFIG_VERSION));
+          setIsLoaded(true);
+          return;
+        }
+
+        if (stored) {
+          const parsed = JSON.parse(stored) as SidebarConfig;
+          const merged = mergeConfigWithDefaults(parsed);
+          setConfig(merged);
+        }
       } catch (e) {
-        console.error('Failed to save sidebar config:', e);
+        console.error('Failed to load sidebar config:', e);
       }
+      setIsLoaded(true);
     }
-  }, [config, isLoaded]);
+  }, [apiInitialized, apiSettings, isLoaded]);
 
   const updateConfig = (newConfig: SidebarConfig) => {
     setConfig(newConfig);
+    saveToApi(newConfig);
   };
 
   const toggleGroup = (groupId: string) => {
-    setConfig(prev => ({
-      ...prev,
-      groups: prev.groups.map(group =>
-        group.id === groupId ? { ...group, collapsed: !group.collapsed } : group
-      )
-    }));
+    setConfig(prev => {
+      const newConfig = {
+        ...prev,
+        groups: prev.groups.map(group =>
+          group.id === groupId ? { ...group, collapsed: !group.collapsed } : group
+        )
+      };
+      saveToApi(newConfig);
+      return newConfig;
+    });
   };
 
   const toggleItem = (groupId: string, itemId: string) => {
-    setConfig(prev => ({
-      ...prev,
-      groups: prev.groups.map(group =>
-        group.id === groupId
-          ? {
-              ...group,
-              items: group.items.map(item =>
-                item.id === itemId ? { ...item, enabled: !item.enabled } : item
-              )
-            }
-          : group
-      )
-    }));
+    setConfig(prev => {
+      const newConfig = {
+        ...prev,
+        groups: prev.groups.map(group =>
+          group.id === groupId
+            ? {
+                ...group,
+                items: group.items.map(item =>
+                  item.id === itemId ? { ...item, enabled: !item.enabled } : item
+                )
+              }
+            : group
+        )
+      };
+      saveToApi(newConfig);
+      return newConfig;
+    });
   };
 
   const moveGroup = (fromIndex: number, toIndex: number) => {
@@ -273,7 +363,9 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
       const newGroups = [...prev.groups];
       const [removed] = newGroups.splice(fromIndex, 1);
       newGroups.splice(toIndex, 0, removed);
-      return { ...prev, groups: newGroups };
+      const newConfig = { ...prev, groups: newGroups };
+      saveToApi(newConfig);
+      return newConfig;
     });
   };
 
@@ -288,12 +380,15 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
       const [removed] = fromGroup.items.splice(fromIndex, 1);
       toGroup.items.splice(toIndex, 0, removed);
 
-      return { ...prev, groups: newGroups };
+      const newConfig = { ...prev, groups: newGroups };
+      saveToApi(newConfig);
+      return newConfig;
     });
   };
 
   const resetToDefault = () => {
     setConfig(defaultConfig);
+    saveToApi(defaultConfig);
   };
 
   return (

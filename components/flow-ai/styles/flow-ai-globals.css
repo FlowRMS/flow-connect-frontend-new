@@ -665,6 +665,31 @@
 }
 
 /* ============================================
+   Radix ScrollArea - Always visible scrollbar
+   ============================================ */
+
+/* Force Radix scrollbar to always be visible when showScrollbar is used */
+.flow-ai-scope [data-radix-scroll-area-scrollbar][data-state] {
+  transition: opacity 0.2s ease;
+}
+
+/* Make the scrollbar track visible */
+.flow-ai-scope [data-radix-scroll-area-scrollbar] {
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 4px;
+}
+
+/* Style the thumb */
+.flow-ai-scope [data-radix-scroll-area-thumb] {
+  background: hsl(var(--muted-foreground) / 0.4) !important;
+  border-radius: 4px;
+}
+
+.flow-ai-scope [data-radix-scroll-area-thumb]:hover {
+  background: hsl(var(--muted-foreground) / 0.6) !important;
+}
+
+/* ============================================
    Selection highlight
    ============================================ */
 

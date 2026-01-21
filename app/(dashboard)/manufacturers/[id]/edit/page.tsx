@@ -14,8 +14,18 @@ import {
   entriesToFactorySplitRateInputsWithId,
 } from '@/components/warehouse/components/FactorySplitRatesInput';
 import { ConnectedEntitiesSection } from '@/components/shared/ConnectedEntitiesSection';
+import { GoogleMapsAddressModal } from '@/components/shared/google-maps-address/GoogleMapsAddressModal';
+import {
+  useAddressesBySource,
+  useCreateAddress,
+  useUpdateAddress,
+  useDeleteAddress,
+  type Address,
+} from '@/components/hooks/useAddressApi';
+import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
-type TabId = 'overview' | 'split-rates' | 'connected-entities' | 'customer-xref' | 'shipto-xref' | 'freight';
+type TabId = 'overview' | 'addresses' | 'split-rates' | 'connected-entities' | 'customer-xref' | 'shipto-xref' | 'freight';
 
 export default function ManufacturerEditPage() {
   const params = useParams();
@@ -35,6 +45,7 @@ export default function ManufacturerEditPage() {
   // Section refs for scroll-to functionality
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
+    'addresses': null,
     'split-rates': null,
     'connected-entities': null,
     'customer-xref': null,
@@ -42,6 +53,17 @@ export default function ManufacturerEditPage() {
     'freight': null,
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Flag to disable scroll spy during programmatic scrolling
+  const isScrollingRef = useRef(false);
+
+  // Address state and hooks
+  const [showAddAddressModal, setShowAddAddressModal] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  const { data: addresses = [], isLoading: addressesLoading } = useAddressesBySource(factoryId, 'FACTORY');
+  const createAddressMutation = useCreateAddress();
+  const updateAddressMutation = useUpdateAddress();
+  const deleteAddressMutation = useDeleteAddress();
 
   // Calculate split rate total for validation
   const splitRateTotal = useMemo(() =>
@@ -88,17 +110,21 @@ export default function ManufacturerEditPage() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'split-rates', 'connected-entities', 'customer-xref', 'shipto-xref', 'freight'];
+    const tabIds: TabId[] = ['overview', 'addresses', 'split-rates', 'connected-entities', 'customer-xref', 'shipto-xref', 'freight'];
 
     const handleScroll = () => {
-      const scrollTop = container.scrollTop;
+      // Skip scroll spy updates during programmatic scrolling
+      if (isScrollingRef.current) return;
+
+      const containerRect = container.getBoundingClientRect();
       let currentSection: TabId = 'overview';
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
         if (section) {
-          const sectionTop = section.offsetTop;
-          if (scrollTop >= sectionTop - 100) {
+          const sectionRect = section.getBoundingClientRect();
+          // Check if section top is at or above the container top + offset
+          if (sectionRect.top <= containerRect.top + 100) {
             currentSection = tabId;
           }
         }
@@ -107,19 +133,33 @@ export default function ManufacturerEditPage() {
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [isLoading]);
+  }, []);
 
   const scrollToSection = useCallback((tabId: TabId) => {
     const section = sectionRefs.current[tabId];
     const container = scrollContainerRef.current;
     if (section && container) {
+      // Disable scroll spy during programmatic scroll
+      isScrollingRef.current = true;
+      setActiveTab(tabId);
+
+      // Calculate the section's position relative to the scroll container
+      const containerRect = container.getBoundingClientRect();
+      const sectionRect = section.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
       const headerOffset = 20;
-      const sectionTop = section.offsetTop - headerOffset;
+
+      // Calculate the target scroll position
+      const sectionTop = sectionRect.top - containerRect.top + scrollTop - headerOffset;
+
       container.scrollTo({ top: sectionTop, behavior: 'smooth' });
+
+      // Re-enable scroll spy after scroll animation completes
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 500);
     }
-    setActiveTab(tabId);
   }, []);
 
   const handleFieldChange = (field: keyof Factory, value: unknown) => {
@@ -132,15 +172,15 @@ export default function ManufacturerEditPage() {
     setHasChanges(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!formData.title?.trim()) {
       toast.error('Manufacturer name is required');
-      return;
+      return false;
     }
 
     if (!isValidSplitRate) {
       toast.error('Total split rate must equal exactly 100%');
-      return;
+      return false;
     }
 
     const splitRatesInput = entriesToFactorySplitRateInputsWithId(splitRateEntries);
@@ -167,20 +207,104 @@ export default function ManufacturerEditPage() {
       });
       toast.success('Manufacturer updated successfully');
       setHasChanges(false);
+      return true;
     } catch (err) {
       toast.error('Failed to update manufacturer');
       console.error('Update error:', err);
+      return false;
     }
+  };
+
+  // Unsaved changes guard - tracks manufacturer editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Manufacturer',
+    entityId: factoryId,
+    entityName: factory?.title || null,
+    hasChanges,
+    onSave: handleSave,
+  });
+
+  // Get unsaved changes context for back button navigation check
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/manufacturers', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/manufacturers');
   };
 
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview' },
+    { id: 'addresses' as TabId, label: 'Addresses', count: addresses.length || null },
     { id: 'split-rates' as TabId, label: 'Split Rates', count: splitRateEntries.length || null },
     { id: 'connected-entities' as TabId, label: 'Connected Entities' },
     { id: 'customer-xref' as TabId, label: 'Customer X-Ref' },
     { id: 'shipto-xref' as TabId, label: 'Ship-To X-Ref' },
     { id: 'freight' as TabId, label: 'Freight Categories' },
   ];
+
+  // Address handlers
+  const handleSaveAddress = async (addressData: Omit<Address, 'id' | 'createdAt'>) => {
+    try {
+      // Strip out latitude/longitude as they're not part of the GraphQL AddressInput schema
+      const { latitude, longitude, formattedAddress, ...apiAddressData } = addressData as Omit<Address, 'id' | 'createdAt'> & { latitude?: number; longitude?: number; formattedAddress?: string };
+
+      if (editingAddress) {
+        // Update existing address
+        await updateAddressMutation.mutateAsync({
+          id: editingAddress.id,
+          input: {
+            ...apiAddressData,
+            sourceId: factoryId,
+            sourceType: 'FACTORY',
+          },
+        });
+        toast.success('Address updated successfully');
+      } else {
+        // Create new address
+        await createAddressMutation.mutateAsync({
+          ...apiAddressData,
+          sourceId: factoryId,
+          sourceType: 'FACTORY',
+        });
+        toast.success('Address added successfully');
+      }
+      setShowAddAddressModal(false);
+      setEditingAddress(null);
+    } catch (err) {
+      toast.error(editingAddress ? 'Failed to update address' : 'Failed to add address');
+      console.error('Save address error:', err);
+    }
+  };
+
+  const handleEditAddress = (address: Address) => {
+    setEditingAddress(address);
+    setShowAddAddressModal(true);
+  };
+
+  const handleCloseAddressModal = () => {
+    setShowAddAddressModal(false);
+    setEditingAddress(null);
+  };
+
+  const handleDeleteAddress = async (addressId: string) => {
+    try {
+      await deleteAddressMutation.mutateAsync({
+        id: addressId,
+        sourceId: factoryId,
+        sourceType: 'FACTORY',
+      });
+      toast.success('Address deleted successfully');
+    } catch (err) {
+      toast.error('Failed to delete address');
+      console.error('Delete address error:', err);
+    }
+  };
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1.5";
@@ -225,7 +349,7 @@ export default function ManufacturerEditPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/manufacturers')}
+              onClick={handleBack}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -518,42 +642,119 @@ export default function ManufacturerEditPage() {
           </div>
         </div>
 
-        {/* ============ SPLIT RATES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['split-rates'] = el; }} id="section-split-rates">
+        {/* ============ ADDRESSES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['addresses'] = el; }} id="section-addresses">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Commission Split Rates</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Addresses</h2>
+            <button
+              onClick={() => setShowAddAddressModal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+              </svg>
+              Add Address
+            </button>
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <p className="text-sm text-gray-500 mb-6">
-              Configure how commissions are split between team members for this manufacturer.
-              The total must equal 100%.
-            </p>
+            {addressesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <span className="text-gray-600">Loading addresses...</span>
+                </div>
+              </div>
+            ) : addresses.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {addresses.map((address) => (
+                  <div
+                    key={address.id}
+                    className="relative bg-gray-50 rounded-xl p-5 border border-gray-200"
+                  >
+                    {/* Address Type Badge */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        address.addressType === 'BILLING' ? 'bg-purple-100 text-purple-700' :
+                        address.addressType === 'SHIPPING' ? 'bg-blue-100 text-blue-700' :
+                        address.addressType === 'MAILING' ? 'bg-green-100 text-green-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {address.addressType}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {address.isPrimary && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                            Primary
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleEditAddress(address)}
+                          className="p-1 text-gray-400 hover:text-blue-500 transition-colors"
+                          title="Edit address"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAddress(address.id)}
+                          disabled={deleteAddressMutation.isPending}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                          title="Delete address"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
 
+                    {/* Address Details */}
+                    <div className="space-y-1 text-sm text-gray-700">
+                      <p className="font-medium">{address.line1}</p>
+                      {address.line2 && <p>{address.line2}</p>}
+                      <p>
+                        {address.city}, {address.state} {address.zipCode}
+                      </p>
+                      <p className="text-gray-500">{address.country}</p>
+                    </div>
+
+                    {/* Notes */}
+                    {address.notes && (
+                      <p className="mt-3 text-xs text-gray-500 italic border-t border-gray-200 pt-2">
+                        {address.notes}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <p className="text-gray-500 mb-3">No addresses added yet</p>
+                <button
+                  onClick={() => setShowAddAddressModal(true)}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  + Add your first address
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ============ SPLIT RATES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['split-rates'] = el; }} id="section-split-rates">
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
             <FactorySplitRatesInput
               entries={splitRateEntries}
               onChange={handleSplitRateChange}
               disabled={updateFactory.isPending}
             />
-
-            {/* Split Rate Summary */}
-            {splitRateEntries.length > 0 && (
-              <div className={`mt-6 p-4 rounded-lg ${isValidSplitRate ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`text-sm font-medium ${isValidSplitRate ? 'text-green-700' : 'text-red-700'}`}>
-                    Total Split Rate
-                  </span>
-                  <span className={`text-lg font-semibold ${isValidSplitRate ? 'text-green-700' : 'text-red-700'}`}>
-                    {splitRateTotal.toFixed(1)}%
-                  </span>
-                </div>
-                {!isValidSplitRate && (
-                  <p className="text-xs text-red-600 mt-1">
-                    Split rates must total exactly 100%. Currently {splitRateTotal > 100 ? 'over' : 'under'} by {Math.abs(100 - splitRateTotal).toFixed(1)}%
-                  </p>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -624,6 +825,17 @@ export default function ManufacturerEditPage() {
         </div>
 
       </div>
+
+      {/* Address Modal */}
+      <GoogleMapsAddressModal
+        isOpen={showAddAddressModal}
+        onClose={handleCloseAddressModal}
+        onSave={handleSaveAddress}
+        sourceId={factoryId}
+        sourceType="FACTORY"
+        mode={editingAddress ? 'edit' : 'create'}
+        initialAddress={editingAddress || undefined}
+      />
     </main>
   );
 }

@@ -16,7 +16,8 @@ export type TabType =
   | 'tasks'
   | 'activity'
   | 'linked-objects'
-  | 'settings';
+  | 'settings'
+  | 'invoices';
 
 // Column configuration for line items table
 export type ColumnKey =
@@ -129,4 +130,7 @@ export interface TabConfig {
   id: TabType;
   label: string;
   count?: number;
+  disabled?: boolean;
+  disabledReason?: string;
+  comingSoon?: boolean;
 }

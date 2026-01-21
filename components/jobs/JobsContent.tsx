@@ -5,10 +5,16 @@
 
 'use client';
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '../ui/HeaderIconAnimations';
+import { iconMap } from '../Sidebar';
+import type { RefObject } from 'react';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import type { DragEndEvent, DragStartEvent, DragOverEvent } from '@dnd-kit/core';
-import AdvancedFilters, { ActiveFilter, ActiveSort } from '../AdvancedFilters';
+import AdvancedFilters, { ActiveFilter, ActiveSort } from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import CreateJobModal from '../CreateJobModal';
 import { useCRMJobLandingPagesInfinite, useCRMJobStatuses, useUpdateCRMJob, useCRMJob, useDeleteCRMJob } from '../hooks/useCRMApi';
@@ -18,20 +24,38 @@ import { parseApiError } from '../lib/error-utils';
 import { useJobsState } from './hooks/useJobsState';
 import { getJobFilterOptions, getJobSortOptions } from './config/filterConfig';
 import { JobDetailView } from './detail/JobDetailView';
-import { CompanyDetailView } from './detail/CompanyDetailView';
 import { KanbanView } from './views/KanbanView';
 import { ListView } from './views/ListView';
-import { getCompanyDetails } from './mockData';
 import type { Job } from './types';
 import { mapAPIJobToUIJob } from './types';
 import type { JobLandingPage, LandingPageFilter, LandingPageOrderBy, RelatedEntityCompany, RelatedEntityContact } from '../lib/crm-graphql';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { useUnsavedChangesGuard } from '../shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 export default function JobsContent() {
   // Router for navigation
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+  const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+
+  // Navigation morph hooks - must be called before any early returns
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  // Register header target on mount
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'jobs';
+
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
 
@@ -114,7 +138,6 @@ export default function JobsContent() {
     selectedJob, setSelectedJob,
     isEditing, setIsEditing,
     editFormData, setEditFormData,
-    selectedCompany, setSelectedCompany,
     activeId, setActiveId,
     overId, setOverId,
     showCreateJobModal, setShowCreateJobModal,
@@ -137,6 +160,9 @@ export default function JobsContent() {
 
   // Get job ID from URL - this is the source of truth for navigation
   const jobIdFromUrl = searchParams.get('id');
+
+  // Ref for save handler (needed because handleSaveEdit is defined later)
+  const saveHandlerRef = useRef<(() => Promise<boolean>) | null>(null);
 
   // Track intentional clear to prevent re-selecting after back navigation
   const isIntentionalClearRef = React.useRef(false);
@@ -174,10 +200,17 @@ export default function JobsContent() {
 
   // Handle back navigation - clear selection and update URL
   const handleBack = React.useCallback(() => {
+    // Check for unsaved changes before allowing navigation
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/jobs', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
     isIntentionalClearRef.current = true;
     setSelectedJob(null);
     router.replace('/jobs', { scroll: false });
-  }, [setSelectedJob, router]);
+  }, [setSelectedJob, router, hasUnsavedChanges, requestNavigation]);
 
   // Update URL when a job is selected (not when cleared - that's handled by handleBack)
   useEffect(() => {
@@ -189,6 +222,26 @@ export default function JobsContent() {
       }
     }
   }, [selectedJob?.id, isMounted, router, searchParams]);
+
+  // Clear editing state when job is deselected (e.g., after discarding changes and navigating back)
+  useEffect(() => {
+    if (!selectedJob) {
+      setIsEditing(false);
+      setEditFormData({});
+    }
+  }, [selectedJob, setIsEditing, setEditFormData]);
+
+  // Set full entity context for global chatbot (type, id, and job name)
+  useEffect(() => {
+    if (detailedJob?.name && detailedJob?.id) {
+      setFullEntityContext('job', detailedJob.id, detailedJob.name);
+    } else {
+      setFullEntityContext(null, null, null);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [detailedJob?.name, detailedJob?.id, setFullEntityContext]);
 
   // Filter and sort configuration
   const jobFilterOptions = getJobFilterOptions(uniqueJobNames, uniqueStatuses, uniqueTypes, uniqueCreators);
@@ -493,22 +546,90 @@ export default function JobsContent() {
   const handleDeleteJob = async () => {
     const currentJob = detailedJob || selectedJob;
     if (!currentJob) return;
-    
+
     try {
       await deleteJobMutation.mutateAsync(currentJob.id);
       jobToasts.deleteSuccess(currentJob.name);
-      
+
       // Navigate back to jobs list after deletion
       isIntentionalClearRef.current = true;
       setSelectedJob(null);
       router.replace('/jobs', { scroll: false });
-      
+
       refetchJobs();
     } catch (err) {
       console.error('Failed to delete job:', err);
       jobToasts.deleteError(parseApiError(err));
     }
   };
+
+  // Create a save handler for the unsaved changes guard
+  const handleSaveForGuard = useCallback(async (): Promise<boolean> => {
+    // Use detailedJob if available, otherwise fallback to selectedJob
+    const currentJob = detailedJob || selectedJob;
+    if (!currentJob) return false;
+
+    // Validate end date is not before start date
+    const startDate = editFormData.startDate && editFormData.startDate !== '-' ? editFormData.startDate : null;
+    const endDate = editFormData.endDate && editFormData.endDate !== '-' ? editFormData.endDate : null;
+
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (end < start) {
+        jobToasts.updateError('End date cannot be before start date');
+        return false;
+      }
+    }
+
+    try {
+      const currentStatus = apiStatuses?.find(s => s.name === currentJob.status);
+      if (!currentStatus) {
+        throw new Error('Unable to find status ID for the current job status');
+      }
+
+      const tagsString = editFormData.tags && Array.isArray(editFormData.tags)
+        ? editFormData.tags.join(',')
+        : undefined;
+
+      await updateJobMutation.mutateAsync({
+        id: currentJob.id,
+        input: {
+          jobName: editFormData.name,
+          statusId: currentStatus.id,
+          jobType: editFormData.type,
+          startDate: editFormData.startDate !== '-' ? editFormData.startDate : undefined,
+          endDate: editFormData.endDate !== '-' ? editFormData.endDate : undefined,
+          description: editFormData.description,
+          additionalInformation: editFormData.additionalInformation,
+          structuralInformation: editFormData.structuralInformation,
+          structuralDetails: editFormData.structuralDetails,
+          tags: tagsString,
+        },
+      });
+
+      jobToasts.updateSuccess(editFormData.name || currentJob.name);
+      setIsEditing(false);
+      refetchJobs();
+      return true;
+    } catch (err) {
+      console.error('Failed to update job:', err);
+      jobToasts.updateError(err instanceof Error ? err.message : undefined);
+      return false;
+    }
+  }, [detailedJob, selectedJob, editFormData, apiStatuses, updateJobMutation, setIsEditing, refetchJobs]);
+
+  // Store save handler in ref for access by guard
+  saveHandlerRef.current = handleSaveForGuard;
+
+  // Unsaved changes guard - tracks when editing a job
+  useUnsavedChangesGuard({
+    entityType: 'Job',
+    entityId: selectedJob?.id || null,
+    entityName: selectedJob?.name || null,
+    hasChanges: isEditing && Object.keys(editFormData).length > 0,
+    onSave: handleSaveForGuard,
+  });
 
   // Show loading state until client is mounted (prevents hydration mismatch)
   if (!isMounted || jobsLoading || statusesLoading) {
@@ -559,19 +680,6 @@ export default function JobsContent() {
           </div>
         </div>
       </main>
-    );
-  }
-
-  // Company detail view
-  if (selectedCompany) {
-    const companyDetails = getCompanyDetails(selectedCompany.id);
-    if (!companyDetails) return null;
-    
-    return (
-      <CompanyDetailView
-        company={companyDetails}
-        onBack={() => setSelectedCompany(null)}
-      />
     );
   }
 
@@ -626,7 +734,7 @@ export default function JobsContent() {
         onDelete={handleDeleteJob}
         onRepTypeChange={setRepType}
         onToggleRepTypeModal={setShowRepTypeModal}
-        onCompanyClick={(company: RelatedEntityCompany) => setSelectedCompany(company)}
+        onCompanyClick={(company: RelatedEntityCompany) => router.push(`/companies?id=${company.id}`)}
         onContactClick={(contact: RelatedEntityContact) => router.push(`/contacts?id=${contact.id}`)}
       />
     );
@@ -634,24 +742,55 @@ export default function JobsContent() {
 
   // Main jobs list view
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)]">
       {/* Header */}
-      <div className="mb-4 sm:mb-6">
+      <div className="p-3 sm:p-6 pb-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Jobs</h1>
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Gear Spin Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="gear-spin"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['jobs']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Jobs
+              </motion.h1>
+              <motion.p
+                className="text-xs sm:text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                {jobsLoading ? 'Loading...' : `${jobs.length} jobs • Track projects and opportunities`}
+              </motion.p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             <button
-              onClick={() => setShowDedupeModal(true)}
-              className="hidden sm:flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-medium bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors shadow-sm"
+              disabled
+              className="hidden sm:flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-medium bg-gray-400 text-white rounded-full cursor-not-allowed opacity-60 shadow-sm"
+              title="Coming Soon"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="sm:w-[18px] sm:h-[18px]">
                 <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               <span className="hidden md:inline">Find Duplicates</span>
               <span className="md:hidden">Dedupe</span>
-              ({duplicateGroups.length})
+              <span className="text-[10px] sm:text-xs ml-1">(Coming Soon)</span>
             </button>
 
             {/* View Mode Toggle */}
@@ -707,7 +846,7 @@ export default function JobsContent() {
               <span className="hidden sm:inline">Add Job</span>
               <span className="sm:hidden">Add</span>
             </button>
-          </div>
+          </motion.div>
         </div>
       </div>
 

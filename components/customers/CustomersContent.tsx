@@ -5,9 +5,14 @@
 
 'use client';
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import AdvancedFilters from '../AdvancedFilters';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
+import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import { useCustomersState } from './hooks/useCustomersState';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
@@ -15,9 +20,26 @@ import { getCustomerFilterOptions, getCustomerSortOptions } from './config/filte
 import { ListView } from './views/ListView';
 import { GridView } from './views/GridView';
 import { DeleteCustomerModal } from './modals/DeleteCustomerModal';
+import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
 
 export default function CustomersContent() {
   const router = useRouter();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'customers';
+
   const {
     viewMode,
     setViewMode,
@@ -26,6 +48,7 @@ export default function CustomersContent() {
     selectedType,
     setSelectedType,
     filteredCustomers,
+    totalCount,
     deleteConfirmId,
     setDeleteConfirmId,
     isLoading,
@@ -35,12 +58,29 @@ export default function CustomersContent() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isSearching,
     uniqueCompanyNames,
     activeFilters,
     handleFiltersChange,
     clientSortColumns,
     handleMultiSortChange,
     handleCustomerDeleted,
+    // Bulk selection (from shared hook)
+    selectedIds,
+    excludedIds,
+    selectAllMode,
+    selectedCount,
+    isAllSelected,
+    isPartiallySelected,
+    isItemSelected,
+    handleSelectAll,
+    handleSelectOne,
+    clearSelection,
+    getAllSelectedIds,
+    // Bulk delete modal
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleBulkDeleteSuccess,
   } = useCustomersState();
 
   // Navigate to customer edit page
@@ -72,11 +112,40 @@ export default function CustomersContent() {
       {/* Header */}
       <div className="mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Customers</h1>
-            <p className="text-sm text-[var(--muted-foreground)]">Manage your customer accounts</p>
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Crown Shine Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="crown-shine"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['customers']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Customers
+              </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                Manage your customer accounts
+              </motion.p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               <button
@@ -147,24 +216,42 @@ export default function CustomersContent() {
               <span className="hidden sm:inline">New Customer</span>
               <span className="sm:hidden">New</span>
             </button>
-          </div>
+          </motion.div>
         </div>
 
         {/* Search Bar */}
         <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
-          </svg>
+          {isSearching ? (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--primary)] animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          ) : (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
+            </svg>
+          )}
           <input
             type="text"
-            placeholder="Search customers..."
+            placeholder="Search customers by name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
           />
         </div>
       </div>
+
+      {/* Bulk Actions Toolbar */}
+      <BulkActionsToolbar
+        entityType="CUSTOMERS"
+        selectedCount={selectedCount}
+        totalCount={totalCount}
+        loadedCount={filteredCustomers.length}
+        selectAllMode={selectAllMode}
+        onClearSelection={clearSelection}
+        onDelete={() => setShowBulkDeleteModal(true)}
+      />
 
       {/* Loading State */}
       {(!isMounted || isLoading) && (
@@ -203,6 +290,11 @@ export default function CustomersContent() {
           onCustomerClick={handleCustomerClick}
           onEditClick={handleEditCustomer}
           onDeleteClick={(customer) => setDeleteConfirmId(customer.id)}
+          selectedIds={selectedIds}
+          excludedIds={excludedIds}
+          selectAllMode={selectAllMode}
+          isItemSelected={isItemSelected}
+          onSelectOne={handleSelectOne}
         />
       )}
 
@@ -212,6 +304,14 @@ export default function CustomersContent() {
           onCustomerClick={handleCustomerClick}
           onEditClick={handleEditCustomer}
           onDeleteClick={(customer) => setDeleteConfirmId(customer.id)}
+          selectedIds={selectedIds}
+          excludedIds={excludedIds}
+          selectAllMode={selectAllMode}
+          isItemSelected={isItemSelected}
+          onSelectAll={handleSelectAll}
+          onSelectOne={handleSelectOne}
+          isAllSelected={isAllSelected}
+          isPartiallySelected={isPartiallySelected}
         />
       )}
 
@@ -242,6 +342,17 @@ export default function CustomersContent() {
           onSuccess={handleCustomerDeleted}
         />
       )}
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="CUSTOMERS"
+        selectedCount={selectedCount}
+        getAllSelectedIds={getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['customers']]}
+      />
     </main>
   );
 }

@@ -7,6 +7,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { LineItem, CheckStatus } from '../../types';
 import { fetchInvoiceById, type Invoice } from '@/components/lib/graphql/invoices';
 import { fetchOrderById, type Order } from '@/components/lib/graphql/orders';
@@ -28,6 +29,7 @@ export function LineItemDetailModal({
   onDelete,
   onUpdateAmount,
 }: LineItemDetailModalProps) {
+  const router = useRouter();
   const [amount, setAmount] = React.useState(Math.abs(item.paidCommission));
 
   // Invoice-specific state
@@ -222,19 +224,20 @@ export function LineItemDetailModal({
                       </p>
                     </div>
 
-                    {item.url && (
+                    {item.invoiceId && (
                       <div>
                         <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                          URL
+                          Actions
                         </label>
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-[var(--primary)] hover:underline"
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/invoices/${item.invoiceId}`);
+                          }}
+                          className="px-3 py-1.5 text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg transition-colors"
                         >
-                          View in ERP
-                        </a>
+                          Go to Invoice
+                        </button>
                       </div>
                     )}
                   </div>
@@ -340,7 +343,7 @@ export function LineItemDetailModal({
                         </span>
                       </label>
                       <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                        ${item.expectedCommission.toFixed(2)}
+                        ${Number(item.expectedCommission).toFixed(2)}
                       </p>
                     </div>
 
@@ -350,7 +353,7 @@ export function LineItemDetailModal({
                       </label>
                       {status === 'posted' ? (
                         <p className="text-lg font-semibold text-[var(--foreground)]">
-                          ${item.paidCommission.toFixed(2)}
+                          ${Number(item.paidCommission).toFixed(2)}
                         </p>
                       ) : (
                         <input
@@ -374,7 +377,7 @@ export function LineItemDetailModal({
                         </span>
                       </label>
                       <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                        ${item.balance.toFixed(2)}
+                        ${Number(item.balance).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -533,7 +536,7 @@ export function LineItemDetailModal({
                         Original Amount
                       </label>
                       <p className="text-sm text-[var(--foreground)] font-medium">
-                        ${item.amount.toFixed(2)}
+                        ${Number(item.amount).toFixed(2)}
                       </p>
                     </div>
                   )}
@@ -615,21 +618,6 @@ export function LineItemDetailModal({
                 </p>
               </div>
 
-              {item.url && (
-                <div>
-                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                    URL
-                  </label>
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-[var(--primary)] hover:underline"
-                  >
-                    View in ERP
-                  </a>
-                </div>
-              )}
             </div>
           </div>
 
@@ -649,7 +637,7 @@ export function LineItemDetailModal({
                   </span>
                 </label>
                 <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                  ${item.expectedCommission.toFixed(2)}
+                  ${Number(item.expectedCommission).toFixed(2)}
                 </p>
               </div>
 
@@ -659,7 +647,7 @@ export function LineItemDetailModal({
                 </label>
                 {status === 'posted' ? (
                   <p className="text-lg font-semibold text-[var(--foreground)]">
-                    ${item.paidCommission.toFixed(2)}
+                    ${Number(item.paidCommission).toFixed(2)}
                   </p>
                 ) : (
                   <input
@@ -683,7 +671,7 @@ export function LineItemDetailModal({
                   </span>
                 </label>
                 <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                  ${item.balance.toFixed(2)}
+                  ${Number(item.balance).toFixed(2)}
                 </p>
               </div>
             </div>

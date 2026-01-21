@@ -35,6 +35,8 @@ import {
   listProductCpns,
   getProductCpnByCustomer,
   listProductUoms,
+  listProductPricingTiers,
+  getPriceForQuantity,
   searchJobs,
 } from './quotesApi';
 
@@ -194,12 +196,12 @@ export function useDeleteQuote() {
 
 /**
  * Create quote from pre-opportunity mutation
- * @param preOpportunityDetailIds - Optional comma-separated list of detail IDs to include
+ * @param preOpportunityDetailIds - Optional array of detail IDs to include (if null or not provided, all details are included)
  */
 export function useCreateQuoteFromPreOpportunity() {
   const queryClient = useQueryClient();
 
-  return useMutation<Quote, Error, { preOpportunityId: string; quoteNumber: string; preOpportunityDetailIds?: string }>({
+  return useMutation<Quote, Error, { preOpportunityId: string; quoteNumber: string; preOpportunityDetailIds?: string[] | null }>({
     mutationFn: ({ preOpportunityId, quoteNumber, preOpportunityDetailIds }) =>
       createQuoteFromPreOpportunity(preOpportunityId, quoteNumber, preOpportunityDetailIds),
     onSuccess: () => {
@@ -336,10 +338,11 @@ export type {
   FactorySearchResult,
   UserSearchResult,
   ProductCpnResult,
+  ProductPricingTierResult,
   ProductUomResult,
   JobSearchResult,
   QuoteJob,
 } from './quotesApi';
 
 // Re-export API functions for convenience
-export { searchUsers, searchProducts, searchCustomers, searchFactories, listProductCpns, getProductCpnByCustomer, listProductUoms, searchJobs } from './quotesApi';
+export { searchUsers, searchProducts, searchCustomers, searchFactories, listProductCpns, getProductCpnByCustomer, listProductUoms, listProductPricingTiers, getPriceForQuantity, searchJobs } from './quotesApi';

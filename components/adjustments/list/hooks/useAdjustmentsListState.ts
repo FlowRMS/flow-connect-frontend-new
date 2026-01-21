@@ -4,11 +4,17 @@
  * with infinite scroll pagination and search functionality
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
+import type { ActiveFilter } from '@/components/advancedFilters/AdvancedFilters';
+import { useFilterSync } from '@/components/advancedFilters/hooks/useFilterSync';
+import { getAdjustmentFilterOptions } from '../config/filterConfig';
+
+const DEFAULT_PAGE_SIZE = 50;
 import {
   type Adjustment,
   type AdjustmentLandingPage,
+  type AdjustmentStatus,
   type CreateAdjustmentInput,
   useAdjustmentsInfinite,
   useAdjustmentSearch,
@@ -21,6 +27,96 @@ import {
 export function useAdjustmentsListState() {
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Quick filter state (status filter)
+  const [statusFilter, setStatusFilter] = useState<AdjustmentStatus | 'ALL'>('ALL');
+  
+  // Advanced filters state
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  
+  // Column filters state
+  const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+  
+  // Server-side sorting state
+  const [serverOrderBy, setServerOrderBy] = useState<Array<{ columnName: string; direction: 'ASC' | 'DESC' }>>(() => {
+    return [{
+      columnName: 'createdAt',
+      direction: 'DESC',
+    }];
+  });
+  
+  // Refs to prevent infinite loops when syncing
+  const isSyncingFromAdvanced = useRef(false);
+  const isSyncingFromColumn = useRef(false);
+  
+  // Map from UI column keys to filter option IDs
+  const columnKeyToFilterId: Record<string, string> = useMemo(() => ({
+    adjustmentNumber: 'adjustment-number',
+    entityDate: 'adjustment-date',
+    amount: 'amount',
+    status: 'status',
+    locked: 'locked',
+  }), []);
+  
+  // Filter options for sync
+  const adjustmentFilterOptionsForSync = useMemo(() => {
+    return getAdjustmentFilterOptions();
+  }, []);
+  
+  // Hook for synchronizing filters between AdvancedFilters and ColumnFilters
+  const { syncAdvancedToColumn, syncColumnToAdvanced } = useFilterSync({
+    filterOptions: adjustmentFilterOptionsForSync,
+    columnKeyToFilterId,
+  });
+
+  // Convert ActiveFilter to API filter format
+  const toServerFilters = useCallback((filters: ActiveFilter[]): Array<{ columnName: string; operator: string; value?: string; values?: string[] }> => {
+    return filters.map(f => {
+      // Only include value OR values, not both - check which one exists
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
+  }, []);
+
+  // Build filters for API - combine quick filters, advanced filters, and column filters
+  const apiFilters = useMemo(() => {
+    const filters: Array<{ columnName: string; operator: string; value?: string; values?: string[] }> = [];
+    
+    // Add status filter if not 'ALL'
+    // Note: We add it from statusFilter OR from columnFilters, but not both to avoid duplicates
+    // Since they're synced, we prefer statusFilter for consistency
+    if (statusFilter !== 'ALL') {
+      filters.push({
+        columnName: 'status',
+        operator: 'EQ',
+        value: statusFilter,
+      });
+    }
+    
+    // Add advanced filters
+    const advancedFilters = toServerFilters(activeFilters);
+    filters.push(...advancedFilters);
+    
+    // Add column filters - flatten all column filters into a single array
+    const allColumnFilters: ActiveFilter[] = [];
+    Object.values(columnFilters).forEach((filters) => {
+      allColumnFilters.push(...filters);
+    });
+    const columnFiltersForApi = toServerFilters(allColumnFilters);
+    filters.push(...columnFiltersForApi);
+    
+    return filters;
+  }, [statusFilter, activeFilters, columnFilters, toServerFilters]);
 
   // Fetch adjustments from API with infinite scroll
   const {
@@ -31,7 +127,11 @@ export function useAdjustmentsListState() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useAdjustmentsInfinite();
+  } = useAdjustmentsInfinite(
+    apiFilters.length > 0 ? apiFilters : undefined,
+    DEFAULT_PAGE_SIZE,
+    serverOrderBy
+  );
 
   // Search adjustments - only when search query has 2+ characters
   const { data: searchResults, isLoading: isSearching } = useAdjustmentSearch(
@@ -231,6 +331,74 @@ export function useAdjustmentsListState() {
     }
   }, [selectedAdjustment, handleDeleteAdjustment]);
 
+  // Handler for advanced filters changes (from AdvancedFilters component)
+  const handleAdvancedFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    
+    // Sync to ColumnFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from column filters to avoid infinite loop
+    if (!isSyncingFromColumn.current) {
+      isSyncingFromAdvanced.current = true;
+      const syncedColumnFilters = syncAdvancedToColumn(filters);
+      
+      setColumnFilters((prev) => {
+        // If filters array is empty, clear all column filters
+        // Otherwise, merge: new filters from AdvancedFilters replace old ones for same columns
+        if (filters.length === 0) {
+          return {};
+        }
+        return { ...prev, ...syncedColumnFilters };
+      });
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromAdvanced.current = false;
+      }, 0);
+    }
+  }, [syncAdvancedToColumn]);
+  
+  // Handler for column filters changes (from ColumnFilters component)
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ActiveFilter[]>) => {
+    setColumnFilters(filters);
+
+    // Sync to AdvancedFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from advanced filters to avoid infinite loop
+    if (!isSyncingFromAdvanced.current) {
+      isSyncingFromColumn.current = true;
+      const syncedActiveFilters = syncColumnToAdvanced(filters);
+      setActiveFilters(syncedActiveFilters);
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromColumn.current = false;
+      }, 0);
+    }
+  }, [syncColumnToAdvanced]);
+  
+  // Handler for multiple sorts (from SortButton - onMultiSortChange)
+  // This is the primary handler for all sort changes
+  const handleMultiSortChange = useCallback((sorts: Array<{ columnName: string; direction: 'ASC' | 'DESC' }>) => {
+    if (sorts.length > 0) {
+      // Update server-side sort with all sorts
+      setServerOrderBy(sorts);
+    } else {
+      // Reset to default sort if no sorts
+      setServerOrderBy([{
+        columnName: 'createdAt',
+        direction: 'DESC',
+      }]);
+    }
+  }, []);
+  
+  // Handler for server-side sort changes (from SortButton - single sort for backwards compatibility)
+  // This is kept for backwards compatibility but should not be used when onMultiSortChange is available
+  const handleSortChange = useCallback((sort: { columnName: string; direction: 'ASC' | 'DESC' } | undefined) => {
+    // Convert single sort to array format and use handleMultiSortChange
+    if (sort) {
+      handleMultiSortChange([sort]);
+    } else {
+      handleMultiSortChange([]);
+    }
+  }, [handleMultiSortChange]);
+
   return {
     // Data
     adjustments,
@@ -249,6 +417,23 @@ export function useAdjustmentsListState() {
     searchQuery,
     setSearchQuery,
     isSearching,
+    
+    // Quick filters
+    statusFilter,
+    setStatusFilter,
+    
+    // Advanced filters
+    activeFilters,
+    handleAdvancedFiltersChange,
+    
+    // Column filters
+    columnFilters,
+    handleColumnFiltersChange,
+    
+    // Sorting
+    serverOrderBy,
+    handleSortChange,
+    handleMultiSortChange,
 
     // Modal states
     showAdjustmentModal,

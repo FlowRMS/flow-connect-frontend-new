@@ -332,35 +332,52 @@ const OrderDashboardContent = () => {
   // Check for pending config load from GlobalConfigManager
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
+    const handlePendingLoad = (pendingData) => {
+      // Handle both old format (tableId) and new format (reportType)
+      const isMatch = (pendingData.tableId === "order-dashboard") || (pendingData.reportType === DASHBOARD_REPORT_TYPE);
+      if (isMatch) {
+        let attempts = 0;
+        const maxAttempts = 5;
+
+        const attemptLoad = async () => {
+          const loaded = await loadConfig(pendingData.configId);
+          if (loaded || attempts >= maxAttempts) {
+            sessionStorage.removeItem("pendingConfigLoad");
+            return;
+          }
+          attempts += 1;
+          setTimeout(attemptLoad, 500);
+        };
+
+        attemptLoad();
+      }
+    };
+
+    // Check sessionStorage on mount (for cross-page navigation)
     try {
       const pendingLoad = sessionStorage.getItem("pendingConfigLoad");
       if (pendingLoad) {
         const pendingData = JSON.parse(pendingLoad);
-        
-        // Handle both old format (tableId) and new format (reportType)
-        const isMatch = (pendingData.tableId === "order-dashboard") || (pendingData.reportType === DASHBOARD_REPORT_TYPE);
-        if (isMatch) {
-          let attempts = 0;
-          const maxAttempts = 5;
-
-          const attemptLoad = async () => {
-            const loaded = await loadConfig(pendingData.configId);
-            if (loaded || attempts >= maxAttempts) {
-              sessionStorage.removeItem("pendingConfigLoad");
-              return;
-            }
-            attempts += 1;
-            setTimeout(attemptLoad, 500);
-          };
-
-          attemptLoad();
-        }
+        handlePendingLoad(pendingData);
       }
     } catch (error) {
       console.error("Error loading pending config:", error);
       sessionStorage.removeItem("pendingConfigLoad");
     }
+
+    // Listen for custom event (for same-page config loading from GlobalConfigManager)
+    const handleLoadPendingConfigEvent = (event) => {
+      if (event.detail) {
+        handlePendingLoad(event.detail);
+      }
+    };
+
+    window.addEventListener("loadPendingConfig", handleLoadPendingConfigEvent);
+
+    return () => {
+      window.removeEventListener("loadPendingConfig", handleLoadPendingConfigEvent);
+    };
   }, [loadConfig]);
 
   const tableTitleBase =

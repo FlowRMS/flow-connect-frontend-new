@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 
 import {
   fetchCustomers,
@@ -12,6 +13,8 @@ import {
   createCustomer,
   updateCustomer,
   deleteCustomer,
+  fetchCustomerChildren,
+  fetchCustomerBuyingGroupMembers,
   type Customer,
   type CustomerLandingPage,
   type CreateCustomerInput,
@@ -19,7 +22,11 @@ import {
   type PaginatedCustomersResult,
   type CustomerLandingPageFilter,
   type CustomerLandingPageOrderBy,
+  type CustomerLiteResponse,
 } from './customersApi';
+
+import { searchCustomers, type CustomerSearchResult } from '@/components/lib/api/search';
+import { bulkDelete, type BulkDeleteResult } from '@/components/lib/graphql/bulk-operations';
 
 // ============================================================================
 // Query Keys
@@ -30,6 +37,9 @@ export const customersQueryKeys = {
   list: (filters?: CustomerLandingPageFilter[], orderBy?: CustomerLandingPageOrderBy[]) =>
     [...customersQueryKeys.all, 'list', { filters, orderBy }] as const,
   detail: (id: string) => [...customersQueryKeys.all, 'detail', id] as const,
+  search: (searchTerm: string) => [...customersQueryKeys.all, 'search', { searchTerm }] as const,
+  children: (parentId: string) => [...customersQueryKeys.all, 'children', parentId] as const,
+  buyingGroupMembers: (buyingGroupId: string) => [...customersQueryKeys.all, 'buyingGroupMembers', buyingGroupId] as const,
 };
 
 // ============================================================================
@@ -77,10 +87,10 @@ export function useCustomersInfinite(
 /**
  * Fetch a single customer by ID
  */
-export function useCustomer(customerId: string) {
+export function useCustomer(customerId: string | undefined) {
   return useQuery<Customer | null, Error>({
-    queryKey: customersQueryKeys.detail(customerId),
-    queryFn: () => fetchCustomerById(customerId),
+    queryKey: customersQueryKeys.detail(customerId || ''),
+    queryFn: () => fetchCustomerById(customerId!),
     enabled: !!customerId,
     staleTime: 30 * 1000,
   });
@@ -189,6 +199,81 @@ export function useDeleteCustomer() {
   });
 }
 
+/**
+ * Bulk delete customers
+ */
+export function useBulkDeleteCustomers() {
+  const queryClient = useQueryClient();
+
+  return useMutation<BulkDeleteResult, Error, string[]>({
+    mutationFn: (entityIds) => bulkDelete(entityIds, 'CUSTOMERS'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: customersQueryKeys.all });
+    },
+  });
+}
+
+// ============================================================================
+// Customer Hierarchy Hooks
+// ============================================================================
+
+/**
+ * Fetch child customers of a parent customer
+ * Used to display the child customers in the parent customer's detail view
+ */
+export function useCustomerChildren(parentId: string | undefined) {
+  return useQuery<CustomerLiteResponse[], Error>({
+    queryKey: customersQueryKeys.children(parentId || ''),
+    queryFn: () => fetchCustomerChildren(parentId!),
+    enabled: !!parentId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch buying group members (parent customers that belong to a buying group)
+ * Used to display the parent customers in a buying group's detail view
+ */
+export function useCustomerBuyingGroupMembers(buyingGroupId: string | undefined) {
+  return useQuery<CustomerLiteResponse[], Error>({
+    queryKey: customersQueryKeys.buyingGroupMembers(buyingGroupId || ''),
+    queryFn: () => fetchCustomerBuyingGroupMembers(buyingGroupId!),
+    enabled: !!buyingGroupId,
+    staleTime: 30 * 1000,
+  });
+}
+
+// ============================================================================
+// Customer Search Hook
+// ============================================================================
+
+/**
+ * Search customers hook with debounce
+ * Uses the server-side customerSearch GraphQL query for better performance
+ * @param searchTerm - The search term to search for
+ * @param limit - Maximum number of results to return
+ */
+export function useCustomerSearch(searchTerm: string, limit: number = 100) {
+  const [debouncedTerm, setDebouncedTerm] = useState(searchTerm);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Only enable query when search term has at least 2 characters
+  const isEnabled = debouncedTerm.length >= 2;
+
+  return useQuery<CustomerSearchResult[], Error>({
+    queryKey: customersQueryKeys.search(debouncedTerm),
+    queryFn: () => searchCustomers(debouncedTerm, undefined, limit),
+    enabled: isEnabled,
+    staleTime: 30 * 1000,
+  });
+}
+
 // Re-export types
 export type {
   Customer,
@@ -197,4 +282,8 @@ export type {
   UpdateCustomerInput,
   CustomerLandingPageFilter,
   CustomerLandingPageOrderBy,
+  CustomerLiteResponse,
 };
+
+// Re-export search result type
+export type { CustomerSearchResult } from '@/components/lib/api/search';

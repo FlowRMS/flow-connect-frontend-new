@@ -7,11 +7,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  useCreateTask, 
+import {
+  useCreateTask,
   useCreateTaskLink,
   useUserSearch
 } from '../api';
+import { useTaskCategories, type TaskCategory } from '../../hooks/useCRMApi';
 import { taskToasts } from '../../lib/toast';
 import { AVAILABLE_TAGS, API_PRIORITY_OPTIONS, API_STATUS_OPTIONS } from '../constants';
 import type { TaskPriorityAPI, TaskStatusAPI } from '../types';
@@ -35,11 +36,16 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const [reminderDate, setReminderDate] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+
+  // Fetch task categories
+  const { data: categoriesData } = useTaskCategories();
+  const categories: TaskCategory[] = categoriesData ?? [];
   
-  // Assignee state
+  // Assignee state - now supports multiple assignees
   const [assigneeSearch, setAssigneeSearch] = useState('');
   const [debouncedAssigneeSearch, setDebouncedAssigneeSearch] = useState('');
-  const [selectedAssignee, setSelectedAssignee] = useState<{ id: string; name: string } | null>(null);
+  const [selectedAssignees, setSelectedAssignees] = useState<Array<{ id: string; name: string }>>([]);
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [assigneeDropdownPosition, setAssigneeDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const assigneeInputRef = useRef<HTMLInputElement>(null);
@@ -143,9 +149,16 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
 
   const handleSelectAssignee = (contact: { id: string; firstName?: string | null; lastName?: string | null }) => {
     const name = `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unknown';
-    setSelectedAssignee({ id: contact.id, name });
+    // Check if already selected
+    if (!selectedAssignees.some(a => a.id === contact.id)) {
+      setSelectedAssignees([...selectedAssignees, { id: contact.id, name }]);
+    }
     setAssigneeSearch('');
     setShowAssigneeDropdown(false);
+  };
+
+  const handleRemoveAssignee = (assigneeId: string) => {
+    setSelectedAssignees(selectedAssignees.filter(a => a.id !== assigneeId));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,7 +178,8 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
         dueDate: dueDate || undefined,
         reminderDate: reminderDate || undefined,
         tags: selectedTags.length > 0 ? selectedTags.join(',') : undefined,
-        assignedToId: selectedAssignee?.id || undefined,
+        assigneeIds: selectedAssignees.length > 0 ? selectedAssignees.map(a => a.id) : undefined,
+        categoryId: selectedCategoryId || undefined,
       });
 
       // Create links for all selected entities
@@ -197,7 +211,8 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     setReminderDate('');
     setSelectedTags([]);
     setSelectedLinks([]);
-    setSelectedAssignee(null);
+    setSelectedAssignees([]);
+    setSelectedCategoryId('');
     setCustomTag('');
     setAssigneeSearch('');
   };
@@ -302,8 +317,8 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                 />
               </div>
 
-              {/* Status and Priority Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              {/* Status, Priority, and Category Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div>
                   <label className={labelClass}>
                     <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -335,6 +350,25 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                       label: priorityLabels[p],
                       color: p === 'CRITICAL' ? '#9333ea' : p === 'URGENT' ? '#ef4444' : p === 'NORMAL' ? '#3b82f6' : '#9ca3af',
                     }))}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    Category
+                  </label>
+                  <CustomSelect
+                    value={selectedCategoryId}
+                    onChange={(val) => setSelectedCategoryId(val)}
+                    options={[
+                      { value: '', label: 'No Category' },
+                      ...categories.map(c => ({
+                        value: c.id,
+                        label: c.name,
+                      }))
+                    ]}
                   />
                 </div>
               </div>
@@ -369,96 +403,97 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                 </div>
               </div>
 
-              {/* Assigned To */}
+              {/* Assigned To - Multiple Assignees */}
               <div className="relative">
                 <label className={labelClass}>
                   <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
-                  Assigned To
+                  Assignees
                 </label>
-                {selectedAssignee && (
+                {selectedAssignees.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
-                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm flex items-center gap-2">
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      {selectedAssignee.name}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedAssignee(null)}
-                        className="hover:text-blue-900"
-                      >
+                    {selectedAssignees.map((assignee) => (
+                      <span key={assignee.id} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm flex items-center gap-2">
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
-                      </button>
-                    </span>
+                        {assignee.name}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAssignee(assignee.id)}
+                          className="hover:text-blue-900"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
                   </div>
                 )}
-                {!selectedAssignee && (
-                  <>
-                    <input
-                      ref={assigneeInputRef}
-                      type="text"
-                      value={assigneeSearch}
-                      onChange={(e) => {
-                        setAssigneeSearch(e.target.value);
-                        setShowAssigneeDropdown(true);
-                      }}
-                      onFocus={() => setShowAssigneeDropdown(true)}
-                      className={inputClass}
-                      placeholder={isLoadingAssignees ? "Loading contacts..." : "Search contacts to assign..."}
-                      disabled={isLoadingAssignees}
-                    />
-                    {showAssigneeDropdown && isMounted && createPortal(
-                      <div
-                        ref={assigneeDropdownRef}
-                        style={{
-                          position: 'fixed',
-                          top: assigneeDropdownPosition.top,
-                          left: assigneeDropdownPosition.left,
-                          width: assigneeDropdownPosition.width || 'auto',
-                          zIndex: 9999,
-                        }}
-                        className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                      >
-                        {isLoadingAssignees ? (
-                          <div className="px-4 py-6 text-center">
-                            <svg className="animate-spin w-5 h-5 text-blue-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                            </svg>
-                            <p className="text-sm text-gray-500">Loading users...</p>
-                          </div>
-                        ) : assigneeUsers.length > 0 ? (
-                          assigneeUsers.slice(0, 10).map(user => (
-                            <button
-                              key={user.id}
-                              type="button"
-                              onClick={() => handleSelectAssignee({ id: user.id, firstName: user.firstName, lastName: user.lastName })}
-                              className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors"
-                            >
-                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                <svg className="w-4 h-4 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-gray-900 truncate">{user.fullName || `${user.firstName} ${user.lastName}`}</p>
-                                {user.email && <p className="text-xs text-gray-500 truncate">{user.email}</p>}
-                              </div>
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-4 py-6 text-center text-sm text-gray-500">
-                            {assigneeSearch ? 'No users found' : 'Type to search users'}
-                          </div>
-                        )}
-                      </div>,
-                      document.body
+                <input
+                  ref={assigneeInputRef}
+                  type="text"
+                  value={assigneeSearch}
+                  onChange={(e) => {
+                    setAssigneeSearch(e.target.value);
+                    setShowAssigneeDropdown(true);
+                  }}
+                  onFocus={() => setShowAssigneeDropdown(true)}
+                  className={inputClass}
+                  placeholder={isLoadingAssignees ? "Loading users..." : "Search users to assign..."}
+                  disabled={isLoadingAssignees}
+                />
+                {showAssigneeDropdown && isMounted && createPortal(
+                  <div
+                    ref={assigneeDropdownRef}
+                    style={{
+                      position: 'fixed',
+                      top: assigneeDropdownPosition.top,
+                      left: assigneeDropdownPosition.left,
+                      width: assigneeDropdownPosition.width || 'auto',
+                      zIndex: 9999,
+                    }}
+                    className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                  >
+                    {isLoadingAssignees ? (
+                      <div className="px-4 py-6 text-center">
+                        <svg className="animate-spin w-5 h-5 text-blue-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                        <p className="text-sm text-gray-500">Loading users...</p>
+                      </div>
+                    ) : assigneeUsers.length > 0 ? (
+                      assigneeUsers
+                        .filter(user => !selectedAssignees.some(a => a.id === user.id))
+                        .slice(0, 10)
+                        .map(user => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            onClick={() => handleSelectAssignee({ id: user.id, firstName: user.firstName, lastName: user.lastName })}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                              <svg className="w-4 h-4 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-900 truncate">{user.fullName || `${user.firstName} ${user.lastName}`}</p>
+                              {user.email && <p className="text-xs text-gray-500 truncate">{user.email}</p>}
+                            </div>
+                          </button>
+                        ))
+                    ) : (
+                      <div className="px-4 py-6 text-center text-sm text-gray-500">
+                        {assigneeSearch ? 'No users found' : 'Type to search users'}
+                      </div>
                     )}
-                  </>
+                  </div>,
+                  document.body
                 )}
               </div>
             </div>

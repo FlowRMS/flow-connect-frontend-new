@@ -6,16 +6,24 @@
 
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
 import { useAdjustmentsListState } from './hooks/useAdjustmentsListState';
 import type { AdjustmentLandingPage, AdjustmentStatus } from '@/components/orders/api/adjustmentsApi';
 import { AdjustmentModal } from '@/components/orders/detail/components/modals/adjustments/AdjustmentModal';
 import { AdjustmentDetailModal } from '@/components/orders/detail/components/modals/adjustments/AdjustmentDetailModal';
 import { DeleteConfirmModal } from '@/components/orders/detail/components/modals/utility/DeleteConfirmModal';
-import { AvatarInline } from '@/components/ui/CreatedByBadge';
+import { AdjustmentsTable } from './components/table/AdjustmentsTable';
+import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
+import SortButton from '@/components/SortButton';
+import { getAdjustmentFilterOptions, getAdjustmentSortOptions } from './config/filterConfig';
 
-// Status Configuration
+// Status Configuration (kept for filter buttons)
 const STATUS_CONFIG: Record<AdjustmentStatus, { label: string; color: string; bgColor: string }> = {
   PENDING: { label: 'Pending', color: 'text-yellow-700', bgColor: 'bg-yellow-100' },
   POSTED: { label: 'Posted', color: 'text-green-700', bgColor: 'bg-green-100' },
@@ -29,19 +37,26 @@ const formatCurrency = (amount: number): string => {
   }).format(amount);
 };
 
-const formatDate = (dateString?: string) => {
-  if (!dateString) return '-';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
-
 export default function AdjustmentsListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const adjustmentIdFromUrl = searchParams.get('id');
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+  const initialUrlProcessedRef = useRef(false);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'adjustments';
 
   const {
     adjustments,
@@ -52,11 +67,27 @@ export default function AdjustmentsListContent() {
     totalCount,
     hasNextPage,
     isFetchingNextPage,
-    handleScroll,
+    fetchNextPage,
     // Search
     searchQuery,
     setSearchQuery,
     isSearching,
+    // Quick filters
+    statusFilter,
+    setStatusFilter,
+    // Advanced filters
+    activeFilters,
+    handleAdvancedFiltersChange,
+    
+    // Column filters
+    columnFilters,
+    handleColumnFiltersChange,
+    
+    // Sorting
+    serverOrderBy,
+    handleSortChange,
+    handleMultiSortChange,
+    
     // Modals
     showAdjustmentModal,
     showAdjustmentDetailModal,
@@ -68,7 +99,7 @@ export default function AdjustmentsListContent() {
     openCreateAdjustmentModal,
     openEditAdjustmentModal,
     closeAdjustmentModal,
-    closeAdjustmentDetailModal,
+    closeAdjustmentDetailModal: hookCloseAdjustmentDetailModal,
     closeDeleteConfirmModal,
     handleSaveAdjustment,
     handleDeleteAdjustment,
@@ -80,53 +111,61 @@ export default function AdjustmentsListContent() {
     isDeletingAdjustment,
   } = useAdjustmentsListState();
 
-  // Handle URL param to open adjustment detail modal
+  // Check if any filters are applied
+  const hasFilters = useMemo(() => {
+    return statusFilter !== 'ALL' || searchQuery.length > 0 || activeFilters.length > 0;
+  }, [statusFilter, searchQuery, activeFilters]);
+
+  // Wrapped close function that also clears URL
+  const closeAdjustmentDetailModal = useCallback(() => {
+    hookCloseAdjustmentDetailModal();
+    // Clear the URL param when closing
+    if (searchParams.get('id')) {
+      router.replace('/adjustments', { scroll: false });
+    }
+  }, [hookCloseAdjustmentDetailModal, router, searchParams]);
+
+  // Wrapped view function that also updates URL
+  const handleViewAdjustment = useCallback((adjustment: AdjustmentLandingPage) => {
+    viewAdjustment(adjustment);
+    // Update URL to include the adjustment ID
+    router.replace(`/adjustments?id=${adjustment.id}`, { scroll: false });
+  }, [viewAdjustment, router]);
+
+  // Handle URL param to open adjustment detail modal - only on initial load
   useEffect(() => {
-    if (adjustmentIdFromUrl && adjustments.length > 0 && !showAdjustmentDetailModal) {
+    // Only process URL param once on initial load
+    if (initialUrlProcessedRef.current) return;
+
+    if (adjustmentIdFromUrl && adjustments.length > 0) {
+      initialUrlProcessedRef.current = true;
       const adjustment = adjustments.find(a => a.id === adjustmentIdFromUrl);
       if (adjustment) {
+        // Use viewAdjustment directly - URL already has the ID
         viewAdjustment(adjustment);
       }
     }
-  }, [adjustmentIdFromUrl, adjustments, showAdjustmentDetailModal, viewAdjustment]);
+  }, [adjustmentIdFromUrl, adjustments, viewAdjustment]);
 
-  // Update URL when modal is opened/closed
-  useEffect(() => {
-    if (selectedAdjustment && !searchParams.get('id')) {
-      router.replace(`/adjustments?id=${selectedAdjustment.id}`, { scroll: false });
-    } else if (!selectedAdjustment && searchParams.get('id')) {
-      router.replace('/adjustments', { scroll: false });
+  // Sort options for SortButton
+  const sortOptions = getAdjustmentSortOptions();
+  
+  // Map serverOrderBy to ActiveSort[] format for SortButton (supports multiple sorts)
+  const activeSorts = useMemo(() => {
+    if (serverOrderBy && serverOrderBy.length > 0) {
+      return serverOrderBy.map(sort => ({
+        columnName: sort.columnName,
+        direction: sort.direction,
+      }));
     }
-  }, [selectedAdjustment, router, searchParams]);
+    return [];
+  }, [serverOrderBy]);
+  
+  // Also provide single sort for backwards compatibility
+  const activeSort = activeSorts.length > 0 ? activeSorts[0] : undefined;
 
-  // Local filter/sort state (status filter and sorting are client-side)
-  const [statusFilter, setStatusFilter] = useState<AdjustmentStatus | 'ALL'>('ALL');
-  const [sortField, setSortField] = useState<'date' | 'amount' | 'number'>('date');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-
-  // Filter and sort adjustments (status filter is client-side on the fetched/searched results)
-  const filteredAdjustments = useMemo(() => {
-    return (adjustments || [])
-      .filter((adj) => {
-        const matchesStatus = statusFilter === 'ALL' || adj.status === statusFilter;
-        return matchesStatus;
-      })
-      .sort((a, b) => {
-        let comparison = 0;
-        switch (sortField) {
-          case 'date':
-            comparison = new Date(a.entityDate || '').getTime() - new Date(b.entityDate || '').getTime();
-            break;
-          case 'amount':
-            comparison = parseFloat(a.amount || '0') - parseFloat(b.amount || '0');
-            break;
-          case 'number':
-            comparison = (a.adjustmentNumber || '').localeCompare(b.adjustmentNumber || '');
-            break;
-        }
-        return sortDirection === 'asc' ? comparison : -comparison;
-      });
-  }, [adjustments, statusFilter, sortField, sortDirection]);
+  // Adjustments are now sorted server-side, no client-side sorting needed
+  const filteredAdjustments = adjustments;
 
   // Calculate totals
   const totals = useMemo(() => ({
@@ -134,29 +173,36 @@ export default function AdjustmentsListContent() {
     count: filteredAdjustments.length,
   }), [filteredAdjustments]);
 
-  const toggleSort = (field: 'date' | 'amount' | 'number') => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('desc');
-    }
-  };
 
   return (
     <div className="flex-1 flex flex-col h-full">
       {/* Page Header */}
       <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--card)]">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-600">
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-[var(--foreground)]">Adjustments</h1>
-              <p className="text-sm text-[var(--muted-foreground)]">
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Scale Balance Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="scale-balance"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['adjustments']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-2xl font-bold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Adjustments
+              </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
                 {searchQuery.length >= 2
                   ? `${filteredAdjustments.length} results for "${searchQuery}"`
                   : `Showing ${filteredAdjustments.length} of ${totalCount} adjustments`}
@@ -165,19 +211,38 @@ export default function AdjustmentsListContent() {
                     • Total: {formatCurrency(totals.adjustmentAmount)}
                   </span>
                 )}
-              </p>
+              </motion.p>
             </div>
           </div>
 
-          <button
-            onClick={openCreateAdjustmentModal}
-            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm"
+          <motion.div
+            className="flex items-center gap-3"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
           >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
-            </svg>
-            Add Adjustment
-          </button>
+            <AdvancedFilters
+              filterOptions={getAdjustmentFilterOptions()}
+              onFiltersChange={handleAdvancedFiltersChange}
+              activeFilters={activeFilters}
+            />
+
+            <SortButton
+              sortOptions={sortOptions}
+              onMultiSortChange={handleMultiSortChange}
+              activeSorts={activeSorts}
+            />
+
+            <button
+              onClick={openCreateAdjustmentModal}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
+              </svg>
+              Add Adjustment
+            </button>
+          </motion.div>
         </div>
       </div>
 
@@ -226,7 +291,7 @@ export default function AdjustmentsListContent() {
           <div className="flex items-center gap-2">
             <span className="text-sm text-[var(--muted-foreground)]">Status:</span>
             <div className="flex gap-1">
-              {(['ALL', 'PENDING', 'POSTED', 'VOID'] as const).map((status) => {
+              {(['ALL', 'PENDING', 'POSTED'] as const).map((status) => {
                 const isActive = statusFilter === status;
                 const config = status !== 'ALL' ? STATUS_CONFIG[status] : null;
                 return (
@@ -251,34 +316,23 @@ export default function AdjustmentsListContent() {
           {/* Refresh Button */}
           <button
             onClick={() => refetchAdjustments()}
-            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+            className="flex items-center justify-center w-9 h-9 hover:bg-[var(--muted)] rounded-lg transition-colors text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
             title="Refresh"
           >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 10a7 7 0 1114 0M3 10V4m0 6h6"/>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 4v6h-6"/>
+              <path d="M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
             </svg>
           </button>
         </div>
       </div>
 
-      {/* Content Area with scroll handler for infinite scroll */}
-      <div className="flex-1 overflow-auto p-6 bg-[var(--background)]" onScroll={handleScroll}>
-        {/* Loading State */}
-        {isLoadingAdjustments && (
-          <div className="flex items-center justify-center py-16">
-            <div className="flex flex-col items-center gap-3">
-              <svg className="animate-spin h-10 w-10 text-indigo-600" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-              </svg>
-              <span className="text-sm text-[var(--muted-foreground)]">Loading adjustments...</span>
-            </div>
-          </div>
-        )}
-
+      {/* Content Area */}
+      <div className="flex-1 overflow-hidden px-6 pt-3 bg-[var(--background)] flex flex-col">
         {/* Error State */}
         {adjustmentsError && (
-          <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
               <circle cx="10" cy="10" r="8"/>
               <path d="M10 6v4M10 14v.01"/>
@@ -290,196 +344,74 @@ export default function AdjustmentsListContent() {
         {/* Empty State */}
         {!isLoadingAdjustments && !adjustmentsError && filteredAdjustments.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 bg-[var(--card)] rounded-xl border-2 border-dashed border-[var(--border)]">
-            <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center mb-6">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-600">
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-              </svg>
-            </div>
-            <h4 className="text-xl font-semibold text-[var(--foreground)] mb-2">No Adjustments Yet</h4>
-            <p className="text-sm text-[var(--muted-foreground)] mb-6 text-center max-w-md">
-              {searchQuery || statusFilter !== 'ALL'
-                ? 'No adjustments match your current filters. Try adjusting your search or filter criteria.'
-                : 'Create your first commission adjustment to get started.'}
-            </p>
-            {!searchQuery && statusFilter === 'ALL' && (
-              <button
-                onClick={openCreateAdjustmentModal}
-                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-              >
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
-                </svg>
-                Add Adjustment
-              </button>
+            {hasFilters ? (
+              <>
+                <div className="w-16 h-16 bg-[var(--muted)]/30 rounded-full flex items-center justify-center mb-4">
+                  <svg
+                    width="32"
+                    height="32"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="text-[var(--muted-foreground)]"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                </div>
+                <h3 className="text-sm font-medium text-[var(--foreground)] mb-1">
+                  No data found for the applied filters
+                </h3>
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Try adjusting your filters to see more results
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center mb-6">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-600">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                  </svg>
+                </div>
+                <h4 className="text-xl font-semibold text-[var(--foreground)] mb-2">No Adjustments Yet</h4>
+                <p className="text-sm text-[var(--muted-foreground)] mb-6 text-center max-w-md">
+                  Create your first commission adjustment to get started.
+                </p>
+                <button
+                  onClick={openCreateAdjustmentModal}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
+                  </svg>
+                  Add Adjustment
+                </button>
+              </>
             )}
           </div>
         )}
 
         {/* Table */}
-        {!isLoadingAdjustments && !adjustmentsError && filteredAdjustments.length > 0 && (
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
-            <table className="w-full">
-              <thead className="bg-[var(--muted)]/30">
-                <tr>
-                  <th
-                    className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
-                    onClick={() => toggleSort('number')}
-                  >
-                    <div className="flex items-center gap-1">
-                      Adjustment #
-                      {sortField === 'number' && (
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className={sortDirection === 'asc' ? 'rotate-180' : ''}>
-                          <path d="M5 8l5 5 5-5"/>
-                        </svg>
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
-                    onClick={() => toggleSort('date')}
-                  >
-                    <div className="flex items-center gap-1">
-                      Date
-                      {sortField === 'date' && (
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className={sortDirection === 'asc' ? 'rotate-180' : ''}>
-                          <path d="M5 8l5 5 5-5"/>
-                        </svg>
-                      )}
-                    </div>
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Reason</th>
-                  <th
-                    className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
-                    onClick={() => toggleSort('amount')}
-                  >
-                    <div className="flex items-center justify-end gap-1">
-                      Amount
-                      {sortField === 'amount' && (
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className={sortDirection === 'asc' ? 'rotate-180' : ''}>
-                          <path d="M5 8l5 5 5-5"/>
-                        </svg>
-                      )}
-                    </div>
-                  </th>
-                  <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Status</th>
-                  <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Created By</th>
-                  <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {filteredAdjustments.map((adjustment) => {
-                  const statusConfig = adjustment.status ? STATUS_CONFIG[adjustment.status] : null;
-
-                  return (
-                    <tr
-                      key={adjustment.id}
-                      className="hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
-                      onClick={() => viewAdjustment(adjustment)}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-600">
-                              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"/>
-                            </svg>
-                          </div>
-                          <div>
-                            <p className="font-medium text-[var(--foreground)]">
-                              {adjustment.adjustmentNumber || `#${adjustment.id.substring(0, 8)}`}
-                            </p>
-                            {adjustment.locked && (
-                              <span className="text-xs text-[var(--muted-foreground)] flex items-center gap-1">
-                                <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/>
-                                </svg>
-                                Locked
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
-                        {formatDate(adjustment.entityDate)}
-                      </td>
-                      <td className="px-4 py-3 text-[var(--muted-foreground)] max-w-[250px] truncate" title={adjustment.reason || ''}>
-                        {adjustment.reason || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-indigo-600">
-                        {formatCurrency(parseFloat(adjustment.amount || '0'))}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {statusConfig && (
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color}`}>
-                            {statusConfig.label}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <AvatarInline name={(adjustment as any).createdBy} size="sm" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => viewAdjustment(adjustment)}
-                            className="p-1.5 hover:bg-[var(--muted)] rounded-lg transition-colors"
-                            title="View"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                              <circle cx="10" cy="10" r="3"/>
-                              <path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z"/>
-                            </svg>
-                          </button>
-                          {!adjustment.locked && (
-                            <>
-                              <button
-                                onClick={() => openEditAdjustmentModal(adjustment)}
-                                className="p-1.5 hover:bg-[var(--muted)] rounded-lg transition-colors"
-                                title="Edit"
-                              >
-                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-9 9-3.5 1 1-3.5 9-9z"/>
-                                </svg>
-                              </button>
-                              <button
-                                onClick={() => handleDeleteAdjustment(adjustment)}
-                                className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-red-600"
-                                title="Delete"
-                              >
-                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M4 6h12M6 6V4a2 2 0 012-2h4a2 2 0 012 2v2M8 10v5M12 10v5M5 6l1 11a2 2 0 002 2h4a2 2 0 002-2l1-11"/>
-                                </svg>
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              {filteredAdjustments.length > 0 && (
-                <tfoot className="bg-[var(--muted)]/20 border-t border-[var(--border)]">
-                  <tr>
-                    <td colSpan={3} className="px-4 py-3 text-right font-semibold text-sm">Total:</td>
-                    <td className="px-4 py-3 text-right font-bold text-indigo-600">{formatCurrency(totals.adjustmentAmount)}</td>
-                    <td colSpan={3}></td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        )}
-
-        {/* Loading indicator for infinite scroll */}
-        {isFetchingNextPage && (
-          <div className="flex items-center justify-center py-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" />
-            <span className="ml-2 text-sm text-[var(--muted-foreground)]">Loading more adjustments...</span>
-          </div>
-        )}
+        {(!isLoadingAdjustments && !adjustmentsError && filteredAdjustments.length > 0) || isLoadingAdjustments ? (
+                <AdjustmentsTable
+                  adjustments={filteredAdjustments}
+                  isLoading={isLoadingAdjustments}
+                  onView={handleViewAdjustment}
+                  onEdit={openEditAdjustmentModal}
+                  onDelete={handleDeleteAdjustment}
+                  hasNextPage={hasNextPage}
+                  isFetchingNextPage={isFetchingNextPage}
+                  fetchNextPage={fetchNextPage}
+                  searchQuery={searchQuery}
+                  totalAmount={totals.adjustmentAmount}
+                  onColumnFiltersChange={handleColumnFiltersChange}
+                  columnFilters={columnFilters}
+                />
+        ) : null}
 
         {/* End of list indicator */}
-        {!hasNextPage && filteredAdjustments.length > 0 && !searchQuery && (
+        {!hasNextPage && filteredAdjustments.length > 0 && !searchQuery && !isLoadingAdjustments && (
           <div className="text-center py-4 text-sm text-[var(--muted-foreground)]">
             All {totalCount} adjustments loaded
           </div>

@@ -35,12 +35,13 @@ interface UploadedContextFile {
   file: File;
 }
 
+export type DocumentType = 'quotes' | 'orders' | 'order_acknowledgements' | 'invoices' | 'checks' | 'products' | 'factories' | 'customers';
+
 interface CombinedUploadPaneProps {
   onDocumentUploaded: (documentId: string, documentType: string, instructions?: string, contextFileIds?: string[]) => void;
   onBatchDocumentsUploaded?: (documentIds: string[], documentType: string, instructions?: string, contextFileIds?: string[]) => void;
+  initialDocumentType?: DocumentType;
 }
-
-type DocumentType = 'quotes' | 'orders' | 'order_acknowledgements' | 'invoices' | 'checks' | 'products' | 'factories' | 'customers';
 type ContextSourceMode = 'upload' | 'localStorage';
 
 const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: LucideIcon }> = [
@@ -48,7 +49,7 @@ const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: L
   { value: 'orders', label: 'Order', icon: ClipboardList },
   { value: 'order_acknowledgements', label: 'Order Acknowledgement', icon: FileCheck },
   { value: 'invoices', label: 'Invoice', icon: Receipt },
-  { value: 'checks', label: 'Checks', icon: DollarSign },
+  { value: 'checks', label: 'Statements', icon: DollarSign },
   { value: 'products', label: 'Products', icon: Package },
   { value: 'factories', label: 'Factories', icon: Building2 },
   { value: 'customers', label: 'Customers', icon: Users },
@@ -60,8 +61,9 @@ const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType =
     case 'quotes':
       return 'QUOTES';
     case 'orders':
-    case 'order_acknowledgements':
       return 'ORDERS';
+    case 'order_acknowledgements':
+      return 'ORDER_ACKNOWLEDGEMENTS';
     case 'invoices':
       return 'INVOICES';
     case 'checks':
@@ -77,9 +79,9 @@ const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType =
   }
 };
 
-export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploaded }: CombinedUploadPaneProps) {
+export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploaded, initialDocumentType }: CombinedUploadPaneProps) {
   // Document upload state
-  const [selectedDocumentType, setSelectedDocumentType] = useState<DocumentType>('invoices');
+  const [selectedDocumentType, setSelectedDocumentType] = useState<DocumentType>(initialDocumentType || 'invoices');
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [uploadedDocument, setUploadedDocument] = useState<{ id: string; fileName: string } | null>(null);

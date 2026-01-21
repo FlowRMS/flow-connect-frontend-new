@@ -10,7 +10,7 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -34,7 +34,8 @@ import type {
 import { AddLinkModal } from './AddLinkModal';
 import { linkToasts } from '../lib/toast';
 import { RelatedEntityHoverCard } from './RelatedEntityHoverCard';
-import { fetchFilesByLinkedEntity, formatFileSize, type FileResponse, type FileEntityType } from '../lib/graphql/files';
+import { fetchFilesByLinkedEntity, formatFileSize, getFilePresignedUrl, type FileResponse, type FileEntityType } from '../lib/graphql/files';
+import { showErrorToast } from '../lib/toast';
 
 // ============================================================================
 // Types
@@ -47,7 +48,7 @@ export type EntityCategory = 'contacts' | 'companies' | 'pre-opportunities' | 't
 export type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'JOB' | 'FILE';
 
 // Source entity types - what entity is hosting this connected entities section
-export type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE' | 'FACTORY';
+export type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE' | 'FACTORY' | 'CUSTOMER';
 
 // Map source entity type to API endpoint type
 const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceType> = {
@@ -62,6 +63,7 @@ const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceTyp
   TASK: 'TASKS',
   NOTE: 'NOTES',
   FACTORY: 'FACTORIES',
+  CUSTOMER: 'CUSTOMERS',
 };
 
 export interface ConnectedEntitiesSectionProps {
@@ -71,10 +73,14 @@ export interface ConnectedEntitiesSectionProps {
   sourceEntityType: SourceEntityType;
   /** Which entity categories to show. If not provided, shows all. */
   enabledCategories?: EntityCategory[];
+  /** Which entity categories should be read-only (view only, no add/unlink). */
+  readOnlyCategories?: EntityCategory[];
   /** Custom title for the section */
   title?: string;
   /** Whether to show the "Add Link" button */
   showAddLinkButton?: boolean;
+  /** Key to trigger a refetch of linked entities when changed */
+  refreshKey?: number;
   /** Click handlers for different entity types */
   onCompanyClick?: (company: RelatedEntityCompany) => void;
   onContactClick?: (contact: RelatedEntityContact) => void;
@@ -113,9 +119,10 @@ interface EntityGridHeaderProps {
   entityType: LinkEntityType;
   hasEntities: boolean;
   onAddLink: (entityType: LinkEntityType) => void;
+  readOnly?: boolean;
 }
 
-function EntityGridHeader({ title, entityType, hasEntities, onAddLink }: EntityGridHeaderProps) {
+function EntityGridHeader({ title, entityType, hasEntities, onAddLink, readOnly = false }: EntityGridHeaderProps) {
   const entityLabels: Record<LinkEntityType, string> = {
     COMPANY: 'Company',
     CONTACT: 'Contact',
@@ -133,7 +140,7 @@ function EntityGridHeader({ title, entityType, hasEntities, onAddLink }: EntityG
   return (
     <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)] flex items-center justify-between">
       <h3 className="font-semibold text-[var(--foreground)]">{title}</h3>
-      {hasEntities && (
+      {hasEntities && !readOnly && (
         <button
           onClick={() => onAddLink(entityType)}
           className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded transition-colors"
@@ -156,8 +163,10 @@ export function ConnectedEntitiesSection({
   entityId,
   sourceEntityType,
   enabledCategories,
+  readOnlyCategories = [],
   title = 'Connected Entities',
   showAddLinkButton = true,
+  refreshKey,
   onCompanyClick,
   onContactClick,
   onPreOpportunityClick,
@@ -174,6 +183,9 @@ export function ConnectedEntitiesSection({
 
   // Determine available categories based on props
   const availableCategories = enabledCategories || ALL_CATEGORIES;
+
+  // Check if a category is read-only
+  const isCategoryReadOnly = (category: EntityCategory) => readOnlyCategories.includes(category);
 
   const [visibleCategories, setVisibleCategories] = useState<EntityCategory[]>(availableCategories);
   const [showAddLinkModal, setShowAddLinkModal] = useState(false);
@@ -194,6 +206,13 @@ export function ConnectedEntitiesSection({
     error,
     refetch
   } = useRelatedEntities(entityId, SOURCE_TYPE_TO_API_TYPE[sourceEntityType]);
+
+  // Refetch when refreshKey changes (e.g., after save)
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      refetch();
+    }
+  }, [refreshKey, refetch]);
 
   // Fetch linked files separately (uses different API endpoint)
   const {
@@ -369,12 +388,12 @@ export function ConnectedEntitiesSection({
     }
   };
 
-  // Handle check click - navigate to check detail page
+  // Handle check click - navigate to commissions detail page
   const handleCheckClick = (check: RelatedEntityCheck) => {
     if (onCheckClick) {
       onCheckClick(check);
     } else {
-      router.push(`/checks/${check.id}`);
+      router.push(`/commissions/${check.id}`);
     }
   };
 
@@ -388,12 +407,24 @@ export function ConnectedEntitiesSection({
   };
 
   // Handle file click - open file or download
-  const handleFileClick = (file: FileResponse) => {
+  const handleFileClick = async (file: FileResponse) => {
     if (onFileClick) {
       onFileClick(file);
-    } else if (file.filePath) {
-      // Open file in new tab
-      window.open(file.filePath, '_blank');
+    } else {
+      try {
+        const url = await getFilePresignedUrl(file.id);
+        if (url) {
+          window.open(url, '_blank');
+        } else {
+          showErrorToast('Unable to open file', {
+            description: 'Could not generate download URL',
+          });
+        }
+      } catch (error) {
+        showErrorToast('Failed to open file', {
+          description: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
     }
   };
 
@@ -1045,6 +1076,7 @@ export function ConnectedEntitiesSection({
                   entityType="QUOTE"
                   hasEntities={Boolean(relatedEntities?.quotes && relatedEntities.quotes.length > 0)}
                   onAddLink={openAddLinkModal}
+                  readOnly={isCategoryReadOnly('quotes')}
                 />
                 <div className="p-4">
                   {relatedEntities?.quotes && relatedEntities.quotes.length > 0 ? (
@@ -1079,19 +1111,21 @@ export function ConnectedEntitiesSection({
                               </div>
                             </div>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUnlink('QUOTE', quote.id);
-                            }}
-                            disabled={deleteLinkMutation.isPending}
-                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                            title="Unlink quote"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                            </svg>
-                          </button>
+                          {!isCategoryReadOnly('quotes') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUnlink('QUOTE', quote.id);
+                              }}
+                              disabled={deleteLinkMutation.isPending}
+                              className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                              title="Unlink quote"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       </RelatedEntityHoverCard>
                     ))}
@@ -1104,12 +1138,14 @@ export function ConnectedEntitiesSection({
                         </svg>
                       </div>
                       <p className="text-sm">No quotes linked</p>
-                      <button
-                        onClick={() => openAddLinkModal('QUOTE')}
-                        className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                      >
-                        + Add a quote
-                      </button>
+                      {!isCategoryReadOnly('quotes') && (
+                        <button
+                          onClick={() => openAddLinkModal('QUOTE')}
+                          className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                        >
+                          + Add a quote
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1124,6 +1160,7 @@ export function ConnectedEntitiesSection({
                   entityType="ORDER"
                   hasEntities={Boolean(relatedEntities?.orders && relatedEntities.orders.length > 0)}
                   onAddLink={openAddLinkModal}
+                  readOnly={isCategoryReadOnly('orders')}
                 />
                 <div className="p-4">
                   {relatedEntities?.orders && relatedEntities.orders.length > 0 ? (
@@ -1158,19 +1195,21 @@ export function ConnectedEntitiesSection({
                               </div>
                             </div>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUnlink('ORDER', order.id);
-                            }}
-                            disabled={deleteLinkMutation.isPending}
-                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                            title="Unlink order"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                            </svg>
-                          </button>
+                          {!isCategoryReadOnly('orders') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUnlink('ORDER', order.id);
+                              }}
+                              disabled={deleteLinkMutation.isPending}
+                              className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                              title="Unlink order"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       </RelatedEntityHoverCard>
                     ))}
@@ -1183,12 +1222,14 @@ export function ConnectedEntitiesSection({
                         </svg>
                       </div>
                       <p className="text-sm">No orders linked</p>
-                      <button
-                        onClick={() => openAddLinkModal('ORDER')}
-                        className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                      >
-                        + Add an order
-                      </button>
+                      {!isCategoryReadOnly('orders') && (
+                        <button
+                          onClick={() => openAddLinkModal('ORDER')}
+                          className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                        >
+                          + Add an order
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1203,6 +1244,7 @@ export function ConnectedEntitiesSection({
                   entityType="INVOICE"
                   hasEntities={Boolean(relatedEntities?.invoices && relatedEntities.invoices.length > 0)}
                   onAddLink={openAddLinkModal}
+                  readOnly={isCategoryReadOnly('invoices')}
                 />
                 <div className="p-4">
                   {relatedEntities?.invoices && relatedEntities.invoices.length > 0 ? (
@@ -1242,19 +1284,21 @@ export function ConnectedEntitiesSection({
                               </div>
                             </div>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUnlink('INVOICE', invoice.id);
-                            }}
-                            disabled={deleteLinkMutation.isPending}
-                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                            title="Unlink invoice"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                            </svg>
-                          </button>
+                          {!isCategoryReadOnly('invoices') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUnlink('INVOICE', invoice.id);
+                              }}
+                              disabled={deleteLinkMutation.isPending}
+                              className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                              title="Unlink invoice"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       </RelatedEntityHoverCard>
                     ))}
@@ -1267,12 +1311,14 @@ export function ConnectedEntitiesSection({
                         </svg>
                       </div>
                       <p className="text-sm">No invoices linked</p>
-                      <button
-                        onClick={() => openAddLinkModal('INVOICE')}
-                        className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                      >
-                        + Add an invoice
-                      </button>
+                      {!isCategoryReadOnly('invoices') && (
+                        <button
+                          onClick={() => openAddLinkModal('INVOICE')}
+                          className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                        >
+                          + Add an invoice
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1287,6 +1333,7 @@ export function ConnectedEntitiesSection({
                   entityType="CHECK"
                   hasEntities={Boolean(relatedEntities?.checks && relatedEntities.checks.length > 0)}
                   onAddLink={openAddLinkModal}
+                  readOnly={isCategoryReadOnly('checks')}
                 />
                 <div className="p-4">
                   {relatedEntities?.checks && relatedEntities.checks.length > 0 ? (
@@ -1321,19 +1368,21 @@ export function ConnectedEntitiesSection({
                               </div>
                             </div>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUnlink('CHECK', check.id);
-                            }}
-                            disabled={deleteLinkMutation.isPending}
-                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                            title="Unlink check"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                            </svg>
-                          </button>
+                          {!isCategoryReadOnly('checks') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUnlink('CHECK', check.id);
+                              }}
+                              disabled={deleteLinkMutation.isPending}
+                              className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                              title="Unlink check"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       </RelatedEntityHoverCard>
                     ))}
@@ -1346,12 +1395,14 @@ export function ConnectedEntitiesSection({
                         </svg>
                       </div>
                       <p className="text-sm">No checks linked</p>
-                      <button
-                        onClick={() => openAddLinkModal('CHECK')}
-                        className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                      >
-                        + Add a check
-                      </button>
+                      {!isCategoryReadOnly('checks') && (
+                        <button
+                          onClick={() => openAddLinkModal('CHECK')}
+                          className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                        >
+                          + Add a check
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

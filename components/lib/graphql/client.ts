@@ -4,6 +4,7 @@
  * Uses WorkOS AuthKit for authentication
  */
 
+import { isUserNotFoundError, triggerGlobalUnauthorized } from '@/components/lib/unauthorized-handler';
 
 // ============================================================================
 // WorkOS Token Management
@@ -268,6 +269,15 @@ export async function crmGraphQLMultipartRequest<T = unknown>(
 
   const result = await response.json() as GraphQLResponse<T>;
 
+  // Check for UserNotFoundError - user not authorized on tenancy
+  if (isUserNotFoundError(result.errors)) {
+    clearTokenCache();
+    if (typeof window !== 'undefined') {
+      triggerGlobalUnauthorized();
+    }
+    throw new Error('User not authorized on this tenancy.');
+  }
+
   // Check for signature expired error in GraphQL response
   if (result.errors?.some(error =>
     error.message?.toLowerCase().includes('signature has expired') ||
@@ -351,6 +361,15 @@ export async function crmGraphQLRequest<T = unknown>(
   }
 
   const result = await response.json() as GraphQLResponse<T>;
+
+  // Check for UserNotFoundError - user not authorized on tenancy
+  if (isUserNotFoundError(result.errors)) {
+    clearTokenCache();
+    if (typeof window !== 'undefined') {
+      triggerGlobalUnauthorized();
+    }
+    throw new Error('User not authorized on this tenancy.');
+  }
 
   // Check for signature expired error in GraphQL response
   if (result.errors?.some(error =>

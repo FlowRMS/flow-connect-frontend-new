@@ -768,7 +768,7 @@ const DELETE_PRODUCT_QUANTITY_PRICING = `
  */
 export async function fetchProductsWithPagination(
   filters?: ProductLandingPageFilter[],
-  orderBy?: ProductLandingPageOrderBy,
+  orderBy?: ProductLandingPageOrderBy[],
   pagination?: PaginationParams
 ): Promise<PaginatedProductsResult> {
   const response = await crmGraphQLRequest<{
@@ -1335,4 +1335,30 @@ export async function deleteProductQuantityPricing(id: string): Promise<boolean>
   }
 
   return true;
+}
+
+/**
+ * Fetch all product IDs for bulk operations
+ * Handles pagination internally to get all IDs
+ */
+export async function fetchAllProductIds(
+  filters?: ProductLandingPageFilter[],
+  orderBy?: ProductLandingPageOrderBy[]
+): Promise<string[]> {
+  // First, get total count
+  const initialResult = await fetchProductsWithPagination(filters, orderBy, { limit: 1, offset: 0 });
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all IDs in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await fetchProductsWithPagination(filters, orderBy, { limit: batchSize, offset });
+    allIds.push(...result.records.map(r => r.id));
+  }
+
+  return allIds;
 }

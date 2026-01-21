@@ -329,28 +329,28 @@ export function LineItemsTableRow({
       {/* Sell Total */}
       {visibleColumns.has('sellTotal') && (
         <td className="px-3 py-2 text-sm text-right font-medium">
-          {formatCurrency(item.amount)}
+          {formatCurrency(item.amount - (item.discount || 0))}
         </td>
       )}
 
       {/* Commission % (simple view) */}
       {visibleColumns.has('commissionPercent') && viewMode === 'simple' && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {`${((item.commissionRate ?? 0.08) * 100).toFixed(0)}%`}
+          {`${(Number(item.commissionRate ?? 0) * 100).toFixed(0)}%`}
         </td>
       )}
 
       {/* Commission */}
       {visibleColumns.has('commission') && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {formatCurrency(item.amount * (item.commissionRate ?? 0.08))}
+          {formatCurrency((item.amount * (item.commissionRate ?? 0)) - (item.commissionDiscount || 0))}
         </td>
       )}
 
       {/* Commission Total */}
       {visibleColumns.has('commissionTotal') && (
         <td className="px-3 py-2 text-sm text-right text-purple-600 font-medium">
-          {formatCurrency(item.amount * (item.commissionRate ?? 0.08))}
+          {formatCurrency((item.amount * (item.commissionRate ?? 0)) - (item.commissionDiscount || 0))}
         </td>
       )}
 
@@ -362,14 +362,14 @@ export function LineItemsTableRow({
       {/* Commission % (overage view) */}
       {visibleColumns.has('commissionPercent') && viewMode === 'overage' && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {`${((item.commissionRate ?? 0.08) * 100).toFixed(0)}%`}
+          {`${(Number(item.commissionRate ?? 0) * 100).toFixed(0)}%`}
         </td>
       )}
 
       {/* Commission Amount */}
       {visibleColumns.has('commissionAmount') && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {formatCurrency(item.amount * (item.commissionRate ?? 0.08))}
+          {formatCurrency((item.amount * (item.commissionRate ?? 0)) - (item.commissionDiscount || 0))}
         </td>
       )}
 
@@ -396,7 +396,7 @@ export function LineItemsTableRow({
       {visibleColumns.has('earnAmount') && (
         <td className="px-3 py-2 text-sm text-right text-green-600 font-medium">
           {formatCurrency(
-            item.amount * (item.commissionRate ?? 0.08) +
+            ((item.amount * (item.commissionRate ?? 0)) - (item.commissionDiscount || 0)) +
               item.unitPrice * 0.15 * item.quantity * 0.85
           )}
         </td>

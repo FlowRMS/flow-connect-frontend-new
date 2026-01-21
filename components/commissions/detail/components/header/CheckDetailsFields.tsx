@@ -3,7 +3,7 @@
  * Collapsible section with check detail form fields and reconciliation section
  */
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { CommissionCheck } from '@/lib/types/rms';
 import type { CheckStatus, CheckWithUnpostedLines } from '../../types';
 import { searchFactories, searchOpenInvoices, type FactorySearchResult, type OpenInvoiceSearchResult } from '@/components/lib/api/search';
@@ -112,7 +112,9 @@ export function CheckDetailsFields({
   const [showFactoryDropdown, setShowFactoryDropdown] = useState(false);
   const [isSearchingFactories, setIsSearchingFactories] = useState(false);
   const [selectedFactory, setSelectedFactory] = useState<FactorySearchResult | null>(null);
+  const [highlightedFactoryIndex, setHighlightedFactoryIndex] = useState(-1);
   const factoryDropdownRef = useRef<HTMLDivElement>(null);
+  const factoryInputRef = useRef<HTMLInputElement>(null);
 
   // Open invoices search state
   const [isSearchingOpenInvoices, setIsSearchingOpenInvoices] = useState(false);
@@ -151,13 +153,24 @@ export function CheckDetailsFields({
   };
 
   // Handle factory selection
-  const handleSelectFactory = (factoryResult: FactorySearchResult) => {
+  const handleSelectFactory = useCallback((factoryResult: FactorySearchResult) => {
     setSelectedFactory(factoryResult);
     setFactorySearch(factoryResult.title);
     setFactory(factoryResult.title);
     setFactoryId(factoryResult.id);
     setShowFactoryDropdown(false);
-  };
+    setHighlightedFactoryIndex(-1);
+    // Move focus to next focusable element after selection
+    setTimeout(() => {
+      const focusableElements = document.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])'
+      );
+      const currentIndex = Array.from(focusableElements).findIndex(el => el === factoryInputRef.current);
+      if (currentIndex !== -1 && currentIndex < focusableElements.length - 1) {
+        focusableElements[currentIndex + 1]?.focus();
+      }
+    }, 0);
+  }, [setFactory, setFactoryId]);
 
   // Clear factory selection
   const handleClearFactory = () => {
@@ -165,9 +178,49 @@ export function CheckDetailsFields({
     setFactorySearch('');
     setFactory('');
     setFactoryId('');
+    setHighlightedFactoryIndex(-1);
     // Clear open invoices count when factory is cleared
     setOpenInvoicesCount(null);
   };
+
+  // Handle keyboard navigation for factory dropdown
+  const handleFactoryKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showFactoryDropdown || factories.length === 0) {
+      if (e.key === 'Tab') {
+        setShowFactoryDropdown(false);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedFactoryIndex(prev =>
+          prev < factories.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedFactoryIndex(prev => (prev > 0 ? prev - 1 : prev));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (highlightedFactoryIndex >= 0 && highlightedFactoryIndex < factories.length) {
+          handleSelectFactory(factories[highlightedFactoryIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowFactoryDropdown(false);
+        setHighlightedFactoryIndex(-1);
+        break;
+      case 'Tab':
+        // Close dropdown and let natural tab behavior continue
+        setShowFactoryDropdown(false);
+        setHighlightedFactoryIndex(-1);
+        break;
+    }
+  }, [showFactoryDropdown, factories, highlightedFactoryIndex, handleSelectFactory]);
 
   // Search for open invoices when both factory and date are selected
   useEffect(() => {
@@ -259,11 +312,13 @@ export function CheckDetailsFields({
                       <div className="flex gap-1">
                         <div className="relative flex-1">
                           <input
+                            ref={factoryInputRef}
                             type="text"
                             value={factorySearch}
                             onChange={(e) => {
                               handleFactorySearch(e.target.value);
                               setShowFactoryDropdown(true);
+                              setHighlightedFactoryIndex(-1);
                               if (selectedFactory && e.target.value !== selectedFactory.title) {
                                 setSelectedFactory(null);
                               }
@@ -272,6 +327,7 @@ export function CheckDetailsFields({
                               setShowFactoryDropdown(true);
                               if (!factories.length) handleFactorySearch('');
                             }}
+                            onKeyDown={handleFactoryKeyDown}
                             placeholder="Search factories..."
                             className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                           />
@@ -301,12 +357,15 @@ export function CheckDetailsFields({
                       {showFactoryDropdown && !(selectedFactory || factoryId) && (
                         <div className="absolute z-30 w-full mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg max-h-48 overflow-y-auto">
                           {factories.length > 0 ? (
-                            factories.map((f) => (
+                            factories.map((f, index) => (
                               <button
                                 key={f.id}
                                 type="button"
+                                tabIndex={-1}
                                 onClick={() => handleSelectFactory(f)}
-                                className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                                className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0 ${
+                                  highlightedFactoryIndex === index ? 'bg-blue-50' : ''
+                                }`}
                               >
                                 <div className="font-medium text-gray-900 text-sm">{f.title}</div>
                                 {f.accountNumber && (
@@ -545,7 +604,7 @@ export function CheckDetailsFields({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-[var(--muted-foreground)]">
-                        Deductions
+                        Adjustments
                       </span>
                       <span
                         className={`text-sm font-medium ${
