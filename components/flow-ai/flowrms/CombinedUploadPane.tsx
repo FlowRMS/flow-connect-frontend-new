@@ -35,7 +35,7 @@ interface UploadedContextFile {
   file: File;
 }
 
-export type DocumentType = 'quotes' | 'orders' | 'order_acknowledgements' | 'invoices' | 'checks' | 'products' | 'factories' | 'customers';
+export type DocumentType = 'quotes' | 'orders' | 'order_acknowledgements' | 'invoices' | 'checks' | 'statements' | 'products' | 'factories' | 'customers';
 
 interface CombinedUploadPaneProps {
   onDocumentUploaded: (documentId: string, documentType: string, instructions?: string, contextFileIds?: string[]) => void;
@@ -49,7 +49,8 @@ const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: L
   { value: 'orders', label: 'Order', icon: ClipboardList },
   { value: 'order_acknowledgements', label: 'Order Acknowledgement', icon: FileCheck },
   { value: 'invoices', label: 'Invoice', icon: Receipt },
-  { value: 'checks', label: 'Statements', icon: DollarSign },
+  { value: 'statements', label: 'Statements', icon: DollarSign },
+  { value: 'checks', label: 'Checks', icon: Receipt },
   { value: 'products', label: 'Products', icon: Package },
   { value: 'factories', label: 'Factories', icon: Building2 },
   { value: 'customers', label: 'Customers', icon: Users },
@@ -66,6 +67,8 @@ const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType =
       return 'ORDER_ACKNOWLEDGEMENTS';
     case 'invoices':
       return 'INVOICES';
+    case 'statements':
+      return 'COMMISSION_STATEMENTS';
     case 'checks':
       return 'CHECKS';
     case 'products':
