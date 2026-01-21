@@ -15,6 +15,7 @@ import {
 } from '../../lib/graphql/territories';
 import { searchUsers, type UserSearchResult } from '../../lib/api/search';
 import { useAssignTerritoryManager, useRemoveTerritoryManager } from '../api/useTerritories';
+import { TerritoryMapSelectorModal } from './TerritoryMapSelectorModal';
 
 interface TerritoryFormModalProps {
   isOpen: boolean;
@@ -69,6 +70,10 @@ export function TerritoryFormModal({
   const [stateCodes, setStateCodes] = useState<string[]>([]);
   const [stateSearchTerm, setStateSearchTerm] = useState('');
   const [showStateDropdown, setShowStateDropdown] = useState(false);
+  const [countyCodes, setCountyCodes] = useState<string[]>([]);
+  const [countyInput, setCountyInput] = useState('');
+  const [cityNames, setCityNames] = useState<string[]>([]);
+  const [cityInput, setCityInput] = useState('');
   const [zipCodes, setZipCodes] = useState<string[]>([]);
   const [zipCodeInput, setZipCodeInput] = useState('');
   const [splitRates, setSplitRates] = useState<(SplitRateInput & { userName?: string })[]>([]);
@@ -93,6 +98,9 @@ export function TerritoryFormModal({
   const assignManager = useAssignTerritoryManager();
   const removeManager = useRemoveTerritoryManager();
 
+  // Map selector state
+  const [isMapSelectorOpen, setIsMapSelectorOpen] = useState(false);
+
   // Initialize form when opening
   useEffect(() => {
     if (isOpen) {
@@ -102,6 +110,8 @@ export function TerritoryFormModal({
         setCodeManuallyEdited(true);
         setActive(territory.active);
         setStateCodes(territory.stateCodes || []);
+        setCountyCodes(territory.countyCodes || []);
+        setCityNames(territory.cityNames || []);
         setZipCodes(territory.zipCodes || []);
         setSplitRates(
           territory.splitRates?.map((sr) => ({
@@ -119,12 +129,16 @@ export function TerritoryFormModal({
         setCodeManuallyEdited(false);
         setActive(true);
         setStateCodes([]);
+        setCountyCodes([]);
+        setCityNames([]);
         setZipCodes([]);
         setSplitRates([]);
         setManagers([]);
         setOriginalManagerIds(new Set());
       }
       setZipCodeInput('');
+      setCountyInput('');
+      setCityInput('');
       setStateSearchTerm('');
       setManagerSearchTerm('');
       setErrors({});
@@ -246,6 +260,18 @@ export function TerritoryFormModal({
     setStateCodes((prev) => prev.filter((s) => s !== stateCode));
   };
 
+  const handleAddCountyCodes = () => {
+    // Parse county FIPS codes - accept 5-digit codes
+    const codes = countyInput
+      .split(/[,\s]+/)
+      .map((c) => c.trim())
+      .filter((c) => /^\d{5}$/.test(c));
+    if (codes.length > 0) {
+      setCountyCodes((prev) => [...new Set([...prev, ...codes])]);
+      setCountyInput('');
+    }
+  };
+
   // Filter states based on search term
   const filteredStates = stateSearchTerm
     ? US_STATES.filter(
@@ -339,6 +365,8 @@ export function TerritoryFormModal({
         parentId: parentId || territory?.parentId || undefined,
         active,
         stateCodes: stateCodes.length > 0 ? stateCodes : undefined,
+        countyCodes: countyCodes.length > 0 ? countyCodes : undefined,
+        cityNames: cityNames.length > 0 ? cityNames : undefined,
         zipCodes: zipCodes.length > 0 ? zipCodes : undefined,
         splitRates:
           splitRates.length > 0
@@ -494,6 +522,22 @@ export function TerritoryFormModal({
               <span className="text-sm text-gray-700">Active</span>
             </div>
 
+            {/* Map Selector Button */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsMapSelectorOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M8 2v16M16 6v16" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Map
+              </button>
+              <span className="text-sm text-gray-500">(Select States and Counties)</span>
+            </div>
+
             {/* States Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -555,6 +599,125 @@ export function TerritoryFormModal({
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Counties */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Counties
+                <span className="text-xs text-gray-500 font-normal ml-2">
+                  (5-digit FIPS codes)
+                </span>
+              </label>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={countyInput}
+                  onChange={(e) => setCountyInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCountyCodes();
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  placeholder="Enter county FIPS codes (e.g., 06037, 48201)"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCountyCodes}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+              {countyCodes.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {countyCodes.map((fips) => (
+                    <span
+                      key={fips}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs"
+                    >
+                      {fips}
+                      <button
+                        type="button"
+                        onClick={() => setCountyCodes((prev) => prev.filter((c) => c !== fips))}
+                        className="hover:text-purple-900"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Cities */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Cities
+              </label>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={cityInput}
+                  onChange={(e) => setCityInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const cities = cityInput
+                        .split(/[,\n]+/)
+                        .map((c) => c.trim())
+                        .filter((c) => c && !cityNames.includes(c));
+                      if (cities.length > 0) {
+                        setCityNames((prev) => [...prev, ...cities]);
+                        setCityInput('');
+                      }
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  placeholder="Enter city names (comma separated)"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cities = cityInput
+                      .split(/[,\n]+/)
+                      .map((c) => c.trim())
+                      .filter((c) => c && !cityNames.includes(c));
+                    if (cities.length > 0) {
+                      setCityNames((prev) => [...prev, ...cities]);
+                      setCityInput('');
+                    }
+                  }}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+              {cityNames.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {cityNames.map((city) => (
+                    <span
+                      key={city}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs"
+                    >
+                      {city}
+                      <button
+                        type="button"
+                        onClick={() => setCityNames((prev) => prev.filter((c) => c !== city))}
+                        className="hover:text-green-900"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Zip Codes */}
@@ -864,6 +1027,19 @@ export function TerritoryFormModal({
           </button>
         </div>
       </div>
+
+      {/* Map Selector Modal */}
+      <TerritoryMapSelectorModal
+        isOpen={isMapSelectorOpen}
+        onClose={() => setIsMapSelectorOpen(false)}
+        onApply={({ stateCodes: newStateCodes, countyCodes: newCountyCodes }) => {
+          setStateCodes(newStateCodes);
+          setCountyCodes(newCountyCodes);
+          setIsMapSelectorOpen(false);
+        }}
+        initialStateCodes={stateCodes}
+        initialCountyCodes={countyCodes}
+      />
     </div>
   );
 }

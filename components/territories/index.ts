@@ -25,6 +25,13 @@ export { TerritorySelect } from './components/TerritorySelect';
 // Modals
 export { TerritoryFormModal } from './modals/TerritoryFormModal';
 export { DeleteTerritoryModal } from './modals/DeleteTerritoryModal';
+export { TerritoryMapSelectorModal } from './modals/TerritoryMapSelectorModal';
+
+// Map Components
+export { TerritoryUSMap } from './components/maps/TerritoryUSMap';
+export { TerritoryCountyMap } from './components/maps/TerritoryCountyMap';
+export { useLassoSelection } from './components/maps/useLassoSelection';
+export * from './components/maps/mapConstants';
 
 // Re-export types from GraphQL module
 export type {
