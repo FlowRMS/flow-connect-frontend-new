@@ -40,10 +40,12 @@ export function useRevisionWorkflow({
 
       await sendEmailMutation.mutateAsync({
         submittalId: submittal.id,
-        revisionId: undefined, // TODO: Get revision ID when available from backend
+        revisionId: revision?.id,
         subject: emailRecord.subject,
         body: emailRecord.body,
         recipientEmails: emailRecord.recipients,
+        attachmentUrl: emailRecord.attachmentUrl || undefined,
+        attachmentName: emailRecord.attachmentName || undefined,
       });
 
       // Query invalidation happens automatically in the mutation hook
@@ -52,6 +54,7 @@ export function useRevisionWorkflow({
     } catch (error) {
       console.error('Error sending email:', error);
       submittalToasts.emailError(error instanceof Error ? error.message : 'Unknown error');
+      throw error; // Re-throw to allow dialog to reset its sending state
     } finally {
       setIsSendingEmail(false);
     }

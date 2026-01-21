@@ -202,6 +202,8 @@ export interface SendSubmittalEmailInput {
   subject: string;
   body?: string;
   recipientEmails: string[];
+  attachmentUrl?: string;
+  attachmentName?: string;
 }
 
 export interface GenerateSubmittalPdfInput {
