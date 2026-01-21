@@ -200,6 +200,7 @@ describe('Submittals API - Type Contracts', () => {
         pdfFileId: null,
         pdfFileUrl: null,
         pdfFileName: null,
+        pdfFileSizeBytes: null,
         notes: 'Initial revision',
         createdAt: '2024-01-01T00:00:00Z',
         createdBy: {
