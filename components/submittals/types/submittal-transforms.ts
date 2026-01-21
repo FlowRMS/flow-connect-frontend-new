@@ -172,6 +172,7 @@ export function transformToFullSubmittal(response: SubmittalResponse): Submittal
       sortOrder: item.itemNumber || index,
     })) || [],
     revisions: response.revisions?.map(rev => ({
+      id: rev.id,
       revisionNumber: rev.revisionNumber,
       generatedAt: rev.createdAt,
       generatedBy: rev.createdBy?.fullName || 'Unknown',
@@ -190,7 +191,17 @@ export function transformToFullSubmittal(response: SubmittalResponse): Submittal
         transmittedFor: [],
         addressedTo: [],
       },
-      emailsSent: [],
+      emailsSent: rev.emailsSent?.map(email => ({
+        id: email.id,
+        sentAt: email.createdAt,
+        sentBy: 'System', // Backend doesn't track sender name yet
+        recipients: email.recipientEmails || [],
+        subject: email.subject,
+        body: email.body || undefined,
+        attachmentUrl: '',
+        attachmentName: '',
+        attachmentSize: 0,
+      })) || [],
       returnedPdfs: [],
     })) || [],
     config: response.config ? {

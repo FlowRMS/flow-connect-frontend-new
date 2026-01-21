@@ -79,6 +79,16 @@ export interface SubmittalStakeholderResponse {
   companyName: string | null;
 }
 
+export interface SubmittalEmailResponse {
+  id: string;
+  submittalId: string;
+  revisionId: string | null;
+  subject: string;
+  body: string | null;
+  recipientEmails: string[];
+  createdAt: string;
+}
+
 export interface SubmittalRevisionResponse {
   id: string;
   submittalId: string;
@@ -93,6 +103,7 @@ export interface SubmittalRevisionResponse {
     id: string;
     fullName: string;
   };
+  emailsSent: SubmittalEmailResponse[];
 }
 
 export interface SubmittalConfigResponse {
@@ -304,6 +315,15 @@ const SUBMITTAL_REVISION_FRAGMENT = `
     createdBy {
       id
       fullName
+    }
+    emailsSent {
+      id
+      submittalId
+      revisionId
+      subject
+      body
+      recipientEmails
+      createdAt
     }
   }
 `;

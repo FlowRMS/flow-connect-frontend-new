@@ -244,6 +244,7 @@ export interface EmailSendRecord {
 }
 
 export interface SubmittalRevision {
+  id?: string; // UUID from backend
   revisionNumber: number;
   generatedAt: string;
   generatedBy: string;
