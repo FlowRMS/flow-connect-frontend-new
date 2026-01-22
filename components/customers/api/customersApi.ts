@@ -78,8 +78,8 @@ export interface CustomerLandingPage {
   companyName: string;
   createdAt?: string;
   createdBy?: string;
-  insideReps?: string;
-  outsideReps?: string;
+  insideReps?: string[];
+  outsideReps?: string[];
   isParent: boolean;
   published: boolean;
   buyingGroup?: string;
