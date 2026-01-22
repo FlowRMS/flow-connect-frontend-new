@@ -6653,7 +6653,7 @@ function PermissionModal({
             value === 'own' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--foreground)]'
           }`}
         >
-          Only Their Own
+          Only Assigned
         </button>
       </div>
       <p className="text-sm text-[var(--muted-foreground)] mt-2">{description}</p>

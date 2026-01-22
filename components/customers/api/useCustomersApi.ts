@@ -15,6 +15,7 @@ import {
   deleteCustomer,
   fetchCustomerChildren,
   fetchCustomerBuyingGroupMembers,
+  assignChildCustomers,
   type Customer,
   type CustomerLandingPage,
   type CreateCustomerInput,
@@ -240,6 +241,24 @@ export function useCustomerBuyingGroupMembers(buyingGroupId: string | undefined)
     queryFn: () => fetchCustomerBuyingGroupMembers(buyingGroupId!),
     enabled: !!buyingGroupId,
     staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Assign child customers to a parent customer
+ * Used in the parent customer's detail view to add child customers
+ */
+export function useAssignChildCustomers() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CustomerLiteResponse[], Error, { parentId: string; childIds: string[] }>({
+    mutationFn: ({ parentId, childIds }) => assignChildCustomers(parentId, childIds),
+    onSuccess: (_data, variables) => {
+      // Invalidate the children list for this parent
+      queryClient.invalidateQueries({ queryKey: customersQueryKeys.children(variables.parentId) });
+      // Also invalidate the general customer list as parentId changed on children
+      queryClient.invalidateQueries({ queryKey: customersQueryKeys.all });
+    },
   });
 }
 

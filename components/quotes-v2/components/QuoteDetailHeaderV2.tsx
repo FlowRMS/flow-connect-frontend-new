@@ -1599,7 +1599,7 @@ export function QuoteDetailHeaderV2({
                       }}
                       className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                     />
-                    <span className="text-xs text-gray-500">Split Commission</span>
+                    <span className="text-xs text-gray-500">Select Multiple Reps</span>
                   </label>
                 )}
               </>

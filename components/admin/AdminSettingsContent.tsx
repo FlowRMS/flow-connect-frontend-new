@@ -1728,7 +1728,7 @@ function PermissionModal({
             value === 'own' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--foreground)]'
           }`}
         >
-          Only Their Own
+          Only Assigned
         </button>
         <button
           onClick={() => onChange('none')}
