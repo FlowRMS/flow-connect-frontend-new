@@ -332,12 +332,11 @@ export function getRoleKey(role: UserRole): string {
 
 /**
  * All available roles for dropdown selection
+ * Note: INSIDE_REP and OUTSIDE_REP are controlled via separate inside/outside toggle flags
  */
 export const USER_ROLES: { value: UserRole; label: string }[] = [
   { value: 'OWNER', label: 'Owner' },
   { value: 'ADMINISTRATOR', label: 'Administrator' },
-  { value: 'INSIDE_REP', label: 'Inside Rep' },
-  { value: 'OUTSIDE_REP', label: 'Outside Rep' },
   { value: 'WAREHOUSE_MANAGER', label: 'Warehouse Manager' },
   { value: 'WAREHOUSE_EMPLOYEE', label: 'Warehouse Employee' },
   { value: 'DRIVER', label: 'Driver' },
