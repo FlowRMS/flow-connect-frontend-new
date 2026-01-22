@@ -36,6 +36,9 @@ import { linkToasts } from '../lib/toast';
 import { RelatedEntityHoverCard } from './RelatedEntityHoverCard';
 import { fetchFilesByLinkedEntity, formatFileSize, getFilePresignedUrl, type FileResponse, type FileEntityType } from '../lib/graphql/files';
 import { showErrorToast } from '../lib/toast';
+import { CreateNoteModal } from '../notes/modals/CreateNoteModal';
+import { CreateTaskModal } from '../tasks/modals/CreateTaskModal';
+import type { SelectedLink } from '../notes/components/LinkSelector';
 
 // ============================================================================
 // Types
@@ -64,6 +67,22 @@ const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceTyp
   NOTE: 'NOTES',
   FACTORY: 'FACTORIES',
   CUSTOMER: 'CUSTOMERS',
+};
+
+// Map source entity type to link type for creating notes/tasks with auto-linking
+const SOURCE_TYPE_TO_LINK_TYPE: Record<SourceEntityType, SelectedLink['type']> = {
+  JOB: 'JOB',
+  CONTACT: 'CONTACT',
+  COMPANY: 'COMPANY',
+  PRE_OPPORTUNITY: 'PRE_OPPORTUNITY',
+  QUOTE: 'QUOTE',
+  ORDER: 'ORDER',
+  INVOICE: 'INVOICE',
+  CHECK: 'CHECK',
+  TASK: 'TASK',
+  NOTE: 'NOTE',
+  FACTORY: 'FACTORY',
+  CUSTOMER: 'CUSTOMER',
 };
 
 export interface ConnectedEntitiesSectionProps {
@@ -119,10 +138,11 @@ interface EntityGridHeaderProps {
   entityType: LinkEntityType;
   hasEntities: boolean;
   onAddLink: (entityType: LinkEntityType) => void;
+  onCreateNew?: () => void;
   readOnly?: boolean;
 }
 
-function EntityGridHeader({ title, entityType, hasEntities, onAddLink, readOnly = false }: EntityGridHeaderProps) {
+function EntityGridHeader({ title, entityType, hasEntities, onAddLink, onCreateNew, readOnly = false }: EntityGridHeaderProps) {
   const entityLabels: Record<LinkEntityType, string> = {
     COMPANY: 'Company',
     CONTACT: 'Contact',
@@ -141,15 +161,28 @@ function EntityGridHeader({ title, entityType, hasEntities, onAddLink, readOnly 
     <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)] flex items-center justify-between">
       <h3 className="font-semibold text-[var(--foreground)]">{title}</h3>
       {hasEntities && !readOnly && (
-        <button
-          onClick={() => onAddLink(entityType)}
-          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded transition-colors"
-        >
-          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-          </svg>
-          Link {entityLabels[entityType]}
-        </button>
+        <div className="flex items-center gap-2">
+          {onCreateNew && (
+            <button
+              onClick={onCreateNew}
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+              </svg>
+              Create
+            </button>
+          )}
+          <button
+            onClick={() => onAddLink(entityType)}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Link
+          </button>
+        </div>
       )}
     </div>
   );
@@ -190,6 +223,8 @@ export function ConnectedEntitiesSection({
   const [visibleCategories, setVisibleCategories] = useState<EntityCategory[]>(availableCategories);
   const [showAddLinkModal, setShowAddLinkModal] = useState(false);
   const [addLinkEntityType, setAddLinkEntityType] = useState<LinkEntityType>('COMPANY');
+  const [showCreateNoteModal, setShowCreateNoteModal] = useState(false);
+  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
 
   // Open modal with specific entity type
   const openAddLinkModal = (entityType?: LinkEntityType) => {
@@ -918,6 +953,7 @@ export function ConnectedEntitiesSection({
                   entityType="TASK"
                   hasEntities={Boolean(relatedEntities?.tasks && relatedEntities.tasks.length > 0)}
                   onAddLink={openAddLinkModal}
+                  onCreateNew={() => setShowCreateTaskModal(true)}
                 />
                 <div className="p-4">
                   {relatedEntities?.tasks && relatedEntities.tasks.length > 0 ? (
@@ -986,12 +1022,21 @@ export function ConnectedEntitiesSection({
                         </svg>
                       </div>
                       <p className="text-sm">No tasks linked</p>
-                      <button
-                        onClick={() => openAddLinkModal('TASK')}
-                        className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                      >
-                        + Add a task
-                      </button>
+                      <div className="flex items-center justify-center gap-3 mt-2">
+                        <button
+                          onClick={() => setShowCreateTaskModal(true)}
+                          className="text-sm text-[var(--primary)] hover:underline"
+                        >
+                          Create a task
+                        </button>
+                        <span className="text-[var(--muted-foreground)]">or</span>
+                        <button
+                          onClick={() => openAddLinkModal('TASK')}
+                          className="text-sm text-[var(--primary)] hover:underline"
+                        >
+                          Link an existing task
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1006,6 +1051,7 @@ export function ConnectedEntitiesSection({
                   entityType="NOTE"
                   hasEntities={Boolean(relatedEntities?.notes && relatedEntities.notes.length > 0)}
                   onAddLink={openAddLinkModal}
+                  onCreateNew={() => setShowCreateNoteModal(true)}
                 />
                 <div className="p-4">
                   {relatedEntities?.notes && relatedEntities.notes.length > 0 ? (
@@ -1056,12 +1102,21 @@ export function ConnectedEntitiesSection({
                         </svg>
                       </div>
                       <p className="text-sm">No notes linked</p>
-                      <button
-                        onClick={() => openAddLinkModal('NOTE')}
-                        className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                      >
-                        + Add a note
-                      </button>
+                      <div className="flex items-center justify-center gap-3 mt-2">
+                        <button
+                          onClick={() => setShowCreateNoteModal(true)}
+                          className="text-sm text-[var(--primary)] hover:underline"
+                        >
+                          Create a note
+                        </button>
+                        <span className="text-[var(--muted-foreground)]">or</span>
+                        <button
+                          onClick={() => openAddLinkModal('NOTE')}
+                          className="text-sm text-[var(--primary)] hover:underline"
+                        >
+                          Link an existing note
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1565,6 +1620,30 @@ export function ConnectedEntitiesSection({
         initialEntityType={addLinkEntityType}
         onClose={() => setShowAddLinkModal(false)}
         onSuccess={handleLinkSuccess}
+      />
+
+      {/* Create Note Modal */}
+      <CreateNoteModal
+        isOpen={showCreateNoteModal}
+        onClose={() => setShowCreateNoteModal(false)}
+        onSuccess={handleLinkSuccess}
+        initialLinks={[{
+          id: entityId,
+          type: SOURCE_TYPE_TO_LINK_TYPE[sourceEntityType],
+          name: `${sourceEntityType.charAt(0) + sourceEntityType.slice(1).toLowerCase().replace('_', ' ')} #${entityId.slice(0, 8)}`,
+        }]}
+      />
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={showCreateTaskModal}
+        onClose={() => setShowCreateTaskModal(false)}
+        onSuccess={handleLinkSuccess}
+        initialLinks={[{
+          id: entityId,
+          type: SOURCE_TYPE_TO_LINK_TYPE[sourceEntityType],
+          name: `${sourceEntityType.charAt(0) + sourceEntityType.slice(1).toLowerCase().replace('_', ' ')} #${entityId.slice(0, 8)}`,
+        }]}
       />
     </>
   );
