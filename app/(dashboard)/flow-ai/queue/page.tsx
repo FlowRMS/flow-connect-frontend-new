@@ -1296,7 +1296,6 @@ function QueuePageContent() {
                             <SortIndicator column="CLUSTER_NAME" />
                           </button>
                         </TableHead>
-                        <TableHead className="font-semibold text-foreground">File Status</TableHead>
                         <TableHead className="font-semibold text-foreground">Workflow Status</TableHead>
                         <TableHead className="font-semibold text-foreground">Created By</TableHead>
                         <TableHead className="font-semibold text-foreground">
@@ -1384,13 +1383,6 @@ function QueuePageContent() {
                                 <span className="text-sm text-foreground">{doc.clusterName}</span>
                               ) : (
                                 <span className="text-sm text-muted-foreground italic">No template</span>
-                              )}
-                            </TableCell>
-                            <TableCell onClick={() => handleDocumentClick(doc)}>
-                              {doc.status ? (
-                                <StatusBadge status={doc.status} type="file" />
-                              ) : (
-                                <span className="text-sm text-muted-foreground">-</span>
                               )}
                             </TableCell>
                             <TableCell onClick={() => handleDocumentClick(doc)}>
