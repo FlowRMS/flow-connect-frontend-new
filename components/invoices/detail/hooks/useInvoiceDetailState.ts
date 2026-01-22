@@ -27,6 +27,15 @@ import { useOrder } from '@/components/orders/api';
 import { useFactory } from '@/components/warehouse/api/useFactoriesApi';
 import { useCustomer } from '@/components/customers/api/useCustomersApi';
 import { fetchInvoiceById } from '../../api/invoicesApi';
+import { parseLocalDate, formatLocalDate } from '@/components/lib/date-utils';
+
+function addDaysToDate(dateString: string, days: number): string {
+  if (!dateString) return '';
+  const date = parseLocalDate(dateString);
+  if (!date) return '';
+  date.setDate(date.getDate() + days);
+  return formatLocalDate(date);
+}
 
 /**
  * Map API status to RMS InvoiceStatus type
@@ -363,7 +372,9 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   // No separate fetch needed for existing invoices
   // Only fetch factory separately for create mode when populating from order
   const factoryIdToFetch = needsSeparateOrderFetch ? linkedOrder?.factoryId : null;
-  const { data: linkedFactory } = useFactory(factoryIdToFetch || '');
+  const factoryIdFromInvoice = localInvoice?.manufacturerId || null;
+  const factoryId = factoryIdToFetch || factoryIdFromInvoice || '';
+  const { data: linkedFactory } = useFactory(factoryId);
 
   // Fetch end user customer details when we have an endUserId but no endUserName
   // With embedded endUser in the API response, this should rarely be needed
@@ -554,18 +565,44 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     setPopulatedFromOrderId(linkedOrder.id);
   }, [linkedOrder, localInvoice, isCreateMode, selectedOrderId, populatedFromOrderId]);
 
-  // When factory data is loaded, populate the factory name
+  // When factory data is loaded, populate the factory name and payment terms
   useEffect(() => {
-    if (linkedFactory && localInvoice && !localInvoice.manufacturerName) {
+    if (linkedFactory && localInvoice) {
       setLocalInvoice(prev => {
         if (!prev) return prev;
-        return {
-          ...prev,
-          manufacturerName: linkedFactory.title || '',
-        };
+        const updates: Partial<EditableInvoice> = {};
+        
+        if (!prev.manufacturerName) {
+          updates.manufacturerName = linkedFactory.title || '';
+        }
+        
+        if (!prev.paymentTerms) {
+          if (linkedFactory.externalPaymentTerms) {
+            updates.paymentTerms = linkedFactory.externalPaymentTerms;
+          } else if (linkedFactory.paymentTerms) {
+            updates.paymentTerms = `Net ${linkedFactory.paymentTerms}`;
+          }
+        }
+        
+        return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
       });
     }
-  }, [linkedFactory, localInvoice?.manufacturerName]);
+  }, [linkedFactory, localInvoice]);
+
+  useEffect(() => {
+    if (isCreateMode && localInvoice?.invoiceDate && linkedFactory?.paymentTerms && localInvoice.manufacturerId) {
+      const calculatedDueDate = addDaysToDate(localInvoice.invoiceDate, linkedFactory.paymentTerms);
+      if (calculatedDueDate && calculatedDueDate !== localInvoice.dueDate) {
+        setLocalInvoice(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            dueDate: calculatedDueDate,
+          };
+        });
+      }
+    }
+  }, [isCreateMode, localInvoice?.invoiceDate, localInvoice?.manufacturerId, linkedFactory, localInvoice?.dueDate]);
 
   // When end user customer data is loaded, populate the end user name
   useEffect(() => {
