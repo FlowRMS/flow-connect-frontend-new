@@ -10,6 +10,7 @@ export interface ProcessingState {
   progress: number;
   currentItem?: string;
   error?: string;
+  message?: string;
 }
 
 // Upload progress state

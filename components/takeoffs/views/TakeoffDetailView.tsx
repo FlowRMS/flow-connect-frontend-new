@@ -115,6 +115,7 @@ export function TakeoffDetailView({
   const [isClassifying, setIsClassifying] = useState(false);
   const [classificationProgress, setClassificationProgress] = useState(0);
   const [classifyingDocIds, setClassifyingDocIds] = useState<Set<string>>(new Set());
+  const [classificationError, setClassificationError] = useState<string | null>(null);
   // Ref to prevent double-triggering of auto-classification (React StrictMode or race conditions)
   const autoClassifyTriggeredRef = useRef(false);
   // Ref to track if classification is in progress (synchronous check for race conditions)
@@ -183,6 +184,7 @@ export function TakeoffDetailView({
 
     setIsClassifying(true);
     setClassificationProgress(0);
+    setClassificationError(null);
 
     // Show toast when classification starts
     takeoffToasts.classificationStarted(docsWithUrls.length);
@@ -202,7 +204,14 @@ export function TakeoffDetailView({
       // Mark this document as being classified
       setClassifyingDocIds(prev => new Set(prev).add(doc.id));
       try {
-        const result = await classifyDocumentAPI(doc.documentUrl!, doc.name);
+        // Add timeout to detect hung requests (6 minutes for large files)
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Classification timeout')), 360000);
+        });
+        const result = await Promise.race([
+          classifyDocumentAPI(doc.documentUrl!, doc.name),
+          timeoutPromise
+        ]);
 
         // Check again after async call
         if (!isMountedRef.current) {
@@ -238,15 +247,25 @@ export function TakeoffDetailView({
           else if (classification === 'Irrelevant') results.irrelevant++;
         } else {
           console.error(`[Classification] Failed to classify ${doc.name}:`, result.error);
-          // Set as "Other Docs" when classification fails
-          classifications[doc.id] = 'Other Docs';
-          results.other++;
+          // Any API failure should show error and allow retry
+          if (isMountedRef.current) {
+            setClassificationError(`Request failed. Try again.`);
+            setIsClassifying(false);
+            setClassifyingDocIds(new Set());
+          }
+          isClassifyingRef.current = false;
+          return;
         }
       } catch (error) {
         console.error(`[Classification] Error classifying ${doc.name}:`, error);
-        // Set as "Other Docs" when there's an error
-        classifications[doc.id] = 'Other Docs';
-        results.other++;
+        // Any error should show error state and allow retry
+        if (isMountedRef.current) {
+          setClassificationError(`Request failed. Try again.`);
+          setIsClassifying(false);
+          setClassifyingDocIds(new Set());
+        }
+        isClassifyingRef.current = false;
+        return;
       }
       // Remove from classifying set and update progress (only if still mounted)
       if (isMountedRef.current) {
@@ -284,6 +303,13 @@ export function TakeoffDetailView({
     isClassifyingRef.current = false;
     onAutoClassifyComplete?.();
   }, [documents, onClassify, onBulkClassify, onAutoClassifyComplete]);
+
+  // Retry classification handler
+  const handleRetryClassification = useCallback(() => {
+    setClassificationError(null);
+    autoClassifyTriggeredRef.current = false;
+    runAutoClassification(false);
+  }, [runAutoClassification]);
 
   // Auto-run classification when entering classification view with unclassified documents
   useEffect(() => {
@@ -401,6 +427,9 @@ export function TakeoffDetailView({
                 documentAbridgeState={documentAbridgeState}
                 classifyingDocIds={classifyingDocIds}
                 isClassifying={isClassifying}
+                classificationProgress={classificationProgress}
+                classificationError={classificationError}
+                onRetryClassification={handleRetryClassification}
                 isAbridgementProcessing={isAbridgementProcessing}
                 abridgementCurrentItem={abridgementCurrentItem}
               />
