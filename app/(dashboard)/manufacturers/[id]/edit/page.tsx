@@ -757,7 +757,6 @@ export default function ManufacturerEditPage() {
             entityType="FACTORY"
             entityName={formData.title || 'Untitled Manufacturer'}
             title="Manufacturer Aliases"
-            subTypes={['END_USER', 'SOLD_TO', 'BILL_TO']}
             infoText="Add alternative manufacturer names that should match to this manufacturer during data imports and commission statement processing."
           />
         </div>

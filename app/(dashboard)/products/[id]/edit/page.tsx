@@ -2134,7 +2134,6 @@ export default function ProductEditPage() {
             entityType="PRODUCT"
             entityName={formData.factoryPartNumber || 'Untitled Product'}
             title="Product Aliases"
-            subTypes={['END_USER', 'SOLD_TO', 'BILL_TO']}
             infoText="Add alternative part numbers or descriptions that should match to this product during data imports and commission statement processing."
           />
         </div>

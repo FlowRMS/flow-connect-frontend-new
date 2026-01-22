@@ -71,7 +71,8 @@ const SUB_TYPE_CONFIGS: SubTypeConfig[] = [
   },
 ];
 
-const DEFAULT_SUB_TYPES: AliasSubType[] = ['END_USER', 'SOLD_TO', 'BILL_TO'];
+// Only CUSTOMER entities use sub-types by default
+const DEFAULT_CUSTOMER_SUB_TYPES: AliasSubType[] = ['END_USER', 'SOLD_TO', 'BILL_TO'];
 
 const getSubTypeConfig = (subType: AliasSubType): SubTypeConfig | undefined => {
   return SUB_TYPE_CONFIGS.find((st) => st.value === subType);
@@ -429,8 +430,9 @@ export function EntityAliasesSection({
   const [editValue, setEditValue] = useState('');
   const [editSubType, setEditSubType] = useState<AliasSubType>(null);
 
-  // Determine which subTypes to use - all entity types support all sub-types
-  const effectiveSubTypes = subTypes || DEFAULT_SUB_TYPES;
+  // Determine which subTypes to use - only CUSTOMER uses sub-types by default
+  // For PRODUCT and FACTORY, subTypes must be explicitly provided to enable them
+  const effectiveSubTypes = subTypes || (entityType === 'CUSTOMER' ? DEFAULT_CUSTOMER_SUB_TYPES : undefined);
 
   // Fetch aliases for the entity
   const { data: aliases = [], isLoading, error } = useAliasesByEntity(
@@ -683,9 +685,9 @@ export function EntityAliasesSection({
               })}
             </div>
           ) : (
-            // Fallback simple list
+            // Simple list (for PRODUCT and FACTORY without sub-types)
             <div className="space-y-2">
-              {aliases.map((alias) => renderAliasItem(alias, true))}
+              {aliases.map((alias) => renderAliasItem(alias, false))}
             </div>
           )}
         </div>
