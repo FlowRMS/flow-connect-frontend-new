@@ -155,10 +155,6 @@ export function TerritoryFormModal({
   // Search for outside reps
   const handleRepSearch = useCallback(async (term: string) => {
     setRepSearchTerm(term);
-    if (term.length < 2) {
-      setRepSearchResults([]);
-      return;
-    }
 
     setIsSearchingReps(true);
     try {
@@ -285,10 +281,6 @@ export function TerritoryFormModal({
   // Manager search handler
   const handleManagerSearch = useCallback(async (term: string) => {
     setManagerSearchTerm(term);
-    if (term.length < 2) {
-      setManagerSearchResults([]);
-      return;
-    }
 
     setIsSearchingManagers(true);
     try {
@@ -580,6 +572,10 @@ export function TerritoryFormModal({
                     setShowStateDropdown(true);
                   }}
                   onFocus={() => setShowStateDropdown(true)}
+                  onBlur={() => {
+                    // Delay closing to allow click on dropdown items
+                    setTimeout(() => setShowStateDropdown(false), 200);
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                   placeholder="Search and add states..."
                 />
@@ -863,7 +859,17 @@ export function TerritoryFormModal({
                   type="text"
                   value={repSearchTerm}
                   onChange={(e) => handleRepSearch(e.target.value)}
-                  onFocus={() => setShowRepDropdown(true)}
+                  onFocus={() => {
+                    setShowRepDropdown(true);
+                    // Preload results with empty string
+                    if (repSearchResults.length === 0) {
+                      handleRepSearch('');
+                    }
+                  }}
+                  onBlur={() => {
+                    // Delay closing to allow click on dropdown items
+                    setTimeout(() => setShowRepDropdown(false), 200);
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                   placeholder="Search outside reps to add..."
                 />
@@ -964,7 +970,17 @@ export function TerritoryFormModal({
                       type="text"
                       value={managerSearchTerm}
                       onChange={(e) => handleManagerSearch(e.target.value)}
-                      onFocus={() => setShowManagerDropdown(true)}
+                      onFocus={() => {
+                        setShowManagerDropdown(true);
+                        // Preload results with empty string
+                        if (managerSearchResults.length === 0) {
+                          handleManagerSearch('');
+                        }
+                      }}
+                      onBlur={() => {
+                        // Delay closing to allow click on dropdown items
+                        setTimeout(() => setShowManagerDropdown(false), 200);
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                       placeholder="Search users to add as manager..."
                     />
