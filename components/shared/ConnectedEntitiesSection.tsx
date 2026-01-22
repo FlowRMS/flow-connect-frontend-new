@@ -39,6 +39,10 @@ import { showErrorToast } from '../lib/toast';
 import { CreateNoteModal } from '../notes/modals/CreateNoteModal';
 import { CreateTaskModal } from '../tasks/modals/CreateTaskModal';
 import type { SelectedLink } from '../notes/components/LinkSelector';
+import { ConnectedEntitiesTableView } from './ConnectedEntitiesTableView';
+
+// View mode type
+export type ViewMode = 'cards' | 'table';
 
 // ============================================================================
 // Types
@@ -100,6 +104,8 @@ export interface ConnectedEntitiesSectionProps {
   showAddLinkButton?: boolean;
   /** Key to trigger a refetch of linked entities when changed */
   refreshKey?: number;
+  /** Default view mode (cards or table) */
+  defaultViewMode?: ViewMode;
   /** Click handlers for different entity types */
   onCompanyClick?: (company: RelatedEntityCompany) => void;
   onContactClick?: (contact: RelatedEntityContact) => void;
@@ -143,20 +149,6 @@ interface EntityGridHeaderProps {
 }
 
 function EntityGridHeader({ title, entityType, hasEntities, onAddLink, onCreateNew, readOnly = false }: EntityGridHeaderProps) {
-  const entityLabels: Record<LinkEntityType, string> = {
-    COMPANY: 'Company',
-    CONTACT: 'Contact',
-    TASK: 'Task',
-    NOTE: 'Note',
-    PRE_OPPORTUNITY: 'Pre-Opp',
-    QUOTE: 'Quote',
-    ORDER: 'Order',
-    INVOICE: 'Invoice',
-    CHECK: 'Check',
-    JOB: 'Job',
-    FILE: 'File',
-  };
-
   return (
     <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)] flex items-center justify-between">
       <h3 className="font-semibold text-[var(--foreground)]">{title}</h3>
@@ -189,6 +181,53 @@ function EntityGridHeader({ title, entityType, hasEntities, onAddLink, onCreateN
 }
 
 // ============================================================================
+// View Mode Toggle Component
+// ============================================================================
+
+interface ViewModeToggleProps {
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
+}
+
+function ViewModeToggle({ viewMode, onViewModeChange }: ViewModeToggleProps) {
+  return (
+    <div className="flex items-center bg-[var(--muted)]/50 rounded-lg p-1">
+      <button
+        onClick={() => onViewModeChange('cards')}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+          viewMode === 'cards'
+            ? 'bg-white text-[var(--foreground)] shadow-sm'
+            : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+        }`}
+        title="Card View"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </svg>
+        Cards
+      </button>
+      <button
+        onClick={() => onViewModeChange('table')}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+          viewMode === 'table'
+            ? 'bg-white text-[var(--foreground)] shadow-sm'
+            : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+        }`}
+        title="Table View"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M3 6h18M3 12h18M3 18h18" strokeLinecap="round" />
+        </svg>
+        Table
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
 // Main Component
 // ============================================================================
 
@@ -200,6 +239,7 @@ export function ConnectedEntitiesSection({
   title = 'Connected Entities',
   showAddLinkButton = true,
   refreshKey,
+  defaultViewMode = 'cards',
   onCompanyClick,
   onContactClick,
   onPreOpportunityClick,
@@ -221,6 +261,7 @@ export function ConnectedEntitiesSection({
   const isCategoryReadOnly = (category: EntityCategory) => readOnlyCategories.includes(category);
 
   const [visibleCategories, setVisibleCategories] = useState<EntityCategory[]>(availableCategories);
+  const [viewMode, setViewMode] = useState<ViewMode>(defaultViewMode);
   const [showAddLinkModal, setShowAddLinkModal] = useState(false);
   const [addLinkEntityType, setAddLinkEntityType] = useState<LinkEntityType>('COMPANY');
   const [showCreateNoteModal, setShowCreateNoteModal] = useState(false);
@@ -466,6 +507,45 @@ export function ConnectedEntitiesSection({
   // Check if a category is enabled
   const isCategoryEnabled = (category: EntityCategory) => availableCategories.includes(category);
 
+  // Generic entity click handler for table view
+  const handleEntityClick = (type: EntityCategory, entity: unknown) => {
+    switch (type) {
+      case 'contacts':
+        handleContactClick(entity as RelatedEntityContact);
+        break;
+      case 'companies':
+        handleCompanyClick(entity as RelatedEntityCompany);
+        break;
+      case 'pre-opportunities':
+        handlePreOpportunityClick(entity as RelatedEntityPreOpportunity);
+        break;
+      case 'quotes':
+        handleQuoteClick(entity as RelatedEntityQuote);
+        break;
+      case 'orders':
+        handleOrderClick(entity as RelatedEntityOrder);
+        break;
+      case 'invoices':
+        handleInvoiceClick(entity as RelatedEntityInvoice);
+        break;
+      case 'checks':
+        handleCheckClick(entity as RelatedEntityCheck);
+        break;
+      case 'tasks':
+        handleTaskClick(entity as RelatedEntityTask);
+        break;
+      case 'notes':
+        handleNoteClick(entity as RelatedEntityNote);
+        break;
+      case 'jobs':
+        handleJobClick(entity as RelatedEntityJob);
+        break;
+      case 'files':
+        handleFileClick(entity as FileResponse);
+        break;
+    }
+  };
+
   // Render loading state
   if (isLoading) {
     return (
@@ -504,17 +584,20 @@ export function ConnectedEntitiesSection({
         <div className="px-6 py-4 border-b border-[var(--border)]">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">{title}</h2>
-            {showAddLinkButton && (
-              <button
-                onClick={() => openAddLinkModal()}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-              >
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                </svg>
-                Add Link
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+              {showAddLinkButton && (
+                <button
+                  onClick={() => openAddLinkModal()}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Add Link
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Entity Filters */}
@@ -664,11 +747,31 @@ export function ConnectedEntitiesSection({
           </div>
         </div>
 
-        {/* Entities Grid */}
-        <div className="p-6">
-          <div className="grid grid-cols-2 gap-4">
-            {/* Contacts */}
-            {isCategoryEnabled('contacts') && visibleCategories.includes('contacts') && (
+        {/* View Content - Cards or Table */}
+        {viewMode === 'table' ? (
+          <ConnectedEntitiesTableView
+            contacts={relatedEntities?.contacts || []}
+            companies={relatedEntities?.companies || []}
+            preOpportunities={relatedEntities?.preOpportunities || []}
+            quotes={relatedEntities?.quotes || []}
+            orders={relatedEntities?.orders || []}
+            invoices={relatedEntities?.invoices || []}
+            checks={relatedEntities?.checks || []}
+            tasks={relatedEntities?.tasks || []}
+            notes={relatedEntities?.notes || []}
+            jobs={relatedEntities?.jobs || []}
+            files={linkedFiles || []}
+            visibleCategories={visibleCategories}
+            readOnlyCategories={readOnlyCategories}
+            onEntityClick={handleEntityClick}
+            onUnlink={handleUnlink}
+            isUnlinking={deleteLinkMutation.isPending}
+          />
+        ) : (
+          <div className="p-6">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Contacts */}
+              {isCategoryEnabled('contacts') && visibleCategories.includes('contacts') && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
                 <EntityGridHeader
                   title="Contacts"
@@ -1608,8 +1711,9 @@ export function ConnectedEntitiesSection({
                 </div>
               </div>
             )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Add Link Modal */}
