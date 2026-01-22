@@ -18,6 +18,7 @@ interface WarehousesListProps {
   hasChanges: boolean;
   isSaving: boolean;
   onSave: () => Promise<void>;
+  isLoadingDetails?: boolean;
 }
 
 export default function WarehousesList({
@@ -35,6 +36,7 @@ export default function WarehousesList({
   hasChanges,
   isSaving,
   onSave,
+  isLoadingDetails = false,
 }: WarehousesListProps) {
   if (warehouses.length === 0) {
     return (
@@ -82,6 +84,7 @@ export default function WarehousesList({
             hasChanges={hasChanges}
             isSaving={isSaving}
             onSave={onSave}
+            isLoadingDetails={isExpanded && isLoadingDetails}
           />
         );
       })}

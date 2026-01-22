@@ -84,12 +84,18 @@ const toLocalFormat = (
   address?: WarehouseAddress | null
 ): WarehouseWithSettings => {
   // Convert structure to location levels - handle both number and string enum codes from backend
-  const enabledLevels = new Set(
-    warehouse.structure?.map((s) => normalizeCodeToLevel(s.code)).filter(Boolean) || []
-  );
+  // If structure is missing/empty, default to all enabled (prevents strikethrough flash during loading)
+  const structure = warehouse.structure;
+  const hasStructure = structure && structure.length > 0;
+
+  const enabledLevels = hasStructure
+    ? new Set(structure.map((s) => normalizeCodeToLevel(s.code)).filter(Boolean))
+    : null; // null indicates "unknown" vs empty Set meaning "none enabled"
+
   const locationLevels = defaultLocationLevels.map((defaultLevel) => ({
     ...defaultLevel,
-    enabled: enabledLevels.has(defaultLevel.level),
+    // If no structure data yet, default to enabled=true to prevent strikethrough flash
+    enabled: enabledLevels === null ? true : enabledLevels.has(defaultLevel.level),
   }));
 
   // Convert members to worker assignments
@@ -711,19 +717,45 @@ export function useWarehouseSettings() {
     // Now that ALL saves are complete, invalidate and refetch once
     // This ensures we get fresh data with all changes applied
     console.log('=== REFETCHING DATA ===');
-    await queryClient.invalidateQueries({ queryKey: warehousesQueryKeys.all });
-    await queryClient.refetchQueries({ queryKey: warehousesQueryKeys.list() });
 
-    // Log what the API returned after refetch
+    // First invalidate to mark queries as stale
+    await queryClient.invalidateQueries({ queryKey: warehousesQueryKeys.all });
+
+    // Use refetchQueries which properly waits for all active query subscribers to update
+    // This ensures the useQuery hook's data is updated before we clear local state
+    await queryClient.refetchQueries({
+      queryKey: warehousesQueryKeys.list(),
+      type: 'active', // Only refetch active queries (ones being used by components)
+    });
+
     const newApiData = queryClient.getQueryData(warehousesQueryKeys.list());
     console.log('New API data after refetch:', newApiData);
 
-    // Clear modification tracking and reload addresses
+    // Only reload addresses for warehouses that were modified (not all warehouses)
+    // This is much faster than reloading all addresses
+    console.log('=== RELOADING MODIFIED ADDRESSES ===');
+    const modifiedIds = Array.from(localModifications.keys());
+    if (modifiedIds.length > 0) {
+      const updatedAddressMap = new Map(addressesByWarehouse);
+      await Promise.all(
+        modifiedIds.map(async (warehouseId) => {
+          try {
+            const addresses = await fetchWarehouseAddresses(warehouseId);
+            const primaryAddress = addresses.find((a) => a.isPrimary) || addresses[0] || null;
+            updatedAddressMap.set(warehouseId, primaryAddress);
+          } catch (err) {
+            console.error(`Failed to load address for warehouse ${warehouseId}:`, err);
+          }
+        })
+      );
+      setAddressesByWarehouse(updatedAddressMap);
+    }
+
+    // Clear local modifications - the fresh API data and addresses are now available
     console.log('=== CLEARING LOCAL MODIFICATIONS ===');
     setLocalModifications(new Map());
     setDeletedIds(new Set());
     setNewWarehouses([]);
-    setAddressesLoaded(false); // Trigger address reload
     console.log('=== SAVE CHANGES END ===');
   }, [
     apiWarehouses,
@@ -745,6 +777,7 @@ export function useWarehouseSettings() {
     showQRCodesModal,
     hasChanges,
     isLoading,
+    isLoadingAddresses: !addressesLoaded && (apiWarehouses?.length ?? 0) > 0,
     error,
 
     // Setters

@@ -5,6 +5,90 @@ import WarehouseDetailsForm from './WarehouseDetailsForm';
 import LocationHierarchySection from './LocationHierarchySection';
 import TeamMembersSection from './TeamMembersSection';
 
+// Skeleton for warehouse details form
+function WarehouseDetailsSkeleton() {
+  return (
+    <div className="mb-6 pb-4 border-b border-[var(--border)] animate-pulse">
+      <div className="h-4 w-32 bg-[var(--muted)] rounded mb-3" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <div className="h-3 w-12 bg-[var(--muted)] rounded mb-1" />
+          <div className="h-9 bg-[var(--muted)] rounded-lg" />
+        </div>
+        <div>
+          <div className="h-3 w-16 bg-[var(--muted)] rounded mb-1" />
+          <div className="h-9 bg-[var(--muted)] rounded-lg" />
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <div className="h-3 w-8 bg-[var(--muted)] rounded mb-1" />
+            <div className="h-9 bg-[var(--muted)] rounded-lg" />
+          </div>
+          <div>
+            <div className="h-3 w-10 bg-[var(--muted)] rounded mb-1" />
+            <div className="h-9 bg-[var(--muted)] rounded-lg" />
+          </div>
+          <div>
+            <div className="h-3 w-8 bg-[var(--muted)] rounded mb-1" />
+            <div className="h-9 bg-[var(--muted)] rounded-lg" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Skeleton for location hierarchy section
+function LocationHierarchySkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="h-4 w-36 bg-[var(--muted)] rounded mb-3" />
+      <div className="bg-[var(--background)] rounded-lg border border-[var(--border)] p-3 space-y-2">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="flex items-center justify-between py-2" style={{ paddingLeft: `${i * 16}px` }}>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-[var(--muted)] rounded" />
+              <div className="h-4 w-16 bg-[var(--muted)] rounded" />
+            </div>
+            <div className="w-10 h-5 bg-[var(--muted)] rounded-full" />
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 space-y-2">
+        <div className="h-10 bg-[var(--muted)] rounded-lg" />
+        <div className="h-10 bg-[var(--muted)] rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
+// Skeleton for team members section
+function TeamMembersSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="flex items-center justify-between mb-3">
+        <div className="h-4 w-28 bg-[var(--muted)] rounded" />
+        <div className="h-6 w-24 bg-[var(--muted)] rounded" />
+      </div>
+      <div className="bg-[var(--background)] rounded-lg border border-[var(--border)] p-3 space-y-3">
+        <div className="h-3 w-20 bg-[var(--muted)] rounded" />
+        {[...Array(2)].map((_, i) => (
+          <div key={i} className="flex items-center justify-between py-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-[var(--muted)] rounded-full" />
+              <div>
+                <div className="h-4 w-24 bg-[var(--muted)] rounded mb-1" />
+                <div className="h-3 w-32 bg-[var(--muted)] rounded" />
+              </div>
+            </div>
+            <div className="w-20 h-8 bg-[var(--muted)] rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface WarehouseAccordionItemProps {
   warehouse: WarehouseWithSettings;
   isExpanded: boolean;
@@ -20,6 +104,7 @@ interface WarehouseAccordionItemProps {
   hasChanges: boolean;
   isSaving: boolean;
   onSave: () => Promise<void>;
+  isLoadingDetails?: boolean;
 }
 
 export default function WarehouseAccordionItem({
@@ -37,6 +122,7 @@ export default function WarehouseAccordionItem({
   hasChanges,
   isSaving,
   onSave,
+  isLoadingDetails = false,
 }: WarehouseAccordionItemProps) {
   const enabledLevels = warehouse.settings.locationLevels.filter((l) => l.enabled);
 
@@ -124,51 +210,66 @@ export default function WarehouseAccordionItem({
       {/* Expanded Content */}
       {isExpanded && (
         <div className="border-t border-[var(--border)] p-4">
-          {/* Warehouse Details Section */}
-          <WarehouseDetailsForm warehouse={warehouse} onUpdateField={onUpdateField} />
+          {isLoadingDetails ? (
+            <>
+              {/* Skeleton Loading State */}
+              <WarehouseDetailsSkeleton />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <LocationHierarchySkeleton />
+                </div>
+                <TeamMembersSkeleton />
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Warehouse Details Section */}
+              <WarehouseDetailsForm warehouse={warehouse} onUpdateField={onUpdateField} />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left Column: Location Hierarchy + Options */}
-            <div className="space-y-4">
-              <LocationHierarchySection
-                warehouse={warehouse}
-                onToggleLevel={onToggleLevel}
-                onShowLayout={onShowLayout}
-                onShowQRCodes={onShowQRCodes}
-              />
-            </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left Column: Location Hierarchy + Options */}
+                <div className="space-y-4">
+                  <LocationHierarchySection
+                    warehouse={warehouse}
+                    onToggleLevel={onToggleLevel}
+                    onShowLayout={onShowLayout}
+                    onShowQRCodes={onShowQRCodes}
+                  />
+                </div>
 
-            {/* Right Column: Team Members */}
-            <TeamMembersSection
-              warehouse={warehouse}
-              onUpdateWorkerRole={onUpdateWorkerRole}
-              onRemoveWorker={onRemoveWorker}
-              onShowAddWorker={onShowAddWorker}
-              getWorkerById={getWorkerById}
-            />
-          </div>
+                {/* Right Column: Team Members */}
+                <TeamMembersSection
+                  warehouse={warehouse}
+                  onUpdateWorkerRole={onUpdateWorkerRole}
+                  onRemoveWorker={onRemoveWorker}
+                  onShowAddWorker={onShowAddWorker}
+                  getWorkerById={getWorkerById}
+                />
+              </div>
 
-          {/* Save Button */}
-          {hasChanges && (
-            <div className="mt-6 pt-4 border-t border-[var(--border)] flex justify-end">
-              <button
-                onClick={onSave}
-                disabled={isSaving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
-              >
-                {isSaving ? (
-                  <>
-                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Saving...
-                  </>
-                ) : (
-                  'Save Changes'
-                )}
-              </button>
-            </div>
+              {/* Save Button */}
+              {hasChanges && (
+                <div className="mt-6 pt-4 border-t border-[var(--border)] flex justify-end">
+                  <button
+                    onClick={onSave}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  >
+                    {isSaving ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
