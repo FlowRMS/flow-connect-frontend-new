@@ -75,6 +75,7 @@ export interface Company {
   followers: string[];
   companyTypeId?: string;             // UUID reference to CompanyType
   companyTypeName?: string;           // Display name of the company type
+  companySourceType?: string;         // Raw companySourceType from API (for filtering)
   standardCommissionRate?: number;    // Standard/direct commission rate (e.g., 0.10 for 10%)
   warehouseCommissionRate?: number;   // Warehouse commission rate (e.g., 0.05 for 5%)
   insideRep?: string;
@@ -152,6 +153,7 @@ export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Comp
     followers: [], // Followers not in API yet
     companyTypeId: landingPage.companyTypeId,
     companyTypeName: landingPage.companyType?.name || landingPage.companySourceType,
+    companySourceType: landingPage.companySourceType, // Keep original for filtering
     standardCommissionRate: landingPage.standardCommissionRate,
     warehouseCommissionRate: landingPage.warehouseCommissionRate,
     createdBy: landingPage.createdBy || '',

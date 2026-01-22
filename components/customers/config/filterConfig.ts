@@ -1,20 +1,14 @@
 /**
  * Customer Filter and Sort Configuration
+ * Note: columnName should match the backend CustomerLandingPage field names
  */
 
-export interface FilterOption {
-  id: string;
-  label: string;
-  type: 'dropdown' | 'date' | 'text' | 'number';
-  columnName?: string;
-  available?: boolean;
-  options?: string[];
-}
+import type { FilterOption } from '../../advancedFilters/types';
 
-export interface SortOption {
+export type SortOption = {
   columnName: string;
   label: string;
-}
+};
 
 export function getCustomerFilterOptions(
   uniqueCompanyNames: string[]
@@ -22,24 +16,59 @@ export function getCustomerFilterOptions(
   return [
     {
       id: 'companyName',
-      columnName: 'companyName',
       label: 'Company Name',
-      type: 'dropdown',
-      options: uniqueCompanyNames,
+      type: 'text',
+      columnName: 'companyName',
+      available: true,
     },
     {
       id: 'isParent',
-      columnName: 'isParent',
       label: 'Is Parent',
-      type: 'dropdown',
-      options: ['true', 'false'],
+      type: 'boolean' as const,
+      columnName: 'isParent',
+      available: true,
     },
     {
       id: 'published',
-      columnName: 'published',
       label: 'Published',
-      type: 'dropdown',
-      options: ['true', 'false'],
+      type: 'boolean' as const,
+      columnName: 'published',
+      available: true,
+    },
+    {
+      id: 'parent',
+      label: 'Parent',
+      type: 'text',
+      columnName: 'parent',
+      available: true,
+    },
+    {
+      id: 'createdAt',
+      label: 'Created Date',
+      type: 'date',
+      columnName: 'createdAt',
+      available: true,
+    },
+    {
+      id: 'createdBy',
+      label: 'Created By',
+      type: 'text',
+      columnName: 'createdBy',
+      available: false,
+    },
+    {
+      id: 'insideReps',
+      label: 'Inside Reps',
+      type: 'text',
+      columnName: 'insideReps',
+      available: false,
+    },
+    {
+      id: 'outsideReps',
+      label: 'Outside Reps',
+      type: 'text',
+      columnName: 'outsideReps',
+      available: false,
     },
   ];
 }
