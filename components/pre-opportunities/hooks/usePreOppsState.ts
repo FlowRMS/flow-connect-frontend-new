@@ -8,7 +8,7 @@ import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFil
 import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
 import { sortPreOpps, getUniqueValues } from '../utils';
 import { DEFAULT_STAGES } from '../constants';
-import { useCRMPreOpportunityLandingPages } from '../../hooks/useCRMApi';
+import { useCRMPreOpportunityLandingPagesInfinite } from '../../hooks/useCRMApi';
 
 // ============================================================================
 // Main Hook
@@ -59,13 +59,35 @@ export function usePreOppsState() {
     }));
   }, []);
 
-  // Fetch pre-opportunities from API with server-side filtering
+  // Fetch pre-opportunities from API with server-side filtering and infinite scroll
   const {
-    data: rawPreOpps = [],
+    data: preOppsData,
     isLoading,
     error,
     refetch,
-  } = useCRMPreOpportunityLandingPages(serverFilters, serverOrderBy);
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useCRMPreOpportunityLandingPagesInfinite(serverFilters, serverOrderBy, 50);
+
+  // Flatten paginated results into a single array with deduplication
+  const rawPreOpps = useMemo(() => {
+    if (!preOppsData?.pages) return [];
+    const allRecords = preOppsData.pages.flatMap(page => page.records);
+    // Deduplicate by ID to prevent duplicate key errors
+    const seen = new Set<string>();
+    return allRecords.filter(record => {
+      if (seen.has(record.id)) return false;
+      seen.add(record.id);
+      return true;
+    });
+  }, [preOppsData]);
+
+  // Get total count from API response (first page has the total)
+  const totalFromApi = useMemo(() => {
+    if (!preOppsData?.pages || preOppsData.pages.length === 0) return 0;
+    return preOppsData.pages[0].total;
+  }, [preOppsData]);
 
   // Get unique values from data for filter options
   const uniqueEntityNumbers = useMemo(() => getUniqueValues(rawPreOpps, 'entityNumber'), [rawPreOpps]);
@@ -182,9 +204,14 @@ export function usePreOppsState() {
     stages,
     statusCounts,
 
-    // Raw data count for UI
-    totalCount: rawPreOpps.length,
-    filteredCount: preOpps.length,
+    // Infinite scroll pagination
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+
+    // Total count from API (for header display)
+    totalCount: totalFromApi,
+    loadedCount: preOpps.length,
 
     // Drag and drop
     activeId,
