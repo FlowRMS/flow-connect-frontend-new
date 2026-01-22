@@ -51,6 +51,13 @@ export interface CustomerSplitRateInput {
   position: number;
 }
 
+export interface TerritoryLite {
+  id: string;
+  name: string;
+  code: string;
+  territoryType: 'REGION' | 'SUBREGION' | 'TERRITORY';
+}
+
 export interface Customer {
   id: string;
   companyName: string;
@@ -62,6 +69,8 @@ export interface Customer {
   insideReps?: SplitRate[];
   outsideReps?: SplitRate[];
   createdAt?: string;
+  territoryId?: string;
+  territory?: TerritoryLite;
 }
 
 export interface CustomerLandingPage {
@@ -85,6 +94,7 @@ export interface CreateCustomerInput {
   published: boolean;
   insideSplitRates?: CustomerSplitRateInput[];
   outsideSplitRates?: CustomerSplitRateInput[];
+  territoryId?: string;
 }
 
 export interface UpdateCustomerInput {
@@ -95,6 +105,7 @@ export interface UpdateCustomerInput {
   published?: boolean;
   insideSplitRates?: CustomerSplitRateInput[];
   outsideSplitRates?: CustomerSplitRateInput[];
+  territoryId?: string;
 }
 
 // User Search Types
