@@ -42,6 +42,7 @@ import { useFlowChat } from '@/contexts/FlowChatContext';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
 import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useEntityFilesCount } from '@/components/shared/hooks/useEntityFilesCount';
 
 type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings' | 'files';
 
@@ -129,6 +130,13 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   // Counter to trigger linked entities refresh after save
   const [linkedEntitiesRefreshKey, setLinkedEntitiesRefreshKey] = useState(0);
+
+  // Files count for tab badge
+  const { filesCount } = useEntityFilesCount({
+    entityId: quote.id || null,
+    entityType: 'QUOTE',
+    enabled: !!quote.id && !isNew, // Only fetch when quote has an ID and not in create mode
+  });
 
   // Transform API data to UI format when it loads
   useEffect(() => {
@@ -866,14 +874,14 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean; disabled?: boolean; disabledReason?: string }[] = useMemo(() => [
     { key: 'lineItems', label: 'Line Items', count: lineItems.length },
-    { key: 'files', label: 'Files', disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'files', label: 'Files', disabled: isNew, disabledReason: 'Save quote first', count: filesCount },
     { key: 'notes', label: 'Notes', disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'tasks', label: 'Tasks', disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'activity', label: 'Activity', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'linkedObjects', label: 'Linked Objects', disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'versions', label: 'Versions', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'settings', label: 'Settings' },
-  ], [lineItems.length, isNew]);
+  ], [lineItems.length, isNew, filesCount]);
 
   // Loading state
   if (isLoading && !isNew) {
