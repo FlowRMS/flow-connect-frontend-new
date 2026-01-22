@@ -19,6 +19,7 @@ interface EntityFilterControlsProps {
   onBulkCreateNew: () => void;
   onBulkSkip?: () => void;
   onBulkSetForCreation?: () => void;
+  onBulkDocSpecific?: () => void;
   isLoading?: boolean;
   currentEntityType?: PendingEntityType;
 }
@@ -37,6 +38,7 @@ export function EntityFilterControls({
   onBulkCreateNew,
   onBulkSkip,
   onBulkSetForCreation,
+  onBulkDocSpecific,
   isLoading = false,
   currentEntityType
 }: EntityFilterControlsProps) {
@@ -116,6 +118,18 @@ export function EntityFilterControls({
               <Ban className="w-3 h-3 mr-1" />
               Rejected
             </Button>
+            {/* Doc Specific - Products only */}
+            {isProducts && (
+              <Button
+                variant={activeFilters.has('doc-specific') ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => toggleFilter('doc-specific')}
+                className="h-7 text-xs px-3"
+              >
+                <FileText className="w-3 h-3 mr-1" />
+                Doc Specific
+              </Button>
+            )}
           </div>
         )}
 
@@ -201,7 +215,7 @@ export function EntityFilterControls({
               <Plus className="w-4 h-4 mr-2" />
               {selectedCount > 1 ? `Bulk Create New (${selectedCount})` : `Create New (${selectedCount})`}
             </Button>
-            {/* Products tab: Add Bulk Skip */}
+            {/* Products tab: Add Bulk Skip and Bulk Doc Specific */}
             {isProducts && onBulkSkip && (
               <Button
                 variant="outline"
@@ -216,6 +230,22 @@ export function EntityFilterControls({
                   <SkipForward className="w-4 h-4 mr-2" />
                 )}
                 {selectedCount > 1 ? `Bulk Skip (${selectedCount})` : `Skip (${selectedCount})`}
+              </Button>
+            )}
+            {isProducts && onBulkDocSpecific && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBulkDocSpecific}
+                disabled={selectedCount === 0 || isLoading}
+                className="h-8 px-4"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 mr-2" />
+                )}
+                {selectedCount > 1 ? `Bulk Doc Specific (${selectedCount})` : `Doc Specific (${selectedCount})`}
               </Button>
             )}
           </>

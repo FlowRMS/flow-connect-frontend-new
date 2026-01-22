@@ -269,7 +269,7 @@ export default function ProductsContent() {
               </svg>
               <input
                 type="text"
-                placeholder="Search by part number, description, factory..."
+                placeholder="Search by part number...."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
