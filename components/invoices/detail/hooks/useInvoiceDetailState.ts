@@ -590,19 +590,33 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   }, [linkedFactory, localInvoice]);
 
   useEffect(() => {
-    if (isCreateMode && localInvoice?.invoiceDate && linkedFactory?.paymentTerms && localInvoice.manufacturerId) {
-      const calculatedDueDate = addDaysToDate(localInvoice.invoiceDate, linkedFactory.paymentTerms);
-      if (calculatedDueDate && calculatedDueDate !== localInvoice.dueDate) {
-        setLocalInvoice(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            dueDate: calculatedDueDate,
-          };
-        });
+    if (isCreateMode && localInvoice?.invoiceDate && localInvoice.manufacturerId) {
+      let daysToAdd: number | null = null;
+
+      // Priority 1: Use factory paymentTerms if available
+      if (linkedFactory?.paymentTerms) {
+        daysToAdd = linkedFactory.paymentTerms;
+      }
+      // Priority 2: Use settings offset if no paymentTerms from factory
+      else if (savedInvoiceSettings?.dueDateOffset !== undefined && savedInvoiceSettings.dueDateOffset !== null) {
+        daysToAdd = savedInvoiceSettings.dueDateOffset;
+      }
+
+      // Calculate dueDate if we have days to add
+      if (daysToAdd !== null && daysToAdd > 0) {
+        const calculatedDueDate = addDaysToDate(localInvoice.invoiceDate, daysToAdd);
+        if (calculatedDueDate && calculatedDueDate !== localInvoice.dueDate) {
+          setLocalInvoice(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              dueDate: calculatedDueDate,
+            };
+          });
+        }
       }
     }
-  }, [isCreateMode, localInvoice?.invoiceDate, localInvoice?.manufacturerId, linkedFactory, localInvoice?.dueDate]);
+  }, [isCreateMode, localInvoice?.invoiceDate, localInvoice?.manufacturerId, linkedFactory, savedInvoiceSettings?.dueDateOffset, localInvoice?.dueDate]);
 
   // When end user customer data is loaded, populate the end user name
   useEffect(() => {
