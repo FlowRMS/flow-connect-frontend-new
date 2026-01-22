@@ -24,8 +24,8 @@ export function ListView({ jobs, onJobClick, onJobCheckboxChange }: ListViewProp
   };
 
   return (
-    <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-hidden shadow-sm">
-      {/* Scrollable Table Container */}
+    <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-sm">
+      {/* Table Container - horizontal scroll only for responsive */}
       <div className="overflow-x-auto">
         <div className="min-w-[800px]">
           {/* Table Header */}
