@@ -294,10 +294,9 @@ export function InvoiceDetailsFields({
               </label>
               <StyledDatePicker
                 selected={parseDateString(invoice.invoiceDate)}
-                onChange={(date) => !isReadOnly && handleFieldUpdate('invoiceDate', formatDateToString(date))}
-                placeholder="Select date..."
-                className={`!py-2 !px-3 !rounded-md !text-sm ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
-                disabled={isReadOnly}
+                onChange={() => {}}
+                className="!py-2 !px-3 !rounded-md !text-sm !bg-gray-100 !text-gray-500"
+                disabled={true}
               />
             </div>
 
