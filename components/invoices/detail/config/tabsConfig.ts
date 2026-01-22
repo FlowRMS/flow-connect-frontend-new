@@ -10,7 +10,7 @@ import type { TabType, TabConfig } from '../types';
  * Count is dynamically calculated based on data
  * isCreateMode disables certain tabs that require the invoice to exist first
  */
-export const getTabsConfig = (lineItemsCount: number = 0, isCreateMode: boolean = false): TabConfig[] => {
+export const getTabsConfig = (lineItemsCount: number = 0, isCreateMode: boolean = false, filesCount: number = 0): TabConfig[] => {
   return [
     {
       id: 'line-items',
@@ -22,6 +22,7 @@ export const getTabsConfig = (lineItemsCount: number = 0, isCreateMode: boolean 
       label: 'Files',
       disabled: isCreateMode,
       disabledReason: 'Save invoice first',
+      count: filesCount,
     },
     {
       id: 'credits',

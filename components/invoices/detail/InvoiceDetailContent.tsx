@@ -39,6 +39,7 @@ import type { OrderLineItem } from '@/lib/types/rms';
 import { toast } from 'sonner';
 import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
 import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
+import { useEntityFilesCount } from '@/components/shared/hooks/useEntityFilesCount';
 
 interface InvoiceDetailContentProps {
   invoiceId: string;
@@ -69,6 +70,13 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
     lineItemsCount: state?.invoice?.lineItems?.length ?? 0,
     onSelectAll: state?.selectAllLineItems,
     onClearSelection: state?.clearLineItemSelection,
+  });
+
+  // Files count for tab badge
+  const { filesCount } = useEntityFilesCount({
+    entityId: state?.isCreateMode ? null : invoiceId,
+    entityType: 'INVOICE',
+    enabled: !state?.isCreateMode, // Only fetch when not in create mode
   });
 
   // Delete Invoice state - must be before any early returns
@@ -384,7 +392,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
           {/* Tabs */}
           <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] bg-white -mx-6 px-6 pt-4 -mt-6">
             <div className="flex gap-1">
-              {getTabsConfig(state.invoice.lineItems.length, state.isCreateMode).map((tab) => (
+              {getTabsConfig(state.invoice.lineItems.length, state.isCreateMode, filesCount).map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => !tab.disabled && !tab.comingSoon && state.setActiveTab(tab.id)}
