@@ -72,7 +72,7 @@ const normalizeCodeToLevel = (code: number | string): string | undefined => {
 const defaultLocationLevels: WarehouseLocationLevelConfig[] = [
   { level: 'section', label: 'Section', icon: 'package', enabled: true, order: 1 },
   { level: 'aisle', label: 'Aisle', icon: 'shopping-cart', enabled: true, order: 2 },
-  { level: 'shelf', label: 'Shelf', icon: 'layers', enabled: true, order: 3 },
+  { level: 'shelf', label: 'Rack Face', icon: 'layers', enabled: true, order: 3 },
   { level: 'bay', label: 'Bay', icon: 'grid', enabled: true, order: 4 },
   { level: 'row', label: 'Row', icon: 'folder', enabled: true, order: 5 },
   { level: 'bin', label: 'Bin', icon: 'map-pin', enabled: true, order: 6 },
