@@ -44,17 +44,64 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
 
   // Store fileIds after first upload (Node 1) to reuse for subsequent nodes
   const [uploadedFileIds, setUploadedFileIds] = useState<string[]>([]);
+  const [executionId, setExecutionId] = useState<string | null>(null);
+  const [pollingExecutionId, setPollingExecutionId] = useState<string | null>(null);
+  const [lastHydratedExecutionId, setLastHydratedExecutionId] = useState<string | null>(null);
 
   const [currentStep, setCurrentStep] = useState<StepIndex>(1);
   const [maxCompletedStep, setMaxCompletedStep] = useState<StepIndex | 0>(0);
   const [loadingStep, setLoadingStep] = useState<StepIndex | null>(null);
   const [pipelineResult, setPipelineResult] = useState<PipelineExecuteResponse | null>(null);
   const [autoDownloadedCsv, setAutoDownloadedCsv] = useState(false);
+  const isPolling = pollingExecutionId !== null;
+  const isBusy = loadingStep !== null || isPolling;
 
   const canRun = useMemo(
     () => prompt.trim().length > 0 && files.length > 0,
     [prompt, files]
   );
+
+  const mergePipelineResult = (
+    prev: PipelineExecuteResponse | null,
+    next: PipelineExecuteResponse
+  ): PipelineExecuteResponse => {
+    if (!prev) return next;
+    const mergedNodes = { ...(prev.nodes ?? {}) };
+    Object.entries(next.nodes ?? {}).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        mergedNodes[key] = value;
+      }
+    });
+    return {
+      ...prev,
+      ...next,
+      nodes: mergedNodes,
+      fileIds: next.fileIds ?? prev.fileIds,
+      executionId: next.executionId ?? prev.executionId,
+    };
+  };
+
+  const normalizePipelineResponse = (
+    res: PipelineExecuteResponse
+  ): PipelineExecuteResponse => {
+    const rawNodes = (res as unknown as { nodes?: unknown }).nodes;
+    let nodes = res.nodes ?? {};
+    if (typeof rawNodes === 'string') {
+      try {
+        nodes = JSON.parse(rawNodes) as PipelineExecuteResponse['nodes'];
+      } catch (err) {
+        console.warn('Failed to parse nodes JSON string in response.', err);
+        nodes = {};
+      }
+    }
+    if (!nodes || typeof nodes !== 'object') {
+      nodes = {};
+    }
+    return {
+      ...res,
+      nodes,
+    };
+  };
 
   const handleFileChange = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
@@ -62,6 +109,8 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     setFiles((prev) => [...prev, ...arr]);
     // Clear fileIds when files change - will need to re-upload on next Node 1 run
     setUploadedFileIds([]);
+    setExecutionId(null);
+    setPipelineResult(null);
     toast.success(`Added ${arr.length} file(s)`);
   };
 
@@ -69,9 +118,16 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     setFiles((prev) => prev.filter((_, i) => i !== index));
     // Clear fileIds when files change - will need to re-upload on next Node 1 run
     setUploadedFileIds([]);
+    setExecutionId(null);
+    setPipelineResult(null);
   };
 
   const runStep = async (step: StepIndex) => {
+    if (isPolling) {
+      toast.error('A pipeline execution is already running.');
+      return;
+    }
+
     if (!canRun) {
       toast.error('Please provide a prompt and at least one file.');
       return;
@@ -82,21 +138,20 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
       toast.error('Please run Node 1 first to upload files.');
       return;
     }
-
-    if (step === 4) {
-      const fallbackCode = pipelineResult?.nodes?.node3?.code?.trim() || '';
-      const overrideCode = editedCode.trim() || fallbackCode;
-      if (!overrideCode) {
-        toast.error('Run Node 3 first or provide code before running Node 4.');
-        return;
-      }
+    if (step > 1 && !executionId) {
+      toast.error('Please run Node 1 first to initialize the execution.');
+      return;
     }
 
     setLoadingStep(step);
     try {
-      const fallbackCode = pipelineResult?.nodes?.node3?.code?.trim() || '';
+      const node3Code = pipelineResult?.nodes?.node3?.code ?? '';
       const overrideCode =
-        step === 4 ? editedCode.trim() || fallbackCode || undefined : undefined;
+        step === 4
+          ? (editedCode.trim() || node3Code || '').trim()
+          : '';
+      const shouldOverrideCode = step === 4 && overrideCode.length > 0;
+      const runAsync = step === 4;
 
       // Node 1: pass files to upload, nodes 2-4: pass existing fileIds
       const res = await workflowAPI.executePipeline(
@@ -104,14 +159,22 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
         step === 1 ? files : undefined,
         step === 1 ? undefined : uploadedFileIds,
         step,
-        overrideCode,
-        step
+        shouldOverrideCode ? overrideCode : undefined,
+        {
+          executionId: step === 1 ? undefined : executionId ?? undefined,
+          startFromNode: step,
+          runAsync,
+          workflowId: workflow?.id,
+        }
       );
-      setPipelineResult(res);
 
       // Store the fileIds returned from Node 1 for reuse
       if (step === 1 && res.fileIds) {
         setUploadedFileIds(res.fileIds);
+      }
+
+      if (res.executionId) {
+        setExecutionId(res.executionId);
       }
 
       if (!res.success) {
@@ -119,6 +182,48 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
         return;
       }
 
+      if (runAsync) {
+        if (!res.executionId) {
+          toast.error('Execution did not return an ID. Cannot poll for results.');
+          return;
+        }
+        setAutoDownloadedCsv(false);
+        setPollingExecutionId(res.executionId);
+        setCurrentStep(step);
+        toast.success('Node 4 started. Waiting for completion...');
+        return;
+      }
+
+      const normalizedRes = normalizePipelineResponse(res);
+      let hydratedResult = normalizedRes;
+      const hydrationId = normalizedRes.executionId ?? executionId;
+      if (hydrationId && step >= 2) {
+        try {
+          const execution = await workflowAPI.getExecution(hydrationId);
+          let nodes = execution.output_data?.nodes ?? {};
+          if (typeof nodes === 'string') {
+            try {
+              nodes = JSON.parse(nodes);
+            } catch (err) {
+              console.warn('Failed to parse execution nodes JSON string.', err);
+              nodes = {};
+            }
+          }
+          if (nodes && Object.keys(nodes).length > 0) {
+            hydratedResult = mergePipelineResult(hydratedResult, {
+              ...normalizedRes,
+              nodes,
+            });
+            setPipelineResult((prev) =>
+              mergePipelineResult(prev, { ...normalizedRes, nodes })
+            );
+          }
+        } catch (err) {
+          console.warn('Failed to hydrate pipeline nodes from execution.', err);
+        }
+      }
+
+      setPipelineResult((prev) => mergePipelineResult(prev, hydratedResult));
       setMaxCompletedStep((prev) => {
         const next = step > prev ? step : prev;
         return next as StepIndex | 0;
@@ -128,7 +233,7 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
       setCurrentStep(step);
 
       if (onSave && step >= 3) {
-        onSave(res);
+        onSave(hydratedResult);
       }
     } catch (err: any) {
       toast.error(err.message || `Failed to run node ${step}`);
@@ -147,6 +252,17 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     await runStep(currentStep);
   };
 
+  const extractTabularData = (raw: any): Record<string, any>[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (Array.isArray(raw?.data)) return raw.data;
+    if (Array.isArray(raw?.rows)) return raw.rows;
+    if (Array.isArray(raw?.result)) return raw.result;
+    if (Array.isArray(raw?.customer_price_list)) return raw.customer_price_list;
+    if (Array.isArray(raw?.preview_rows)) return raw.preview_rows;
+    return [];
+  };
+
   const jsonToCsv = (rows: Record<string, any>[]): string => {
     if (!rows || !rows.length) return '';
     const headers = Object.keys(rows[0] ?? {});
@@ -159,23 +275,6 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
       ...rows.map((row) => headers.map((h) => escape(row[h])).join(',')),
     ];
     return csvRows.join('\n');
-  };
-
-  const extractRows = (raw: any): Record<string, any>[] => {
-    if (!raw) return [];
-    if (Array.isArray(raw)) return raw;
-
-    const candidates = [raw.data, raw.rows, raw.result, raw.records, raw.items];
-    for (const candidate of candidates) {
-      if (Array.isArray(candidate)) return candidate;
-      if (candidate && typeof candidate === 'object') {
-        if (Array.isArray(candidate.data)) return candidate.data;
-        if (Array.isArray(candidate.rows)) return candidate.rows;
-        if (Array.isArray(candidate.result)) return candidate.result;
-      }
-    }
-
-    return [];
   };
 
   const downloadCsv = (filename: string, csv: string) => {
@@ -192,9 +291,79 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
   };
 
   useEffect(() => {
+    if (!pollingExecutionId) return;
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const pollExecution = async () => {
+      try {
+        const execution = await workflowAPI.getExecution(pollingExecutionId);
+        if (cancelled) return;
+
+        if (execution.status === 'completed' || execution.status === 'failed') {
+          const output = execution.output_data ?? {};
+          let nodes = output?.nodes ?? {};
+          if (typeof nodes === 'string') {
+            try {
+              nodes = JSON.parse(nodes);
+            } catch (err) {
+              nodes = {};
+            }
+          }
+          let columnMapping = output?.column_mapping ?? output?.columnMapping ?? {};
+          if (typeof columnMapping === 'string') {
+            try {
+              columnMapping = JSON.parse(columnMapping);
+            } catch (err) {
+              columnMapping = {};
+            }
+          }
+
+          const response: PipelineExecuteResponse = {
+            success: output?.success ?? execution.status === 'completed',
+            error: output?.error ?? execution.error_message ?? null,
+            result: output?.result ?? null,
+            nodes: nodes,
+            warnings: output?.warnings ?? undefined,
+            column_mapping: columnMapping,
+            fileIds: uploadedFileIds,
+            executionId: pollingExecutionId,
+          };
+
+          setPipelineResult((prev) => mergePipelineResult(prev, response));
+          setMaxCompletedStep(4);
+          setCurrentStep(4);
+          setPollingExecutionId(null);
+
+          if (execution.status === 'failed') {
+            toast.error(response.error || 'Node 4 failed.');
+          } else {
+            toast.success('Node 4 completed successfully.');
+            if (onSave) {
+              onSave(response);
+            }
+          }
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+        setPollingExecutionId(null);
+        toast.error(err.message || 'Failed to fetch execution status.');
+      }
+    };
+
+    pollExecution();
+    intervalId = setInterval(pollExecution, 4000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [pollingExecutionId, uploadedFileIds, onSave]);
+
+  useEffect(() => {
     if (!pipelineResult?.nodes?.node4 || autoDownloadedCsv) return;
     const raw = pipelineResult.nodes.node4.result;
-    const data = extractRows(raw);
+    const data = extractTabularData(raw);
     if (!data.length) return;
     const csv = jsonToCsv(data);
     if (!csv) return;
@@ -202,6 +371,41 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     setAutoDownloadedCsv(true);
     toast.success('Result CSV downloaded.');
   }, [pipelineResult, autoDownloadedCsv]);
+
+  useEffect(() => {
+    if (!executionId) return;
+    if (lastHydratedExecutionId === executionId) return;
+    if (pipelineResult?.nodes?.node2 && pipelineResult?.nodes?.node3) return;
+
+    const hydrateNodes = async () => {
+      try {
+        const execution = await workflowAPI.getExecution(executionId);
+        let nodes = execution.output_data?.nodes ?? {};
+        if (typeof nodes === 'string') {
+          try {
+            nodes = JSON.parse(nodes);
+          } catch (err) {
+            console.warn('Failed to parse execution nodes JSON string.', err);
+            nodes = {};
+          }
+        }
+        if (nodes && Object.keys(nodes).length > 0) {
+          setPipelineResult((prev) =>
+            mergePipelineResult(prev, {
+              success: true,
+              nodes,
+            } as PipelineExecuteResponse)
+          );
+        }
+      } catch (err) {
+        console.warn('Failed to hydrate pipeline nodes from execution.', err);
+      } finally {
+        setLastHydratedExecutionId(executionId);
+      }
+    };
+
+    hydrateNodes();
+  }, [executionId, lastHydratedExecutionId, pipelineResult]);
 
   const node1 = pipelineResult?.nodes?.node1;
   const node2 = pipelineResult?.nodes?.node2;
@@ -361,7 +565,7 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     if (!node4)
       return <p className="text-sm text-muted-foreground">Run Node 4 to see execution result.</p>;
     const raw = node4.result;
-    const data = extractRows(raw);
+    const data = extractTabularData(raw);
     const hasData = Array.isArray(data) && data.length;
     return (
       <>
@@ -457,7 +661,7 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
   const canGoNext = currentStep < 4 && maxCompletedStep >= currentStep;
 
   const stepStatus = (step: StepIndex) => {
-    if (loadingStep === step) return 'loading';
+    if (loadingStep === step || (isPolling && step === 4)) return 'loading';
     if (maxCompletedStep >= step) return 'done';
     return 'pending';
   };
@@ -543,7 +747,7 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
               <Button
                 type="button"
                 className="w-full"
-                disabled={!canRun || loadingStep !== null}
+                disabled={!canRun || isBusy}
                 onClick={() => runStep(1)}
               >
                 {loadingStep === 1 ? (
@@ -563,10 +767,10 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
                 type="button"
                 variant="outline"
                 className="w-full"
-                disabled={loadingStep !== null}
+                disabled={isBusy}
                 onClick={handleRunThisStep}
               >
-                {loadingStep === currentStep ? (
+                {loadingStep === currentStep || (isPolling && currentStep === 4) ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Running Node {currentStep}...
@@ -626,7 +830,7 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={currentStep === 1 || loadingStep !== null}
+                  disabled={currentStep === 1 || isBusy}
                   onClick={() => setCurrentStep((prev) => (prev - 1) as StepIndex)}
                 >
                   Previous
@@ -634,7 +838,7 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
                 <Button
                   type="button"
                   size="sm"
-                  disabled={!canGoNext || loadingStep !== null}
+                  disabled={!canGoNext || isBusy}
                   onClick={handleNext}
                 >
                   {loadingStep === ((currentStep + 1) as StepIndex) ? (

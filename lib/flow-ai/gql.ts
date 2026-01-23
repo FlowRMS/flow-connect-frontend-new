@@ -87,6 +87,7 @@ export const Q_GET_CORRECTIONS = gql`
       newValue
       oldValue
       pendingDocumentId
+      reasoning
     }
   }
 `;
@@ -1048,7 +1049,10 @@ export const M_EXECUTE_PIPELINE = gql`
     $overrideCode: String
     $stopAfter: Int = 4
     $additionalData: JSON
-    $startFromNode: Int
+    $executionId: UUID
+    $startFromNode: Int = 1
+    $runAsync: Boolean = false
+    $workflowId: UUID
   ) {
     executePipeline(
       prompt: $prompt
@@ -1056,7 +1060,10 @@ export const M_EXECUTE_PIPELINE = gql`
       overrideCode: $overrideCode
       stopAfter: $stopAfter
       additionalData: $additionalData
+      executionId: $executionId
       startFromNode: $startFromNode
+      runAsync: $runAsync
+      workflowId: $workflowId
     ) {
       success
       error
@@ -1064,6 +1071,7 @@ export const M_EXECUTE_PIPELINE = gql`
       nodes
       warnings
       columnMapping
+      executionId
     }
   }
 `;

@@ -81,6 +81,7 @@ export interface PipelineExecuteResponse {
   warnings?: string[];
   column_mapping?: Record<string, any>;
   fileIds?: string[]; // Returned after Node 1 upload for reuse in subsequent nodes
+  executionId?: string;
 }
 
 // Helper to transform GraphQL workflow response to our format
@@ -120,23 +121,37 @@ function transformExecution(e: any): WorkflowExecution {
 
 // Helper to parse nodes in output_data if it's a JSON string
 function parseOutputDataNodes(outputData: any): any {
-  if (!outputData || typeof outputData !== 'object') {
+  if (!outputData) {
     return outputData;
   }
 
-  if (outputData.nodes && typeof outputData.nodes === 'string') {
+  let parsedOutput = outputData;
+  if (typeof outputData === 'string') {
     try {
-      return {
-        ...outputData,
-        nodes: JSON.parse(outputData.nodes),
-      };
+      parsedOutput = JSON.parse(outputData);
     } catch (err) {
-      console.error('Failed to parse output_data.nodes JSON string:', err);
+      console.error('Failed to parse output_data JSON string:', err);
       return outputData;
     }
   }
 
-  return outputData;
+  if (!parsedOutput || typeof parsedOutput !== 'object') {
+    return parsedOutput;
+  }
+
+  if (parsedOutput.nodes && typeof parsedOutput.nodes === 'string') {
+    try {
+      return {
+        ...parsedOutput,
+        nodes: JSON.parse(parsedOutput.nodes),
+      };
+    } catch (err) {
+      console.error('Failed to parse output_data.nodes JSON string:', err);
+      return parsedOutput;
+    }
+  }
+
+  return parsedOutput;
 }
 
 class WorkflowAPI {
@@ -421,7 +436,12 @@ class WorkflowAPI {
     existingFileIds: string[] | undefined,
     stopAfter: number = 4,
     overrideCode?: string,
-    startFromNode?: number
+    options?: {
+      executionId?: string;
+      startFromNode?: number;
+      runAsync?: boolean;
+      workflowId?: string;
+    }
   ): Promise<PipelineExecuteResponse> {
     const client = apolloClient;
 
@@ -451,6 +471,7 @@ class WorkflowAPI {
         nodes: any;
         warnings: string[] | null;
         columnMapping: any;
+        executionId?: string | null;
       };
     }>({
       mutation: M_EXECUTE_PIPELINE,
@@ -459,7 +480,10 @@ class WorkflowAPI {
         fileIds,
         overrideCode,
         stopAfter,
-        startFromNode,
+        executionId: options?.executionId,
+        startFromNode: options?.startFromNode,
+        runAsync: options?.runAsync ?? false,
+        workflowId: options?.workflowId,
       },
     });
 
@@ -486,6 +510,7 @@ class WorkflowAPI {
       result: result.result,
       nodes: nodes,
       fileIds: fileIds, // Return fileIds so caller can reuse for subsequent nodes
+      executionId: result.executionId ?? undefined,
     };
 
     if (result.warnings) {
