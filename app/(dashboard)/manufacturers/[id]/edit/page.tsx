@@ -778,7 +778,7 @@ export default function ManufacturerEditPage() {
           <ConnectedEntitiesSection
             entityId={factoryId}
             sourceEntityType="FACTORY"
-            enabledCategories={['contacts', 'companies', 'jobs', 'pre-opportunities', 'quotes', 'orders', 'invoices', 'checks', 'tasks', 'notes', 'files']}
+            enabledCategories={['contacts', 'companies', 'customers', 'jobs', 'pre-opportunities', 'quotes', 'orders', 'invoices', 'checks', 'tasks', 'notes', 'files']}
             title="Connected Entities"
             showAddLinkButton={true}
           />

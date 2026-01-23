@@ -11,6 +11,8 @@ import type { RelatedEntityTask, RelatedEntitiesSourceType } from '../lib/crm-gr
 import type { TaskPriorityAPI as TaskPriority } from '../lib/graphql';
 import { AddLinkModal } from './AddLinkModal';
 import { linkToasts } from '../lib/toast';
+import { CreateTaskModal } from '../tasks/modals/CreateTaskModal';
+import type { SelectedLink } from '../notes/components/LinkSelector';
 
 interface RelatedTasksSectionProps {
   entityId: string;
@@ -99,8 +101,17 @@ function getPriorityStyle(priority?: string): { badge: string; label: string } |
   }
 }
 
+// Map source entity type to entity type for linking
+const sourceEntityTypeToLinkType: Record<string, SelectedLink['type']> = {
+  'QUOTE': 'QUOTE',
+  'ORDER': 'ORDER',
+  'INVOICE': 'INVOICE',
+  'CHECK': 'CHECK',
+};
+
 export function RelatedTasksSection({ entityId, sourceType, sourceEntityType }: RelatedTasksSectionProps) {
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [unlinkingTaskId, setUnlinkingTaskId] = useState<string | null>(null);
 
   const { data: relatedEntities, isLoading, error, refetch } = useRelatedEntities(entityId, sourceType);
@@ -125,6 +136,11 @@ export function RelatedTasksSection({ entityId, sourceType, sourceEntityType }: 
     try {
       const newStatus = task.status?.toUpperCase() === 'COMPLETED' ? 'TODO' : 'COMPLETED';
 
+      // Extract assignee IDs - assignees can be either strings (UUIDs) or objects with id property
+      const assigneeIds = task.assignees?.map((assignee: string | { id: string }) =>
+        typeof assignee === 'string' ? assignee : assignee.id
+      ) || [];
+
       await updateTaskMutation.mutateAsync({
         id: task.id,
         input: {
@@ -133,7 +149,7 @@ export function RelatedTasksSection({ entityId, sourceType, sourceEntityType }: 
           dueDate: task.dueDate,
           status: newStatus,
           priority: (task.priority as TaskPriority) || 'NORMAL',
-          assigneeIds: task.assignees || [],
+          assigneeIds,
           reminderDate: task.reminderDate,
           tags: task.tags,
         },
@@ -193,15 +209,26 @@ export function RelatedTasksSection({ entityId, sourceType, sourceEntityType }: 
             <h3 className="text-base font-semibold text-[var(--foreground)]">Tasks</h3>
             <p className="text-sm text-[var(--muted-foreground)]">Linked tasks for this record</p>
           </div>
-          <button
-            onClick={() => setShowLinkModal(true)}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Link Task
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 4v12M4 10h12" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Create Task
+            </button>
+            <button
+              onClick={() => setShowLinkModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-[var(--foreground)] bg-[var(--muted)] hover:bg-[var(--muted)]/80 rounded-lg transition-colors border border-[var(--border)]"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Link Existing
+            </button>
+          </div>
         </div>
 
         {/* Tasks List */}
@@ -347,12 +374,21 @@ export function RelatedTasksSection({ entityId, sourceType, sourceEntityType }: 
                 <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <p className="text-[var(--muted-foreground)] mb-2">No tasks linked</p>
-              <button
-                onClick={() => setShowLinkModal(true)}
-                className="text-sm text-[var(--primary)] hover:underline"
-              >
-                Link your first task
-              </button>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="text-sm text-[var(--primary)] hover:underline"
+                >
+                  Create a task
+                </button>
+                <span className="text-[var(--muted-foreground)]">or</span>
+                <button
+                  onClick={() => setShowLinkModal(true)}
+                  className="text-sm text-[var(--primary)] hover:underline"
+                >
+                  Link an existing task
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -366,6 +402,18 @@ export function RelatedTasksSection({ entityId, sourceType, sourceEntityType }: 
         initialEntityType="TASK"
         onClose={() => setShowLinkModal(false)}
         onSuccess={() => refetch()}
+      />
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => refetch()}
+        initialLinks={[{
+          id: entityId,
+          type: sourceEntityTypeToLinkType[sourceEntityType],
+          name: `${sourceEntityType.charAt(0) + sourceEntityType.slice(1).toLowerCase()} #${entityId.slice(0, 8)}`,
+        }]}
       />
     </div>
   );

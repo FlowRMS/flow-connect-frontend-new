@@ -281,6 +281,7 @@ export function TakeoffsContent() {
           isProductCrossProcessing={productCrossState.isProcessing}
           isParsingProcessing={parsingState.isProcessing}
           parsingProgress={parsingState.progress}
+          parsingMessage={parsingState.message}
           isAbridgementProcessing={abridgementState.isProcessing}
           abridgementProgress={abridgementState.progress}
           documentAbridgementProgress={documentAbridgementProgress}

@@ -21,7 +21,7 @@ export function LinkedObjectsTabV2({ quoteId }: LinkedObjectsTabV2Props) {
           sourceEntityType="QUOTE"
           title="Linked Objects"
           showAddLinkButton={true}
-          enabledCategories={['contacts', 'companies', 'pre-opportunities', 'quotes', 'orders', 'invoices', 'checks', 'jobs', 'files']}
+          enabledCategories={['contacts', 'companies', 'customers', 'pre-opportunities', 'quotes', 'orders', 'invoices', 'checks', 'jobs', 'files']}
         />
       </div>
     </div>

@@ -13,6 +13,7 @@ import { iconMap } from './Sidebar';
 import type { RefObject } from 'react';
 import AdvancedFilters from './advancedFilters/AdvancedFilters';
 import SortButton from './SortButton';
+import { useScrollPagination } from './hooks/useInfiniteScroll';
 import {
   usePreOppsState,
   getPreOppFilterOptions,
@@ -46,7 +47,22 @@ export default function PreOpportunitiesContent() {
     uniqueCreatedBy,
     handleFiltersChange,
     handleMultiSortChange,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    totalCount,
   } = usePreOppsState();
+
+  // Scroll container ref for infinite scroll
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Infinite scroll using scroll event listener on container
+  useScrollPagination(scrollContainerRef, {
+    hasNextPage: hasNextPage ?? false,
+    isFetchingNextPage,
+    fetchNextPage,
+    threshold: 300,
+  });
 
   const preOppFilterOptions = useMemo(() => getPreOppFilterOptions(
     uniqueEntityNumbers,
@@ -90,9 +106,9 @@ export default function PreOpportunitiesContent() {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)]">
-      {/* Header */}
-      <div className="p-3 sm:p-6 pb-0">
+    <main className="flex-1 flex flex-col overflow-hidden bg-[var(--background)]">
+      {/* Header - Fixed at top */}
+      <div className="flex-shrink-0 p-3 sm:p-6 pb-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
           <div className="flex items-start gap-4">
             {/* Morphing Icon Target - Sparkle Burst Animation */}
@@ -118,7 +134,7 @@ export default function PreOpportunitiesContent() {
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
               >
-                {isLoading ? 'Loading...' : `${preOpps.length} opportunities • Early-stage pipeline prospects`}
+                {isLoading && totalCount === 0 ? 'Loading...' : `${totalCount} opportunities • Early-stage pipeline prospects`}
               </motion.p>
             </div>
           </div>
@@ -154,21 +170,46 @@ export default function PreOpportunitiesContent() {
         </div>
       </div>
 
-      {/* Views */}
-      <div className="px-3 sm:px-6 pb-6">
-        {isLoading ? (
-          <LoadingState />
-        ) : viewMode === 'kanban' ? (
-          <KanbanView
-            preOpps={preOpps}
-            stages={stages}
-            activeId={activeId}
-            setActiveId={setActiveId}
-            onRefresh={refetch}
-          />
-        ) : (
-          <ListView preOpps={preOpps} onRefresh={refetch} />
-        )}
+      {/* Scrollable Content Area */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0">
+        <div className="px-3 sm:px-6 pb-6">
+          {isLoading && preOpps.length === 0 ? (
+            <LoadingState />
+          ) : viewMode === 'kanban' ? (
+            <KanbanView
+              preOpps={preOpps}
+              stages={stages}
+              activeId={activeId}
+              setActiveId={setActiveId}
+              onRefresh={refetch}
+            />
+          ) : (
+            <ListView preOpps={preOpps} onRefresh={refetch} />
+          )}
+
+          {/* Spacer for scroll detection */}
+          <div className="h-1 w-full" aria-hidden="true" />
+
+          {/* Loading indicator for fetching next page */}
+          {isFetchingNextPage && (
+            <div className="flex items-center justify-center py-6">
+              <div className="flex items-center gap-3 text-[var(--muted-foreground)]">
+                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                </svg>
+                <span className="text-sm">Loading more pre-opportunities...</span>
+              </div>
+            </div>
+          )}
+
+          {/* End of list indicator when no more pages */}
+          {!hasNextPage && preOpps.length > 0 && !isFetchingNextPage && !isLoading && (
+            <div className="flex items-center justify-center py-4 text-[var(--muted-foreground)]">
+              <span className="text-xs">All {preOpps.length} pre-opportunities loaded</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Create Modal */}
