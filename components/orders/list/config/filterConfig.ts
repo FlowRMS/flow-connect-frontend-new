@@ -107,9 +107,9 @@ export function getOrderFilterOptions(
   { 
     id: 'factory-name', 
     label: 'Factory Name', 
-    type: 'text' as const, 
+    type: 'factory' as const, 
     columnName: 'factoryName', 
-    available: false 
+    available: true 
   },
   { 
     id: 'customer-name', 

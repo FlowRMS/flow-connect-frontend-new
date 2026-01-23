@@ -53,6 +53,7 @@ export function OrdersTableHeader({
     entryDate: 'created-date',
     jobName: 'job-name',
     visible: 'published', // Column is 'visible' but filter ID is 'published'
+    factoryName: 'factory-name',
   };
   
   // Handle column filter change - now receives ActiveFilter[]
@@ -87,7 +88,7 @@ export function OrdersTableHeader({
     }
     
     // Ensure type is preserved correctly
-    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean';
+    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean' | 'factory';
     
     // Get filters for this column (ActiveFilter[])
     const columnFiltersForThisColumn = columnFilters[columnKey] || [];
@@ -202,7 +203,12 @@ export function OrdersTableHeader({
         
         {/* Factory */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
-          <span className="whitespace-nowrap">Factory</span>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Factory</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('factoryName')}
+            </div>
+          </div>
         </th>
         
         {/* Customer */}
