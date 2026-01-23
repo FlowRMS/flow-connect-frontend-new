@@ -1157,7 +1157,7 @@ export default function ContactDetailView({
             entityId={contact.id}
             sourceEntityType="CONTACT"
             title="Connected Entities"
-            enabledCategories={['companies', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+            enabledCategories={['companies', 'customers', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
             onCompanyClick={onCompanyClick}
             onJobClick={onJobClick}
           />

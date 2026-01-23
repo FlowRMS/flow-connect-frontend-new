@@ -96,7 +96,7 @@ export function JobDetailView({
       <ConnectedEntitiesSection
         entityId={job.id}
         sourceEntityType="JOB"
-        enabledCategories={['contacts', 'companies', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+        enabledCategories={['contacts', 'companies', 'customers', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
         onCompanyClick={onCompanyClick}
         onContactClick={onContactClick}
       />

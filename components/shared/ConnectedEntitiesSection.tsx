@@ -30,6 +30,7 @@ import type {
   RelatedEntityTask,
   RelatedEntityNote,
   RelatedEntityJob,
+  RelatedEntityCustomer,
 } from '../lib/crm-graphql';
 import { AddLinkModal } from './AddLinkModal';
 import { linkToasts } from '../lib/toast';
@@ -49,10 +50,10 @@ export type ViewMode = 'cards' | 'table';
 // ============================================================================
 
 // Category types for filtering (user-facing)
-export type EntityCategory = 'contacts' | 'companies' | 'pre-opportunities' | 'tasks' | 'notes' | 'quotes' | 'orders' | 'invoices' | 'checks' | 'jobs' | 'files';
+export type EntityCategory = 'contacts' | 'companies' | 'pre-opportunities' | 'tasks' | 'notes' | 'quotes' | 'orders' | 'invoices' | 'checks' | 'jobs' | 'files' | 'customers';
 
 // API entity types for linking
-export type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'JOB' | 'FILE';
+export type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'JOB' | 'FILE' | 'CUSTOMER';
 
 // Source entity types - what entity is hosting this connected entities section
 export type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE' | 'FACTORY' | 'CUSTOMER';
@@ -118,12 +119,14 @@ export interface ConnectedEntitiesSectionProps {
   onNoteClick?: (note: RelatedEntityNote) => void;
   onJobClick?: (job: RelatedEntityJob) => void;
   onFileClick?: (file: FileResponse) => void;
+  onCustomerClick?: (customer: RelatedEntityCustomer) => void;
 }
 
 // Default categories - all available
 const ALL_CATEGORIES: EntityCategory[] = [
   'contacts',
   'companies',
+  'customers',
   'pre-opportunities',
   'tasks',
   'notes',
@@ -251,6 +254,7 @@ export function ConnectedEntitiesSection({
   onNoteClick,
   onJobClick,
   onFileClick,
+  onCustomerClick,
 }: ConnectedEntitiesSectionProps) {
   const router = useRouter();
 
@@ -308,6 +312,7 @@ export function ConnectedEntitiesSection({
   const totals = useMemo(() => {
     const companiesCount = relatedEntities?.companies?.length || 0;
     const contactsCount = relatedEntities?.contacts?.length || 0;
+    const customersCount = relatedEntities?.customers?.length || 0;
     const preOppsCount = relatedEntities?.preOpportunities?.length || 0;
     const quotesCount = relatedEntities?.quotes?.length || 0;
     const ordersCount = relatedEntities?.orders?.length || 0;
@@ -321,6 +326,7 @@ export function ConnectedEntitiesSection({
     return {
       companies: companiesCount,
       contacts: contactsCount,
+      customers: customersCount,
       'pre-opportunities': preOppsCount,
       quotes: quotesCount,
       orders: ordersCount,
@@ -330,7 +336,7 @@ export function ConnectedEntitiesSection({
       notes: notesCount,
       jobs: jobsCount,
       files: filesCount,
-      total: companiesCount + contactsCount + preOppsCount + quotesCount + ordersCount + invoicesCount + checksCount + tasksCount + notesCount + jobsCount + filesCount,
+      total: companiesCount + contactsCount + customersCount + preOppsCount + quotesCount + ordersCount + invoicesCount + checksCount + tasksCount + notesCount + jobsCount + filesCount,
     };
   }, [relatedEntities, linkedFiles]);
 
@@ -365,6 +371,7 @@ export function ConnectedEntitiesSection({
       const entityTypeLabels: Record<LinkEntityType, string> = {
         COMPANY: 'Company',
         CONTACT: 'Contact',
+        CUSTOMER: 'Customer',
         TASK: 'Task',
         NOTE: 'Note',
         PRE_OPPORTUNITY: 'Pre-Opportunity',
@@ -482,6 +489,15 @@ export function ConnectedEntitiesSection({
     }
   };
 
+  // Handle customer click - navigate to customers page
+  const handleCustomerClick = (customer: RelatedEntityCustomer) => {
+    if (onCustomerClick) {
+      onCustomerClick(customer);
+    } else {
+      router.push(`/customers/${customer.id}/edit`);
+    }
+  };
+
   // Handle file click - open file or download
   const handleFileClick = async (file: FileResponse) => {
     if (onFileClick) {
@@ -515,6 +531,9 @@ export function ConnectedEntitiesSection({
         break;
       case 'companies':
         handleCompanyClick(entity as RelatedEntityCompany);
+        break;
+      case 'customers':
+        handleCustomerClick(entity as RelatedEntityCustomer);
         break;
       case 'pre-opportunities':
         handlePreOpportunityClick(entity as RelatedEntityPreOpportunity);
@@ -636,6 +655,18 @@ export function ConnectedEntitiesSection({
                 Companies ({totals.companies})
               </button>
             )}
+            {isCategoryEnabled('customers') && (
+              <button
+                onClick={() => toggleCategory('customers')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  visibleCategories.includes('customers')
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
+                }`}
+              >
+                Customers ({totals.customers})
+              </button>
+            )}
             {isCategoryEnabled('pre-opportunities') && (
               <button
                 onClick={() => toggleCategory('pre-opportunities')}
@@ -752,6 +783,7 @@ export function ConnectedEntitiesSection({
           <ConnectedEntitiesTableView
             contacts={relatedEntities?.contacts || []}
             companies={relatedEntities?.companies || []}
+            customers={relatedEntities?.customers || []}
             preOpportunities={relatedEntities?.preOpportunities || []}
             quotes={relatedEntities?.quotes || []}
             orders={relatedEntities?.orders || []}
@@ -965,6 +997,91 @@ export function ConnectedEntitiesSection({
                       >
                         + Add a company
                       </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Customers */}
+            {isCategoryEnabled('customers') && visibleCategories.includes('customers') && (
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                <EntityGridHeader
+                  title="Customers"
+                  entityType="CUSTOMER"
+                  hasEntities={Boolean(relatedEntities?.customers && relatedEntities.customers.length > 0)}
+                  onAddLink={openAddLinkModal}
+                  readOnly={isCategoryReadOnly('customers')}
+                />
+                <div className="p-4">
+                  {relatedEntities?.customers && relatedEntities.customers.length > 0 ? (
+                    <div className="flex flex-wrap gap-3">
+                    {relatedEntities.customers.map((customer: RelatedEntityCustomer) => (
+                      <div
+                        key={customer.id}
+                        className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors group"
+                      >
+                        <div
+                          className="flex items-center gap-3 flex-1 cursor-pointer"
+                          onClick={() => handleCustomerClick(customer)}
+                        >
+                          {/* Customer Icon */}
+                          <div className="w-10 h-10 rounded-lg bg-violet-500 flex items-center justify-center text-white flex-shrink-0">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                              <circle cx="9" cy="7" r="4" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16 3.13a4 4 0 0 1 0 7.75" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <h4 className="font-medium text-[var(--foreground)] truncate">{customer.companyName}</h4>
+                              {customer.isParent && (
+                                <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-xs font-medium flex-shrink-0">
+                                  Parent
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {!isCategoryReadOnly('customers') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnlink('CUSTOMER', customer.id);
+                            }}
+                            disabled={deleteLinkMutation.isPending}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0 ml-2"
+                            title="Unlink customer"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-[var(--muted-foreground)]">
+                      <div className="w-12 h-12 mx-auto mb-3 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-violet-500">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                      </div>
+                      <p className="text-sm">No customers linked</p>
+                      {!isCategoryReadOnly('customers') && (
+                        <button
+                          onClick={() => openAddLinkModal('CUSTOMER')}
+                          className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                        >
+                          + Add a customer
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
