@@ -949,6 +949,12 @@ function QueuePageContent() {
       return;
     }
 
+    // If workflow status is 'PAUSED', redirect to entity-matching page
+    if (workflowStatus === 'PAUSED') {
+      router.push(`/flow-ai/entity-matching?${params.toString()}`);
+      return;
+    }
+
     // If workflow status is 'COMPLETED', 'DONE', or 'FAILED', redirect to upload-complete page
     // FAILED status allows users to view the errors and details
     if (

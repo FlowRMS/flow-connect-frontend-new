@@ -24,9 +24,10 @@ interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  initialLinks?: SelectedLink[];
 }
 
-export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalProps) {
+export function CreateTaskModal({ isOpen, onClose, onSuccess, initialLinks }: CreateTaskModalProps) {
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -53,7 +54,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const formRef = useRef<HTMLFormElement>(null);
 
   // Entity links state - unified using LinkSelector
-  const [selectedLinks, setSelectedLinks] = useState<SelectedLink[]>([]);
+  const [selectedLinks, setSelectedLinks] = useState<SelectedLink[]>(initialLinks || []);
 
   const [isMounted, setIsMounted] = useState(false);
 
@@ -76,6 +77,13 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Reset selectedLinks when modal opens with new initialLinks
+  useEffect(() => {
+    if (isOpen && initialLinks) {
+      setSelectedLinks(initialLinks);
+    }
+  }, [isOpen, initialLinks]);
 
   // Update dropdown position when showing
   const updateDropdownPosition = () => {
@@ -210,7 +218,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     setDueDate('');
     setReminderDate('');
     setSelectedTags([]);
-    setSelectedLinks([]);
+    setSelectedLinks(initialLinks || []);
     setSelectedAssignees([]);
     setSelectedCategoryId('');
     setCustomTag('');

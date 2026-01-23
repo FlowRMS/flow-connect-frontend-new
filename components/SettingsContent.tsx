@@ -1650,8 +1650,8 @@ function TeamMembersTab() {
   const counts = useMemo(() => {
     const active = users.filter(u => u.enabled);
     return {
-      outsideReps: active.filter(u => u.role === 'OUTSIDE_REP').length,
-      insideReps: active.filter(u => u.role === 'INSIDE_REP').length,
+      outsideReps: active.filter(u => u.outside).length,
+      insideReps: active.filter(u => u.inside).length,
       administrators: active.filter(u => u.role === 'ADMINISTRATOR').length,
       owners: active.filter(u => u.role === 'OWNER').length,
       warehouseManagers: active.filter(u => u.role === 'WAREHOUSE_MANAGER').length,
@@ -1672,13 +1672,13 @@ function TeamMembersTab() {
   };
 
   const groups = [
-    { id: 'outside_rep', label: 'Outside Reps', count: statusFilter === 'active' ? counts.outsideReps : filteredMembers.filter(u => u.role === 'OUTSIDE_REP').length, role: 'OUTSIDE_REP' as UserRole },
-    { id: 'inside_rep', label: 'Inside Reps', count: statusFilter === 'active' ? counts.insideReps : filteredMembers.filter(u => u.role === 'INSIDE_REP').length, role: 'INSIDE_REP' as UserRole },
-    { id: 'administrator', label: 'Administrators', count: statusFilter === 'active' ? counts.administrators : filteredMembers.filter(u => u.role === 'ADMINISTRATOR').length, role: 'ADMINISTRATOR' as UserRole },
-    { id: 'owner', label: 'Owners', count: statusFilter === 'active' ? counts.owners : filteredMembers.filter(u => u.role === 'OWNER').length, role: 'OWNER' as UserRole },
-    { id: 'warehouse_manager', label: 'Warehouse Managers', count: statusFilter === 'active' ? counts.warehouseManagers : filteredMembers.filter(u => u.role === 'WAREHOUSE_MANAGER').length, role: 'WAREHOUSE_MANAGER' as UserRole },
-    { id: 'warehouse_employee', label: 'Warehouse Employees', count: statusFilter === 'active' ? counts.warehouseEmployees : filteredMembers.filter(u => u.role === 'WAREHOUSE_EMPLOYEE').length, role: 'WAREHOUSE_EMPLOYEE' as UserRole },
-    { id: 'driver', label: 'Drivers', count: statusFilter === 'active' ? counts.drivers : filteredMembers.filter(u => u.role === 'DRIVER').length, role: 'DRIVER' as UserRole },
+    { id: 'outside_rep', label: 'Outside Reps', count: statusFilter === 'active' ? counts.outsideReps : filteredMembers.filter(u => u.outside).length, filterFn: (u: User) => u.outside },
+    { id: 'inside_rep', label: 'Inside Reps', count: statusFilter === 'active' ? counts.insideReps : filteredMembers.filter(u => u.inside).length, filterFn: (u: User) => u.inside },
+    { id: 'administrator', label: 'Administrators', count: statusFilter === 'active' ? counts.administrators : filteredMembers.filter(u => u.role === 'ADMINISTRATOR').length, filterFn: (u: User) => u.role === 'ADMINISTRATOR' },
+    { id: 'owner', label: 'Owners', count: statusFilter === 'active' ? counts.owners : filteredMembers.filter(u => u.role === 'OWNER').length, filterFn: (u: User) => u.role === 'OWNER' },
+    { id: 'warehouse_manager', label: 'Warehouse Managers', count: statusFilter === 'active' ? counts.warehouseManagers : filteredMembers.filter(u => u.role === 'WAREHOUSE_MANAGER').length, filterFn: (u: User) => u.role === 'WAREHOUSE_MANAGER' },
+    { id: 'warehouse_employee', label: 'Warehouse Employees', count: statusFilter === 'active' ? counts.warehouseEmployees : filteredMembers.filter(u => u.role === 'WAREHOUSE_EMPLOYEE').length, filterFn: (u: User) => u.role === 'WAREHOUSE_EMPLOYEE' },
+    { id: 'driver', label: 'Drivers', count: statusFilter === 'active' ? counts.drivers : filteredMembers.filter(u => u.role === 'DRIVER').length, filterFn: (u: User) => u.role === 'DRIVER' },
   ];
 
   if (isLoading) {
@@ -1778,7 +1778,7 @@ function TeamMembersTab() {
       {/* Team Groups */}
       <div className="space-y-2">
         {groups.map((group) => {
-          const groupMembers = filteredMembers.filter(u => u.role === group.role);
+          const groupMembers = filteredMembers.filter(group.filterFn);
           const isExpanded = expandedGroups.includes(group.id);
 
           return (
@@ -6143,7 +6143,7 @@ function AddUserModalWithApi({ onClose }: { onClose: () => void }) {
     firstName: '',
     lastName: '',
     email: '',
-    role: 'OUTSIDE_REP' as UserRole,
+    role: 'ADMINISTRATOR' as UserRole,
     enabled: true,
     inside: false,
     outside: false,
@@ -6167,8 +6167,8 @@ function AddUserModalWithApi({ onClose }: { onClose: () => void }) {
 
     const input: UserInput = {
       ...formData,
-      inside: formData.role === 'INSIDE_REP',
-      outside: formData.role === 'OUTSIDE_REP',
+      inside: formData.inside,
+      outside: formData.outside,
     };
 
     try {
@@ -6278,30 +6278,90 @@ function AddUserModalWithApi({ onClose }: { onClose: () => void }) {
             />
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.enabled}
-                onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
-            </label>
-            <span className="text-sm text-[var(--foreground)]">Active</span>
-          </div>
+          {/* Access Toggles Section */}
+          <div className="space-y-3 pt-2 border-t border-[var(--border)]">
+            <p className="text-xs text-[var(--muted-foreground)] font-medium uppercase tracking-wide">Access Settings</p>
 
-          <div className="flex items-center gap-3">
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.visible}
-                onChange={(e) => setFormData({ ...formData, visible: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
-            </label>
-            <span className="text-sm text-[var(--foreground)]">Visible</span>
+            <div className="flex items-center justify-between p-3 bg-[var(--muted)]/30 rounded-lg">
+              <div>
+                <span className="text-sm font-medium text-[var(--foreground)]">Enabled</span>
+                <p className="text-xs text-[var(--muted-foreground)]">Allow user to access the system</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.enabled}
+                  onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-[var(--muted)]/30 rounded-lg">
+              <div>
+                <span className="text-sm font-medium text-[var(--foreground)]">Inside Access</span>
+                <p className="text-xs text-[var(--muted-foreground)]">Grant inside operations access</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.inside}
+                  onChange={(e) => setFormData({ ...formData, inside: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-[var(--muted)]/30 rounded-lg">
+              <div>
+                <span className="text-sm font-medium text-[var(--foreground)]">Outside Access</span>
+                <p className="text-xs text-[var(--muted-foreground)]">Grant outside operations access</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.outside}
+                  onChange={(e) => setFormData({ ...formData, outside: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-[var(--muted)]/30 rounded-lg">
+              <div>
+                <span className="text-sm font-medium text-[var(--foreground)]">Visible</span>
+                <p className="text-xs text-[var(--muted-foreground)]">Show user in lists and directories</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.visible}
+                  onChange={(e) => setFormData({ ...formData, visible: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+              </label>
+            </div>
+
+            {/* Info box */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-1">
+              <div className="flex gap-2">
+                <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">Understanding these settings:</p>
+                  <ul className="space-y-1 text-xs">
+                    <li><strong>Role:</strong> Determines system permissions (Outside/Inside Rep for sales).</li>
+                    <li><strong>Inside/Outside Access:</strong> Additional flags for operations access, independent of role.</li>
+                    <li><strong>Visible:</strong> Shows user in rep assignment dropdowns (quotes, orders, etc.).</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -6362,14 +6422,10 @@ function EditUserModalWithApi({ user, onClose }: { user: User; onClose: () => vo
   const handleSubmit = async () => {
     if (!validate()) return;
 
-    // Set inside/outside flags based on role
-    // INSIDE_REP: inside=true, outside=false
-    // OUTSIDE_REP: inside=false, outside=true
-    // Others: inside=false, outside=false
     const input: Partial<UserInput> = {
       ...formData,
-      inside: formData.role === 'INSIDE_REP',
-      outside: formData.role === 'OUTSIDE_REP',
+      inside: formData.inside,
+      outside: formData.outside,
     };
 
     try {
@@ -6479,30 +6535,90 @@ function EditUserModalWithApi({ user, onClose }: { user: User; onClose: () => vo
             />
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.enabled}
-                onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
-            </label>
-            <span className="text-sm text-[var(--foreground)]">Active</span>
-          </div>
+          {/* Access Toggles Section */}
+          <div className="space-y-3 pt-2 border-t border-[var(--border)]">
+            <p className="text-xs text-[var(--muted-foreground)] font-medium uppercase tracking-wide">Access Settings</p>
 
-          <div className="flex items-center gap-3">
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.visible}
-                onChange={(e) => setFormData({ ...formData, visible: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
-            </label>
-            <span className="text-sm text-[var(--foreground)]">Visible</span>
+            <div className="flex items-center justify-between p-3 bg-[var(--muted)]/30 rounded-lg">
+              <div>
+                <span className="text-sm font-medium text-[var(--foreground)]">Enabled</span>
+                <p className="text-xs text-[var(--muted-foreground)]">Allow user to access the system</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.enabled}
+                  onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-[var(--muted)]/30 rounded-lg">
+              <div>
+                <span className="text-sm font-medium text-[var(--foreground)]">Inside Access</span>
+                <p className="text-xs text-[var(--muted-foreground)]">Grant inside operations access</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.inside}
+                  onChange={(e) => setFormData({ ...formData, inside: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-[var(--muted)]/30 rounded-lg">
+              <div>
+                <span className="text-sm font-medium text-[var(--foreground)]">Outside Access</span>
+                <p className="text-xs text-[var(--muted-foreground)]">Grant outside operations access</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.outside}
+                  onChange={(e) => setFormData({ ...formData, outside: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-[var(--muted)]/30 rounded-lg">
+              <div>
+                <span className="text-sm font-medium text-[var(--foreground)]">Visible</span>
+                <p className="text-xs text-[var(--muted-foreground)]">Show user in lists and directories</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.visible}
+                  onChange={(e) => setFormData({ ...formData, visible: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+              </label>
+            </div>
+
+            {/* Info box */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-1">
+              <div className="flex gap-2">
+                <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">Understanding these settings:</p>
+                  <ul className="space-y-1 text-xs">
+                    <li><strong>Role:</strong> Determines system permissions (Outside/Inside Rep for sales).</li>
+                    <li><strong>Inside/Outside Access:</strong> Additional flags for operations access, independent of role.</li>
+                    <li><strong>Visible:</strong> Shows user in rep assignment dropdowns (quotes, orders, etc.).</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -6653,7 +6769,7 @@ function PermissionModal({
             value === 'own' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--foreground)]'
           }`}
         >
-          Only Their Own
+          Only Assigned
         </button>
       </div>
       <p className="text-sm text-[var(--muted-foreground)] mt-2">{description}</p>

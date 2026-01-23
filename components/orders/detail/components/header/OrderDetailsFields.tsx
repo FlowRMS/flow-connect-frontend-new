@@ -774,7 +774,7 @@ export function OrderDetailsFields({
                         className="accent-[var(--primary)]"
                       />
                       <label htmlFor="splitInsideCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
-                        Split commission
+                        Select Multiple Reps
                       </label>
                     </div>
                   )}

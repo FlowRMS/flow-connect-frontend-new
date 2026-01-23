@@ -36,7 +36,7 @@ import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import {
   calculateLineItemsSummary,
-  calculateTotalAdjustments,
+  calculateTotalAdjustmentsFromLineItems,
   toggleAllLineItems,
 } from '../utils';
 
@@ -701,8 +701,9 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   }, [lineItems]);
 
   const totalAdjustments = useMemo(() => {
-    return calculateTotalAdjustments(adjustments);
-  }, [adjustments]);
+    // Calculate from line items to get the actual stated commission values
+    return calculateTotalAdjustmentsFromLineItems(lineItems);
+  }, [lineItems]);
 
   // Factory ID state (needed for API)
   const [factoryId, setFactoryId] = useState<string>(apiCheck?.factoryId || '');

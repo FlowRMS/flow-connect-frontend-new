@@ -1016,9 +1016,11 @@ export function LineItemsTable({
             getPinnedColumnStyle={getPinnedColumnStyle}
           />
           <tbody>
-            {(order.lineItems || []).map((item) => {
+            {(order.lineItems || []).map((item, itemIndex) => {
               const linkedInvoices = getLinkedInvoicesForLineItem(item, order.id, mockInvoices);
               const lineStatus = getLineShipStatus(item, linkedInvoices);
+              const totalItems = order.lineItems?.length || 0;
+              const isNearBottom = itemIndex >= totalItems - 2;
               const hasAcknowledgement = lineItemAcknowledgements[item.id];
               const hasCredit = lineItemCredits[item.id];
 
@@ -1147,9 +1149,20 @@ export function LineItemsTable({
                   {/* Status */}
                   {visibleColumns.has('lineStatus') && (
                     <td className="px-3 py-2 text-sm text-center">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${lineStatus.color}`}>
-                        {lineStatus.label}
-                      </span>
+                      <div className="relative group inline-block">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium cursor-help ${lineStatus.color}`}>
+                          {lineStatus.label}
+                        </span>
+                        <div className={`absolute left-1/2 -translate-x-1/2 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-[9999] pointer-events-none shadow-xl min-w-[180px] ${isNearBottom ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
+                          <div className="font-semibold mb-2 text-blue-400">Shipping Balance</div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-gray-400">Qty:</span>
+                              <span className="font-medium">{(item.quantity || 0) - (item.quantityShipped || 0)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </td>
                   )}
 

@@ -9,6 +9,7 @@ import {
   useUpdateCustomer,
   useCustomerChildren,
   useCustomerBuyingGroupMembers,
+  useAssignChildCustomers,
   type CustomerLiteResponse,
   type CustomerSearchResult,
 } from '../../../../../components/customers/api/useCustomersApi';
@@ -92,6 +93,12 @@ export default function CustomerEditPage() {
   const [buyingGroupSearchEnabled, setBuyingGroupSearchEnabled] = useState(false);
   const buyingGroupRef = useRef<HTMLDivElement>(null);
 
+  // Child customer assignment search state
+  const [childCustomerSearch, setChildCustomerSearch] = useState('');
+  const [showChildCustomerDropdown, setShowChildCustomerDropdown] = useState(false);
+  const [childCustomerSearchEnabled, setChildCustomerSearchEnabled] = useState(false);
+  const childCustomerRef = useRef<HTMLDivElement>(null);
+
   // Customer search hooks using React Query
   const { data: parentSearchResults = [], isLoading: isSearchingParent } = useCRMCustomerSearch(
     parentSearch,
@@ -102,6 +109,11 @@ export default function CustomerEditPage() {
     buyingGroupSearch,
     true, // published only
     buyingGroupSearchEnabled
+  );
+  const { data: childCustomerSearchResults = [], isLoading: isSearchingChildCustomer } = useCRMCustomerSearch(
+    childCustomerSearch,
+    true, // published only
+    childCustomerSearchEnabled
   );
 
   // Filter parent search results - show only parent customers (isParent=true), exclude current customer
@@ -138,6 +150,18 @@ export default function CustomerEditPage() {
   const { data: buyingGroupMembers = [], isLoading: buyingGroupMembersLoading } = useCustomerBuyingGroupMembers(
     isBuyingGroup ? customerId : undefined
   );
+
+  // Filter child customer results - exclude current customer and customers that are already children of this parent
+  const filteredChildCustomerResults = useMemo(() =>
+    childCustomerSearchResults.filter(c =>
+      c.id !== customerId &&
+      !childCustomers.some(child => child.id === c.id)
+    ),
+    [childCustomerSearchResults, customerId, childCustomers]
+  );
+
+  // Assign child customers mutation
+  const assignChildCustomersMutation = useAssignChildCustomers();
 
   // Fetch parent customer details to get the name (when parentId exists)
   const { data: parentCustomer } = useCustomer(customer?.parentId || undefined);
@@ -1131,20 +1155,106 @@ export default function CustomerEditPage() {
             </div>
 
             <div className="bg-white rounded-lg border border-gray-200 p-6">
+              {/* Add Child Customer Dropdown */}
+              <div className="mb-6" ref={childCustomerRef}>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Add Child Customer
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search for a customer to add..."
+                    value={childCustomerSearch}
+                    onChange={(e) => {
+                      setChildCustomerSearch(e.target.value);
+                      setChildCustomerSearchEnabled(e.target.value.length >= 2);
+                      setShowChildCustomerDropdown(true);
+                    }}
+                    onFocus={() => {
+                      if (childCustomerSearch.length >= 2) {
+                        setShowChildCustomerDropdown(true);
+                      }
+                    }}
+                    className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                  {isSearchingChildCustomer && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600"></div>
+                    </div>
+                  )}
+                  {showChildCustomerDropdown && childCustomerSearch.length >= 2 && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowChildCustomerDropdown(false)} />
+                      <div className="absolute z-20 w-full mt-1 bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-auto">
+                        {filteredChildCustomerResults.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-gray-500">
+                            {isSearchingChildCustomer ? 'Searching...' : 'No customers found'}
+                          </div>
+                        ) : (
+                          filteredChildCustomerResults.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              className="w-full px-4 py-3 text-left hover:bg-amber-50 flex items-center gap-3 transition-colors"
+                              onClick={async () => {
+                                try {
+                                  await assignChildCustomersMutation.mutateAsync({
+                                    parentId: customerId,
+                                    childIds: [c.id],
+                                  });
+                                  toast.success(`${c.companyName} has been added as a child customer`);
+                                  setChildCustomerSearch('');
+                                  setShowChildCustomerDropdown(false);
+                                  setChildCustomerSearchEnabled(false);
+                                } catch (error) {
+                                  toast.error('Failed to assign child customer');
+                                  console.error('Failed to assign child customer:', error);
+                                }
+                              }}
+                            >
+                              <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <span className="text-xs font-medium text-amber-600">
+                                  {c.companyName?.charAt(0).toUpperCase() || '?'}
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">{c.companyName}</p>
+                                {c.isParent && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                                    Parent
+                                  </span>
+                                )}
+                              </div>
+                              <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                              </svg>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Search and select a customer to add them as a child of this parent customer.
+                </p>
+              </div>
+
+              {/* Child Customers List */}
               {childCustomersLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
                 </div>
               ) : childCustomers.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-6 h-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No child customers yet</h3>
-                  <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-                    Child customers can be assigned to this parent customer by editing the child customer and selecting this customer as their parent.
+                  <h3 className="text-base font-medium text-gray-900 mb-1">No child customers yet</h3>
+                  <p className="text-sm text-gray-500">
+                    Use the search above to add child customers.
                   </p>
                 </div>
               ) : (
