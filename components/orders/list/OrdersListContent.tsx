@@ -7,7 +7,7 @@
 
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
@@ -52,25 +52,14 @@ export default function OrdersListContent() {
   const filterOptions = getOrderFilterOptions();
   const sortOptions = getOrderSortOptions();
   
-  // Map sortField and sortDirection to ActiveSort format for SortButton
+  // Map serverOrderBy to ActiveSort[] format for SortButton
   // The columnName should match API field names directly
-  const activeSort = state.sortField && state.sortDirection
-    ? {
-        columnName: (() => {
-          const fieldMap: Record<string, string> = {
-            orderNumber: 'orderNumber',
-            customerName: 'soldToCustomerName',
-            manufacturerName: 'factoryName',
-            orderDate: 'entityDate',
-            total: 'total',
-            totalCommission: 'commission',
-            status: 'status',
-          };
-          return fieldMap[state.sortField] || 'entityDate';
-        })(),
-        direction: state.sortDirection.toUpperCase() as 'ASC' | 'DESC',
-      }
-    : undefined;
+  const activeSorts = useMemo(() => {
+    return state.serverOrderBy.map(orderBy => ({
+      columnName: orderBy.columnName,
+      direction: orderBy.direction,
+    }));
+  }, [state.serverOrderBy]);
 
   // Determine if we're loading (only initial load, not when fetching more pages)
   const isLoading = state.isLoading;
@@ -195,8 +184,8 @@ export default function OrdersListContent() {
               
               <SortButton
                 sortOptions={sortOptions}
-                onSortChange={state.handleSortChange}
-                activeSort={activeSort}
+                onMultiSortChange={state.handleMultiSortChange}
+                activeSorts={activeSorts}
               />
               
               <button
