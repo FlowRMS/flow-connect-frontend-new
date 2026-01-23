@@ -333,7 +333,24 @@ export function ListViewV2({
               </th>
               {/* Factories - moved after Customer */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Factories
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('factories')}
+                  >
+                    Factories
+                  </span>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="factories" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
+                </div>
               </th>
               {/* End Users - moved after Customer */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">

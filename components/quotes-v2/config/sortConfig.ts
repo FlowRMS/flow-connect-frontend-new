@@ -86,6 +86,14 @@ export const QUOTE_SORT_CONFIGS: SortConfig[] = [
     availableInColumns: true,
     defaultDirection: 'ASC',
   },
+  {
+    id: 'factories',
+    label: 'Factories',
+    backendColumn: 'factories',
+    availableInMenu: true,
+    availableInColumns: true,
+    defaultDirection: 'ASC',
+  },
 ];
 
 export const DEFAULT_QUOTE_SORT: ActiveSort = {
