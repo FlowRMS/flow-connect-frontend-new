@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   fetchFilesByLinkedEntity,
   getFilePresignedUrl,
@@ -41,6 +42,7 @@ interface FilesTabProps {
 type ViewMode = 'grid' | 'list';
 
 export function FilesTab({ entityId, entityType }: FilesTabProps) {
+  const queryClient = useQueryClient();
   const [files, setFiles] = useState<FileResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +56,23 @@ export function FilesTab({ entityId, entityType }: FilesTabProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Invalidates file count queries for the current entity
+   * This ensures that file count badges in tabs update immediately
+   */
+  const invalidateFileCountQueries = useCallback(() => {
+    if (!entityId) return;
+
+    queryClient.invalidateQueries({
+      queryKey: [`${entityType.toLowerCase()}Files`, entityId],
+    });
+
+    // Also invalidate the generic files query used by ConnectedEntitiesSection
+    queryClient.invalidateQueries({
+      queryKey: ['files', 'byEntity', entityId, entityType],
+    });
+  }, [entityId, entityType, queryClient]);
 
   // Fetch files on mount and when entityId changes
   const loadFiles = useCallback(async () => {
@@ -111,6 +130,8 @@ export function FilesTab({ entityId, entityType }: FilesTabProps) {
       setUploadProgress(null);
       // Reload files after upload
       await loadFiles();
+      // Invalidate file count queries to update badges in tabs
+      invalidateFileCountQueries();
     } catch (err) {
       console.error('Failed to upload file:', err);
       setError(err instanceof Error ? err.message : 'Failed to upload file');
@@ -156,6 +177,8 @@ export function FilesTab({ entityId, entityType }: FilesTabProps) {
     try {
       await archiveFile(file.id);
       await loadFiles();
+      // Invalidate file count queries to update badges in tabs
+      invalidateFileCountQueries();
       showSuccessToast('File Archived', { description: `"${file.fileName}" has been archived` });
     } catch (err) {
       console.error('Failed to archive file:', err);
@@ -176,6 +199,8 @@ export function FilesTab({ entityId, entityType }: FilesTabProps) {
     try {
       await deleteFile(fileToDelete.id);
       await loadFiles();
+      // Invalidate file count queries to update badges in tabs
+      invalidateFileCountQueries();
       showSuccessToast('File Deleted', { description: `"${fileToDelete.fileName}" has been deleted` });
       setFileToDelete(null);
     } catch (err) {
@@ -200,6 +225,8 @@ export function FilesTab({ entityId, entityType }: FilesTabProps) {
       const count = selectedFiles.size;
       setSelectedFiles(new Set());
       await loadFiles();
+      // Invalidate file count queries to update badges in tabs
+      invalidateFileCountQueries();
       showSuccessToast('Files Deleted', { description: `${count} file(s) have been deleted` });
       setShowBulkDeleteModal(false);
     } catch (err) {
