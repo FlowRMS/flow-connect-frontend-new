@@ -14,7 +14,14 @@ import { levelLabels } from '../constants';
 import {
   useWarehouseLocationTreeQuery,
   useBulkSaveWarehouseLocations,
+  useBulkAssignProductsToLocations,
+  useBulkRemoveProductsFromLocations,
 } from '../../settings/api/useWarehouseLocationsApi';
+
+/** Check if a string is a valid UUID */
+function isValidUUID(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
 
 export interface UseLocationManagementProps {
   warehouseId?: string;
@@ -33,15 +40,26 @@ export function useLocationManagement({ warehouseId, enabledLevels }: UseLocatio
   // Bulk save mutation
   const bulkSaveMutation = useBulkSaveWarehouseLocations();
 
+  // Product assignment mutations (bulk for efficiency)
+  const bulkAssignMutation = useBulkAssignProductsToLocations();
+  const bulkRemoveMutation = useBulkRemoveProductsFromLocations();
+
   // Local state for locations (initialized from API)
   const [locations, setLocations] = useState<WarehouseLocation[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Track pending product removals for save (products to remove from DB)
+  const [pendingProductRemovals, setPendingProductRemovals] = useState<
+    Array<{ locationId: string; productId: string }>
+  >([]);
 
   // Update local state when API data changes
   useEffect(() => {
     if (apiLocations) {
       setLocations(buildLocationTreeFromApi(apiLocations));
       setHasUnsavedChanges(false);
+      // Clear pending product removals when data refreshes from server
+      setPendingProductRemovals([]);
     } else if (!isLoading && !error) {
       setLocations(buildEmptyLocationTree());
     }
@@ -56,18 +74,128 @@ export function useLocationManagement({ warehouseId, enabledLevels }: UseLocatio
     []
   );
 
+  // Helper to collect NEW products (with temp IDs like PROD-xxx) from local state
+  const collectNewProductsFromLocations = useCallback(
+    (locs: WarehouseLocation[]): Array<{ tempLocationId: string; productId: string; quantity: number }> => {
+      const result: Array<{ tempLocationId: string; productId: string; quantity: number }> = [];
+      const traverse = (items: WarehouseLocation[]) => {
+        for (const item of items) {
+          if (item.products && item.products.length > 0) {
+            for (const product of item.products) {
+              // Only include products with temp IDs (newly added, not yet saved)
+              // Real UUIDs mean they already exist in the database
+              if (product.id.startsWith('PROD-')) {
+                result.push({
+                  tempLocationId: item.id,
+                  productId: product.productId,
+                  quantity: product.quantity,
+                });
+              }
+            }
+          }
+          if (item.children) {
+            traverse(item.children);
+          }
+        }
+      };
+      traverse(locs);
+      return result;
+    },
+    []
+  );
+
   // Save to backend
   const saveLocations = useCallback(async () => {
     if (!warehouseId) return;
 
+    // Collect NEW products (with temp IDs) from current local state BEFORE saving
+    // This captures products added in this session on both new and existing locations
+    const newProducts = collectNewProductsFromLocations(locations);
+
+    // 1. Save location structure first
     const apiInput = convertLocationsToApiInput(locations);
-    await bulkSaveMutation.mutateAsync({
+    const savedLocations = await bulkSaveMutation.mutateAsync({
       warehouseId,
       locations: apiInput,
     });
+
+    // 2. Build a mapping from temp IDs to real UUIDs
+    // The bulk save returns locations in the same order as input (flattened)
+    const tempIdToRealId = new Map<string, string>();
+    apiInput.forEach((input, index) => {
+      if (savedLocations[index]) {
+        // Map both the real ID (if existed) and temp ID (if new) to the saved ID
+        if (input.id) {
+          tempIdToRealId.set(input.id, savedLocations[index].id);
+        }
+        if (input.tempId) {
+          tempIdToRealId.set(input.tempId, savedLocations[index].id);
+        }
+      }
+    });
+
+    // 3. Process product removals in bulk (single API call)
+    const removalsToProcess = pendingProductRemovals
+      .map((removal) => {
+        const realLocationId = tempIdToRealId.get(removal.locationId) || removal.locationId;
+        if (isValidUUID(realLocationId)) {
+          return { locationId: realLocationId, productId: removal.productId };
+        }
+        return null;
+      })
+      .filter((r): r is { locationId: string; productId: string } => r !== null);
+
+    if (removalsToProcess.length > 0) {
+      try {
+        await bulkRemoveMutation.mutateAsync({
+          removals: removalsToProcess,
+          warehouseId,
+        });
+      } catch (e) {
+        console.error('Failed to bulk remove product assignments:', e);
+      }
+    }
+
+    // 4. Process new product additions in bulk (single API call)
+    const assignmentsToProcess = newProducts
+      .map((addition) => {
+        const realLocationId = tempIdToRealId.get(addition.tempLocationId) || addition.tempLocationId;
+        if (isValidUUID(realLocationId)) {
+          return {
+            locationId: realLocationId,
+            productId: addition.productId,
+            quantity: addition.quantity,
+          };
+        }
+        return null;
+      })
+      .filter((a): a is { locationId: string; productId: string; quantity: number } => a !== null);
+
+    if (assignmentsToProcess.length > 0) {
+      try {
+        await bulkAssignMutation.mutateAsync({
+          assignments: assignmentsToProcess,
+          warehouseId,
+        });
+      } catch (e) {
+        console.error('Failed to bulk assign products:', e);
+      }
+    }
+
+    // 5. Clear pending changes and refresh
+    setPendingProductRemovals([]);
     setHasUnsavedChanges(false);
     await refetch();
-  }, [warehouseId, locations, bulkSaveMutation, refetch]);
+  }, [
+    warehouseId,
+    locations,
+    pendingProductRemovals,
+    collectNewProductsFromLocations,
+    bulkSaveMutation,
+    bulkAssignMutation,
+    bulkRemoveMutation,
+    refetch,
+  ]);
 
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -164,6 +292,14 @@ export function useLocationManagement({ warehouseId, enabledLevels }: UseLocatio
     [setLocationsWithTracking]
   );
 
+  // Add bulk locations (from template builder)
+  const addBulkLocations = useCallback(
+    (newLocations: WarehouseLocation[]) => {
+      setLocationsWithTracking((prev) => [...prev, ...newLocations]);
+    },
+    [setLocationsWithTracking]
+  );
+
   // Rename a location
   const renameLocation = useCallback(
     (id: string, newName: string) => {
@@ -193,6 +329,7 @@ export function useLocationManagement({ warehouseId, enabledLevels }: UseLocatio
   // Add product to bin
   const addProduct = useCallback(
     (binId: string, product: AvailableProduct) => {
+      // Update local state - products with PROD- prefix IDs will be saved on next save
       setLocationsWithTracking((prev) => {
         const addProductToLocation = (items: WarehouseLocation[]): WarehouseLocation[] => {
           return items.map((item) => {
@@ -220,7 +357,14 @@ export function useLocationManagement({ warehouseId, enabledLevels }: UseLocatio
 
   // Remove product from bin
   const removeProduct = useCallback(
-    (binId: string, productAssignmentId: string) => {
+    (binId: string, productAssignmentId: string, productId: string) => {
+      // Track for API call on save - only for products that exist in DB (real UUIDs)
+      // Products with PROD- prefix are local-only and don't need API removal
+      if (isValidUUID(binId) && isValidUUID(productAssignmentId)) {
+        setPendingProductRemovals((prev) => [...prev, { locationId: binId, productId }]);
+      }
+
+      // Update local state
       setLocationsWithTracking((prev) => {
         const removeProductFromLocation = (items: WarehouseLocation[]): WarehouseLocation[] => {
           return items.map((item) => {
@@ -265,6 +409,7 @@ export function useLocationManagement({ warehouseId, enabledLevels }: UseLocatio
     addChildLocation,
     addSection,
     addSectionAtPosition,
+    addBulkLocations,
     renameLocation,
     deleteLocation,
     updateLocation,

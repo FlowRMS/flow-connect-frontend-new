@@ -21,6 +21,8 @@ export function useJobsState(
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<Job>>({});
+  // Track if user has made actual edits (not just entered edit mode)
+  const [hasLocalEdits, setHasLocalEdits] = useState(false);
 
   // Company selection
   const [selectedCompany, setSelectedCompany] = useState<any>(null);

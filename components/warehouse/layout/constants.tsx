@@ -89,7 +89,7 @@ export const levelColors: Record<string, { bg: string; text: string; border: str
 export const levelLabels: Record<string, string> = {
   section: 'Section',
   aisle: 'Aisle',
-  shelf: 'Shelf',
+  shelf: 'Rack Face',
   bay: 'Bay',
   row: 'Row',
   bin: 'Bin',

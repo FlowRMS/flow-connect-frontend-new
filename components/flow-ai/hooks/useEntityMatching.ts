@@ -579,7 +579,8 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
            entity.confirmationStatus === 'REJECTED' ||
            entity.confirmationStatus === 'CREATED_NEW' ||
            entity.confirmationStatus === 'SKIPPED' ||
-           entity.confirmationStatus === 'SET_FOR_CREATION';
+           entity.confirmationStatus === 'SET_FOR_CREATION' ||
+           entity.confirmationStatus === 'DOCUMENT_SPECIFIC';
   }, []);
 
   // Select all entities in current view (only selectable ones)
@@ -835,6 +836,8 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
               ? 'skipped'
               : action === 'SET_FOR_CREATION'
               ? 'set for creation'
+              : action === 'DOCUMENT_SPECIFIC'
+              ? 'marked as document specific'
               : 'rejected';
           toast.success(
             `${selectedEntities.length} ${
@@ -883,6 +886,11 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
 
   const handleBulkSetForCreation = useCallback(
     () => handleBulkAction('SET_FOR_CREATION'),
+    [handleBulkAction]
+  );
+
+  const handleBulkDocSpecific = useCallback(
+    () => handleBulkAction('DOCUMENT_SPECIFIC'),
     [handleBulkAction]
   );
 
@@ -977,6 +985,7 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
           const actionLabel =
             action === 'SKIP' ? 'skipped' :
             action === 'SET_FOR_CREATION' ? 'set for creation' :
+            action === 'DOCUMENT_SPECIFIC' ? 'marked as document specific' :
             action === 'REJECT' ? 'rejected' : 'updated';
           toast.success(`Entity ${actionLabel}`);
         }
@@ -1413,6 +1422,7 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
     handleBulkReject,
     handleBulkSkip,
     handleBulkSetForCreation,
+    handleBulkDocSpecific,
     handleBulkAction,
     handleSingleAction,
     handleSelectAlternative,

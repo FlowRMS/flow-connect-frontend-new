@@ -13,10 +13,11 @@ export type ConfirmationStatus =
   | 'NEEDS_REVIEW'
   | 'EMPTY_NAME'
   | 'SET_FOR_CREATION'
-  | 'SKIPPED';
+  | 'SKIPPED'
+  | 'DOCUMENT_SPECIFIC';
 
 // Bulk Confirm Action Types
-export type BulkConfirmAction = 'MATCH_EXISTING' | 'CREATE_NEW' | 'REJECT' | 'SKIP' | 'SET_FOR_CREATION';
+export type BulkConfirmAction = 'MATCH_EXISTING' | 'CREATE_NEW' | 'REJECT' | 'SKIP' | 'SET_FOR_CREATION' | 'DOCUMENT_SPECIFIC';
 
 // Match Candidate from API
 export interface MatchCandidate {
@@ -131,7 +132,7 @@ export const entityTypeToStep: Record<PendingEntityType, EntityStep> = {
 };
 
 // Filter types for UI
-export type FilterType = 'auto-matched' | 'needs-review' | 'pending' | 'confirmed' | 'no-match' | 'skipped' | 'set-for-creation';
+export type FilterType = 'auto-matched' | 'needs-review' | 'pending' | 'confirmed' | 'no-match' | 'skipped' | 'set-for-creation' | 'doc-specific';
 
 // Map confirmation status to filter type
 export const statusToFilterType: Record<ConfirmationStatus, FilterType> = {
@@ -144,6 +145,7 @@ export const statusToFilterType: Record<ConfirmationStatus, FilterType> = {
   EMPTY_NAME: 'needs-review',
   SET_FOR_CREATION: 'set-for-creation',
   SKIPPED: 'skipped',
+  DOCUMENT_SPECIFIC: 'doc-specific',
 };
 
 // Step status for navigation UI
@@ -169,7 +171,7 @@ export function needsAction(status: ConfirmationStatus): boolean {
 // Helper function to check if entity is resolved (no longer needs action)
 // AUTO_MATCHED is considered resolved as it has a valid match that can be auto-approved
 export function isResolved(status: ConfirmationStatus): boolean {
-  return status === 'CONFIRMED' || status === 'CREATED_NEW' || status === 'REJECTED' || status === 'AUTO_MATCHED' || status === 'SKIPPED' || status === 'SET_FOR_CREATION';
+  return status === 'CONFIRMED' || status === 'CREATED_NEW' || status === 'REJECTED' || status === 'AUTO_MATCHED' || status === 'SKIPPED' || status === 'SET_FOR_CREATION' || status === 'DOCUMENT_SPECIFIC';
 }
 
 // Parse extracted data JSON
@@ -227,6 +229,7 @@ export function pendingEntityToEntityMatch(entity: PendingEntity): EntityMatch {
     EMPTY_NAME: 'needs-review',
     SET_FOR_CREATION: 'user-created',
     SKIPPED: 'no-match',
+    DOCUMENT_SPECIFIC: 'confirmed',
   };
 
   return {

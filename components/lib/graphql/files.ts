@@ -48,6 +48,7 @@ export type DocumentEntityType =
   | 'ORDER_ACKNOWLEDGEMENTS'
   | 'INVOICES'
   | 'CHECKS'
+  | 'COMMISSION_STATEMENTS'
   | 'CUSTOMERS'
   | 'FACTORIES'
   | 'PRODUCTS'

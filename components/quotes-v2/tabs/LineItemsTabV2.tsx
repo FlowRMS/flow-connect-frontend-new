@@ -351,6 +351,11 @@ export function LineItemsTabV2({
 
     if (column === 'quantity') {
       const qty = parseInt(value) || 1;
+      // Skip if value hasn't changed
+      if (qty === item.quantity) {
+        setEditingCell(null);
+        return;
+      }
       // When quantity changes, recalculate with current unit price
       // User can change pricing source via dropdown if they want tier pricing
       const unitPrice = item.unitPrice;
@@ -363,6 +368,11 @@ export function LineItemsTabV2({
       updates.commissionTotal = commissionTotal;
     } else if (column === 'divisor') {
       const divisor = parseFloat(value) || 1;
+      // Skip if value hasn't changed
+      if (divisor === item.divisor) {
+        setEditingCell(null);
+        return;
+      }
       const sellTotal = item.quantity * item.unitPrice / divisor;
       const commissionTotal = sellTotal * (item.commissionPercent / 100);
       const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
@@ -372,6 +382,11 @@ export function LineItemsTabV2({
       updates.commissionTotal = commissionTotal;
     } else if (column === 'unitPrice') {
       const price = parseFloat(value.replace(/[$,]/g, '')) || 0;
+      // Skip if value hasn't changed
+      if (price === item.unitPrice) {
+        setEditingCell(null);
+        return;
+      }
       const sellTotal = item.quantity * price / item.divisor;
       const commissionTotal = sellTotal * (item.commissionPercent / 100);
       const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
@@ -388,6 +403,11 @@ export function LineItemsTabV2({
       }));
     } else if (column === 'commissionPercent') {
       const pct = parseFloat(value) || 0;
+      // Skip if value hasn't changed
+      if (pct === item.commissionPercent) {
+        setEditingCell(null);
+        return;
+      }
       // Recalculate sellTotal to ensure consistency
       const sellTotal = item.quantity * item.unitPrice / item.divisor;
       // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
@@ -539,7 +559,7 @@ export function LineItemsTabV2({
     }
     if (readOnlyCells.includes(column.key)) {
       return (
-        <td key={column.key} className="px-3 py-2 text-sm text-center">
+        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
           <span className={column.key === 'commissionTotal' ? 'font-medium text-purple-600' : ''}>
             {displayValue}
           </span>
@@ -549,10 +569,14 @@ export function LineItemsTabV2({
 
     // Read-only display columns (customerPartNumber and description)
     // These show the value but can't be edited - they're populated when product is selected
+    // Text is now selectable for copying
     if (isReadOnlyDisplayColumn) {
       return (
-        <td key={column.key} className="px-3 py-2 text-sm">
-          <span className={`truncate ${!displayValue || displayValue === '—' ? 'text-gray-400' : ''}`}>
+        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm">
+          <span 
+            className={`truncate select-text ${!displayValue || displayValue === '—' ? 'text-gray-400' : ''}`}
+            style={{ userSelect: 'text' }}
+          >
             {displayValue || '—'}
           </span>
         </td>
@@ -574,7 +598,7 @@ export function LineItemsTabV2({
       // Render disabled state for manufacturer when factoryPerLineItem is false
       if (isManufacturerDisabled) {
         return (
-          <td key={column.key} className="px-3 py-2 text-sm relative">
+          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm relative">
             <div className="w-full text-left px-2 py-1 rounded bg-gray-100 text-gray-400 cursor-not-allowed">
               <span className="truncate">
                 {displayValue}
@@ -584,19 +608,46 @@ export function LineItemsTabV2({
         );
       }
 
+      // All dropdown columns use selectable text + chevron button pattern
       return (
-        <td key={column.key} className="px-3 py-2 text-sm relative">
-          <button
-            onClick={(e) => handleCellClick(item.id, column.key, e)}
-            className="w-full text-left px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center justify-between gap-1"
-          >
-            <span className={`truncate ${!hasValue ? 'text-gray-400' : ''}`}>
+        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm relative">
+          <div className="w-full flex items-center gap-1">
+            <span
+              className="flex-1 py-1 select-text truncate cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
+              style={{ userSelect: 'text' }}
+              onClick={(e) => {
+                // Only open dropdown if no text is selected (user clicked, not dragged to select)
+                const selection = window.getSelection();
+                if (!selection || selection.toString().length === 0) {
+                  handleCellClick(item.id, column.key, e);
+                }
+              }}
+            >
               {displayValue}
             </span>
-            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400 flex-shrink-0">
-              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-            </svg>
-          </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCellClick(item.id, column.key, e);
+              }}
+              onFocus={(e) => {
+                // Auto-open dropdown when tabbed to
+                const rect = e.currentTarget.getBoundingClientRect();
+                setDropdownOpen({
+                  itemId: item.id,
+                  column: column.key,
+                  position: { top: rect.bottom + 4, left: rect.left },
+                });
+                setSearchQuery('');
+              }}
+              className="flex-shrink-0 p-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              title="Open dropdown"
+            >
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
+                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </td>
       );
     }
@@ -604,17 +655,53 @@ export function LineItemsTabV2({
     // Editable cells
     if (isEditing) {
       return (
-        <td key={column.key} className="px-3 py-2 text-sm">
+        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm">
           <input
             type="text"
             defaultValue={editValue}
             autoFocus
+            onFocus={(e) => e.target.select()}
             onBlur={(e) => handleCellChange(item.id, column.key, e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 handleCellChange(item.id, column.key, e.currentTarget.value);
               } else if (e.key === 'Escape') {
                 setEditingCell(null);
+              } else if (e.key === 'Tab') {
+                // Save and move to next cell
+                e.preventDefault();
+                handleCellChange(item.id, column.key, e.currentTarget.value);
+                // Find and focus next cell
+                setTimeout(() => {
+                  const currentRow = document.querySelector(`tr[data-item-id="${item.id}"]`);
+                  if (!currentRow) return;
+                  const rowCells = Array.from(currentRow.querySelectorAll<HTMLButtonElement>(
+                    'td button:not([title="Remove line item"]):not([title="More options"])'
+                  ));
+                  let currentCellIndex = -1;
+                  for (let i = 0; i < rowCells.length; i++) {
+                    const td = rowCells[i].closest('td');
+                    if (td && td.getAttribute('data-column') === column.key) {
+                      currentCellIndex = i;
+                      break;
+                    }
+                  }
+                  if (currentCellIndex >= 0 && currentCellIndex < rowCells.length - 1) {
+                    rowCells[currentCellIndex + 1]?.focus();
+                  } else {
+                    const allRows = document.querySelectorAll('tbody tr[data-item-id]');
+                    const currentRowIndex = Array.from(allRows).findIndex(r => r.getAttribute('data-item-id') === item.id);
+                    if (currentRowIndex >= 0 && currentRowIndex < allRows.length - 1) {
+                      const nextRow = allRows[currentRowIndex + 1];
+                      const nextRowCells = nextRow.querySelectorAll<HTMLButtonElement>(
+                        'td button:not([title="Remove line item"]):not([title="More options"])'
+                      );
+                      if (nextRowCells.length > 0) {
+                        nextRowCells[0]?.focus();
+                      }
+                    }
+                  }
+                }, 50);
               }
             }}
             className="w-full px-2 py-1 text-center border border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -653,17 +740,52 @@ export function LineItemsTabV2({
 
       if (isEditing) {
         return (
-          <td key={column.key} className="px-3 py-2 text-sm">
+          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm">
             <input
               type="text"
               defaultValue={editValue}
               autoFocus
+              onFocus={(e) => e.target.select()}
               onBlur={(e) => handleCellChange(item.id, column.key, e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   handleCellChange(item.id, column.key, e.currentTarget.value);
                 } else if (e.key === 'Escape') {
                   setEditingCell(null);
+                } else if (e.key === 'Tab') {
+                  // Save and move to next cell
+                  e.preventDefault();
+                  handleCellChange(item.id, column.key, e.currentTarget.value);
+                  setTimeout(() => {
+                    const currentRow = document.querySelector(`tr[data-item-id="${item.id}"]`);
+                    if (!currentRow) return;
+                    const rowCells = Array.from(currentRow.querySelectorAll<HTMLButtonElement>(
+                      'td button:not([title="Remove line item"]):not([title="More options"])'
+                    ));
+                    let currentCellIndex = -1;
+                    for (let i = 0; i < rowCells.length; i++) {
+                      const td = rowCells[i].closest('td');
+                      if (td && td.getAttribute('data-column') === column.key) {
+                        currentCellIndex = i;
+                        break;
+                      }
+                    }
+                    if (currentCellIndex >= 0 && currentCellIndex < rowCells.length - 1) {
+                      rowCells[currentCellIndex + 1]?.focus();
+                    } else {
+                      const allRows = document.querySelectorAll('tbody tr[data-item-id]');
+                      const currentRowIndex = Array.from(allRows).findIndex(r => r.getAttribute('data-item-id') === item.id);
+                      if (currentRowIndex >= 0 && currentRowIndex < allRows.length - 1) {
+                        const nextRow = allRows[currentRowIndex + 1];
+                        const nextRowCells = nextRow.querySelectorAll<HTMLButtonElement>(
+                          'td button:not([title="Remove line item"]):not([title="More options"])'
+                        );
+                        if (nextRowCells.length > 0) {
+                          nextRowCells[0]?.focus();
+                        }
+                      }
+                    }
+                  }, 50);
                 }
               }}
               className="w-full px-2 py-1 text-center border border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -673,12 +795,16 @@ export function LineItemsTabV2({
       }
 
       return (
-        <td key={column.key} className="px-3 py-2 text-sm text-center relative">
+        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center relative">
           <div className="flex items-center justify-center gap-1.5">
             {/* Price value - clickable to edit */}
             <button
               onClick={(e) => handleCellClick(item.id, column.key, e)}
-              className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+              onFocus={() => {
+                // Auto-switch to edit mode when tabbed to
+                setEditingCell({ itemId: item.id, column: column.key });
+              }}
+              className="px-2 py-1 rounded hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {displayValue}
             </button>
@@ -783,10 +909,14 @@ export function LineItemsTabV2({
     }
 
     return (
-      <td key={column.key} className="px-3 py-2 text-sm text-center">
+      <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
         <button
           onClick={(e) => handleCellClick(item.id, column.key, e)}
-          className={`w-full px-2 py-1 rounded hover:bg-gray-100 transition-colors ${
+          onFocus={() => {
+            // Auto-switch to edit mode when tabbed to
+            setEditingCell({ itemId: item.id, column: column.key });
+          }}
+          className={`w-full px-2 py-1 rounded hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
             column.key === 'commissionPercent' ? 'text-purple-600' : ''
           }`}
         >
@@ -912,7 +1042,7 @@ export function LineItemsTabV2({
             </thead>
             <tbody className="divide-y divide-gray-200">
               {lineItems.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={item.id} data-item-id={item.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-3 py-2">
                     <input
                       type="checkbox"
@@ -979,6 +1109,64 @@ export function LineItemsTabV2({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab') {
+                      // Close dropdown and move to next editable cell
+                      e.preventDefault();
+                      const currentItemId = dropdownOpen?.itemId;
+                      const currentColumn = dropdownOpen?.column;
+                      setDropdownOpen(null);
+                      setSearchQuery('');
+                      setDebouncedSearch('');
+
+                      // Find next editable cell after the current one
+                      setTimeout(() => {
+                        if (!currentItemId || !currentColumn) return;
+
+                        // Find the current row using data attribute
+                        const currentRow = document.querySelector(`tr[data-item-id="${currentItemId}"]`);
+                        if (!currentRow) return;
+
+                        // Get all editable cells in the current row (excluding action buttons)
+                        const rowCells = Array.from(currentRow.querySelectorAll<HTMLButtonElement>(
+                          'td button:not([title="Remove line item"]):not([title="More options"])'
+                        ));
+
+                        // Find the current cell index by matching the column
+                        let currentCellIndex = -1;
+                        for (let i = 0; i < rowCells.length; i++) {
+                          const cell = rowCells[i];
+                          const td = cell.closest('td');
+                          if (td && td.getAttribute('data-column') === currentColumn) {
+                            currentCellIndex = i;
+                            break;
+                          }
+                        }
+
+                        // Focus the next cell in the row
+                        if (currentCellIndex >= 0 && currentCellIndex < rowCells.length - 1) {
+                          rowCells[currentCellIndex + 1]?.focus();
+                        } else {
+                          // Move to first cell of next row
+                          const allRows = document.querySelectorAll('tbody tr[data-item-id]');
+                          const currentRowIndex = Array.from(allRows).findIndex(r => r.getAttribute('data-item-id') === currentItemId);
+                          if (currentRowIndex >= 0 && currentRowIndex < allRows.length - 1) {
+                            const nextRow = allRows[currentRowIndex + 1];
+                            const nextRowCells = nextRow.querySelectorAll<HTMLButtonElement>(
+                              'td button:not([title="Remove line item"]):not([title="More options"])'
+                            );
+                            if (nextRowCells.length > 0) {
+                              nextRowCells[0]?.focus();
+                            }
+                          }
+                        }
+                      }, 50);
+                    } else if (e.key === 'Escape') {
+                      setDropdownOpen(null);
+                      setSearchQuery('');
+                      setDebouncedSearch('');
+                    }
+                  }}
                   placeholder={
                     dropdownOpen.column === 'manufacturer' ? 'Search manufacturers...' :
                     dropdownOpen.column === 'uom' ? 'Search UOMs...' :

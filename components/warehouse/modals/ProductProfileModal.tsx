@@ -1,15 +1,15 @@
 'use client';
 
 import React, { useState, useMemo, useRef } from 'react';
+import { useQuery } from '@apollo/client/react';
 import Link from 'next/link';
+import { GET_WAREHOUSE_LOCATIONS } from '@/app/graphql/warehouse';
 import {
   Inventory,
   ProductBinLocation,
   ownershipTypeLabels,
   ownershipTypeColors,
-  InventoryAbcClass,
 } from '@/lib/types/warehouse';
-import { mockBins } from '@/lib/data/warehouse-mock';
 import { useWarehouse } from '../WarehouseContext';
 
 // Default options for dropdowns (can be extended by user)
@@ -26,62 +26,8 @@ interface ProductProfileModalProps {
 }
 
 interface EditableSettings {
-  reorderPoint: number | undefined;
-  reorderQuantity: number | undefined;
-  maxQuantity: number | undefined;
   abcClass: string | undefined;
-  movementVelocity: string | undefined;
-  cycleCountFrequency: number | undefined;
-  unitCost: number | undefined;
-}
-
-// Helper to create a new bin location from inventory data
-function createBinLocationFromInventory(
-  binId: string,
-  priority: number
-): ProductBinLocation {
-  const bin = mockBins.find((b) => b.id === binId);
-  const now = new Date().toISOString();
-
-  return {
-    id: `BL-${Date.now()}-${priority}`,
-    binId,
-    locationCode: bin?.letterCode || 'Unknown',
-    locationName: bin ? `Bin ${bin.letterCode}` : 'Unknown Location',
-    fullPath: bin?.letterCode || 'Unknown',
-    warehouseId: 'WH-001',
-    warehouseName: 'Atlanta Distribution Center',
-    priority,
-    maxCapacity: 100,
-    currentQuantity: 0,
-    isActive: true,
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
-// Helper to convert InventoryStorageLocation to ProductBinLocation
-function convertToProductBinLocation(
-  location: { id: string; locationName: string; locationCode: string; warehouseId: string; warehouseName: string; maxCapacity?: number; currentQuantity: number; notes?: string },
-  priority: number
-): ProductBinLocation {
-  const now = new Date().toISOString();
-  return {
-    id: location.id,
-    binId: location.id,
-    locationCode: location.locationCode,
-    locationName: location.locationName,
-    fullPath: location.locationCode,
-    warehouseId: location.warehouseId,
-    warehouseName: location.warehouseName,
-    priority,
-    maxCapacity: location.maxCapacity,
-    currentQuantity: location.currentQuantity,
-    notes: location.notes,
-    isActive: true,
-    createdAt: now,
-    updatedAt: now,
-  };
+  ownershipType: string;
 }
 
 // Editable dropdown with ability to add custom values
@@ -187,36 +133,40 @@ export default function ProductProfileModal({
   onClose,
   onSave,
 }: ProductProfileModalProps) {
-  const { isManagerView } = useWarehouse();
+  const { isManagerView, selectedWarehouse } = useWarehouse();
 
-  // Build initial bin locations from inventory data
+  // Fetch real locations
+  const { data: locationsData, loading: loadingLocations } = useQuery<any>(GET_WAREHOUSE_LOCATIONS, {
+    variables: { warehouseId: selectedWarehouse?.id },
+    skip: !selectedWarehouse?.id
+  });
+
+  const locations = useMemo(() => locationsData?.warehouseLocations || [], [locationsData]);
+
+  // Build initial bin locations from inventory items
   const initialBinLocations = useMemo(() => {
-    const locations: ProductBinLocation[] = [];
+    if (!inventory.items || inventory.items.length === 0) return [];
 
-    // Add primary location as priority 1
-    if (inventory.primaryLocation) {
-      locations.push(convertToProductBinLocation(inventory.primaryLocation, 1));
-    }
-
-    // Add overflow locations with incrementing priority
-    if (inventory.overflowLocations) {
-      inventory.overflowLocations.forEach((loc, idx) => {
-        locations.push(convertToProductBinLocation(loc, idx + 2));
-      });
-    }
-
-    return locations;
+    return inventory.items.map((item, idx) => {
+      return {
+        id: item.id,
+        binId: item.locationId,
+        locationCode: item.locationName,
+        locationName: item.locationName,
+        fullPath: item.locationName,
+        warehouseId: inventory.warehouseId,
+        priority: idx + 1,
+        currentQuantity: item.quantity,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt || item.createdAt,
+      } as ProductBinLocation;
+    });
   }, [inventory]);
 
   // Initial settings from inventory
   const initialSettings: EditableSettings = useMemo(() => ({
-    reorderPoint: inventory.reorderPoint,
-    reorderQuantity: inventory.reorderQuantity,
-    maxQuantity: inventory.maxQuantity,
     abcClass: inventory.abcClass,
-    movementVelocity: inventory.movementVelocity,
-    cycleCountFrequency: inventory.cycleCountFrequency,
-    unitCost: inventory.unitCost,
+    ownershipType: inventory.ownershipType,
   }), [inventory]);
 
   const [binLocations, setBinLocations] = useState<ProductBinLocation[]>(initialBinLocations);
@@ -237,8 +187,8 @@ export default function ProductProfileModal({
   // Get available bins that aren't already assigned
   const availableBins = useMemo(() => {
     const assignedBinIds = new Set(binLocations.map((loc) => loc.binId));
-    return mockBins.filter((bin) => !assignedBinIds.has(bin.id));
-  }, [binLocations]);
+    return locations.filter((bin: any) => !assignedBinIds.has(bin.id));
+  }, [binLocations, locations]);
 
   // Update setting helper
   const updateSetting = <K extends keyof EditableSettings>(key: K, value: EditableSettings[K]) => {
@@ -249,8 +199,28 @@ export default function ProductProfileModal({
   const handleAddBinLocation = () => {
     if (!newBinId) return;
 
+    const bin = locations.find((b: any) => b.id === newBinId);
+    if (!bin) return;
+
     const newPriority = binLocations.length + 1;
-    const newLocation = createBinLocationFromInventory(newBinId, newPriority);
+    const now = new Date().toISOString();
+
+    const newLocation: ProductBinLocation = {
+      id: `BL-${Date.now()}-${newPriority}`,
+      binId: bin.id,
+      locationCode: bin.code || bin.name,
+      locationName: bin.name,
+      fullPath: bin.name, // TODO: construct full path if parentId exists
+      warehouseId: inventory.warehouseId,
+      warehouseName: 'Current Warehouse', // Could fetch from context if needed
+      priority: newPriority,
+      maxCapacity: 100, // Placeholder
+      currentQuantity: 0,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
     setBinLocations((prev) => [...prev, newLocation]);
     setNewBinId('');
     setShowAddBin(false);
@@ -402,7 +372,7 @@ export default function ProductProfileModal({
     }
   };
 
-  const isLowStock = inventory.availableQuantity <= (settings.reorderPoint || 0);
+  const isLowStock = inventory.availableQuantity <= (inventory.reorderPoint || 0);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -483,7 +453,7 @@ export default function ProductProfileModal({
               <div>
                 <p className="text-sm font-medium text-red-800 dark:text-red-200">Low Stock Warning</p>
                 <p className="text-xs text-red-600 dark:text-red-300">
-                  Available quantity ({inventory.availableQuantity}) is at or below reorder point ({settings.reorderPoint})
+                  Available quantity ({inventory.availableQuantity}) is at or below reorder point ({inventory.reorderPoint})
                 </p>
               </div>
             </div>
@@ -531,13 +501,12 @@ export default function ProductProfileModal({
                       onDragLeave={handleDragLeave}
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, location.id)}
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-grab active:cursor-grabbing transition-all ${
-                        dragOverItem === location.id
-                          ? 'border-[var(--primary)] border-2 bg-[var(--primary)]/5'
-                          : location.priority === 1
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-grab active:cursor-grabbing transition-all ${dragOverItem === location.id
+                        ? 'border-[var(--primary)] border-2 bg-[var(--primary)]/5'
+                        : location.priority === 1
                           ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
                           : 'bg-[var(--muted)]/30 border-[var(--border)]'
-                      } ${draggedItem === location.id ? 'opacity-50' : ''}`}
+                        } ${draggedItem === location.id ? 'opacity-50' : ''}`}
                     >
                       {/* Drag Handle */}
                       <div className="flex-shrink-0 text-[var(--muted-foreground)] cursor-grab active:cursor-grabbing">
@@ -548,11 +517,10 @@ export default function ProductProfileModal({
 
                       {/* Priority Badge */}
                       <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                          location.priority === 1
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-[var(--muted)] text-[var(--muted-foreground)]'
-                        }`}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${location.priority === 1
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-[var(--muted)] text-[var(--muted-foreground)]'
+                          }`}
                       >
                         {location.priority}
                       </div>
@@ -629,9 +597,9 @@ export default function ProductProfileModal({
                           className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                         >
                           <option value="">Select a bin location...</option>
-                          {availableBins.map((bin) => (
+                          {availableBins.map((bin: any) => (
                             <option key={bin.id} value={bin.id}>
-                              Bin {bin.letterCode}
+                              {bin.name} {bin.code ? `(${bin.code})` : ''}
                             </option>
                           ))}
                         </select>
@@ -662,41 +630,12 @@ export default function ProductProfileModal({
           {/* Product Details Grid */}
           <div className="grid grid-cols-2 gap-6">
             {/* Inventory Settings */}
+            {/* Inventory Settings */}
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
               <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
                 <h3 className="font-medium text-[var(--foreground)]">Inventory Settings</h3>
               </div>
               <div className="p-4 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[var(--muted-foreground)]">Reorder Point</span>
-                  <input
-                    type="number"
-                    value={settings.reorderPoint ?? ''}
-                    onChange={(e) => updateSetting('reorderPoint', e.target.value ? parseInt(e.target.value) : undefined)}
-                    className="w-24 px-2 py-1 text-sm text-right border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
-                    placeholder="-"
-                  />
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[var(--muted-foreground)]">Reorder Qty</span>
-                  <input
-                    type="number"
-                    value={settings.reorderQuantity ?? ''}
-                    onChange={(e) => updateSetting('reorderQuantity', e.target.value ? parseInt(e.target.value) : undefined)}
-                    className="w-24 px-2 py-1 text-sm text-right border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
-                    placeholder="-"
-                  />
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[var(--muted-foreground)]">Max Quantity</span>
-                  <input
-                    type="number"
-                    value={settings.maxQuantity ?? ''}
-                    onChange={(e) => updateSetting('maxQuantity', e.target.value ? parseInt(e.target.value) : undefined)}
-                    className="w-24 px-2 py-1 text-sm text-right border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
-                    placeholder="-"
-                  />
-                </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-[var(--muted-foreground)]">ABC Class</span>
                   <EditableSelect
@@ -706,18 +645,6 @@ export default function ProductProfileModal({
                     onAddOption={(opt) => setAbcClassOptions(prev => [...prev, opt.toUpperCase()])}
                     placeholder="-"
                     renderOption={(opt) => `Class ${opt.toUpperCase()}`}
-                    className="w-28"
-                  />
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[var(--muted-foreground)]">Movement</span>
-                  <EditableSelect
-                    value={settings.movementVelocity}
-                    options={movementOptions}
-                    onChange={(value) => updateSetting('movementVelocity', value)}
-                    onAddOption={(opt) => setMovementOptions(prev => [...prev, opt])}
-                    placeholder="-"
-                    renderOption={(opt) => opt.charAt(0).toUpperCase() + opt.slice(1)}
                     className="w-28"
                   />
                 </div>
@@ -736,41 +663,12 @@ export default function ProductProfileModal({
                     {formatDate(inventory.lastCycleCountDate)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[var(--muted-foreground)]">Frequency</span>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      value={settings.cycleCountFrequency ?? ''}
-                      onChange={(e) => updateSetting('cycleCountFrequency', e.target.value ? parseInt(e.target.value) : undefined)}
-                      className="w-16 px-2 py-1 text-sm text-right border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
-                      placeholder="-"
-                    />
-                    <span className="text-sm text-[var(--muted-foreground)]">days</span>
-                  </div>
-                </div>
                 {isManagerView && inventory.ownershipType === 'CONSIGNMENT' && (
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-[var(--muted-foreground)]">Commission</span>
                     <span className="text-sm font-medium text-[var(--foreground)]">
                       {inventory.commissionPercentage ? `${inventory.commissionPercentage}%` : '-'}
                     </span>
-                  </div>
-                )}
-                {isManagerView && inventory.ownershipType === 'BUY_SELL' && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-[var(--muted-foreground)]">Unit Cost</span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm text-[var(--muted-foreground)]">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={settings.unitCost ?? ''}
-                        onChange={(e) => updateSetting('unitCost', e.target.value ? parseFloat(e.target.value) : undefined)}
-                        className="w-20 px-2 py-1 text-sm text-right border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
-                        placeholder="-"
-                      />
-                    </div>
                   </div>
                 )}
               </div>

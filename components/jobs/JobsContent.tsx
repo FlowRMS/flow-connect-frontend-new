@@ -29,13 +29,16 @@ import { ListView } from './views/ListView';
 import type { Job } from './types';
 import { mapAPIJobToUIJob } from './types';
 import type { JobLandingPage, LandingPageFilter, LandingPageOrderBy, RelatedEntityCompany, RelatedEntityContact } from '../lib/crm-graphql';
-import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { useScrollPagination } from '../hooks/useInfiniteScroll';
+import { useUnsavedChangesGuard } from '../shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 export default function JobsContent() {
   // Router for navigation
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
 
   // Navigation morph hooks - must be called before any early returns
   const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
@@ -119,12 +122,23 @@ export default function JobsContent() {
     });
   }, [jobsData]);
 
-  // Infinite scroll trigger
-  const { loadMoreRef } = useInfiniteScroll({
+  // Get total count from API response (first page has the total)
+  const totalJobsCount = useMemo(() => {
+    if (!jobsData?.pages || jobsData.pages.length === 0) return 0;
+    return jobsData.pages[0].total;
+  }, [jobsData]);
+
+  // Scroll container ref for infinite scroll
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Infinite scroll using scroll event listener on container
+  useScrollPagination(scrollContainerRef, {
     hasNextPage: hasNextPage ?? false,
     isFetchingNextPage,
     fetchNextPage,
+    threshold: 300,
   });
+
   const updateJobMutation = useUpdateCRMJob();
   const deleteJobMutation = useDeleteCRMJob();
 
@@ -157,6 +171,9 @@ export default function JobsContent() {
 
   // Get job ID from URL - this is the source of truth for navigation
   const jobIdFromUrl = searchParams.get('id');
+
+  // Ref for save handler (needed because handleSaveEdit is defined later)
+  const saveHandlerRef = useRef<(() => Promise<boolean>) | null>(null);
 
   // Track intentional clear to prevent re-selecting after back navigation
   const isIntentionalClearRef = React.useRef(false);
@@ -194,10 +211,17 @@ export default function JobsContent() {
 
   // Handle back navigation - clear selection and update URL
   const handleBack = React.useCallback(() => {
+    // Check for unsaved changes before allowing navigation
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/jobs', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
     isIntentionalClearRef.current = true;
     setSelectedJob(null);
     router.replace('/jobs', { scroll: false });
-  }, [setSelectedJob, router]);
+  }, [setSelectedJob, router, hasUnsavedChanges, requestNavigation]);
 
   // Update URL when a job is selected (not when cleared - that's handled by handleBack)
   useEffect(() => {
@@ -209,6 +233,14 @@ export default function JobsContent() {
       }
     }
   }, [selectedJob?.id, isMounted, router, searchParams]);
+
+  // Clear editing state when job is deselected (e.g., after discarding changes and navigating back)
+  useEffect(() => {
+    if (!selectedJob) {
+      setIsEditing(false);
+      setEditFormData({});
+    }
+  }, [selectedJob, setIsEditing, setEditFormData]);
 
   // Set full entity context for global chatbot (type, id, and job name)
   useEffect(() => {
@@ -525,22 +557,90 @@ export default function JobsContent() {
   const handleDeleteJob = async () => {
     const currentJob = detailedJob || selectedJob;
     if (!currentJob) return;
-    
+
     try {
       await deleteJobMutation.mutateAsync(currentJob.id);
       jobToasts.deleteSuccess(currentJob.name);
-      
+
       // Navigate back to jobs list after deletion
       isIntentionalClearRef.current = true;
       setSelectedJob(null);
       router.replace('/jobs', { scroll: false });
-      
+
       refetchJobs();
     } catch (err) {
       console.error('Failed to delete job:', err);
       jobToasts.deleteError(parseApiError(err));
     }
   };
+
+  // Create a save handler for the unsaved changes guard
+  const handleSaveForGuard = useCallback(async (): Promise<boolean> => {
+    // Use detailedJob if available, otherwise fallback to selectedJob
+    const currentJob = detailedJob || selectedJob;
+    if (!currentJob) return false;
+
+    // Validate end date is not before start date
+    const startDate = editFormData.startDate && editFormData.startDate !== '-' ? editFormData.startDate : null;
+    const endDate = editFormData.endDate && editFormData.endDate !== '-' ? editFormData.endDate : null;
+
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (end < start) {
+        jobToasts.updateError('End date cannot be before start date');
+        return false;
+      }
+    }
+
+    try {
+      const currentStatus = apiStatuses?.find(s => s.name === currentJob.status);
+      if (!currentStatus) {
+        throw new Error('Unable to find status ID for the current job status');
+      }
+
+      const tagsString = editFormData.tags && Array.isArray(editFormData.tags)
+        ? editFormData.tags.join(',')
+        : undefined;
+
+      await updateJobMutation.mutateAsync({
+        id: currentJob.id,
+        input: {
+          jobName: editFormData.name,
+          statusId: currentStatus.id,
+          jobType: editFormData.type,
+          startDate: editFormData.startDate !== '-' ? editFormData.startDate : undefined,
+          endDate: editFormData.endDate !== '-' ? editFormData.endDate : undefined,
+          description: editFormData.description,
+          additionalInformation: editFormData.additionalInformation,
+          structuralInformation: editFormData.structuralInformation,
+          structuralDetails: editFormData.structuralDetails,
+          tags: tagsString,
+        },
+      });
+
+      jobToasts.updateSuccess(editFormData.name || currentJob.name);
+      setIsEditing(false);
+      refetchJobs();
+      return true;
+    } catch (err) {
+      console.error('Failed to update job:', err);
+      jobToasts.updateError(err instanceof Error ? err.message : undefined);
+      return false;
+    }
+  }, [detailedJob, selectedJob, editFormData, apiStatuses, updateJobMutation, setIsEditing, refetchJobs]);
+
+  // Store save handler in ref for access by guard
+  saveHandlerRef.current = handleSaveForGuard;
+
+  // Unsaved changes guard - tracks when editing a job
+  useUnsavedChangesGuard({
+    entityType: 'Job',
+    entityId: selectedJob?.id || null,
+    entityName: selectedJob?.name || null,
+    hasChanges: isEditing && Object.keys(editFormData).length > 0,
+    onSave: handleSaveForGuard,
+  });
 
   // Show loading state until client is mounted (prevents hydration mismatch)
   if (!isMounted || jobsLoading || statusesLoading) {
@@ -653,9 +753,9 @@ export default function JobsContent() {
 
   // Main jobs list view
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)]">
-      {/* Header */}
-      <div className="p-3 sm:p-6 pb-0">
+    <main className="flex-1 flex flex-col overflow-hidden bg-[var(--background)]">
+      {/* Header - Fixed at top */}
+      <div className="flex-shrink-0 p-3 sm:p-6 pb-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
           <div className="flex items-start gap-4">
             {/* Morphing Icon Target - Gear Spin Animation */}
@@ -681,7 +781,7 @@ export default function JobsContent() {
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
               >
-                {jobsLoading ? 'Loading...' : `${jobs.length} jobs • Track projects and opportunities`}
+                {jobsLoading && totalJobsCount === 0 ? 'Loading...' : `${totalJobsCount} jobs • Track projects and opportunities`}
               </motion.p>
             </div>
           </div>
@@ -761,78 +861,90 @@ export default function JobsContent() {
         </div>
       </div>
 
-      <CreateJobModal 
-        isOpen={showCreateJobModal} 
+      <CreateJobModal
+        isOpen={showCreateJobModal}
         onClose={handleCloseCreateJobModal}
         onSuccess={() => refetchJobs()}
         defaultStatusName={createJobDefaultStatus}
       />
 
-      {/* Empty State */}
-      {jobs.length === 0 && !jobsLoading ? (
-        <div className="flex flex-col items-center justify-center py-16 px-4">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" strokeLinecap="round" strokeLinejoin="round"/>
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96" strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="12" y1="22.08" x2="12" y2="12" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">No Jobs Yet</h3>
-          <p className="text-[var(--muted-foreground)] text-center max-w-md mb-6">
-            Start by creating your first job. Jobs you create will appear here in the kanban board.
-          </p>
-          <button
-            onClick={() => setShowCreateJobModal(true)}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--primary)] text-white font-medium rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="10" cy="10" r="7"/>
-              <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
-            </svg>
-            Create Your First Job
-          </button>
-        </div>
-      ) : (
-        <>
-          {/* Kanban or List View */}
-          {viewMode === 'kanban' ? (
-            <KanbanView
-              jobs={jobs}
-              stages={stages}
-              activeId={activeId}
-              overId={overId}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              onDragOver={handleDragOver}
-              onDragCancel={handleDragCancel}
-              onJobClick={setSelectedJob}
-              onCreateJobClick={handleOpenCreateJobModal}
-              onJobCheckboxChange={handleJobCheckboxChange}
-            />
-          ) : (
-            <ListView
-              jobs={jobs}
-              onJobClick={setSelectedJob}
-              onJobCheckboxChange={handleJobCheckboxChange}
-            />
-          )}
-
-          {/* Infinite scroll trigger */}
-          <div ref={loadMoreRef} className="h-4" />
-          {isFetchingNextPage && (
-            <div className="flex items-center justify-center py-4">
-              <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
-                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                </svg>
-                <span>Loading more jobs...</span>
-              </div>
+      {/* Scrollable Content Area */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0">
+        {/* Empty State */}
+        {jobs.length === 0 && !jobsLoading ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" strokeLinecap="round" strokeLinejoin="round"/>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96" strokeLinecap="round" strokeLinejoin="round"/>
+                <line x1="12" y1="22.08" x2="12" y2="12" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </div>
-          )}
-        </>
-      )}
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">No Jobs Yet</h3>
+            <p className="text-[var(--muted-foreground)] text-center max-w-md mb-6">
+              Start by creating your first job. Jobs you create will appear here in the kanban board.
+            </p>
+            <button
+              onClick={() => setShowCreateJobModal(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--primary)] text-white font-medium rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="10" cy="10" r="7"/>
+                <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
+              </svg>
+              Create Your First Job
+            </button>
+          </div>
+        ) : (
+          <div className="p-3 sm:p-6 pt-3">
+            {/* Kanban or List View */}
+            {viewMode === 'kanban' ? (
+              <KanbanView
+                jobs={jobs}
+                stages={stages}
+                activeId={activeId}
+                overId={overId}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleDragOver}
+                onDragCancel={handleDragCancel}
+                onJobClick={setSelectedJob}
+                onCreateJobClick={handleOpenCreateJobModal}
+                onJobCheckboxChange={handleJobCheckboxChange}
+              />
+            ) : (
+              <ListView
+                jobs={jobs}
+                onJobClick={setSelectedJob}
+                onJobCheckboxChange={handleJobCheckboxChange}
+              />
+            )}
+
+            {/* Spacer for scroll detection */}
+            <div className="h-1 w-full" aria-hidden="true" />
+
+            {/* Loading indicator for fetching next page */}
+            {isFetchingNextPage && (
+              <div className="flex items-center justify-center py-6">
+                <div className="flex items-center gap-3 text-[var(--muted-foreground)]">
+                  <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                  <span className="text-sm">Loading more jobs...</span>
+                </div>
+              </div>
+            )}
+
+            {/* End of list indicator when no more pages */}
+            {!hasNextPage && jobs.length > 0 && !isFetchingNextPage && (
+              <div className="flex items-center justify-center py-4 text-[var(--muted-foreground)]">
+                <span className="text-xs">All {jobs.length} jobs loaded</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </main>
   );
 }

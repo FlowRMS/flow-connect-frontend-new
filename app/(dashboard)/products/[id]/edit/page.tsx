@@ -31,12 +31,16 @@ import {
   type ProductQuantityPricing,
   type ProductQuantityPricingInput,
 } from '../../../../../components/products/api';
+import { ManageCategoriesModal, ManageUomsModal } from '../../../../../components/products/modals';
+import { useUnsavedChangesGuard } from '../../../../../components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '../../../../../contexts/UnsavedChangesContext';
+import { EntityAliasesSection } from '../../../../../components/shared/EntityAliasesSection';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-type TabId = 'overview' | 'customer-part-numbers' | 'quantity-pricing' | 'factory-details' | 'uom-details' | 'category-details';
+type TabId = 'overview' | 'customer-part-numbers' | 'quantity-pricing' | 'factory-details' | 'uom-details' | 'category-details' | 'aliases';
 
 interface FormData {
   id: string;
@@ -167,6 +171,10 @@ export default function ProductEditPage() {
   // Portal mount state
   const [isMounted, setIsMounted] = useState(false);
 
+  // Management modals state
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
+  const [showUomsModal, setShowUomsModal] = useState(false);
+
   // Section refs for scroll-to functionality
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
@@ -175,6 +183,7 @@ export default function ProductEditPage() {
     'factory-details': null,
     'uom-details': null,
     'category-details': null,
+    'aliases': null,
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -246,7 +255,7 @@ export default function ProductEditPage() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'customer-part-numbers', 'quantity-pricing', 'factory-details', 'uom-details', 'category-details'];
+    const tabIds: TabId[] = ['overview', 'customer-part-numbers', 'quantity-pricing', 'factory-details', 'uom-details', 'category-details', 'aliases'];
 
     const handleScroll = () => {
       // Skip scroll spy updates during programmatic scrolling
@@ -335,15 +344,15 @@ export default function ProductEditPage() {
     setHasChanges(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!formData.factoryPartNumber.trim()) {
       toast.error('Part number is required');
-      return;
+      return false;
     }
 
     if (!formData.selectedFactoryId) {
       toast.error('Factory is required');
-      return;
+      return false;
     }
 
     setIsSaving(true);
@@ -363,12 +372,37 @@ export default function ProductEditPage() {
       await updateProductMutation.mutateAsync({ id: productId, input });
       toast.success('Product updated successfully');
       setHasChanges(false);
+      return true;
     } catch (error) {
       toast.error('Failed to update product');
       console.error('Update error:', error);
+      return false;
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Unsaved changes guard - tracks product editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Product',
+    entityId: productId,
+    entityName: product?.factoryPartNumber || null,
+    hasChanges,
+    onSave: handleSave,
+  });
+
+  // Get unsaved changes context for back button navigation check
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/products', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/products');
   };
 
   // CPN Handlers
@@ -616,6 +650,7 @@ export default function ProductEditPage() {
     { id: 'factory-details' as TabId, label: 'Factory Details', count: null },
     { id: 'uom-details' as TabId, label: 'UOM Details', count: null },
     { id: 'category-details' as TabId, label: 'Category Details', count: null },
+    { id: 'aliases' as TabId, label: 'Aliases', count: null },
   ];
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
@@ -669,7 +704,7 @@ export default function ProductEditPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/products')}
+              onClick={handleBack}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -690,6 +725,29 @@ export default function ProductEditPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Management Buttons */}
+            <button
+              onClick={() => setShowUomsModal(true)}
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+              Manage UOMs
+            </button>
+            <button
+              onClick={() => setShowCategoriesModal(true)}
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 6h16M4 12h16M4 18h16"/>
+              </svg>
+              Manage Categories
+            </button>
+
+            {/* Divider */}
+            <div className="h-6 w-px bg-gray-300"></div>
+
             {/* Status Badges */}
             <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
               formData.published
@@ -2069,6 +2127,17 @@ export default function ProductEditPage() {
           )}
         </div>
 
+        {/* ============ ALIASES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['aliases'] = el; }} id="section-aliases">
+          <EntityAliasesSection
+            entityId={productId}
+            entityType="PRODUCT"
+            entityName={formData.factoryPartNumber || 'Untitled Product'}
+            title="Product Aliases"
+            infoText="Add alternative part numbers or descriptions that should match to this product during data imports and commission statement processing."
+          />
+        </div>
+
         {/* Coming Soon Sections */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -2113,6 +2182,16 @@ export default function ProductEditPage() {
         </div>
 
       </div>
+
+      {/* Management Modals */}
+      <ManageCategoriesModal
+        isOpen={showCategoriesModal}
+        onClose={() => setShowCategoriesModal(false)}
+      />
+      <ManageUomsModal
+        isOpen={showUomsModal}
+        onClose={() => setShowUomsModal(false)}
+      />
     </main>
   );
 }

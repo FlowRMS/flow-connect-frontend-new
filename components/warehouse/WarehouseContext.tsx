@@ -1,8 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
+import { useQuery } from '@apollo/client/react';
 import { Warehouse } from '@/lib/types/warehouse';
-import { fetchWarehouses } from './deliveries/api';
+import { GET_ALL_WAREHOUSES } from '@/app/graphql/warehouse';
 
 export type WarehouseViewMode = 'manager' | 'worker';
 
@@ -21,46 +22,19 @@ const VIEW_MODE_STORAGE_KEY = 'warehouse-view-mode';
 const WarehouseContext = createContext<WarehouseContextType | undefined>(undefined);
 
 export function WarehouseProvider({ children }: { children: ReactNode }) {
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const { data } = useQuery<{ warehouses: any[] }>(GET_ALL_WAREHOUSES);
+  const warehouses = useMemo(() => (data?.warehouses || []) as Warehouse[], [data]);
+
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
-  const [viewMode, setViewModeState] = useState<WarehouseViewMode>('manager');
 
+  // Default to first warehouse when data loads
   useEffect(() => {
-    let isMounted = true;
+    if (warehouses.length > 0 && !selectedWarehouse) {
+      setSelectedWarehouse(warehouses[0]);
+    }
+  }, [warehouses, selectedWarehouse]);
 
-    const loadWarehouses = async () => {
-      try {
-        const data = await fetchWarehouses();
-        if (!isMounted) return;
-
-        const mapped = data.map((warehouse) => ({
-          id: warehouse.id,
-          name: warehouse.name,
-          addressLine1: warehouse.addressLine1 || '',
-          addressLine2: undefined,
-          city: warehouse.city || '',
-          state: warehouse.state || '',
-          postalCode: '',
-          country: '',
-          description: undefined,
-          isActive: warehouse.isActive ?? warehouse.status === 'ACTIVE',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }));
-
-        setWarehouses(mapped);
-        setSelectedWarehouse((current) => (current || mapped[0] || null));
-      } catch (error) {
-        console.error('Failed to load warehouses', error);
-      }
-    };
-
-    void loadWarehouses();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const [viewMode, setViewModeState] = useState<WarehouseViewMode>('manager');
 
   // Load view mode from localStorage on mount
   useEffect(() => {

@@ -263,6 +263,7 @@ export interface InventoryStorageLocation {
 export interface Inventory {
   id: string;
   productId: string;
+  warehouseId: string;
   productName: string;
   partNumber: string;
   description?: string;       // Product description
@@ -307,24 +308,22 @@ export interface Inventory {
 
   createdAt: string;
   updatedAt: string;
+
+  // New
+  items?: InventoryItem[];
 }
 
 export interface InventoryItem {
   id: string;
   inventoryId: string;
-  binId: string;
-  binLocation: string;        // Formatted: "Shelf 3, Bin A-12"
-  fullLocationPath: string;   // Full path for display
+  locationId: string;
+  locationName: string;
   quantity: number;
-  barcode?: string;
   lotNumber?: string;
-  serialNumber?: string;
-  expirationDate?: string;
   receivedDate?: string;
   status: InventoryStatus;
-  notes?: string;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface InventoryAdjustment {
@@ -342,15 +341,10 @@ export interface InventoryAdjustment {
 // For creating/editing inventory items
 export interface InventoryItemInput {
   inventoryId: string;
-  binId: string;
+  locationId: string;
   quantity: number;
-  weightPerUnit?: number;
   lotNumber?: string;
-  serialNumber?: string;
   receivedDate?: string;
-  expirationDate?: string;
-  isPerishable: boolean;
-  notes?: string;
 }
 
 // -----------------------------------------------------------------------------
@@ -1569,16 +1563,20 @@ export interface InventoryStats {
 // Shipment Requests
 // -----------------------------------------------------------------------------
 
-export type ShipmentRequestMethod = 'EMAIL' | 'CALL' | 'MANUFACTURER_SYSTEM';
+export type ShipmentRequestMethod = 'EMAIL' | 'PHONE_CALL' | 'MANUFACTURER_SYSTEM';
+
+export type ShipmentPriority = 'STANDARD' | 'EXPEDITED' | 'URGENT';
 
 export type ShipmentRequestStatus =
   | 'DRAFT'
   | 'PENDING'
   | 'SENT'
   | 'CONFIRMED'
+  | 'IN_PROGRESS'
   | 'SHIPPED'
   | 'RECEIVED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'REJECTED';
 
 export interface ManufacturerContact {
   id: string;
@@ -1610,7 +1608,7 @@ export interface ShipmentRequest {
   warehouseName: string;
   requestMethod: ShipmentRequestMethod;
   status: ShipmentRequestStatus;
-  priority: 'standard' | 'expedited' | 'urgent';
+  priority: ShipmentPriority;
   requestedDeliveryDate: string;
   items: ShipmentRequestLineItem[];
   totalQuantity: number;
@@ -1637,7 +1635,7 @@ export interface ShipmentRequest {
 
 export const shipmentRequestMethodLabels: Record<ShipmentRequestMethod, string> = {
   EMAIL: 'Email',
-  CALL: 'Phone Call',
+  PHONE_CALL: 'Phone Call',
   MANUFACTURER_SYSTEM: 'Manufacturer System',
 };
 
@@ -1646,9 +1644,11 @@ export const shipmentRequestStatusLabels: Record<ShipmentRequestStatus, string> 
   PENDING: 'Pending',
   SENT: 'Sent',
   CONFIRMED: 'Confirmed',
+  IN_PROGRESS: 'In Progress',
   SHIPPED: 'Shipped',
   RECEIVED: 'Received',
   CANCELLED: 'Cancelled',
+  REJECTED: 'Rejected',
 };
 
 export const shipmentRequestStatusColors: Record<ShipmentRequestStatus, string> = {
@@ -1656,9 +1656,11 @@ export const shipmentRequestStatusColors: Record<ShipmentRequestStatus, string> 
   PENDING: 'bg-yellow-100 text-yellow-700',
   SENT: 'bg-blue-100 text-blue-700',
   CONFIRMED: 'bg-purple-100 text-purple-700',
+  IN_PROGRESS: 'bg-blue-100 text-blue-700',
   SHIPPED: 'bg-indigo-100 text-indigo-700',
   RECEIVED: 'bg-green-100 text-green-700',
   CANCELLED: 'bg-red-100 text-red-700',
+  REJECTED: 'bg-red-100 text-red-700',
 };
 
 // -----------------------------------------------------------------------------
@@ -2041,12 +2043,12 @@ export interface ProductBinLocation {
   locationName: string;           // e.g., "Aisle 3, Shelf B, Bin 12"
   fullPath: string;               // Full path for display
   warehouseId: string;
-  warehouseName: string;
+  warehouseName?: string;
   priority: number;               // 1 = main bin, 2+ = alternate bins (lower number = higher priority)
   maxCapacity?: number;
   currentQuantity: number;
   notes?: string;
-  isActive: boolean;
+  isActive?: boolean;
   createdAt: string;
   updatedAt: string;
 }

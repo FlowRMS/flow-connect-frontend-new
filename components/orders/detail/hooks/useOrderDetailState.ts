@@ -1024,8 +1024,38 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     hasChanges: isCreateMode || hasLocalEdits,
     resetChanges: () => {
       setHasLocalEdits(false);
-      // Also reset hasInitialized so that refetch can update localOrder with fresh data
-      setHasInitialized(false);
+      // NOTE: We intentionally do NOT reset hasInitialized here.
+      // Resetting it causes a race condition where the useMemo returns stale API data
+      // (because both hasLocalEdits and hasInitialized become false) before the
+      // refetch completes, causing the UI to revert to old data until refresh.
+    },
+    // Apply mutation result to local state (prevents stale data after save)
+    applyMutationResult: (savedOrder: ApiOrder) => {
+      const transformed = transformApiOrderToUiOrder(savedOrder);
+      // Preserve any display names we already have (factory, customer, rep names)
+      // Also preserve custPartNumber and uom for each line item since mutation response may not include them
+      setLocalOrder(prev => {
+        // Create a map of previous line items by ID to preserve custPartNumber and uom
+        const prevLineItemsMap = new Map(
+          (prev.lineItems || []).map(li => [li.id, li])
+        );
+
+        return {
+          ...transformed,
+          manufacturerName: prev.manufacturerName || transformed.manufacturerName,
+          customerName: prev.customerName || transformed.customerName,
+          // Preserve custPartNumber and uom from previous line items if not in response
+          lineItems: (transformed.lineItems || []).map(li => {
+            const prevItem = prevLineItemsMap.get(li.id);
+            return {
+              ...li,
+              custPartNumber: prevItem?.custPartNumber || li.custPartNumber,
+              uom: li.uom || prevItem?.uom || null,
+              uomId: li.uomId || prevItem?.uomId || null,
+            };
+          }),
+        };
+      });
     },
     // Order data
     order,

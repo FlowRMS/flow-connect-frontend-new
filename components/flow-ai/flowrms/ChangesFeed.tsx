@@ -68,10 +68,17 @@ export function ChangesFeed({ items }: ChangesFeedProps) {
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-primary/10 bg-muted/30 px-3 py-2 text-xs text-muted-foreground flex items-center gap-2">
-                      <ArrowLeftRight className="w-3 h-3 text-primary" />
-                      <span>Updated via review instructions</span>
-                    </div>
+                    {item.reasoning ? (
+                      <div className="rounded-lg border border-primary/10 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">Reasoning: </span>
+                        {item.reasoning}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-primary/10 bg-muted/30 px-3 py-2 text-xs text-muted-foreground flex items-center gap-2">
+                        <ArrowLeftRight className="w-3 h-3 text-primary" />
+                        <span>Updated via review instructions</span>
+                      </div>
+                    )}
 
                     <div className="text-xs space-y-2">
                       <div>

@@ -79,6 +79,8 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
   const [factoryOptions, setFactoryOptions] = React.useState<LabeledValue[]>([]);
   const [outsideReps, setOutsideReps] = React.useState<LabeledValue[]>([]);
   const [factoryPartNumberOptions, setFactoryPartNumberOptions] = React.useState<LabeledValue[]>([]);
+  // Store mapping of part numbers to their factories
+  const [partNumberToFactories, setPartNumberToFactories] = React.useState<Record<string, string[]>>({});
   const [loading, setLoading] = React.useState(false);
   const [repsLoading, setRepsLoading] = React.useState(false);
 
@@ -153,21 +155,11 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
       fetchPolicy: "network-only",
     });
 
-    const loadFactoryPartNumbers = client.query<GetComparisonData, GetComparisonVariables>({
-      query: GET_COMPARISON,
-      variables: {
-        groupingType: "PRODUCT",
-        valueType: baseValueType,
-        filters: [],
-      },
-      fetchPolicy: "network-only",
-    });
-
     // Load reps with empty search to populate on open
     loadOutsideReps("");
 
-    Promise.all([loadCustomers, loadFactories, loadFactoryPartNumbers])
-      .then(([custResult, factResult, fpnResult]) => {
+    Promise.all([loadCustomers, loadFactories])
+      .then(async ([custResult, factResult]) => {
         if (!isActive) return;
 
         // Process customers
@@ -194,17 +186,65 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
         );
         setFactoryOptions(factories);
 
-        // Process factory part numbers
-        const fpnItems = fpnResult.data?.getComparison?.items ?? [];
-        const factoryPartNumbers = ensureUnique(
-          fpnItems
-            .filter((item) => item.entityName)
-            .map((item) => ({
-              label: item.entityName,
-              value: item.entityName,
-            }))
-        );
+        // Load factory part numbers with factory relationships
+        // Query products for each factory to build the relationship map
+        const partNumberMap: Record<string, Set<string>> = {};
+        const allPartNumbers = new Set<string>();
+
+        // Load part numbers for each factory to build relationships
+        const factoryPartNumberQueries = factories.map(async (factory) => {
+          try {
+            const result = await client.query<GetComparisonData, GetComparisonVariables>({
+              query: GET_COMPARISON,
+              variables: {
+                groupingType: "PRODUCT",
+                valueType: baseValueType,
+                filters: [
+                  {
+                    columnName: "factoryId",
+                    operator: "EQ",
+                    value: factory.value,
+                  },
+                ],
+              },
+              fetchPolicy: "network-only",
+            });
+
+            const items = result.data?.getComparison?.items ?? [];
+            items.forEach((item) => {
+              if (item.entityName) {
+                allPartNumbers.add(item.entityName);
+                if (!partNumberMap[item.entityName]) {
+                  partNumberMap[item.entityName] = new Set();
+                }
+                partNumberMap[item.entityName].add(factory.value);
+              }
+            });
+          } catch (err) {
+            console.warn(`[GlobalFilterPane] Failed to load part numbers for factory ${factory.label}:`, err);
+          }
+        });
+
+        await Promise.all(factoryPartNumberQueries);
+
+        if (!isActive) return;
+
+        // Convert to array format
+        const factoryPartNumbers: LabeledValue[] = Array.from(allPartNumbers)
+          .sort()
+          .map((partNumber) => ({
+            label: partNumber,
+            value: partNumber,
+          }));
+
         setFactoryPartNumberOptions(factoryPartNumbers);
+
+        // Convert Set to Array for storage
+        const partNumberToFactoriesMap: Record<string, string[]> = {};
+        Object.keys(partNumberMap).forEach((partNumber) => {
+          partNumberToFactoriesMap[partNumber] = Array.from(partNumberMap[partNumber]);
+        });
+        setPartNumberToFactories(partNumberToFactoriesMap);
       })
       .catch((err) => {
         console.error("[GlobalFilterPane] Failed to load data:", err);
@@ -251,6 +291,31 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
     } else {
       setDimension(dimension, [...current, item]);
     }
+
+    // If toggling factories, clean up invalid part number selections
+    if (dimension === "factories") {
+      setTimeout(() => {
+        const selectedFactories = exists 
+          ? current.filter((x) => x.value !== item.value)
+          : [...current, item];
+        
+        if (selectedFactories.length === 0) {
+          // Clear all part numbers if no factories selected
+          setDimension("factoryPartNumbers", []);
+        } else {
+          // Remove part numbers that don't belong to any selected factory
+          const selectedFactoryValues = selectedFactories.map(f => f.value);
+          const validPartNumbers = (state.factoryPartNumbers || []).filter((pn) => {
+            const factories = partNumberToFactories[pn.value] || [];
+            return factories.some(f => selectedFactoryValues.includes(f));
+          });
+          
+          if (validPartNumbers.length !== (state.factoryPartNumbers || []).length) {
+            setDimension("factoryPartNumbers", validPartNumbers);
+          }
+        }
+      }, 0);
+    }
   };
 
   const handleSelectAll = (dimension: "customers" | "factories" | "outsideReps" | "factoryPartNumbers", options: LabeledValue[]) => {
@@ -258,17 +323,45 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
     
     if (current.length === options.length) {
       setDimension(dimension, []);
+      
+      // If clearing all factories, also clear part numbers
+      if (dimension === "factories") {
+        setTimeout(() => {
+          setDimension("factoryPartNumbers", []);
+        }, 0);
+      }
     } else {
       setDimension(dimension, [...options]);
     }
   };
 
   const getFilteredOptions = (dimension: string, options: LabeledValue[]) => {
+    let filteredOptions = options;
+
+    // Special handling for Factory Part Numbers - filter by selected factories
+    if (dimension === "factoryPartNumbers") {
+      const selectedFactories = state.factories || [];
+      
+      // If factories are selected, only show part numbers for those factories
+      if (selectedFactories.length > 0) {
+        const selectedFactoryValues = selectedFactories.map(f => f.value);
+        filteredOptions = options.filter((opt) => {
+          const factories = partNumberToFactories[opt.value] || [];
+          // Part number must belong to at least one of the selected factories
+          return factories.some(f => selectedFactoryValues.includes(f));
+        });
+      }
+    }
+
+    // Apply search term filter
     const searchTerm = searchTerms[dimension] || "";
-    if (!searchTerm) return options;
-    return options.filter((opt) =>
-      opt.label.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    if (searchTerm) {
+      filteredOptions = filteredOptions.filter((opt) =>
+        opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    return filteredOptions;
   };
 
   const activeFilterCount = 
@@ -389,31 +482,44 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
                   const filteredOptions = getFilteredOptions(section.key, section.options);
                   const isExpanded = expandedSections[section.key];
                   const allSelected = section.selected.length === section.options.length && section.options.length > 0;
+                  
+                  // Check if Factory Part Numbers should be disabled
+                  const isFactoryPartNumbers = section.key === "factoryPartNumbers";
+                  const isDisabled = isFactoryPartNumbers && (state.factories || []).length === 0;
 
                   return (
                     <div
                       key={section.key}
                       className={`bg-white rounded-xl border-2 shadow-sm overflow-hidden transition-all ${
-                        section.selected.length > 0
+                        isDisabled
+                          ? "border-gray-300 opacity-60"
+                          : section.selected.length > 0
                           ? "border-blue-400 shadow-md"
                           : "border-gray-200 hover:border-blue-300"
                       }`}
                     >
                       {/* Section Header */}
                       <div
-                        className={`px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${
-                          section.selected.length > 0
-                            ? "bg-gradient-to-r from-blue-50 to-indigo-50"
-                            : "bg-gray-50 hover:bg-blue-50"
+                        className={`px-4 py-3 flex items-center justify-between transition-colors ${
+                          isDisabled
+                            ? "bg-gray-100 cursor-not-allowed"
+                            : "cursor-pointer " + (section.selected.length > 0
+                                ? "bg-gradient-to-r from-blue-50 to-indigo-50"
+                                : "bg-gray-50 hover:bg-blue-50")
                         }`}
-                        onClick={() => toggleSection(section.key)}
+                        onClick={() => !isDisabled && toggleSection(section.key)}
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <Icon className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                          <span className="text-sm font-bold text-gray-900 truncate">
+                          <Icon className={`h-4 w-4 flex-shrink-0 ${isDisabled ? "text-gray-400" : "text-blue-600"}`} />
+                          <span className={`text-sm font-bold truncate ${isDisabled ? "text-gray-500" : "text-gray-900"}`}>
                             {section.label}
                           </span>
-                          {section.selected.length > 0 && (
+                          {isDisabled && (
+                            <span className="px-2 py-0.5 bg-gray-400 text-white rounded-full text-xs font-medium">
+                              Select Factory First
+                            </span>
+                          )}
+                          {!isDisabled && section.selected.length > 0 && (
                             <span className="px-2 py-0.5 bg-blue-600 text-white rounded-full text-xs font-bold">
                               {section.selected.length}
                             </span>
@@ -427,7 +533,7 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
                       </div>
 
                       {/* Section Body */}
-                      {isExpanded && (
+                      {isExpanded && !isDisabled && (
                         <div className="border-t border-gray-200">
                           {/* Controls */}
                           <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between gap-2">

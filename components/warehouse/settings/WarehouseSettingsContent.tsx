@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import WarehouseLayoutModal from '../layout/WarehouseLayoutModal';
 import WarehouseQRCodesModal from '../qr-codes/WarehouseQRCodesModal';
 import { useWarehouseSettings, useShippingCarriers, useContainerTypes } from './hooks';
-import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList, ContainerTypesList } from './components';
+import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList, ContainerTypesList, SavingOverlay } from './components';
 import ManufacturerProfilesContent from '../ManufacturerProfilesContent';
 import { NewWarehouseModal, AddWorkerModal } from './modals';
 import type { SettingsTab } from './types';
@@ -80,7 +80,10 @@ export default function WarehouseSettingsContent() {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6 relative">
+      {/* Saving Overlay */}
+      <SavingOverlay isVisible={isSaving} message="Saving warehouse settings..." />
+
       {/* Header with breadcrumbs, title, and actions */}
       <WarehouseSettingsHeader
         activeTab={activeTab}
@@ -104,7 +107,12 @@ export default function WarehouseSettingsContent() {
           setShowAddWorkerModal={warehouseSettings.setShowAddWorkerModal}
           setShowLayoutModal={warehouseSettings.setShowLayoutModal}
           setShowQRCodesModal={warehouseSettings.setShowQRCodesModal}
+          onDeleteWarehouse={warehouseSettings.handleDeleteWarehouse}
           getWorkerById={warehouseSettings.getWorkerById}
+          hasChanges={hasChanges}
+          isSaving={isSaving}
+          onSave={handleSave}
+          isLoadingDetails={warehouseSettings.isLoadingAddresses}
         />
       )}
 
@@ -126,6 +134,7 @@ export default function WarehouseSettingsContent() {
           saveCarrier={carrierSettings.saveCarrier}
           deleteCarrierImmediately={carrierSettings.deleteCarrierImmediately}
           hasCarrierChanges={carrierSettings.hasCarrierChanges}
+          isLoadingDetails={carrierSettings.isLoadingDetails}
         />
       )}
 

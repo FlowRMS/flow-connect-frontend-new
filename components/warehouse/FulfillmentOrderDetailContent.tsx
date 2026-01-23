@@ -681,7 +681,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
         warehouseName: fulfillmentOrder.warehouseName,
         requestMethod: 'EMAIL',
         status: 'DRAFT',
-        priority: 'standard',
+        priority: 'STANDARD',
         requestedDeliveryDate: fulfillmentOrder.needByDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         items: reqItems,
         totalQuantity: reqItems.reduce((sum, item) => sum + item.requestedQuantity, 0),

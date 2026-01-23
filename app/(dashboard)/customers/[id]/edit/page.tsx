@@ -9,6 +9,7 @@ import {
   useUpdateCustomer,
   useCustomerChildren,
   useCustomerBuyingGroupMembers,
+  useAssignChildCustomers,
   type CustomerLiteResponse,
   type CustomerSearchResult,
 } from '../../../../../components/customers/api/useCustomersApi';
@@ -28,12 +29,15 @@ import {
   useDeleteAddress,
 } from '../../../../../components/hooks/useAddressApi';
 import { ConnectedEntitiesSection } from '../../../../../components/shared/ConnectedEntitiesSection';
+import { EntityAliasesSection } from '../../../../../components/shared/EntityAliasesSection';
+import { useUnsavedChangesGuard } from '../../../../../components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '../../../../../contexts/UnsavedChangesContext';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-type TabId = 'overview' | 'addresses' | 'connected-entities' | 'child-customers' | 'buying-group-members' | 'inside-reps' | 'outside-reps' | 'settings';
+type TabId = 'overview' | 'addresses' | 'aliases' | 'connected-entities' | 'child-customers' | 'buying-group-members' | 'inside-reps' | 'outside-reps' | 'settings';
 
 // Generate unique temp ID
 const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -89,6 +93,12 @@ export default function CustomerEditPage() {
   const [buyingGroupSearchEnabled, setBuyingGroupSearchEnabled] = useState(false);
   const buyingGroupRef = useRef<HTMLDivElement>(null);
 
+  // Child customer assignment search state
+  const [childCustomerSearch, setChildCustomerSearch] = useState('');
+  const [showChildCustomerDropdown, setShowChildCustomerDropdown] = useState(false);
+  const [childCustomerSearchEnabled, setChildCustomerSearchEnabled] = useState(false);
+  const childCustomerRef = useRef<HTMLDivElement>(null);
+
   // Customer search hooks using React Query
   const { data: parentSearchResults = [], isLoading: isSearchingParent } = useCRMCustomerSearch(
     parentSearch,
@@ -99,6 +109,11 @@ export default function CustomerEditPage() {
     buyingGroupSearch,
     true, // published only
     buyingGroupSearchEnabled
+  );
+  const { data: childCustomerSearchResults = [], isLoading: isSearchingChildCustomer } = useCRMCustomerSearch(
+    childCustomerSearch,
+    true, // published only
+    childCustomerSearchEnabled
   );
 
   // Filter parent search results - show only parent customers (isParent=true), exclude current customer
@@ -136,6 +151,18 @@ export default function CustomerEditPage() {
     isBuyingGroup ? customerId : undefined
   );
 
+  // Filter child customer results - exclude current customer and customers that are already children of this parent
+  const filteredChildCustomerResults = useMemo(() =>
+    childCustomerSearchResults.filter(c =>
+      c.id !== customerId &&
+      !childCustomers.some(child => child.id === c.id)
+    ),
+    [childCustomerSearchResults, customerId, childCustomers]
+  );
+
+  // Assign child customers mutation
+  const assignChildCustomersMutation = useAssignChildCustomers();
+
   // Fetch parent customer details to get the name (when parentId exists)
   const { data: parentCustomer } = useCustomer(customer?.parentId || undefined);
   // Fetch buying group details to get the name (when buyingGroupId exists)
@@ -145,6 +172,7 @@ export default function CustomerEditPage() {
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
     'addresses': null,
+    'aliases': null,
     'connected-entities': null,
     'child-customers': null,
     'buying-group-members': null,
@@ -229,7 +257,7 @@ export default function CustomerEditPage() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'addresses', 'child-customers', 'buying-group-members', 'inside-reps', 'outside-reps', 'settings', 'connected-entities'];
+    const tabIds: TabId[] = ['overview', 'addresses', 'aliases', 'child-customers', 'buying-group-members', 'inside-reps', 'outside-reps', 'settings', 'connected-entities'];
 
     const handleScroll = () => {
       // Skip scroll spy updates during programmatic scrolling
@@ -361,10 +389,10 @@ export default function CustomerEditPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!companyName.trim()) {
       toast.error('Company name is required');
-      return;
+      return false;
     }
 
     if (!isValidSplitRate) {
@@ -375,7 +403,7 @@ export default function CustomerEditPage() {
       } else {
         toast.error('Outside Reps split rate must total exactly 100%');
       }
-      return;
+      return false;
     }
 
     // Convert entries to the format expected by the API
@@ -413,10 +441,35 @@ export default function CustomerEditPage() {
       });
       toast.success('Customer updated successfully');
       setHasChanges(false);
+      return true;
     } catch (err) {
       toast.error('Failed to update customer');
       console.error('Update error:', err);
+      return false;
     }
+  };
+
+  // Unsaved changes guard - tracks customer editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Customer',
+    entityId: customerId,
+    entityName: customer?.companyName || null,
+    hasChanges,
+    onSave: handleSave,
+  });
+
+  // Get unsaved changes context for back button navigation check
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/customers', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/customers');
   };
 
   // Handle address save (create or update)
@@ -496,6 +549,7 @@ export default function CustomerEditPage() {
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview' },
     { id: 'addresses' as TabId, label: 'Addresses', count: addresses.length || null },
+    { id: 'aliases' as TabId, label: 'Aliases' },
     // Show Child Customers tab only for parent customers
     ...(isParent ? [{ id: 'child-customers' as TabId, label: 'Child Customers', count: childCustomers.length || null }] : []),
     // Show Buying Group Members tab only for buying groups (parent customers at the top of hierarchy)
@@ -559,7 +613,7 @@ export default function CustomerEditPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/customers')}
+              onClick={handleBack}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1076,6 +1130,18 @@ export default function CustomerEditPage() {
           </div>
         </div>
 
+        {/* ============ ALIASES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['aliases'] = el; }} id="section-aliases">
+          <EntityAliasesSection
+            entityId={customerId}
+            entityType="CUSTOMER"
+            entityName={companyName || 'Untitled Customer'}
+            title="Customer Aliases"
+            subTypes={['END_USER', 'SOLD_TO', 'BILL_TO']}
+            infoText="Add alternative company names that should match to this customer during commission statement processing. Different alias types are used for matching different fields in commission statements."
+          />
+        </div>
+
         {/* ============ CHILD CUSTOMERS SECTION (only for parent customers) ============ */}
         {isParent && (
           <div ref={el => { sectionRefs.current['child-customers'] = el; }} id="section-child-customers">
@@ -1089,20 +1155,106 @@ export default function CustomerEditPage() {
             </div>
 
             <div className="bg-white rounded-lg border border-gray-200 p-6">
+              {/* Add Child Customer Dropdown */}
+              <div className="mb-6" ref={childCustomerRef}>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Add Child Customer
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search for a customer to add..."
+                    value={childCustomerSearch}
+                    onChange={(e) => {
+                      setChildCustomerSearch(e.target.value);
+                      setChildCustomerSearchEnabled(e.target.value.length >= 2);
+                      setShowChildCustomerDropdown(true);
+                    }}
+                    onFocus={() => {
+                      if (childCustomerSearch.length >= 2) {
+                        setShowChildCustomerDropdown(true);
+                      }
+                    }}
+                    className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                  {isSearchingChildCustomer && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600"></div>
+                    </div>
+                  )}
+                  {showChildCustomerDropdown && childCustomerSearch.length >= 2 && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowChildCustomerDropdown(false)} />
+                      <div className="absolute z-20 w-full mt-1 bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-auto">
+                        {filteredChildCustomerResults.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-gray-500">
+                            {isSearchingChildCustomer ? 'Searching...' : 'No customers found'}
+                          </div>
+                        ) : (
+                          filteredChildCustomerResults.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              className="w-full px-4 py-3 text-left hover:bg-amber-50 flex items-center gap-3 transition-colors"
+                              onClick={async () => {
+                                try {
+                                  await assignChildCustomersMutation.mutateAsync({
+                                    parentId: customerId,
+                                    childIds: [c.id],
+                                  });
+                                  toast.success(`${c.companyName} has been added as a child customer`);
+                                  setChildCustomerSearch('');
+                                  setShowChildCustomerDropdown(false);
+                                  setChildCustomerSearchEnabled(false);
+                                } catch (error) {
+                                  toast.error('Failed to assign child customer');
+                                  console.error('Failed to assign child customer:', error);
+                                }
+                              }}
+                            >
+                              <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <span className="text-xs font-medium text-amber-600">
+                                  {c.companyName?.charAt(0).toUpperCase() || '?'}
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">{c.companyName}</p>
+                                {c.isParent && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                                    Parent
+                                  </span>
+                                )}
+                              </div>
+                              <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                              </svg>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Search and select a customer to add them as a child of this parent customer.
+                </p>
+              </div>
+
+              {/* Child Customers List */}
               {childCustomersLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
                 </div>
               ) : childCustomers.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-6 h-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No child customers yet</h3>
-                  <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-                    Child customers can be assigned to this parent customer by editing the child customer and selecting this customer as their parent.
+                  <h3 className="text-base font-medium text-gray-900 mb-1">No child customers yet</h3>
+                  <p className="text-sm text-gray-500">
+                    Use the search above to add child customers.
                   </p>
                 </div>
               ) : (
@@ -1228,40 +1380,7 @@ export default function CustomerEditPage() {
 
         {/* ============ INSIDE REPS SECTION ============ */}
         <div ref={el => { sectionRefs.current['inside-reps'] = el; }} id="section-inside-reps">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-              Inside Representatives
-            </h2>
-            {hasInsideReps && (
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-                isInsideValid
-                  ? 'bg-green-100 text-green-700'
-                  : insideTotal > 100
-                    ? 'bg-red-100 text-red-700'
-                    : 'bg-amber-100 text-amber-700'
-              }`}>
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isInsideValid ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} />
-                </svg>
-                Total: {insideTotal.toFixed(1)}%
-              </div>
-            )}
-          </div>
-
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-start gap-3 mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-              <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p className="text-sm text-blue-900 font-medium">Commission Split Rules</p>
-                <p className="text-sm text-blue-700 mt-1">
-                  Inside representatives handle internal sales operations. Split rates must total 100%.
-                </p>
-              </div>
-            </div>
-
             <SplitRatesInput
               repType="INSIDE"
               entries={insideRepEntries}
@@ -1273,40 +1392,7 @@ export default function CustomerEditPage() {
 
         {/* ============ OUTSIDE REPS SECTION ============ */}
         <div ref={el => { sectionRefs.current['outside-reps'] = el; }} id="section-outside-reps">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-              Outside Representatives
-            </h2>
-            {hasOutsideReps && (
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-                isOutsideValid
-                  ? 'bg-green-100 text-green-700'
-                  : outsideTotal > 100
-                    ? 'bg-red-100 text-red-700'
-                    : 'bg-amber-100 text-amber-700'
-              }`}>
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isOutsideValid ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} />
-                </svg>
-                Total: {outsideTotal.toFixed(1)}%
-              </div>
-            )}
-          </div>
-
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-start gap-3 mb-6 p-4 bg-purple-50 rounded-lg border border-purple-100">
-              <svg className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p className="text-sm text-purple-900 font-medium">Commission Split Rules</p>
-                <p className="text-sm text-purple-700 mt-1">
-                  Outside representatives handle field sales and client relationships. Split rates must total 100%.
-                </p>
-              </div>
-            </div>
-
             <SplitRatesInput
               repType="OUTSIDE"
               entries={outsideRepEntries}

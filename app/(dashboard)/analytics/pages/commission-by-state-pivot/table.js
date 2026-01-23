@@ -54,6 +54,8 @@ import { applyPivotSorting } from "@/lib/analytics/lib/pivot/applyPivotSorting";
 import { FullScreenModal, ExpandButton } from "@/components/analytics/ui/FullScreenModal";
 import { DateFormatDropdown, DATE_FORMATS, formatDateByType } from "@/components/analytics/ui/DateFormatDropdown";
 import { RefreshButton } from "@/components/analytics/ui/RefreshButton";
+import { extractYear, extractQuarter, extractMonth } from "@/lib/analytics/utils/dateExtractors";
+import { getDefault2YearRange } from "@/lib/analytics/utils/relativeDateUtils";
 
 const formatDate = (value, formatType = DATE_FORMATS.DEFAULT) => {
   return formatDateByType(value, formatType);
@@ -73,9 +75,9 @@ const parseCurrency = (value) => {
 };
 
 export function CommissionByStatePivotGrid() {
-  // Date range state
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  // Date range state - defaults to last 2 years
+  const [startDate, setStartDate] = useState(() => getDefault2YearRange().startDate);
+  const [endDate, setEndDate] = useState(() => getDefault2YearRange().endDate);
   const [filterByDate, setFilterByDate] = useState("ENTITY_DATE");
 
   // YTD Mode state
@@ -276,12 +278,24 @@ export function CommissionByStatePivotGrid() {
             : null;
         const checkDateDisplay = formatDate(checkDateValue ?? (record.checkDate || record.check_date), dateFormat);
 
+        // Extract entity date for year/quarter/month computation
+        const entityDateSource = record.entityDate || record.entity_date || null;
+        const entityDateValue =
+          entityDateSource && !Number.isNaN(new Date(entityDateSource).getTime())
+            ? new Date(entityDateSource)
+            : null;
+
         const baseRow = {
           id: record.id || `commission_${index}`,
 
-          // Commission period information
+          // Commission period information (from API)
           commissionMonth: record.commissionMonth || record.commission_month || "N/A",
           commissionYear: record.commissionYear || record.commission_year || "N/A",
+
+          // Date-based grouping fields extracted from entityDate
+          year: extractYear(entityDateValue),
+          quarter: extractQuarter(entityDateValue),
+          month: extractMonth(entityDateValue, true), // Use month names
 
           // Order and Check IDs
           orderId: record.orderId || record.order_id || "N/A",
@@ -1060,6 +1074,27 @@ export function CommissionByStatePivotGrid() {
           sortable: true,
           size: 140,
           minSize: 110,
+        },
+        {
+          prop: "year",
+          name: "Year",
+          sortable: true,
+          size: 100,
+          minSize: 80,
+        },
+        {
+          prop: "quarter",
+          name: "Quarter",
+          sortable: true,
+          size: 100,
+          minSize: 80,
+        },
+        {
+          prop: "month",
+          name: "Month",
+          sortable: true,
+          size: 120,
+          minSize: 100,
         },
         {
           prop: "checkDate",

@@ -14,6 +14,7 @@ import {
   entriesToFactorySplitRateInputsWithId,
 } from '@/components/warehouse/components/FactorySplitRatesInput';
 import { ConnectedEntitiesSection } from '@/components/shared/ConnectedEntitiesSection';
+import { EntityAliasesSection } from '@/components/shared/EntityAliasesSection';
 import { GoogleMapsAddressModal } from '@/components/shared/google-maps-address/GoogleMapsAddressModal';
 import {
   useAddressesBySource,
@@ -22,8 +23,10 @@ import {
   useDeleteAddress,
   type Address,
 } from '@/components/hooks/useAddressApi';
+import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
-type TabId = 'overview' | 'addresses' | 'split-rates' | 'connected-entities' | 'customer-xref' | 'shipto-xref' | 'freight';
+type TabId = 'overview' | 'addresses' | 'aliases' | 'split-rates' | 'connected-entities' | 'customer-xref' | 'shipto-xref' | 'freight';
 
 export default function ManufacturerEditPage() {
   const params = useParams();
@@ -44,6 +47,7 @@ export default function ManufacturerEditPage() {
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
     'addresses': null,
+    'aliases': null,
     'split-rates': null,
     'connected-entities': null,
     'customer-xref': null,
@@ -108,7 +112,7 @@ export default function ManufacturerEditPage() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'addresses', 'split-rates', 'connected-entities', 'customer-xref', 'shipto-xref', 'freight'];
+    const tabIds: TabId[] = ['overview', 'addresses', 'aliases', 'split-rates', 'connected-entities', 'customer-xref', 'shipto-xref', 'freight'];
 
     const handleScroll = () => {
       // Skip scroll spy updates during programmatic scrolling
@@ -170,15 +174,15 @@ export default function ManufacturerEditPage() {
     setHasChanges(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!formData.title?.trim()) {
       toast.error('Manufacturer name is required');
-      return;
+      return false;
     }
 
     if (!isValidSplitRate) {
       toast.error('Total split rate must equal exactly 100%');
-      return;
+      return false;
     }
 
     const splitRatesInput = entriesToFactorySplitRateInputsWithId(splitRateEntries);
@@ -205,15 +209,41 @@ export default function ManufacturerEditPage() {
       });
       toast.success('Manufacturer updated successfully');
       setHasChanges(false);
+      return true;
     } catch (err) {
       toast.error('Failed to update manufacturer');
       console.error('Update error:', err);
+      return false;
     }
+  };
+
+  // Unsaved changes guard - tracks manufacturer editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Manufacturer',
+    entityId: factoryId,
+    entityName: factory?.title || null,
+    hasChanges,
+    onSave: handleSave,
+  });
+
+  // Get unsaved changes context for back button navigation check
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/manufacturers', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/manufacturers');
   };
 
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview' },
     { id: 'addresses' as TabId, label: 'Addresses', count: addresses.length || null },
+    { id: 'aliases' as TabId, label: 'Aliases' },
     { id: 'split-rates' as TabId, label: 'Split Rates', count: splitRateEntries.length || null },
     { id: 'connected-entities' as TabId, label: 'Connected Entities' },
     { id: 'customer-xref' as TabId, label: 'Customer X-Ref' },
@@ -322,7 +352,7 @@ export default function ManufacturerEditPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/manufacturers')}
+              onClick={handleBack}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -720,42 +750,25 @@ export default function ManufacturerEditPage() {
           </div>
         </div>
 
+        {/* ============ ALIASES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['aliases'] = el; }} id="section-aliases">
+          <EntityAliasesSection
+            entityId={factoryId}
+            entityType="FACTORY"
+            entityName={formData.title || 'Untitled Manufacturer'}
+            title="Manufacturer Aliases"
+            infoText="Add alternative manufacturer names that should match to this manufacturer during data imports and commission statement processing."
+          />
+        </div>
+
         {/* ============ SPLIT RATES SECTION ============ */}
         <div ref={el => { sectionRefs.current['split-rates'] = el; }} id="section-split-rates">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Commission Split Rates</h2>
-          </div>
-
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <p className="text-sm text-gray-500 mb-6">
-              Configure how commissions are split between team members for this manufacturer.
-              The total must equal 100%.
-            </p>
-
             <FactorySplitRatesInput
               entries={splitRateEntries}
               onChange={handleSplitRateChange}
               disabled={updateFactory.isPending}
             />
-
-            {/* Split Rate Summary */}
-            {splitRateEntries.length > 0 && (
-              <div className={`mt-6 p-4 rounded-lg ${isValidSplitRate ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`text-sm font-medium ${isValidSplitRate ? 'text-green-700' : 'text-red-700'}`}>
-                    Total Split Rate
-                  </span>
-                  <span className={`text-lg font-semibold ${isValidSplitRate ? 'text-green-700' : 'text-red-700'}`}>
-                    {splitRateTotal.toFixed(1)}%
-                  </span>
-                </div>
-                {!isValidSplitRate && (
-                  <p className="text-xs text-red-600 mt-1">
-                    Split rates must total exactly 100%. Currently {splitRateTotal > 100 ? 'over' : 'under'} by {Math.abs(100 - splitRateTotal).toFixed(1)}%
-                  </p>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -765,7 +778,7 @@ export default function ManufacturerEditPage() {
           <ConnectedEntitiesSection
             entityId={factoryId}
             sourceEntityType="FACTORY"
-            enabledCategories={['contacts', 'companies', 'jobs', 'pre-opportunities', 'quotes', 'orders', 'invoices', 'checks', 'tasks', 'notes', 'files']}
+            enabledCategories={['contacts', 'companies', 'customers', 'jobs', 'pre-opportunities', 'quotes', 'orders', 'invoices', 'checks', 'tasks', 'notes', 'files']}
             title="Connected Entities"
             showAddLinkButton={true}
           />

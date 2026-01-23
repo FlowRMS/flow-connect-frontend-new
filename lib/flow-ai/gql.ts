@@ -87,6 +87,7 @@ export const Q_GET_CORRECTIONS = gql`
       newValue
       oldValue
       pendingDocumentId
+      reasoning
     }
   }
 `;
@@ -1186,6 +1187,14 @@ export const M_EXECUTE_DOCUMENT_WORKFLOW = gql`
       success
       taskId
     }
+  }
+`;
+
+// Retry Document Processing Mutation - called to retry failed document processing
+// Endpoint: NEXT_PUBLIC_FLOWRMS_HTTP_GRAPHQL_URL (staging.hive.flowrms.com)
+export const M_RETRY_DOCUMENT_PROCESSING = gql`
+  mutation RetryDocumentProcessing($pendingId: UUID!) {
+    retryDocumentProcessing(pendingId: $pendingId)
   }
 `;
 

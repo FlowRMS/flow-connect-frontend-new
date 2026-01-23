@@ -103,8 +103,8 @@ const defaultConfig: SidebarConfig = {
       items: [
         // { id: 'warehouse-overview', name: 'Overview', href: '/warehouse', enabled: true },
         // { id: 'warehouse-fulfillment', name: 'Fulfillment', href: '/warehouse/fulfillment', enabled: true },
-        { id: 'warehouse-deliveries', name: 'Deliveries', href: '/warehouse/deliveries', enabled: true },
-        // { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
+        // { id: 'warehouse-deliveries', name: 'Deliveries', href: '/warehouse/deliveries', enabled: true },
+        { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
         // { id: 'warehouse-cycle-counts', name: 'Cycle Counts', href: '/warehouse/cycle-counts', enabled: true },
         // { id: 'warehouse-reports', name: 'Reports', href: '/warehouse/reports', enabled: true },
         { id: 'warehouse-settings', name: 'Settings', href: '/warehouse/settings', enabled: true },
@@ -117,6 +117,7 @@ const defaultConfig: SidebarConfig = {
       items: [
         { id: 'analytics-order-dashboard', name: 'Order Dashboard', href: '/analytics/order-dashboard', enabled: true },
         { id: 'analytics-product-dashboard', name: 'Product Dashboard', href: '/analytics/product-dashboard', enabled: true },
+        { id: 'analytics-product-pricing', name: 'Product Pricing', href: '/analytics/product-pricing', enabled: true },
         { id: 'analytics-commission-gap', name: 'Commission Gap Reports', href: '/analytics/commission-gap-reports', enabled: true },
         { id: 'analytics-orders-report', name: 'Orders Detail', href: '/analytics/orders-report', enabled: true },
         { id: 'analytics-check-detail', name: 'Check Detail', href: '/analytics/check-detail', enabled: true },
@@ -125,6 +126,9 @@ const defaultConfig: SidebarConfig = {
         { id: 'analytics-orders-pivot', name: 'Order Pivot', href: '/analytics/orders-pivot', enabled: true },
         { id: 'analytics-check-pivot', name: 'Check Pivot', href: '/analytics/check-pivot', enabled: true },
         { id: 'analytics-quote-pivot', name: 'Quote Pivot', href: '/analytics/quote-pivot', enabled: true },
+        { id: 'analytics-pre-opportunity-detail', name: 'Pre-Opportunity Detail', href: '/analytics/pre-opportunity-detail', enabled: true },
+        { id: 'analytics-pre-opportunity-pivot', name: 'Pre-Opportunity Pivot', href: '/analytics/pre-opportunity-pivot', enabled: true },
+        { id: 'analytics-job-pivot', name: 'Job Pivot', href: '/analytics/job-pivot', enabled: true },
         { id: 'analytics-commission-state-pivot', name: 'Commission by State', href: '/analytics/commission-by-state-pivot', enabled: true },
       ]
     },
@@ -166,7 +170,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 33; // Increment this to force a reset of cached sidebar config
+const CONFIG_VERSION = 35; // Increment this to force a reset of cached sidebar config
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 
@@ -195,15 +199,14 @@ function mergeConfigWithDefaults(stored: SidebarConfig): SidebarConfig {
       const newItems = defaultGroup.items.filter(i => !group.items.some(gi => gi.id === i.id));
 
       // Filter out items that no longer exist in defaults, and update names/hrefs for existing ones
-      // Also ensure items that are enabled by default get re-enabled if they were somehow disabled
+      // Preserve user's enabled preference from stored config
       const updatedItems = group.items
         .filter(item => defaultItemIds.has(item.id))
         .map(item => {
           const defaultItem = defaultGroup.items.find(i => i.id === item.id);
           if (defaultItem) {
-            // If the default has it enabled, ensure it stays enabled (user can disable manually after)
-            const enabled = defaultItem.enabled ? true : item.enabled;
-            return { ...item, name: defaultItem.name, href: defaultItem.href, enabled };
+            // Keep user's enabled preference, only update name/href from defaults
+            return { ...item, name: defaultItem.name, href: defaultItem.href };
           }
           return item;
         });
@@ -223,6 +226,7 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<SidebarConfig>(defaultConfig);
   const [isLoaded, setIsLoaded] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasInitializedFromApi = useRef(false); // Track if we've already loaded from API
 
   // User settings hook for API persistence
   const { settings: apiSettings, saveSettings, isInitialized: apiInitialized } = useSidebarSettings();
@@ -262,8 +266,13 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Load config from API or localStorage on mount
+  // Load config from API or localStorage on mount (only once)
   useEffect(() => {
+    // Skip if we've already initialized from API - prevents overwriting local changes
+    if (hasInitializedFromApi.current) {
+      return;
+    }
+
     if (apiInitialized) {
       // Check if API has settings
       if (apiSettings && apiSettings.groups && apiSettings.groups.length > 0) {
@@ -277,9 +286,12 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
         } catch (e) {
           console.error('Failed to update localStorage cache:', e);
         }
+        hasInitializedFromApi.current = true;
         setIsLoaded(true);
         return;
       }
+      // API is initialized but has no settings - mark as initialized to prevent future overwrites
+      hasInitializedFromApi.current = true;
     }
 
     // Fallback to localStorage while API loads or if API has no settings

@@ -8,6 +8,7 @@ import {
   shipmentRequestMethodLabels,
   ShipmentRequestStatus,
 } from '@/lib/types/warehouse';
+import { formatQuantity } from '../inventory/utils';
 
 interface ShipmentRequestDetailModalProps {
   request: ShipmentRequest;
@@ -51,22 +52,22 @@ export default function ShipmentRequestDetailModal({
       case 'EMAIL':
         return (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-            <polyline points="22,6 12,13 2,6"/>
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+            <polyline points="22,6 12,13 2,6" />
           </svg>
         );
-      case 'CALL':
+      case 'PHONE_CALL':
         return (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
+            <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
           </svg>
         );
       case 'MANUFACTURER_SYSTEM':
         return (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="17" x2="12" y2="21" />
           </svg>
         );
     }
@@ -76,7 +77,7 @@ export default function ShipmentRequestDetailModal({
     switch (request.requestMethod) {
       case 'EMAIL':
         return 'bg-blue-100 text-blue-700';
-      case 'CALL':
+      case 'PHONE_CALL':
         return 'bg-green-100 text-green-700';
       case 'MANUFACTURER_SYSTEM':
         return 'bg-purple-100 text-purple-700';
@@ -85,9 +86,9 @@ export default function ShipmentRequestDetailModal({
 
   const getPriorityColor = () => {
     switch (request.priority) {
-      case 'urgent':
+      case 'URGENT':
         return 'bg-red-100 text-red-700';
-      case 'expedited':
+      case 'EXPEDITED':
         return 'bg-orange-100 text-orange-700';
       default:
         return 'bg-gray-100 text-gray-700';
@@ -115,7 +116,7 @@ export default function ShipmentRequestDetailModal({
             className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
+              <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -134,7 +135,7 @@ export default function ShipmentRequestDetailModal({
             </div>
             <div className="bg-[var(--muted)]/30 rounded-lg p-4">
               <div className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider">Total Quantity</div>
-              <div className="text-lg font-semibold text-[var(--foreground)] mt-1">{request.totalQuantity} units</div>
+              <div className="text-lg font-semibold text-[var(--foreground)] mt-1">{formatQuantity(request.totalQuantity)} units</div>
             </div>
           </div>
 
@@ -181,8 +182,8 @@ export default function ShipmentRequestDetailModal({
             <div className="bg-blue-50 rounded-lg p-4">
               <h3 className="text-sm font-medium text-blue-900 mb-3 flex items-center gap-2">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                  <polyline points="22,6 12,13 2,6" />
                 </svg>
                 Email Contact
               </h3>
@@ -206,12 +207,12 @@ export default function ShipmentRequestDetailModal({
           )}
 
           {/* Confirmation Info (for call/system requests) */}
-          {(request.requestMethod === 'CALL' || request.requestMethod === 'MANUFACTURER_SYSTEM') && request.confirmedAt && (
+          {(request.requestMethod === 'PHONE_CALL' || request.requestMethod === 'MANUFACTURER_SYSTEM') && request.confirmedAt && (
             <div className="bg-green-50 rounded-lg p-4">
               <h3 className="text-sm font-medium text-green-900 mb-3 flex items-center gap-2">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                  <polyline points="22 4 12 14.01 9 11.01"/>
+                  <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
                 </svg>
                 Request Confirmation
               </h3>
@@ -256,17 +257,17 @@ export default function ShipmentRequestDetailModal({
                       <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">{item.partNumber}</td>
                       <td className="px-4 py-3 text-sm text-right">
                         <span className={item.currentStock <= (item.reorderPoint || 0) ? 'text-red-600 font-medium' : 'text-[var(--foreground)]'}>
-                          {item.currentStock}
+                          {formatQuantity(item.currentStock)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-[var(--foreground)] text-right font-medium">{item.requestedQuantity}</td>
+                      <td className="px-4 py-3 text-sm text-[var(--foreground)] text-right font-medium">{formatQuantity(item.requestedQuantity)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className="bg-[var(--muted)]/30">
                     <td colSpan={3} className="px-4 py-3 text-sm font-medium text-[var(--foreground)]">Total</td>
-                    <td className="px-4 py-3 text-sm font-medium text-[var(--foreground)] text-right">{request.totalQuantity}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-[var(--foreground)] text-right">{formatQuantity(request.totalQuantity)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -288,8 +289,8 @@ export default function ShipmentRequestDetailModal({
             <div className="bg-indigo-50 rounded-lg p-4">
               <h3 className="text-sm font-medium text-indigo-900 mb-2 flex items-center gap-2">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M16 16v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h1"/>
-                  <rect x="9" y="3" width="12" height="14" rx="2" ry="2"/>
+                  <path d="M16 16v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h1" />
+                  <rect x="9" y="3" width="12" height="14" rx="2" ry="2" />
                 </svg>
                 Linked Delivery
               </h3>

@@ -34,12 +34,13 @@ interface LocationTreeViewProps {
   onDelete: (id: string) => void;
   onAddChild: (parentId: string, parentType: string) => void;
   onAddSection: () => void;
+  onBulkAdd: () => void;
   isBottomLevel: (type: string) => boolean;
   getNextLevelType: (type: string) => WarehouseLocationLevel | null;
   onShowProductSearch: (binId: string | null) => void;
   onProductSearchChange: (query: string) => void;
   onAddProduct: (binId: string, product: AvailableProduct) => void;
-  onRemoveProduct: (binId: string, productAssignmentId: string) => void;
+  onRemoveProduct: (binId: string, productAssignmentId: string, productId: string) => void;
   onSearchQueryChange: (query: string) => void;
   onDragStart: (event: DragStartEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
@@ -62,6 +63,7 @@ export default function LocationTreeView({
   onDelete,
   onAddChild,
   onAddSection,
+  onBulkAdd,
   isBottomLevel,
   getNextLevelType,
   onShowProductSearch,
@@ -110,6 +112,19 @@ export default function LocationTreeView({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             Section
+          </button>
+        )}
+
+        {/* Bulk Add Button */}
+        {enabledLevels.includes('section') && (
+          <button
+            onClick={onBulkAdd}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            </svg>
+            Bulk Add
           </button>
         )}
       </div>

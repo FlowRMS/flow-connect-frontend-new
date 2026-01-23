@@ -172,6 +172,32 @@ const RESULT_TYPE_CONFIG: Record<string, {
     ),
     href: (id) => `/commissions/${id}`,
   },
+  FACTORY: {
+    color: 'text-violet-700',
+    bgColor: 'bg-violet-50',
+    borderColor: 'border-violet-200',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M2 20h20M4 20V10l8-6 8 6v10"/>
+        <path d="M9 20v-6h6v6"/>
+        <path d="M9 10h.01M15 10h.01"/>
+      </svg>
+    ),
+    href: (id) => `/manufacturers/${id}/edit`,
+  },
+  MANUFACTURER: {
+    color: 'text-violet-700',
+    bgColor: 'bg-violet-50',
+    borderColor: 'border-violet-200',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M2 20h20M4 20V10l8-6 8 6v10"/>
+        <path d="M9 20v-6h6v6"/>
+        <path d="M9 10h.01M15 10h.01"/>
+      </svg>
+    ),
+    href: (id) => `/manufacturers/${id}/edit`,
+  },
 };
 
 // Default config for unknown types

@@ -26,7 +26,7 @@ import { useVersionHistory, type VersionHistoryEntry } from '@/components/flow-a
 import { VersionHistoryTab } from '@/components/flow-ai/flowrms/VersionHistoryTab';
 import { VersionComparisonModal } from '@/components/flow-ai/flowrms/VersionComparisonModal';
 import { buildExtractedFields } from '@/lib/flow-ai/extracted-field-mapper';
-import { M_MANUAL_EDIT_DATA } from '@/lib/flow-ai/gql';
+import { M_MANUAL_EDIT_DATA, M_APPROVE } from '@/lib/flow-ai/gql';
 import { useProcessExtractedDtos } from '@/components/flow-ai/hooks/useProcessExtractedDtos';
 import { SupportSubmissionModal } from '@/components/flow-ai/flowrms/SupportSubmissionModal';
 import { SelectTemplateModal } from '@/components/flow-ai/flowrms/SelectTemplateModal';
@@ -685,6 +685,7 @@ function FlowRMSPageContent() {
 
   const selectedVersionSnapshot = selectedVersionNumber != null ? snapshots[selectedVersionNumber] ?? null : null;
   const [manualEditDataMutation] = useMutation(M_MANUAL_EDIT_DATA);
+  const [approveDocumentMutation] = useMutation(M_APPROVE);
 
   useEffect(() => {
     if (!pendingId) return;
@@ -836,6 +837,7 @@ function FlowRMSPageContent() {
   const shouldShowWorkspace = Boolean(pendingId);
 
   // Auto-show Select Template modal when reaching prompting step without a template applied
+  // Skip showing the modal if the document already has an associated template (activeTemplateName)
   useEffect(() => {
     if (
       shouldShowWorkspace &&
@@ -845,7 +847,8 @@ function FlowRMSPageContent() {
       !isSelectTemplateOpen &&
       pendingId &&
       hasShownTemplateModalRef.current !== pendingId &&
-      (!suggestedPrompts || suggestedPrompts.length === 0)
+      (!suggestedPrompts || suggestedPrompts.length === 0) &&
+      !activeTemplateName
     ) {
       setIsSelectTemplateOpen(true);
       hasShownTemplateModalRef.current = pendingId;
@@ -858,6 +861,7 @@ function FlowRMSPageContent() {
     isSelectTemplateOpen,
     pendingId,
     suggestedPrompts,
+    activeTemplateName,
   ]);
 
   // Reset the ref when pendingId changes (new document)
@@ -1328,6 +1332,20 @@ function FlowRMSPageContent() {
     if (!pendingId) return;
 
     const saveToTemplateParam = saveToTemplateValue ? 'true' : 'false';
+
+    // Call approveDocument mutation first
+    try {
+      await approveDocumentMutation({
+        variables: {
+          pendingId,
+          saveToTemplate: saveToTemplateValue,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to approve document:', error);
+      toast.error('Failed to approve document. Please try again.');
+      return;
+    }
 
     // Check if this is a tabular upload (CSV/spreadsheet)
     if (isCsv) {

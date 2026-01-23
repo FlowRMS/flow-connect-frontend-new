@@ -44,10 +44,13 @@ import { useCreditsState } from './hooks/useCreditsState';
 import { useAdjustmentsState } from './hooks/useAdjustmentsState';
 import { useAcknowledgementsState } from './hooks/useAcknowledgementsState';
 import { useInvoicesState } from './hooks/useInvoicesState';
+import { useEntityFilesCount } from '@/components/shared/hooks/useEntityFilesCount';
 import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipStatus } from './utils';
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
 import { orderToasts } from '@/components/lib/toast';
 import { UnsavedChangesModal } from '@/components/shared/modals/UnsavedChangesModal';
+import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
 
 interface OrderDetailContentProps {
   orderId: string;
@@ -57,6 +60,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const router = useRouter();
   const state = useOrderDetailState({ orderId });
   const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation, hasUnsavedChanges, clearUnsavedChanges } = useUnsavedChangesContext();
 
   // Credits state management
   const creditsState = useCreditsState({ orderId: orderId !== 'new' ? orderId : null });
@@ -72,6 +76,13 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   // Invoices state management
   const invoicesState = useInvoicesState({
     orderId: orderId !== 'new' ? orderId : null,
+  });
+
+  // Files count for tab badge
+  const { filesCount } = useEntityFilesCount({
+    entityId: orderId !== 'new' ? orderId : null,
+    entityType: 'ORDER',
+    enabled: !state.isCreateMode, // Only fetch when not in create mode
   });
 
   // Create Invoice from Order modal state
@@ -105,6 +116,34 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       setFullEntityContext(null, null, null);
     };
   }, [state?.order?.orderNumber, orderId, setFullEntityContext]);
+
+  // Ref to hold the save handler for the unsaved changes guard
+  const saveHandlerRef = React.useRef<(() => Promise<boolean>) | null>(null);
+
+  // Unsaved changes guard - tracks order changes and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Order',
+    entityId: orderId !== 'new' ? orderId : null,
+    entityName: state?.order?.orderNumber || null,
+    hasChanges: state?.hasChanges || false,
+    onSave: async () => {
+      if (saveHandlerRef.current) {
+        return saveHandlerRef.current();
+      }
+      return false;
+    },
+  });
+
+  // Handle back navigation with unsaved changes check
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/orders', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    router.push('/orders');
+  };
 
   // Wrapped handlers for settings changes with rep redistribution
   const handleSetShowOutsideRepPerLine = async (value: boolean) => {
@@ -473,6 +512,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         const result = await state.createOrderMutation.mutateAsync(createInput);
         console.log('Order created:', result);
         orderToasts.createSuccess(result.orderNumber || createInput.orderNumber);
+        // Clear unsaved changes before navigation to prevent beforeunload alert
+        clearUnsavedChanges();
         // Navigate to the newly created order detail page instead of landing page
         router.push(`/orders/${result.id}`);
       } else {
@@ -505,7 +546,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             jobId: (order as any).jobId || undefined,
           };
 
-          await state.updateOrderMutation.mutateAsync(updateInput);
+          const savedOrder = await state.updateOrderMutation.mutateAsync(updateInput);
+          // Apply the mutation result to local state immediately to prevent stale data
+          state.applyMutationResult(savedOrder);
           state.resetChanges();
           // Refetch order data to get fresh UUIDs for any newly created line items
           await state.refetch();
@@ -524,6 +567,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       return false;
     }
   };
+
+  // Store save handler in ref for unsaved changes guard
+  saveHandlerRef.current = handleSave;
 
   const handleDelete = () => {
     setShowDeleteOrderModal(true);
@@ -711,6 +757,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onDuplicateOrder={() => setShowDuplicateOrderModal(true)}
         onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
         onAutoPopulateInsideRepsToLineItems={handleAutoPopulateInsideRepsToLineItems}
+        onBack={handleBack}
       />
 
       {/* Main Content Area with Tabs */}
@@ -720,7 +767,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           <div className="flex gap-1">
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
-              { id: 'files', label: 'Files', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'files', label: 'Files', disabled: isCreateMode, disabledReason: 'Save order first', count: filesCount },
               { id: 'invoices', label: 'Invoices', disabled: isCreateMode, disabledReason: 'Save order first', count: invoicesState.invoices.length },
               { id: 'credits', label: 'Credits', disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'adjustments', label: 'Adjustments', hidden: true }, // Hidden - adjustments now has its own page in sidebar

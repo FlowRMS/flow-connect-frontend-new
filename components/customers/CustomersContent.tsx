@@ -5,22 +5,24 @@
 
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
 import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
 import { iconMap } from '@/components/Sidebar';
 import type { RefObject } from 'react';
-import AdvancedFilters from '../advancedFilters/AdvancedFilters';
+import AdvancedFilters, { type ActiveFilter } from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import { useCustomersState } from './hooks/useCustomersState';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { getCustomerFilterOptions, getCustomerSortOptions } from './config/filterConfig';
-import { ListView } from './views/ListView';
-import { GridView } from './views/GridView';
+import { ListView } from './views/list/ListView';
+import { GridView } from './views/grid/GridView';
 import { DeleteCustomerModal } from './modals/DeleteCustomerModal';
 import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
+import { useFilterSync } from '../advancedFilters/hooks/useFilterSync';
+import type { FilterOption } from '../advancedFilters/types';
 
 export default function CustomersContent() {
   const router = useRouter();
@@ -58,6 +60,7 @@ export default function CustomersContent() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isSearching,
     uniqueCompanyNames,
     activeFilters,
     handleFiltersChange,
@@ -100,16 +103,80 @@ export default function CustomersContent() {
   });
 
   // Filter and sort configuration
-  const customerFilterOptions = getCustomerFilterOptions(uniqueCompanyNames);
+  const customerFilterOptions = useMemo(
+    () => getCustomerFilterOptions(uniqueCompanyNames),
+    [uniqueCompanyNames]
+  );
   const customerSortOptions = getCustomerSortOptions();
+
+  // Column filters state for table header
+  const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+
+  // Map from UI column keys to filter option IDs (for sync)
+  const columnKeyToFilterId: Record<string, string> = useMemo(() => ({
+    companyName: 'companyName',
+    isParent: 'isParent',
+    published: 'published',
+    parent: 'parent',
+    createdAt: 'createdAt',
+  }), []);
+
+  // Hook for synchronizing filters between AdvancedFilters and ColumnFilters
+  const { syncAdvancedToColumn, syncColumnToAdvanced } = useFilterSync({
+    filterOptions: customerFilterOptions as unknown as FilterOption[],
+    columnKeyToFilterId,
+  });
+
+  // Refs to prevent infinite loops during synchronization
+  const isSyncingFromAdvanced = useRef(false);
+  const isSyncingFromColumn = useRef(false);
+
+  // Handle multi-filter change (from AdvancedFilters) with sync to column filters
+  const handleFiltersChangeWithSync = useCallback((filters: ActiveFilter[]) => {
+    handleFiltersChange(filters);
+
+    if (!isSyncingFromColumn.current) {
+      isSyncingFromAdvanced.current = true;
+      const syncedColumnFilters = syncAdvancedToColumn(filters);
+
+      setColumnFilters((prev) => {
+        if (filters.length === 0) {
+          return {};
+        }
+        return { ...prev, ...syncedColumnFilters };
+      });
+
+      setTimeout(() => {
+        isSyncingFromAdvanced.current = false;
+      }, 0);
+    }
+  }, [handleFiltersChange, syncAdvancedToColumn]);
+
+  // Handler for column filter changes (from ListView ColumnFilters)
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ActiveFilter[]>) => {
+    setColumnFilters(filters);
+
+    if (!isSyncingFromAdvanced.current) {
+      isSyncingFromColumn.current = true;
+      const syncedActiveFilters = syncColumnToAdvanced(filters);
+      handleFiltersChange(syncedActiveFilters);
+
+      setTimeout(() => {
+        isSyncingFromColumn.current = false;
+      }, 0);
+    }
+  }, [handleFiltersChange, syncColumnToAdvanced]);
+
+  // Determine if we should show loading skeleton (only when applying filters, not during scroll)
+  const showLoadingSkeleton = isLoading && !isFetchingNextPage;
 
   // Find customer to delete
   const customerToDelete = filteredCustomers.find(c => c.id === deleteConfirmId);
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)]">
       {/* Header */}
-      <div className="mb-4 sm:mb-6">
+      <div className="sticky top-0 z-20 bg-[var(--background)] pt-3 sm:pt-6 px-3 sm:px-6 pb-4 sm:pb-6 mb-4 sm:mb-6 border-b border-[var(--border)]/30">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
           <div className="flex items-start gap-4">
             {/* Morphing Icon Target - Crown Shine Animation */}
@@ -136,6 +203,23 @@ export default function CustomersContent() {
                 transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
               >
                 Manage your customer accounts
+                {(() => {
+                  // Prefer showing search result count when searching
+                  if (searchQuery.length >= 2 && isSearching !== undefined) {
+                    return ` • ${filteredCustomers.length} results for "${searchQuery}"`;
+                  }
+
+                  // When using landing page data, show loaded vs total
+                  const loaded = filteredCustomers.length;
+                  const total = totalCount ?? 0;
+
+                  if (total > 0) {
+                    return ` • Showing ${loaded} of ${total} customers`;
+                  }
+
+                  // Fallback when total is not available yet
+                  return ` • Showing ${loaded} customers`;
+                })()}
               </motion.p>
             </div>
           </div>
@@ -175,23 +259,6 @@ export default function CustomersContent() {
               </button>
             </div>
 
-            {/* Type Filter */}
-            <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
-              {(['All', 'Parent', 'Child'] as const).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedType(type)}
-                  className={`px-3 py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
-                    selectedType === type
-                      ? 'bg-white shadow-sm text-[var(--foreground)]'
-                      : 'text-[var(--muted-foreground)] hover:bg-[var(--card)]'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-
             <SortButton
               sortOptions={customerSortOptions}
               onMultiSortChange={handleMultiSortChange}
@@ -200,7 +267,7 @@ export default function CustomersContent() {
 
             <AdvancedFilters
               filterOptions={customerFilterOptions}
-              onFiltersChange={handleFiltersChange}
+              onFiltersChange={handleFiltersChangeWithSync}
               activeFilters={activeFilters}
             />
 
@@ -218,22 +285,54 @@ export default function CustomersContent() {
           </motion.div>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
-          </svg>
-          <input
-            type="text"
-            placeholder="Search customers..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-          />
+        {/* Search Bar and Quick Filter */}
+        <div className="mt-4 flex items-center gap-3">
+          <div className="relative flex-1">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center">
+              {isSearching ? (
+                <svg className="w-full h-full text-[var(--primary)] animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+              ) : (
+                <svg className="w-full h-full text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
+                </svg>
+              )}
+            </div>
+            <input
+              type="text"
+              placeholder="Search customers by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+            />
+          </div>
+          {/* Quick Filter */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-xs sm:text-sm text-[var(--muted-foreground)] font-medium whitespace-nowrap">Quick filter:</span>
+            <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
+              {(['All', 'Parent', 'Child'] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setSelectedType(type)}
+                  className={`px-3 py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
+                    selectedType === type
+                      ? 'bg-white shadow-sm text-[var(--foreground)]'
+                      : 'text-[var(--muted-foreground)] hover:bg-[var(--card)]'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* Content Container */}
+      <div className="px-3 sm:px-6">
       {/* Bulk Actions Toolbar */}
       <BulkActionsToolbar
         entityType="CUSTOMERS"
@@ -245,8 +344,8 @@ export default function CustomersContent() {
         onDelete={() => setShowBulkDeleteModal(true)}
       />
 
-      {/* Loading State */}
-      {(!isMounted || isLoading) && (
+      {/* Initial Loading State - only show on first mount */}
+      {!isMounted && (
         <div className="flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-4">
             <svg className="animate-spin h-10 w-10 text-[var(--primary)]" fill="none" viewBox="0 0 24 24">
@@ -276,7 +375,7 @@ export default function CustomersContent() {
       )}
 
       {/* Views */}
-      {isMounted && !isLoading && !error && viewMode === 'grid' && (
+      {isMounted && !error && viewMode === 'grid' && (
         <GridView
           customers={filteredCustomers}
           onCustomerClick={handleCustomerClick}
@@ -287,10 +386,11 @@ export default function CustomersContent() {
           selectAllMode={selectAllMode}
           isItemSelected={isItemSelected}
           onSelectOne={handleSelectOne}
+          isLoading={showLoadingSkeleton}
         />
       )}
 
-      {isMounted && !isLoading && !error && viewMode === 'list' && (
+      {isMounted && !error && viewMode === 'list' && (
         <ListView
           customers={filteredCustomers}
           onCustomerClick={handleCustomerClick}
@@ -304,11 +404,17 @@ export default function CustomersContent() {
           onSelectOne={handleSelectOne}
           isAllSelected={isAllSelected}
           isPartiallySelected={isPartiallySelected}
+          isLoading={showLoadingSkeleton}
+          columnFilters={columnFilters}
+          onColumnFiltersChange={handleColumnFiltersChange}
+          filterOptions={customerFilterOptions as unknown as FilterOption[]}
+          loadMoreRef={loadMoreRef}
+          isFetchingNextPage={isFetchingNextPage}
         />
       )}
 
-      {/* Infinite scroll trigger */}
-      {isMounted && !isLoading && !error && filteredCustomers.length > 0 && (
+      {/* Infinite scroll trigger for grid view */}
+      {isMounted && !error && viewMode === 'grid' && filteredCustomers.length > 0 && (
         <>
           <div ref={loadMoreRef} className="h-4" />
           {isFetchingNextPage && (
@@ -345,6 +451,7 @@ export default function CustomersContent() {
         onSuccess={handleBulkDeleteSuccess}
         queryKeysToInvalidate={[['customers']]}
       />
+      </div>
     </main>
   );
 }

@@ -65,16 +65,6 @@ export function useCompaniesState(
     if (!landingPageCompanies) return [];
     let filtered = landingPageCompanies.map(mapLandingPageToUICompany);
 
-    // Apply advanced filters (multi-select)
-    if (activeFilters.length > 0) {
-      filtered = filtered.filter((company) =>
-        activeFilters.every((filter) => applyFilterUtil(company as unknown as Record<string, unknown>, filter))
-      );
-    } else if (activeFilter) {
-      // Backward compatibility for single filter
-      filtered = filtered.filter((company) => applyFilterUtil(company as unknown as Record<string, unknown>, activeFilter));
-    }
-
     // Apply advanced sorting (multi-sort)
     if (clientSortColumns.length > 0) {
       filtered = [...filtered].sort((a, b) => {

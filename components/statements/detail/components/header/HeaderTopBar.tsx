@@ -15,6 +15,7 @@ interface HeaderTopBarProps {
   isSaving: boolean;
   onSave: () => void;
   onDelete?: () => void;
+  onBack?: () => void;
   showActionsDropdown: boolean;
   setShowActionsDropdown: (show: boolean) => void;
 }
@@ -26,10 +27,19 @@ export function HeaderTopBar({
   isSaving,
   onSave,
   onDelete,
+  onBack,
   showActionsDropdown,
   setShowActionsDropdown,
 }: HeaderTopBarProps) {
   const router = useRouter();
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.push('/statements');
+    }
+  };
 
   return (
     <div className="sticky top-0 z-20 bg-white border-b border-[var(--border)]">
@@ -37,7 +47,7 @@ export function HeaderTopBar({
         {/* Left side - Back button and title */}
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.push('/statements')}
+            onClick={handleBack}
             className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -18,6 +18,8 @@ import { fetchAllFactoryIds } from './api/factoriesApi';
 import DeleteFactoryModal from './modals/DeleteFactoryModal';
 import { useBulkSelection, BulkDeleteModal, BulkActionsToolbar } from '../shared';
 import { toast } from 'sonner';
+import { searchFactories, type FactorySearchResult } from '../lib/api/search';
+import { useQuery } from '@tanstack/react-query';
 
 type SortField = 'title' | 'accountNumber' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
@@ -45,11 +47,28 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
   const isReceivingAnimation = floatingIcon?.itemId === 'manufacturers';
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [sortField, setSortField] = useState<SortField>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [filterPublished, setFilterPublished] = useState<'all' | 'published' | 'unpublished'>('all');
+
+  // Debounce search query for API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // API search for factories - only when search query is present
+  const { data: searchResults, isLoading: isSearching } = useQuery<FactorySearchResult[], Error>({
+    queryKey: ['factorySearch', debouncedSearchQuery],
+    queryFn: () => searchFactories(debouncedSearchQuery, undefined, 50),
+    enabled: debouncedSearchQuery.length >= 2,
+    staleTime: 30 * 1000,
+  });
 
   // Fetch factories from API with infinite scroll
   const {
@@ -107,21 +126,52 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, searchQuery]);
 
-  // Filter and sort factories
+  // Filter and sort factories - use API search results when searching, otherwise use paginated data
   const filteredFactories = useMemo(() => {
-    let result = [...factories];
+    // If search query is active and we have search results, use them
+    if (debouncedSearchQuery.length >= 2 && searchResults) {
+      // Map search results to match FactoryLandingPage shape for display
+      let result: FactoryLandingPage[] = searchResults.map(sr => ({
+        id: sr.id,
+        title: sr.title,
+        accountNumber: sr.accountNumber || '',
+        email: '',
+        phone: '',
+        published: sr.published ?? true,
+        createdAt: '',
+        baseCommissionRate: undefined,
+        overallDiscountRate: undefined,
+        paymentTerms: undefined,
+        leadTime: undefined,
+      }));
 
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (f) =>
-          f.title?.toLowerCase().includes(query) ||
-          f.accountNumber?.toLowerCase().includes(query) ||
-          f.email?.toLowerCase().includes(query) ||
-          f.phone?.toLowerCase().includes(query)
-      );
+      // Apply published filter to search results
+      if (filterPublished !== 'all') {
+        result = result.filter((f) => (filterPublished === 'published' ? f.published : !f.published));
+      }
+
+      // Apply sorting
+      result.sort((a, b) => {
+        let comparison = 0;
+        switch (sortField) {
+          case 'title':
+            comparison = (a.title || '').localeCompare(b.title || '');
+            break;
+          case 'accountNumber':
+            comparison = (a.accountNumber || '').localeCompare(b.accountNumber || '');
+            break;
+          case 'createdAt':
+            comparison = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+            break;
+        }
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+
+      return result;
     }
+
+    // No search query - use paginated data with client-side filtering
+    let result = [...factories];
 
     // Apply published filter
     if (filterPublished !== 'all') {
@@ -146,7 +196,7 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
     });
 
     return result;
-  }, [factories, searchQuery, sortField, sortDirection, filterPublished]);
+  }, [factories, debouncedSearchQuery, searchResults, sortField, sortDirection, filterPublished]);
 
   const handleSort = useCallback((field: SortField) => {
     if (sortField === field) {
@@ -286,13 +336,20 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
 
         {/* Search Bar */}
         <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
-          </svg>
+          {isSearching ? (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--primary)] animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          ) : (
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
+            </svg>
+          )}
           <input
             type="text"
-            placeholder="Search manufacturers by name, account, email, or phone..."
+            placeholder="Search manufacturers by name or account number..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
@@ -628,17 +685,17 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
             <div className="px-6 py-3 border-t border-[var(--border)] bg-[var(--muted)]/30">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  {searchQuery
-                    ? `${filteredFactories.length} results for "${searchQuery}"`
+                  {debouncedSearchQuery.length >= 2
+                    ? `${filteredFactories.length} search result${filteredFactories.length !== 1 ? 's' : ''} for "${debouncedSearchQuery}"`
                     : `Showing ${factories.length} of ${totalCount} manufacturers`}
                 </p>
-                {isFetchingNextPage && (
+                {(isFetchingNextPage || isSearching) && (
                   <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
                     <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                     </svg>
-                    Loading more...
+                    {isSearching ? 'Searching...' : 'Loading more...'}
                   </div>
                 )}
               </div>

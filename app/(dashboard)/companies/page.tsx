@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import CompaniesContent from '@/components/CompaniesContent';
+import CompaniesContent from '@/components/companies/CompaniesContent';
 
 function CompaniesLoading() {
   return (

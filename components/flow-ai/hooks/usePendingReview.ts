@@ -51,6 +51,7 @@ type CorrectionEntry = {
   createdAt: string;
   newValue?: string | null;
   oldValue?: string | null;
+  reasoning?: string | null;
 };
 
 export type ParsedCorrection = {
@@ -59,6 +60,7 @@ export type ParsedCorrection = {
   createdAt: string;
   before: unknown;
   after: unknown;
+  reasoning?: string | null;
 };
 
 export type PendingReviewState = {
@@ -905,12 +907,22 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
       return [];
     }
     
+    // Get the model's reasoning from extracted data (set by backend after AI transformation)
+    // Falls back to the most recent instruction if no model reasoning is available
+    const activeExtracted = state.extractedDataSets[state.activeDataSetIndex] || {};
+    const modelReasoning = (activeExtracted as Record<string, unknown>).model_reasoning as string | undefined;
+    const latestInstruction = state.suggestedPrompts.length > 0 
+      ? state.suggestedPrompts[0] 
+      : null;
+    const reasoning = modelReasoning || latestInstruction;
+    
     console.log('📊 Computing CSV changes from before/after comparison...');
-    const changes = generateCsvChanges(state.originalCsvData, state.processedCsvData);
+    console.log('🤖 Model reasoning:', modelReasoning || '(none - using instruction)');
+    const changes = generateCsvChanges(state.originalCsvData, state.processedCsvData, reasoning);
     console.log('✅ Generated', changes.length, 'CSV changes');
     
     return changes;
-  }, [state.isCsv, state.originalCsvData, state.processedCsvData]);
+  }, [state.isCsv, state.originalCsvData, state.processedCsvData, state.suggestedPrompts, state.extractedDataSets, state.activeDataSetIndex]);
 
   // Combine API corrections (for PDFs) with CSV changes (for CSVs)
   const effectiveCorrections = useMemo(() => {
@@ -1029,6 +1041,7 @@ function mapCorrection(entry: CorrectionEntry): ParsedCorrection {
     createdAt: entry.createdAt,
     before: safeJson(entry.oldValue),
     after: safeJson(entry.newValue),
+    reasoning: entry.reasoning,
   };
 }
 

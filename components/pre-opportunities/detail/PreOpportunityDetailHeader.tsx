@@ -5,8 +5,10 @@
 
 import React, { useState } from 'react';
 import type { PreOpportunity, PreOpportunityStatus } from '../types';
-import { formatDate, formatCurrency } from '../utils';
+import { formatDate, formatCurrency, getOwnerInitials, getOwnerColor } from '../utils';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import { ExcelBuilder } from '@/components/shared/excel-builder';
+import { ManufacturerExcelModal } from '@/components/shared/manufacturer-excel';
 
 // Status color mapping
 const STATUS_COLORS: Record<PreOpportunityStatus, { bg: string; text: string; dot: string }> = {
@@ -54,25 +56,9 @@ export function PreOpportunityDetailHeader({
 }: PreOpportunityDetailHeaderProps) {
   const statusColors = STATUS_COLORS[preOpp.status] || STATUS_COLORS.QUALIFIED;
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
-
-  // Get owner initials and color
-  const getOwnerInitials = (owner: string) => {
-    if (!owner) return '?';
-    const parts = owner.split(/[\s._-]+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return owner.substring(0, 2).toUpperCase();
-  };
-
-  const getOwnerColor = (id: string) => {
-    const colors = [
-      'bg-blue-500', 'bg-green-500', 'bg-purple-500', 
-      'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'
-    ];
-    const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
-  };
+  const [showExcelBuilder, setShowExcelBuilder] = useState(false);
+  const [showManufacturerExcel, setShowManufacturerExcel] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
   const ownerInitials = getOwnerInitials(preOpp.createdBy);
   const ownerColor = getOwnerColor(preOpp.id);
@@ -180,9 +166,67 @@ export function PreOpportunityDetailHeader({
               </>
             ) : (
               <>
+                {/* Excel Button with Manufacturer Dropdown */}
+                <div className="relative">
+                  <div className="flex">
+                    <button
+                      onClick={() => {
+                        setShowDownloadMenu(false);
+                        setShowExcelBuilder(true);
+                      }}
+                      disabled={!preOpp.id}
+                      className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-2 md:py-2.5 rounded-l-lg text-xs md:text-sm font-medium transition-all ${
+                        !preOpp.id
+                          ? 'bg-emerald-600 text-white opacity-50 cursor-not-allowed'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      }`}
+                    >
+                      <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      <span className="hidden sm:inline">Excel</span>
+                    </button>
+                    <button
+                      onClick={() => setShowDownloadMenu((prev) => !prev)}
+                      disabled={!preOpp.id}
+                      className={`px-2 md:px-2.5 py-2 md:py-2.5 rounded-r-lg text-white transition-all border-l border-emerald-500 ${
+                        !preOpp.id
+                          ? 'bg-emerald-600 opacity-50 cursor-not-allowed'
+                          : 'bg-emerald-600 hover:bg-emerald-700'
+                      }`}
+                      aria-label="Manufacturer options"
+                    >
+                      <svg className="w-3 h-3 md:w-3.5 md:h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                  </div>
+                  {showDownloadMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
+                      <div className="absolute top-full right-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                        <button
+                          onClick={() => {
+                            setShowManufacturerExcel(true);
+                            setShowDownloadMenu(false);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors rounded-lg flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18" />
+                          </svg>
+                          Manufacturer Excel
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
                 {/* PDF Button */}
                 <button
-                  onClick={() => setShowPDFBuilder(true)}
+                  onClick={() => {
+                    setShowDownloadMenu(false);
+                    setShowPDFBuilder(true);
+                  }}
                   disabled={!preOpp.id}
                   className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-medium transition-all ${
                     !preOpp.id
@@ -243,6 +287,21 @@ export function PreOpportunityDetailHeader({
         entityType="PRE_OPPORTUNITIES"
         isOpen={showPDFBuilder}
         onClose={() => setShowPDFBuilder(false)}
+      />
+
+      {/* Excel Builder */}
+      <ExcelBuilder
+        entityId={preOpp.id}
+        entityType="PRE_OPPORTUNITIES"
+        isOpen={showExcelBuilder}
+        onClose={() => setShowExcelBuilder(false)}
+      />
+
+      <ManufacturerExcelModal
+        entityId={preOpp.id}
+        entityType="PRE_OPPORTUNITIES"
+        isOpen={showManufacturerExcel}
+        onClose={() => setShowManufacturerExcel(false)}
       />
     </div>
   );
