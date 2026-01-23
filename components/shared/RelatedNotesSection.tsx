@@ -180,7 +180,10 @@ export function RelatedNotesSection({ entityId, sourceType, sourceEntityType }: 
                   )}
 
                   {/* Content */}
-                  <p className="text-sm text-[var(--muted-foreground)] whitespace-pre-wrap mb-2">{note.content}</p>
+                  <div
+                    className="text-sm text-[var(--muted-foreground)] mb-2 prose prose-sm max-w-none dark:prose-invert"
+                    dangerouslySetInnerHTML={{ __html: note.content || '' }}
+                  />
 
                   {/* Tags */}
                   {(() => {

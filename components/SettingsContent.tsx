@@ -6345,6 +6345,23 @@ function AddUserModalWithApi({ onClose }: { onClose: () => void }) {
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
               </label>
             </div>
+
+            {/* Info box */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-1">
+              <div className="flex gap-2">
+                <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">Understanding these settings:</p>
+                  <ul className="space-y-1 text-xs">
+                    <li><strong>Role:</strong> Determines system permissions (Outside/Inside Rep for sales).</li>
+                    <li><strong>Inside/Outside Access:</strong> Additional flags for operations access, independent of role.</li>
+                    <li><strong>Visible:</strong> Shows user in rep assignment dropdowns (quotes, orders, etc.).</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -6584,6 +6601,23 @@ function EditUserModalWithApi({ user, onClose }: { user: User; onClose: () => vo
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
               </label>
+            </div>
+
+            {/* Info box */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-1">
+              <div className="flex gap-2">
+                <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">Understanding these settings:</p>
+                  <ul className="space-y-1 text-xs">
+                    <li><strong>Role:</strong> Determines system permissions (Outside/Inside Rep for sales).</li>
+                    <li><strong>Inside/Outside Access:</strong> Additional flags for operations access, independent of role.</li>
+                    <li><strong>Visible:</strong> Shows user in rep assignment dropdowns (quotes, orders, etc.).</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </div>

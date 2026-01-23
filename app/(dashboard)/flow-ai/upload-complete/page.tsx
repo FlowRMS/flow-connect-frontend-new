@@ -653,8 +653,8 @@ function UploadCompleteContent() {
 
       if (result.data?.retryDocumentProcessing) {
         toast.success('Document queued for reprocessing');
-        // Navigate to queue page
-        router.push('/flow-ai/queue');
+        // Navigate to preview page to view the reprocessed document
+        router.push(`/flow-ai?pendingId=${pendingId}`);
       } else {
         toast.error('Retry failed: Unable to queue document for reprocessing');
       }
