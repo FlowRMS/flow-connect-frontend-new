@@ -501,24 +501,30 @@ export function useWarehouseSettings() {
     [createMutation]
   );
 
-  // Mark warehouse for deletion
-  const handleDeleteWarehouse = useCallback((warehouseId: string) => {
-    // Check if it's a new warehouse
-    setNewWarehouses((prev) => {
-      const isNew = prev.some((w) => w.id === warehouseId);
-      if (isNew) {
-        return prev.filter((w) => w.id !== warehouseId);
-      }
-      return prev;
-    });
+  // Delete warehouse immediately (soft-delete via API)
+  const handleDeleteWarehouse = useCallback(async (warehouseId: string) => {
+    // Check if it's a new warehouse (not yet persisted)
+    const isNew = newWarehouses.some((w) => w.id === warehouseId);
+    if (isNew) {
+      setNewWarehouses((prev) => prev.filter((w) => w.id !== warehouseId));
+      return;
+    }
 
-    setDeletedIds((prev) => new Set(prev).add(warehouseId));
+    // Call the API to soft-delete (sets is_active = false on backend)
+    await deleteMutation.mutateAsync(warehouseId);
+
+    // Clean up local state
     setLocalModifications((prev) => {
       const next = new Map(prev);
       next.delete(warehouseId);
       return next;
     });
-  }, []);
+
+    // Collapse if the deleted warehouse was expanded
+    if (expandedWarehouse === warehouseId) {
+      setExpandedWarehouse(null);
+    }
+  }, [deleteMutation, newWarehouses, expandedWarehouse]);
 
   const getWorkerById = useCallback(
     (workerId: string) => availableWorkers.find((w: WarehouseWorker) => w.id === workerId),

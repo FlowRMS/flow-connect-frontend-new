@@ -107,6 +107,7 @@ export default function WarehouseSettingsContent() {
           setShowAddWorkerModal={warehouseSettings.setShowAddWorkerModal}
           setShowLayoutModal={warehouseSettings.setShowLayoutModal}
           setShowQRCodesModal={warehouseSettings.setShowQRCodesModal}
+          onDeleteWarehouse={warehouseSettings.handleDeleteWarehouse}
           getWorkerById={warehouseSettings.getWorkerById}
           hasChanges={hasChanges}
           isSaving={isSaving}
