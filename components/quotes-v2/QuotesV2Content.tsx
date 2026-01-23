@@ -770,7 +770,7 @@ export function QuotesV2Content() {
                   filterOptions={quoteFilterOptionsWithValues}
                   columnFilters={columnFilters}
                   isLoading={isLoading}
-                  isFetching={false}
+                  isFetching={isFetching}
                   hasActiveFilters={hasActiveFilters}
                   activeSort={sortState.activeSort}
                   onSortChange={sortState.toggleSort}
