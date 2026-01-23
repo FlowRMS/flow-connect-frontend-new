@@ -248,7 +248,10 @@ export function JobAddressesSection({ jobId }: JobAddressesSectionProps) {
         isOpen={isAddressModalOpen}
         onClose={handleAddressModalClose}
         onSave={handleAddressSave}
+        sourceId={jobId}
+        sourceType="JOB"
         initialAddress={editingAddress || undefined}
+        mode={editingAddress ? 'edit' : 'create'}
       />
     </div>
   );
