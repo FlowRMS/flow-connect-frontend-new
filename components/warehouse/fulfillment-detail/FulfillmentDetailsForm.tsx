@@ -516,8 +516,8 @@ export default function FulfillmentDetailsForm({
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-[var(--muted-foreground)] mb-1">Ship Status</label>
-                <span className={`inline-flex items-center px-2 py-1.5 rounded text-xs font-medium ${shipStatusColors[fulfillmentOrder.shipStatus]}`}>
-                  {shipStatusLabels[fulfillmentOrder.shipStatus]}
+                <span className={`inline-flex items-center px-2 py-1.5 rounded text-xs font-medium ${shipStatusColors[fulfillmentOrder.shipConfirmedAt ? 'SHIPPED' : 'NOT_SHIPPED']}`}>
+                  {shipStatusLabels[fulfillmentOrder.shipConfirmedAt ? 'SHIPPED' : 'NOT_SHIPPED']}
                 </span>
                 {fulfillmentOrder.shipConfirmedAt && (
                   <p className="text-xs text-[var(--muted-foreground)] mt-1">{formatDateTime(fulfillmentOrder.shipConfirmedAt)}</p>

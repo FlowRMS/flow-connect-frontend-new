@@ -35,7 +35,7 @@ import type {
   FulfillmentAssignmentRole,
   FulfillmentActivity,
 } from './api/fulfillmentApi';
-import { BackorderReviewData, AssignedUserRole, AttachedDocument } from '@/lib/types/warehouse';
+import { BackorderReviewData, AssignedUserRole, AttachedDocument, ShipmentRequestMethod } from '@/lib/types/warehouse';
 // Shipment Request API
 import { useCreateShipmentRequest, useShipmentRequests } from './api/useShipmentRequestApi';
 import type { ShipmentPriority, ShipmentMethod } from './api/shipmentRequestApi';
@@ -400,9 +400,9 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       vendorName: req.factory?.title || 'Unknown Vendor',
       warehouseId: req.warehouseId || '',
       warehouseName: 'Warehouse', // TODO: Fetch warehouse name
-      requestMethod: (req.method === 'PHONE_CALL' ? 'CALL' : (req.method || 'EMAIL')) as 'EMAIL' | 'CALL' | 'MANUFACTURER_SYSTEM',
+      requestMethod: (req.method || 'EMAIL') as ShipmentRequestMethod,
       status: req.status as any,
-      priority: req.priority.toLowerCase() as 'standard' | 'expedited' | 'urgent',
+      priority: (req.priority || 'STANDARD') as ShipmentPriority,
       requestedDeliveryDate: req.requestDate || new Date().toISOString(),
       items: req.items.map(item => ({
         id: item.id,
@@ -1458,7 +1458,11 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
         )}
 
         {/* Manufacturer Order Notice - Show when items are being fulfilled by manufacturer */}
-        {fulfillmentOrder.manufacturerOrderStatus && fulfillmentOrder.manufacturerOrderStatus !== 'NONE' && (
+        {(() => {
+          const manufacturerItems = fulfillmentOrder.lineItems.filter(li => li.fulfilledByManufacturer);
+          const manufacturerStatus = manufacturerItems.length === 0 ? 'NONE' : manufacturerItems.length === fulfillmentOrder.lineItems.length ? 'FULL' : 'PARTIAL';
+          if (manufacturerStatus === 'NONE') return null;
+          return (
           <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
@@ -1478,12 +1482,12 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               </div>
               <div className="flex-1">
                 <h3 className="text-sm font-semibold text-indigo-900">
-                  {fulfillmentOrder.manufacturerOrderStatus === 'FULL'
+                  {manufacturerStatus === 'FULL'
                     ? 'Manufacturer Direct Fulfillment'
                     : 'Split Fulfillment - Warehouse & Manufacturer'}
                 </h3>
                 <p className="text-xs text-indigo-700 mt-0.5">
-                  {fulfillmentOrder.manufacturerOrderStatus === 'FULL'
+                  {manufacturerStatus === 'FULL'
                     ? 'This entire order is being fulfilled directly by the manufacturer.'
                     : 'Some items on this order are being fulfilled directly by the manufacturer.'}
                 </p>
@@ -1496,7 +1500,8 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               </a>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Hold Notice - Show when order is on hold */}
         {fulfillmentOrder.holdReason && (

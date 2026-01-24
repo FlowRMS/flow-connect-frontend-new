@@ -72,11 +72,11 @@ export default function AssignmentPanel({
       };
 
       if (memberRole === 'WORKER') {
-        if (!assignedWorkers.some(aw => aw.userId === user.id)) {
+        if (!assignedWorkers.some(aw => aw.user?.id === user.id)) {
           availableWorkers.push(availableUser);
         }
       } else if (memberRole === 'MANAGER') {
-        if (!assignedManagers.some(am => am.userId === user.id)) {
+        if (!assignedManagers.some(am => am.user?.id === user.id)) {
           availableManagers.push(availableUser);
         }
       }

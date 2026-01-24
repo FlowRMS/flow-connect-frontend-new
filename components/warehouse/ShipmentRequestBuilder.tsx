@@ -222,11 +222,11 @@ export default function ShipmentRequestBuilder() {
 
     // Get backorders for this vendor
     fulfillmentOrders.forEach(fo => {
-      fo.lineItems.forEach((item: { backorderQty?: number; productId: string; product?: { factoryPartNumber?: string; description?: string } }) => {
+      fo.lineItems.forEach((item) => {
         if (item.backorderQty && item.backorderQty > 0) {
           const inv = mockInventory.find(i => i.productId === item.productId);
           if (inv && inv.factoryId === selectedVendorId) {
-            const orderNum = fo.order?.orderNumber || fo.orderNumber || '-';
+            const orderNum = fo.order?.orderNumber || fo.fulfillmentOrderNumber || '-';
             const alertId = `backorder-${orderNum}-${item.productId}`;
             if (!dismissedAlerts.has(alertId)) {
               alertItems.push({

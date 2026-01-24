@@ -631,7 +631,7 @@ export async function fetchWarehouseAddresses(
  */
 export async function createWarehouseAddress(
   warehouseId: string,
-  address: Omit<AddressInput, "sourceId" | "sourceType">,
+  address: Omit<AddressInput, "sourceId" | "sourceType"> & { addressType?: AddressType },
 ): Promise<WarehouseAddress> {
   // Transform addressType to addressTypes array for the API
   const { addressType, ...restAddress } = address;
@@ -668,7 +668,7 @@ export async function createWarehouseAddress(
 export async function updateWarehouseAddress(
   addressId: string,
   warehouseId: string,
-  address: Omit<AddressInput, "sourceId" | "sourceType">,
+  address: Omit<AddressInput, "sourceId" | "sourceType"> & { addressType?: AddressType },
 ): Promise<WarehouseAddress> {
   // Transform addressType to addressTypes array for the API
   const { addressType, ...restAddress } = address;
