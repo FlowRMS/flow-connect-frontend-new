@@ -99,7 +99,7 @@ function TemplatesPageContent() {
   };
 
   return (
-    <div className="min-h-full bg-background flex flex-col">
+    <div className="h-full bg-background flex flex-col overflow-auto">
       {/* Page Header */}
       <div className="border-b bg-card/50 px-6 py-4 overflow-visible">
         <div className="flex items-center justify-between overflow-visible">

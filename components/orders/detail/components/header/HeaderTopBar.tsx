@@ -11,6 +11,7 @@ import { orderStatusLabels } from '../../constants';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
 import { ExcelBuilder } from '@/components/shared/excel-builder';
+import { ManufacturerExcelModal } from '@/components/shared/manufacturer-excel';
 
 interface HeaderTopBarProps {
   order: Order;
@@ -107,6 +108,8 @@ export function HeaderTopBar({
   };
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
   const [showExcelBuilder, setShowExcelBuilder] = useState(false);
+  const [showManufacturerExcel, setShowManufacturerExcel] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
   return (
     <div className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
@@ -230,44 +233,11 @@ export function HeaderTopBar({
             </button>
           )}
 
-          {/* Status Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setShowStatusDropdown(!showStatusDropdown);
-                setShowActionsDropdown(false);
-                setShowSaveDropdown(false);
-              }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${getStatusColor(order.status)}`}
-            >
-              {orderStatusLabels[order.status]}
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            {showStatusDropdown && (
-              <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                {(['OPEN', 'PARTIAL_SHIPPED', 'SHIPPED_COMPLETE', 'CANCELLED', 'OVER_SHIPPED', 'PARTIAL_CANCELLED', 'OVER_CANCELLED'] as Order['status'][]).map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => {
-                      updateOrderStatus(status);
-                      setShowStatusDropdown(false);
-                    }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
-                      order.status === status ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
-                    }`}
-                  >
-                    {orderStatusLabels[status]}
-                    {order.status === status && (
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+          {/* Status Display (Read-only) */}
+          <div
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${getStatusColor(order.status)}`}
+          >
+            {orderStatusLabels[order.status]}
           </div>
 
           {/* Version Dropdown */}
@@ -296,38 +266,81 @@ export function HeaderTopBar({
             </button>
             </div>
 
-            {/* Excel Button */}
+            {/* Excel Button with Manufacturer Dropdown */}
+            <div className="relative">
+              <div className="flex">
+                <button
+                  onClick={() => {
+                    setShowDownloadMenu(false);
+                    setShowExcelBuilder(true);
+                  }}
+                  disabled={isCreateMode || !order.id}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-l-lg text-sm font-medium transition-colors ${
+                    isCreateMode || !order.id
+                      ? 'bg-emerald-600 text-white opacity-50 cursor-not-allowed'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Excel
+                </button>
+                <button
+                  onClick={() => setShowDownloadMenu((prev) => !prev)}
+                  disabled={isCreateMode || !order.id}
+                  className={`px-2 py-2 text-white rounded-r-lg transition-colors border-l border-emerald-500 ${
+                    isCreateMode || !order.id
+                      ? 'bg-emerald-600 opacity-50 cursor-not-allowed'
+                      : 'bg-emerald-600 hover:bg-emerald-700'
+                  }`}
+                  aria-label="Manufacturer options"
+                >
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+              {showDownloadMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
+                  <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                    <button
+                      onClick={() => {
+                        setShowManufacturerExcel(true);
+                        setShowDownloadMenu(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-lg flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18" />
+                      </svg>
+                      Manufacturer Excel
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            {/* PDF Button */}
             <button
-              onClick={() => setShowExcelBuilder(true)}
+              onClick={() => {
+                setShowDownloadMenu(false);
+                setShowPDFBuilder(true);
+              }}
               disabled={isCreateMode || !order.id}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 isCreateMode || !order.id
-                  ? 'bg-emerald-600 text-white opacity-50 cursor-not-allowed'
-                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  ? 'bg-red-600 text-white opacity-50 cursor-not-allowed'
+                  : 'bg-red-600 text-white hover:bg-red-700'
               }`}
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M14 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round"/>
               </svg>
-              Excel
+              PDF
             </button>
-            {/* Generate PDF Button */}
-            <button
-              onClick={() => setShowPDFBuilder(true)}
-              disabled={isCreateMode || !order.id}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              isCreateMode || !order.id
-                ? 'bg-red-600 text-white opacity-50 cursor-not-allowed'
-                : 'bg-red-600 text-white hover:bg-red-700'
-            }`}
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M14 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round"/>
-            </svg>
-            PDF
-          </button>
 
           {/* Save/Create Button with Dropdown */}
           <div className="relative">
@@ -407,6 +420,13 @@ export function HeaderTopBar({
         entityType="ORDERS"
         isOpen={showExcelBuilder}
         onClose={() => setShowExcelBuilder(false)}
+      />
+
+      <ManufacturerExcelModal
+        entityId={order.id}
+        entityType="ORDERS"
+        isOpen={showManufacturerExcel}
+        onClose={() => setShowManufacturerExcel(false)}
       />
     </div>
   );

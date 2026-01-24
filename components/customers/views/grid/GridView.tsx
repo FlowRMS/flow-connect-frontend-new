@@ -6,7 +6,8 @@
 'use client';
 
 import React from 'react';
-import { type CustomerLandingPage } from '../api/useCustomersApi';
+import { type CustomerLandingPage } from '../../api/useCustomersApi';
+import { CustomersGridSkeleton } from './components/CustomersGridSkeleton';
 
 interface GridViewProps {
   customers: CustomerLandingPage[];
@@ -18,6 +19,7 @@ interface GridViewProps {
   selectAllMode: boolean;
   isItemSelected: (id: string) => boolean;
   onSelectOne: (id: string, checked: boolean) => void;
+  isLoading?: boolean;
 }
 
 export function GridView({
@@ -27,6 +29,7 @@ export function GridView({
   onDeleteClick,
   isItemSelected,
   onSelectOne,
+  isLoading = false,
 }: GridViewProps) {
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
@@ -40,6 +43,10 @@ export function GridView({
       return '-';
     }
   };
+
+  if (isLoading) {
+    return <CustomersGridSkeleton cardCount={12} />;
+  }
 
   if (customers.length === 0) {
     return (

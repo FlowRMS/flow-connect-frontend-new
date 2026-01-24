@@ -292,6 +292,14 @@ export function useLocationManagement({ warehouseId, enabledLevels }: UseLocatio
     [setLocationsWithTracking]
   );
 
+  // Add bulk locations (from template builder)
+  const addBulkLocations = useCallback(
+    (newLocations: WarehouseLocation[]) => {
+      setLocationsWithTracking((prev) => [...prev, ...newLocations]);
+    },
+    [setLocationsWithTracking]
+  );
+
   // Rename a location
   const renameLocation = useCallback(
     (id: string, newName: string) => {
@@ -401,6 +409,7 @@ export function useLocationManagement({ warehouseId, enabledLevels }: UseLocatio
     addChildLocation,
     addSection,
     addSectionAtPosition,
+    addBulkLocations,
     renameLocation,
     deleteLocation,
     updateLocation,

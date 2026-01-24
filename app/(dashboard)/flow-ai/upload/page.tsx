@@ -34,7 +34,7 @@ const FLOWAI_FACTS = [
 ];
 
 // Valid document types that can be passed via URL
-const VALID_DOCUMENT_TYPES: DocumentType[] = ['quotes', 'orders', 'order_acknowledgements', 'invoices', 'checks', 'products', 'factories', 'customers'];
+const VALID_DOCUMENT_TYPES: DocumentType[] = ['quotes', 'orders', 'order_acknowledgements', 'invoices', 'checks', 'statements', 'products', 'factories', 'customers'];
 
 export default function UploadPage() {
   const router = useRouter();

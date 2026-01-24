@@ -79,7 +79,7 @@ export function PreOpportunityDetailView({
           <ConnectedEntitiesSection
             entityId={preOpp.id}
             sourceEntityType="PRE_OPPORTUNITY"
-            enabledCategories={['contacts', 'companies', 'jobs', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+            enabledCategories={['contacts', 'companies', 'customers', 'jobs', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
             title="Connected Entities"
             showAddLinkButton={true}
           />

@@ -10,6 +10,8 @@ import { useRelatedEntities, useDeleteCRMLinkByEntities } from '../hooks/useCRMA
 import type { RelatedEntityNote, RelatedEntitiesSourceType } from '../lib/crm-graphql';
 import { AddLinkModal } from './AddLinkModal';
 import { linkToasts } from '../lib/toast';
+import { CreateNoteModal } from '../notes/modals/CreateNoteModal';
+import type { SelectedLink } from '../notes/components/LinkSelector';
 
 interface RelatedNotesSectionProps {
   entityId: string;
@@ -17,8 +19,17 @@ interface RelatedNotesSectionProps {
   sourceEntityType: 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK';
 }
 
+// Map source entity type to entity type for linking
+const sourceEntityTypeToLinkType: Record<string, SelectedLink['type']> = {
+  'QUOTE': 'QUOTE',
+  'ORDER': 'ORDER',
+  'INVOICE': 'INVOICE',
+  'CHECK': 'CHECK',
+};
+
 export function RelatedNotesSection({ entityId, sourceType, sourceEntityType }: RelatedNotesSectionProps) {
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [unlinkingNoteId, setUnlinkingNoteId] = useState<string | null>(null);
 
   const { data: relatedEntities, isLoading, error, refetch } = useRelatedEntities(entityId, sourceType);
@@ -119,15 +130,26 @@ export function RelatedNotesSection({ entityId, sourceType, sourceEntityType }: 
             <h3 className="text-base font-semibold text-[var(--foreground)]">Notes</h3>
             <p className="text-sm text-[var(--muted-foreground)]">Linked notes for this record</p>
           </div>
-          <button
-            onClick={() => setShowLinkModal(true)}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Link Note
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 4v12M4 10h12" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Create Note
+            </button>
+            <button
+              onClick={() => setShowLinkModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-[var(--foreground)] bg-[var(--muted)] hover:bg-[var(--muted)]/80 rounded-lg transition-colors border border-[var(--border)]"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Link Existing
+            </button>
+          </div>
         </div>
 
         {/* Notes List */}
@@ -158,7 +180,10 @@ export function RelatedNotesSection({ entityId, sourceType, sourceEntityType }: 
                   )}
 
                   {/* Content */}
-                  <p className="text-sm text-[var(--muted-foreground)] whitespace-pre-wrap mb-2">{note.content}</p>
+                  <div
+                    className="text-sm text-[var(--muted-foreground)] mb-2 prose prose-sm max-w-none dark:prose-invert"
+                    dangerouslySetInnerHTML={{ __html: note.content || '' }}
+                  />
 
                   {/* Tags */}
                   {(() => {
@@ -252,12 +277,21 @@ export function RelatedNotesSection({ entityId, sourceType, sourceEntityType }: 
                 <path d="M9 12h6M9 16h6M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <p className="text-[var(--muted-foreground)] mb-2">No notes linked</p>
-              <button
-                onClick={() => setShowLinkModal(true)}
-                className="text-sm text-[var(--primary)] hover:underline"
-              >
-                Link your first note
-              </button>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="text-sm text-[var(--primary)] hover:underline"
+                >
+                  Create a note
+                </button>
+                <span className="text-[var(--muted-foreground)]">or</span>
+                <button
+                  onClick={() => setShowLinkModal(true)}
+                  className="text-sm text-[var(--primary)] hover:underline"
+                >
+                  Link an existing note
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -271,6 +305,18 @@ export function RelatedNotesSection({ entityId, sourceType, sourceEntityType }: 
         initialEntityType="NOTE"
         onClose={() => setShowLinkModal(false)}
         onSuccess={() => refetch()}
+      />
+
+      {/* Create Note Modal */}
+      <CreateNoteModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => refetch()}
+        initialLinks={[{
+          id: entityId,
+          type: sourceEntityTypeToLinkType[sourceEntityType],
+          name: `${sourceEntityType.charAt(0) + sourceEntityType.slice(1).toLowerCase()} #${entityId.slice(0, 8)}`,
+        }]}
       />
     </div>
   );

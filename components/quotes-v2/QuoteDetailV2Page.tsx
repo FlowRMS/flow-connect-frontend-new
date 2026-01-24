@@ -42,6 +42,7 @@ import { useFlowChat } from '@/contexts/FlowChatContext';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
 import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useEntityFilesCount } from '@/components/shared/hooks/useEntityFilesCount';
 
 type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings' | 'files';
 
@@ -130,6 +131,13 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   // Counter to trigger linked entities refresh after save
   const [linkedEntitiesRefreshKey, setLinkedEntitiesRefreshKey] = useState(0);
 
+  // Files count for tab badge
+  const { filesCount } = useEntityFilesCount({
+    entityId: quote.id || null,
+    entityType: 'QUOTE',
+    enabled: !!quote.id && !isNew, // Only fetch when quote has an ID and not in create mode
+  });
+
   // Transform API data to UI format when it loads
   useEffect(() => {
     if (apiQuote && !isNew) {
@@ -160,39 +168,18 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
           }
         }
 
-        // Collect unique end user IDs to fetch their names (factory names come from detail.factory now)
-        const endUserIds = new Set<string>();
-        transformedLineItems.forEach((li) => {
-          if (li.endUserId) endUserIds.add(li.endUserId);
-        });
-
-        // Fetch end user names
-        if (endUserIds.size > 0) {
-          searchCustomers('', true)
-            .then((customers) => {
-              const customerMap = new Map(customers.map((c) => [c.id, c.companyName]));
-              setLineItems((prev) =>
-                prev.map((li) => ({
-                  ...li,
-                  endUserName: li.endUserId ? customerMap.get(li.endUserId) || '' : '',
-                }))
-              );
-
-              // When endUserPerLineItem is false, populate header-level end user from first line item
-              // (all line items should have the same end user when this setting is off)
-              if (apiQuote.endUserPerLineItem === false && transformedLineItems.length > 0) {
-                const firstLineItemWithEndUser = transformedLineItems.find(li => li.endUserId);
-                if (firstLineItemWithEndUser?.endUserId) {
-                  const endUserName = customerMap.get(firstLineItemWithEndUser.endUserId) || '';
-                  setQuote(prev => ({
-                    ...prev,
-                    endUserId: firstLineItemWithEndUser.endUserId,
-                    endUserName: endUserName,
-                  }));
-                }
-              }
-            })
-            .catch((err) => console.error('Failed to fetch end user names:', err));
+        // When endUserPerLineItem is false, populate header-level end user from first line item
+        // The endUserName is already extracted from the embedded endUser object in transformQuoteDetailToLineItemV2
+        // (all line items should have the same end user when this setting is off)
+        if (apiQuote.endUserPerLineItem === false && transformedLineItems.length > 0) {
+          const firstLineItemWithEndUser = transformedLineItems.find(li => li.endUserId);
+          if (firstLineItemWithEndUser?.endUserId) {
+            setQuote(prev => ({
+              ...prev,
+              endUserId: firstLineItemWithEndUser.endUserId,
+              endUserName: firstLineItemWithEndUser.endUserName || '',
+            }));
+          }
         }
 
         // DO NOT fetch CPN/tier pricing on initial load
@@ -887,14 +874,14 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean; disabled?: boolean; disabledReason?: string }[] = useMemo(() => [
     { key: 'lineItems', label: 'Line Items', count: lineItems.length },
-    { key: 'files', label: 'Files', disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'files', label: 'Files', disabled: isNew, disabledReason: 'Save quote first', count: filesCount },
     { key: 'notes', label: 'Notes', disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'tasks', label: 'Tasks', disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'activity', label: 'Activity', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'linkedObjects', label: 'Linked Objects', disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'versions', label: 'Versions', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'settings', label: 'Settings' },
-  ], [lineItems.length, isNew]);
+  ], [lineItems.length, isNew, filesCount]);
 
   // Loading state
   if (isLoading && !isNew) {

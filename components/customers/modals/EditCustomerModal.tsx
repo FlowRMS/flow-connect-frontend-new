@@ -12,6 +12,7 @@ import {
   SplitRatesInput,
   type SplitRateEntry,
 } from '../components/SplitRatesInput';
+import { TerritorySelect } from '../../territories';
 
 interface EditCustomerModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
   const [companyName, setCompanyName] = useState('');
   const [isParent, setIsParent] = useState(false);
   const [published, setPublished] = useState(false);
+  const [territoryId, setTerritoryId] = useState<string | null>(null);
 
   // Split rates for inside and outside reps
   const [insideRepEntries, setInsideRepEntries] = useState<SplitRateEntry[]>([]);
@@ -62,6 +64,13 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
       setPublished(customer.published ?? true);
     }
   }, [isOpen, customer, initialized]);
+
+  // Initialize territoryId when full customer data loads
+  useEffect(() => {
+    if (isOpen && fullCustomer) {
+      setTerritoryId(fullCustomer.territoryId || null);
+    }
+  }, [isOpen, fullCustomer]);
 
   // Initialize split rates when full customer data loads
   useEffect(() => {
@@ -146,6 +155,7 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
           published,
           insideSplitRates: insideSplitRates.length > 0 ? insideSplitRates : undefined,
           outsideSplitRates: outsideSplitRates.length > 0 ? outsideSplitRates : undefined,
+          territoryId: territoryId || undefined,
         },
       });
 
@@ -217,6 +227,15 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
                   placeholder="Enter company name..."
                 />
               </div>
+
+              {/* Territory */}
+              <TerritorySelect
+                label="Territory"
+                value={territoryId}
+                onChange={setTerritoryId}
+                placeholder="Select territory..."
+                disabled={updateMutation.isPending}
+              />
 
             </div>
 

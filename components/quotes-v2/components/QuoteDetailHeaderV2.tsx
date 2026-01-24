@@ -5,12 +5,15 @@ import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2, QuoteV2S
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
 import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
 import { useCustomerSearch, useUserSearch, useJobSearch, useFactorySearch } from '../../quotes/api/useQuotesApi';
+import { useCreateCRMJob, useCRMJobStatuses } from '../../hooks/useCRMApi';
+import type { JobInput } from '../../lib/crm-graphql';
 import { searchUsers } from '../../quotes/api/quotesApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
 import { ExcelBuilder } from '@/components/shared/excel-builder';
+import { ManufacturerExcelModal } from '@/components/shared/manufacturer-excel';
 import { UnsavedChangesModal } from '@/components/shared/modals/UnsavedChangesModal';
 
 // Quote status options using API enum values
@@ -167,6 +170,8 @@ export function QuoteDetailHeaderV2({
   const [showQuoteDetails, setShowQuoteDetails] = useState(true);
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
   const [showExcelBuilder, setShowExcelBuilder] = useState(false);
+  const [showManufacturerExcel, setShowManufacturerExcel] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
   // Customer search state
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
@@ -400,6 +405,10 @@ export function QuoteDetailHeaderV2({
   const { data: endUserCustomers, isLoading: isEndUserLoading } = useCustomerSearch(endUserSearchTerm, endUserSearchEnabled);
   const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(insideRepSearchTerm, true, insideRepSearchEnabled, false); // isInside=true, isOutside=false
   const { data: jobs, isLoading: isJobsLoading } = useJobSearch(jobSearchTerm, jobSearchEnabled);
+  
+  // Job creation mutation and statuses
+  const createJobMutation = useCreateCRMJob();
+  const { data: jobStatuses } = useCRMJobStatuses();
   const { data: factories, isLoading: isFactoriesLoading } = useFactorySearch(factorySearchTerm, factorySearchEnabled);
   const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, false, outsideRepSearchEnabled, true); // isInside=false, isOutside=true
   const { data: insideSplitRepResults, isLoading: isInsideSplitRepLoading } = useUserSearch(insideSplitRepSearchTerm, true, insideSplitRepSearchEnabled, false); // isInside=true, isOutside=false
@@ -870,24 +879,67 @@ export function QuoteDetailHeaderV2({
             </button>
           </div>
 
-          {/* Excel Button */}
-          <button
-            onClick={() => setShowExcelBuilder(true)}
-            disabled={isNew || !quote.id}
-            className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-lg transition-colors ${
-              isNew || !quote.id
-                ? 'text-white bg-emerald-600 opacity-50 cursor-not-allowed'
-                : 'text-white bg-emerald-600 hover:bg-emerald-700'
-            }`}
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            Excel
-          </button>
+          {/* Excel Button with Manufacturer Dropdown */}
+          <div className="relative">
+            <div className="flex">
+              <button
+                onClick={() => {
+                  setShowDownloadMenu(false);
+                  setShowExcelBuilder(true);
+                }}
+                disabled={isNew || !quote.id}
+                className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-l-lg transition-colors ${
+                  isNew || !quote.id
+                    ? 'text-white bg-emerald-600 opacity-50 cursor-not-allowed'
+                    : 'text-white bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Excel
+              </button>
+              <button
+                onClick={() => setShowDownloadMenu((prev) => !prev)}
+                disabled={isNew || !quote.id}
+                className={`px-2 py-1.5 text-sm text-white rounded-r-lg border-l border-emerald-500 transition-colors ${
+                  isNew || !quote.id
+                    ? 'bg-emerald-600 opacity-50 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+                aria-label="Manufacturer options"
+              >
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            {showDownloadMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
+                <div className="absolute top-full right-0 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                  <button
+                    onClick={() => {
+                      setShowManufacturerExcel(true);
+                      setShowDownloadMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors rounded-lg flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18" />
+                    </svg>
+                    Manufacturer Excel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           {/* PDF Button */}
           <button
-            onClick={() => setShowPDFBuilder(true)}
+            onClick={() => {
+              setShowDownloadMenu(false);
+              setShowPDFBuilder(true);
+            }}
             disabled={isNew || !quote.id}
             className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-lg transition-colors ${
               isNew || !quote.id
@@ -1407,6 +1459,31 @@ export function QuoteDetailHeaderV2({
                 onQuoteChange({ jobId: id || undefined, jobName: label });
                 setJobSearchEnabled(false);
               }}
+              onCreateNew={async (jobName) => {
+                // Get default status (use first status if available)
+                const defaultStatus = jobStatuses?.[0];
+                if (!defaultStatus) {
+                  console.error('No job statuses available');
+                  return;
+                }
+
+                const jobInput: JobInput = {
+                  jobName,
+                  statusId: defaultStatus.id,
+                };
+
+                try {
+                  const newJob = await createJobMutation.mutateAsync(jobInput);
+                  return {
+                    id: newJob.id,
+                    label: newJob.jobName,
+                  };
+                } catch (error) {
+                  console.error('Failed to create job:', error);
+                  throw error;
+                }
+              }}
+              createLabel="job"
             />
           </div>
           <div>
@@ -1522,7 +1599,7 @@ export function QuoteDetailHeaderV2({
                       }}
                       className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                     />
-                    <span className="text-xs text-gray-500">Split Commission</span>
+                    <span className="text-xs text-gray-500">Select Multiple Reps</span>
                   </label>
                 )}
               </>
@@ -1546,6 +1623,16 @@ export function QuoteDetailHeaderV2({
               type="checkbox"
               checked={quote.blanket || false}
               onChange={(e) => onQuoteChange({ blanket: e.target.checked })}
+              onKeyDown={(e) => {
+                if (e.key === 'Tab' && !e.shiftKey) {
+                  // Move focus to the first line item cell instead of other elements
+                  const firstLineItemCell = document.querySelector('tbody tr[data-item-id] td button:not([title="Remove line item"]):not([title="More options"])');
+                  if (firstLineItemCell) {
+                    e.preventDefault();
+                    (firstLineItemCell as HTMLElement).focus();
+                  }
+                }
+              }}
               className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
             />
             <span className="text-sm text-gray-700">Blanket</span>
@@ -1793,6 +1880,13 @@ export function QuoteDetailHeaderV2({
         entityType="QUOTES"
         isOpen={showExcelBuilder}
         onClose={() => setShowExcelBuilder(false)}
+      />
+
+      <ManufacturerExcelModal
+        entityId={quote.id}
+        entityType="QUOTES"
+        isOpen={showManufacturerExcel}
+        onClose={() => setShowManufacturerExcel(false)}
       />
 
       {/* Unsaved Changes Modal */}
