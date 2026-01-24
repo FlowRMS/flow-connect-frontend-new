@@ -558,6 +558,16 @@ export const teamMemberToasts = {
 
 // Fulfillment Order Toasts
 export const fulfillmentToasts = {
+  createSuccess: (foNumber: string) =>
+    showSuccessToast('Fulfillment Request Created', {
+      description: `${foNumber} has been created and is pending release`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Fulfillment Request', {
+      description: error || 'Please try again or contact support',
+    }),
+
   saveSuccess: (foNumber: string) =>
     showSuccessToast('Fulfillment Order Saved', {
       description: `${foNumber} has been updated successfully`,

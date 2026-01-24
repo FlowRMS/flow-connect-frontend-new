@@ -244,6 +244,12 @@ export interface AddressInput {
   isPrimary?: boolean;
 }
 
+export interface CreateFulfillmentLineItemInput {
+  productId: string;
+  orderedQty: number;
+  orderDetailId?: string | null;
+}
+
 export interface CreateFulfillmentOrderInput {
   orderId: string;
   warehouseId: string;
@@ -254,6 +260,7 @@ export interface CreateFulfillmentOrderInput {
   shipToName?: string | null;
   shipToPhone?: string | null;
   needByDate?: string | null;
+  lineItems?: CreateFulfillmentLineItemInput[] | null;
 }
 
 export interface BackorderReviewData {
