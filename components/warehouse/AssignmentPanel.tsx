@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { AssignedUser, AssignedUserRole } from '@/lib/types/warehouse';
 import { useUsersByIds, useWarehouseMembers } from '@/components/warehouse/api/useWarehouseDeliveriesApi';
 
@@ -38,6 +38,11 @@ export default function AssignmentPanel({
 }: AssignmentPanelProps) {
   const [showManagerDropdown, setShowManagerDropdown] = useState(false);
   const [showWorkerDropdown, setShowWorkerDropdown] = useState(false);
+  const managerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const workerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [workerDropdownStyle, setWorkerDropdownStyle] = useState<React.CSSProperties>({});
+  const [managerDropdownStyle, setManagerDropdownStyle] = useState<React.CSSProperties>({});
+
   const membersQuery = useWarehouseMembers(warehouseId || null, !availableManagers && !availableWorkers);
   const memberIds = useMemo(() => {
     if (!membersQuery.data) return [];
@@ -47,6 +52,9 @@ export default function AssignmentPanel({
   }, [membersQuery.data]);
   const usersQuery = useUsersByIds(memberIds);
 
+  // Track loading state from both queries
+  const isLoading = membersQuery.isLoading || usersQuery.isLoading;
+
   useEffect(() => {
     if (!isEditable) {
       setShowManagerDropdown(false);
@@ -54,18 +62,54 @@ export default function AssignmentPanel({
     }
   }, [isEditable]);
 
+  const calculateDropdownPosition = (buttonRef: React.RefObject<HTMLButtonElement | null>) => {
+    if (!buttonRef.current) return {};
+
+    const rect = buttonRef.current.getBoundingClientRect();
+    const dropdownHeight = 224;
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+
+    return {
+      position: 'fixed' as const,
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.min(dropdownHeight, showAbove ? spaceAbove - 8 : spaceBelow - 8),
+      ...(showAbove
+        ? { bottom: viewportHeight - rect.top + 8 }
+        : { top: rect.bottom + 8 }
+      ),
+    };
+  };
+
+  useEffect(() => {
+    if (showWorkerDropdown) {
+      setWorkerDropdownStyle(calculateDropdownPosition(workerButtonRef));
+    }
+  }, [showWorkerDropdown]);
+
+  useEffect(() => {
+    if (showManagerDropdown) {
+      setManagerDropdownStyle(calculateDropdownPosition(managerButtonRef));
+    }
+  }, [showManagerDropdown]);
+
   const resolvedManagers = useMemo(() => {
     if (availableManagers) return availableManagers;
     const members = membersQuery.data || [];
     const userLookup = new Map(
-      (usersQuery.data || []).map((user) => {
-        const name =
-          user.fullName ||
-          [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
-          user.email ||
-          user.id;
-        return [user.id, { name, email: user.email || '' }];
-      })
+      (usersQuery.data || [])
+        .filter((user) => user.enabled)
+        .map((user) => {
+          const name =
+            user.fullName ||
+            [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+            user.email ||
+            user.id;
+          return [user.id, { name, email: user.email || '' }];
+        })
     );
     const normalizeRole = (role: string | number) => {
       if (typeof role === 'number') {
@@ -79,6 +123,9 @@ export default function AssignmentPanel({
       .filter((member) => normalizeRole(member.role) === 'MANAGER')
       .map((member) => {
         const userInfo = userLookup.get(member.userId);
+        if (!userInfo) {
+          return null;
+        }
         return {
           id: member.userId,
           name: userInfo?.name || member.userId,
@@ -87,20 +134,24 @@ export default function AssignmentPanel({
           warehouseIds: warehouseId ? [warehouseId] : [],
           isActive: true,
         };
-      });
+      })
+      .filter((member): member is WarehouseUser => Boolean(member));
   }, [availableManagers, membersQuery.data, usersQuery.data, warehouseId]);
+
   const resolvedWorkers = useMemo(() => {
     if (availableWorkers) return availableWorkers;
     const members = membersQuery.data || [];
     const userLookup = new Map(
-      (usersQuery.data || []).map((user) => {
-        const name =
-          user.fullName ||
-          [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
-          user.email ||
-          user.id;
-        return [user.id, { name, email: user.email || '' }];
-      })
+      (usersQuery.data || [])
+        .filter((user) => user.enabled)
+        .map((user) => {
+          const name =
+            user.fullName ||
+            [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+            user.email ||
+            user.id;
+          return [user.id, { name, email: user.email || '' }];
+        })
     );
     const normalizeRole = (role: string | number) => {
       if (typeof role === 'number') {
@@ -114,6 +165,9 @@ export default function AssignmentPanel({
       .filter((member) => normalizeRole(member.role) === 'WORKER')
       .map((member) => {
         const userInfo = userLookup.get(member.userId);
+        if (!userInfo) {
+          return null;
+        }
         return {
           id: member.userId,
           name: userInfo?.name || member.userId,
@@ -122,19 +176,19 @@ export default function AssignmentPanel({
           warehouseIds: warehouseId ? [warehouseId] : [],
           isActive: true,
         };
-      });
+      })
+      .filter((member): member is WarehouseUser => Boolean(member));
   }, [availableWorkers, membersQuery.data, usersQuery.data, warehouseId]);
 
   const filteredManagers = resolvedManagers.filter(
-    m => !assignedManagers.some(am => am.userId === m.id)
+    m => !assignedManagers.some(am => am.user?.id === m.id)
   );
   const filteredWorkers = resolvedWorkers.filter(
-    w => !assignedWorkers.some(aw => aw.userId === w.id)
+    w => !assignedWorkers.some(aw => aw.user?.id === w.id)
   );
 
   // Check if required roles are missing
   const missingWorker = showRequiredWarnings && assignedWorkers.length === 0;
-  const isLoading = isLoadingWarehouse || isLoadingUsers;
 
   const renderAssignedUser = (assignment: AssignedUser, role: AssignedUserRole) => {
     const userName = assignment.user?.fullName || 'Unknown';
@@ -167,50 +221,9 @@ export default function AssignmentPanel({
     );
   };
 
-  const renderDropdownContent = (
-    availableUsers: AvailableUser[],
-    role: AssignedUserRole,
-    setShowDropdown: (show: boolean) => void,
-    dropdownStyle: React.CSSProperties
-  ) => (
-    <>
-      <div
-        className="fixed inset-0 z-[100]"
-        onClick={() => setShowDropdown(false)}
-      />
-      <div
-        className="bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-[101] overflow-y-auto"
-        style={dropdownStyle}
-      >
-        <div className="p-2">
-          {availableUsers.map(user => (
-            <button
-              key={user.id}
-              onClick={() => {
-                onAddAssignment(user.id, role);
-                setShowDropdown(false);
-              }}
-              className="w-full px-3 py-2.5 text-left hover:bg-[var(--muted)] rounded-md transition-colors flex items-center gap-3"
-            >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--primary)]/80 to-[var(--primary)]/50 flex items-center justify-center flex-shrink-0">
-                <span className="text-xs font-semibold text-white">
-                  {user.name.split(' ').map(n => n[0]).join('')}
-                </span>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-[var(--foreground)]">{user.name}</p>
-                <p className="text-xs text-[var(--muted-foreground)]">{user.email}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </>
-  );
-
   const renderAddButton = (
     role: AssignedUserRole,
-    availableUsers: AvailableUser[],
+    availableUsers: WarehouseUser[],
     showDropdown: boolean,
     setShowDropdown: (show: boolean) => void,
     label: string,
@@ -238,10 +251,13 @@ export default function AssignmentPanel({
       {showDropdown && availableUsers.length > 0 && (
         <>
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-[100]"
             onClick={() => setShowDropdown(false)}
           />
-          <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-50 max-h-56 overflow-y-auto">
+          <div
+            className="bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-[101] overflow-y-auto"
+            style={dropdownStyle}
+          >
             <div className="p-2">
               {availableUsers.map(user => (
                 <button
@@ -271,7 +287,7 @@ export default function AssignmentPanel({
   );
 
   return (
-    <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-visible">
+    <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-hidden">
       {/* Header */}
       <div className="px-5 py-4 border-b border-[var(--border)] bg-[var(--muted)]/30">
         <div className="flex items-center gap-2">

@@ -129,10 +129,13 @@ export function mapDeliveryToShipment(
       })
       .map((assignee) => ({
         id: assignee.id,
-        userId: assignee.userId,
-        userName: assignee.userId,
-        role: 'manager',
-        assignedAt: delivery.createdAt,
+        user: {
+          id: assignee.userId,
+          fullName: assignee.userId,
+          email: '',
+        },
+        role: 'manager' as const,
+        createdAt: delivery.createdAt,
       })),
     assignedWorkers: dedupedAssignees
       .filter((assignee) => {
@@ -140,10 +143,13 @@ export function mapDeliveryToShipment(
       })
       .map((assignee) => ({
         id: assignee.id,
-        userId: assignee.userId,
-        userName: assignee.userId,
-        role: 'worker',
-        assignedAt: delivery.createdAt,
+        user: {
+          id: assignee.userId,
+          fullName: assignee.userId,
+          email: '',
+        },
+        role: 'worker' as const,
+        createdAt: delivery.createdAt,
       })),
     documents: dedupedDocuments.map((doc) => ({
       id: doc.id,

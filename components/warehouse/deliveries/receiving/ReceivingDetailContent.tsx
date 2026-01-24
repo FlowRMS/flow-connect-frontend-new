@@ -187,8 +187,12 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   const memberIds = React.useMemo(() => {
     const ids = new Set<string>();
     (membersQuery.data || []).forEach((member) => ids.add(member.userId));
-    (shipment?.assignedManagers || []).forEach((manager) => ids.add(manager.userId));
-    (shipment?.assignedWorkers || []).forEach((worker) => ids.add(worker.userId));
+    (shipment?.assignedManagers || []).forEach((manager) => {
+      if (manager.user?.id) ids.add(manager.user.id);
+    });
+    (shipment?.assignedWorkers || []).forEach((worker) => {
+      if (worker.user?.id) ids.add(worker.user.id);
+    });
     return Array.from(ids);
   }, [membersQuery.data, shipment?.assignedManagers, shipment?.assignedWorkers]);
   const usersQuery = useUsersByIds(memberIds);
@@ -256,20 +260,28 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       });
 
     const assignedManagers = (shipment?.assignedManagers || []).map((manager) => {
-      const userInfo = userLookup.get(manager.userId);
+      const managerId = manager.user?.id;
+      const userInfo = managerId ? userLookup.get(managerId) : undefined;
       return {
         ...manager,
-        userName: userInfo?.name || manager.userName,
-        userEmail: userInfo?.email || manager.userEmail,
+        user: manager.user ? {
+          ...manager.user,
+          fullName: userInfo?.name || manager.user.fullName,
+          email: userInfo?.email || manager.user.email || '',
+        } : null,
       };
     });
 
     const assignedWorkers = (shipment?.assignedWorkers || []).map((worker) => {
-      const userInfo = userLookup.get(worker.userId);
+      const workerId = worker.user?.id;
+      const userInfo = workerId ? userLookup.get(workerId) : undefined;
       return {
         ...worker,
-        userName: userInfo?.name || worker.userName,
-        userEmail: userInfo?.email || worker.userEmail,
+        user: worker.user ? {
+          ...worker.user,
+          fullName: userInfo?.name || worker.user.fullName,
+          email: userInfo?.email || worker.user.email || '',
+        } : null,
       };
     });
 
@@ -814,13 +826,13 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       ...resolvedManagers.map((assignment) => ({ ...assignment, role: 'manager' as AssignedUserRole })),
       ...resolvedWorkers.map((assignment) => ({ ...assignment, role: 'worker' as AssignedUserRole })),
     ];
-    const baseAssignmentKeys = new Set(baseAssignments.map((assignment) => `${assignment.userId}:${assignment.role}`));
-    const currentAssignmentKeys = new Set(currentAssignments.map((assignment) => `${assignment.userId}:${assignment.role}`));
+    const baseAssignmentKeys = new Set(baseAssignments.map((assignment) => `${assignment.user?.id}:${assignment.role}`));
+    const currentAssignmentKeys = new Set(currentAssignments.map((assignment) => `${assignment.user?.id}:${assignment.role}`));
     const assignmentsToCreate = currentAssignments.filter(
-      (assignment) => !baseAssignmentKeys.has(`${assignment.userId}:${assignment.role}`)
+      (assignment) => !baseAssignmentKeys.has(`${assignment.user?.id}:${assignment.role}`)
     );
     const assignmentsToDelete = baseAssignments.filter(
-      (assignment) => !currentAssignmentKeys.has(`${assignment.userId}:${assignment.role}`)
+      (assignment) => !currentAssignmentKeys.has(`${assignment.user?.id}:${assignment.role}`)
     );
 
     const tasks: Array<Promise<unknown>> = [];
@@ -898,10 +910,11 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     });
 
     assignmentsToCreate.forEach((assignment) => {
+      if (!assignment.user?.id) return;
       tasks.push(
         createDeliveryAssigneeMutation.mutateAsync({
           deliveryId: shipment.id,
-          userId: assignment.userId,
+          userId: assignment.user.id,
           role: assignment.role === 'manager' ? 'MANAGER' : 'WORKER',
         })
       );
@@ -1798,19 +1811,21 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       const userInfo = userPool.find((user) => user.id === userId);
       const newAssignment: AssignedUser = {
         id: `temp-${Date.now()}`,
-        userId,
-        userName: userInfo?.name || userId,
-        userEmail: userInfo?.email || '',
+        user: {
+          id: userId,
+          fullName: userInfo?.name || userId,
+          email: userInfo?.email || '',
+        },
         role,
-        assignedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       };
       if (role === 'manager') {
         setResolvedManagers((prev) =>
-          prev.some((assignment) => assignment.userId === userId) ? prev : [...prev, newAssignment]
+          prev.some((assignment) => assignment.user?.id === userId) ? prev : [...prev, newAssignment]
         );
       } else {
         setResolvedWorkers((prev) =>
-          prev.some((assignment) => assignment.userId === userId) ? prev : [...prev, newAssignment]
+          prev.some((assignment) => assignment.user?.id === userId) ? prev : [...prev, newAssignment]
         );
       }
       return;

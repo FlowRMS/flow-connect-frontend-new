@@ -910,7 +910,7 @@ export default function ReceivingInterface() {
                                   <optgroup label="Available Bins">
                                     {warehouseBins.filter(b => b.id !== lineItem.primaryBinId && (b.currentQuantity ?? 0) > 0).map((bin) => (
                                       <option key={bin.id} value={bin.id}>
-                                        Bin {bin.letterCode} ({bin.maxCapacity ? Math.round(((bin.currentQuantity ?? 0) / bin.maxCapacity) * 100) : 0}% full)
+                                        Bin {bin.letterCode} ({bin.maxCapacity ? Math.round((((bin.currentQuantity ?? 0) ?? 0) / bin.maxCapacity) * 100) : 0}% full)
                                       </option>
                                     ))}
                                   </optgroup>

@@ -154,6 +154,7 @@ export default function WarehouseDeliveriesContent() {
     recurringQuery.isLoading ||
     warehousesQuery.isLoading ||
     carriersQuery.isLoading;
+  const showDeliveriesLoading = isLoading && activeTab === 'deliveries';
   const loadError = deliveriesQuery.error ? deliveriesQuery.error.message : null;
   const isIssuesLoading = issuesDeliveriesQuery.isLoading;
 
@@ -582,7 +583,7 @@ export default function WarehouseDeliveriesContent() {
     return null;
   };
 
-  if (isLoading && activeTab === 'deliveries' && selectedWarehouse) {
+  if (showDeliveriesLoading) {
     return (
       <main className="flex-1 overflow-hidden bg-[var(--background)] flex items-center justify-center">
         <div className="text-center">
@@ -675,14 +676,6 @@ export default function WarehouseDeliveriesContent() {
         {loadError && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {loadError}
-          </div>
-        )}
-        {isLoading && activeTab === 'deliveries' && (
-          <div className="mb-6 flex min-h-[320px] items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--card)]">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
-              <p className="text-sm text-[var(--muted-foreground)]">Loading deliveries...</p>
-            </div>
           </div>
         )}
 
@@ -922,7 +915,7 @@ export default function WarehouseDeliveriesContent() {
               setShowRecurringModal(true);
             }}
           />
-        ) : (
+        ) : showDeliveriesLoading ? null : (
           <>
             {/* Filters */}
             <div className="flex items-center gap-4 mb-6">

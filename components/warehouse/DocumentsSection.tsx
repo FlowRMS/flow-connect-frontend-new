@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react';
 import { DocumentType } from '@/lib/types/warehouse';
 import { uploadDocument, deleteDocument, type FulfillmentDocument } from './api/fulfillmentApi';
 
-// Generic document type for cross-compatibility
+// Generic document type for cross-compatibility (supports both fulfillment and receiving documents)
 interface GenericDocument {
   id: string;
   documentType?: string;
@@ -19,12 +19,17 @@ interface GenericDocument {
   uploadedAt?: string;  // Alias for createdAt (for AttachedDocument compatibility)
   uploadedBy?: string;  // For AttachedDocument compatibility
   thumbnailUrl?: string;  // For AttachedDocument compatibility
+  file?: File;  // For upload with actual file
 }
 
 interface DocumentsSectionProps {
-  documents: AttachedDocument[];
-  onAddDocument: (document: Omit<AttachedDocument, 'id'>) => Promise<void> | void;
-  onRemoveDocument: (documentId: string) => void;
+  fulfillmentOrderId?: string;  // Optional - if not provided, use callback mode
+  documents: (FulfillmentDocument | GenericDocument)[];
+  onDocumentsChange?: () => void;
+  // Callback mode for non-fulfillment use cases (like receiving)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onAddDocument?: (doc: any) => Promise<void> | void;
+  onRemoveDocument?: (docId: string) => void;
   isEditable?: boolean;
   title?: string;
 }
@@ -133,10 +138,9 @@ export default function DocumentsSection({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewMimeType, setPreviewMimeType] = useState<string>('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [viewingDocument, setViewingDocument] = useState<FulfillmentDocument | null>(null);
+  const [viewingDocument, setViewingDocument] = useState<FulfillmentDocument | GenericDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const formatDate = (dateStr: string) => {
@@ -147,6 +151,8 @@ export default function DocumentsSection({
       minute: '2-digit',
     });
   };
+
+  const normalizeDocType = (docType: string) => (docType === 'BOL' ? 'BILL_OF_LADING' : docType);
 
   // Helper to normalize document properties (handles both API and legacy formats)
   const getDocProp = (doc: FulfillmentDocument | GenericDocument, prop: 'documentType' | 'fileName' | 'createdAt') => {
@@ -177,7 +183,6 @@ export default function DocumentsSection({
     reader.onloadend = () => {
       setPreviewUrl(reader.result as string);
       setPreviewMimeType(file.type);
-      setSelectedFile(file);
       // Auto-set name if empty
       if (!docName) {
         setDocName(file.name.replace(/\.[^/.]+$/, '')); // Remove extension
@@ -199,7 +204,6 @@ export default function DocumentsSection({
         reader.onloadend = () => {
           setPreviewUrl(reader.result as string);
           setPreviewMimeType(file.type);
-          setSelectedFile(file);
           if (!docName) {
             setDocName(`${documentTypeInfo[selectedDocType].label} - ${new Date().toLocaleDateString()}`);
           }
@@ -210,39 +214,63 @@ export default function DocumentsSection({
     input.click();
   };
 
+  const resetForm = () => {
+    setShowUploadModal(false);
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setPreviewMimeType('');
+    setDocName('');
+    setDocNotes('');
+    setSelectedDocType('PACKING_SLIP');
+    setUploadError(null);
+  };
+
   const handleUpload = async () => {
     if (!previewUrl || !docName || !selectedFile) return;
 
     setIsUploading(true);
+    setUploadError(null);
+
     try {
-      await Promise.resolve(
-        onAddDocument({
-          name: docName,
-          type: selectedDocType,
-          fileUrl: previewUrl,
-          mimeType: previewMimeType,
-          fileSize: selectedFile.size,
+      // If fulfillmentOrderId is provided, use the API
+      if (fulfillmentOrderId) {
+        await uploadDocument({
+          fulfillmentOrderId,
+          documentType: selectedDocType,
           file: selectedFile,
-          uploadedAt: new Date().toISOString(),
-          uploadedBy: 'Current User',
           notes: docNotes || undefined,
-        })
-      );
+        });
+        onDocumentsChange?.();
+      } else if (onAddDocument) {
+        // Callback mode for non-fulfillment use cases (like receiving)
+        await Promise.resolve(
+          onAddDocument({
+            name: docName,
+            type: selectedDocType,
+            fileUrl: previewUrl,
+            mimeType: previewMimeType,
+            fileSize: selectedFile.size,
+            file: selectedFile,
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: 'Current User',
+            notes: docNotes || undefined,
+          })
+        );
+      }
+
+      resetForm();
+    } catch (error) {
+      console.error('Failed to upload document:', error);
+      setUploadError(error instanceof Error ? error.message : 'Failed to upload document');
     } finally {
-      setShowUploadModal(false);
-      setSelectedFile(null);
-      setPreviewUrl(null);
-      setPreviewMimeType('');
-      setDocName('');
-      setDocNotes('');
-      setSelectedDocType('PACKING_SLIP');
-      setSelectedFile(null);
       setIsUploading(false);
     }
   };
 
   const isImageType = (mimeType: string) => mimeType.startsWith('image/');
   const isPdfType = (mimeType: string) => mimeType === 'application/pdf';
+  const viewingDocType = viewingDocument ? normalizeDocType(getDocProp(viewingDocument, 'documentType')) : 'OTHER';
+  const viewingDocInfo = documentTypeInfo[viewingDocType as DocumentType] || documentTypeInfo.OTHER;
 
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
@@ -295,7 +323,7 @@ export default function DocumentsSection({
       ) : (
         <div className="space-y-2">
           {documents.map((doc) => {
-            const docType = getDocProp(doc, 'documentType');
+            const docType = normalizeDocType(getDocProp(doc, 'documentType'));
             const docFileName = getDocProp(doc, 'fileName');
             const docCreatedAt = getDocProp(doc, 'createdAt');
             const typeInfo = documentTypeInfo[docType as DocumentType] || documentTypeInfo.OTHER;
@@ -303,7 +331,7 @@ export default function DocumentsSection({
               <div
                 key={doc.id}
                 className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--muted)]/50 transition-colors group cursor-pointer"
-                onClick={() => setViewingDocument(doc as FulfillmentDocument)}
+                onClick={() => setViewingDocument(doc)}
               >
                 {/* Thumbnail or Icon */}
                 <div className="w-10 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -385,13 +413,7 @@ export default function DocumentsSection({
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-[var(--foreground)]">Add Document</h3>
               <button
-                onClick={() => {
-                  setShowUploadModal(false);
-                  setPreviewUrl(null);
-                  setSelectedFile(null);
-                  setDocName('');
-                  setDocNotes('');
-                }}
+                onClick={resetForm}
                 className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -537,13 +559,7 @@ export default function DocumentsSection({
             {/* Actions */}
             <div className="flex items-center justify-end gap-3">
               <button
-                onClick={() => {
-                  setShowUploadModal(false);
-                  setPreviewUrl(null);
-                  setSelectedFile(null);
-                  setDocName('');
-                  setDocNotes('');
-                }}
+                onClick={resetForm}
                 className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
               >
                 Cancel
@@ -576,13 +592,13 @@ export default function DocumentsSection({
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className={documentTypeInfo[viewingDocument.documentType as DocumentType].color}>
-                  {documentTypeInfo[viewingDocument.documentType as DocumentType].icon}
+                <span className={viewingDocInfo.color}>
+                  {viewingDocInfo.icon}
                 </span>
                 <div>
-                  <h3 className="font-medium text-[var(--foreground)]">{viewingDocument.fileName}</h3>
+                  <h3 className="font-medium text-[var(--foreground)]">{getDocProp(viewingDocument, 'fileName')}</h3>
                   <p className="text-xs text-[var(--muted-foreground)]">
-                    {documentTypeInfo[viewingDocument.documentType as DocumentType].label} - Uploaded {formatDate(viewingDocument.uploadedAt)} by {viewingDocument.uploadedBy?.fullName || 'Unknown'}
+                    {viewingDocInfo.label} - Uploaded {formatDate(getDocProp(viewingDocument, 'createdAt'))}
                   </p>
                 </div>
               </div>
@@ -614,7 +630,7 @@ export default function DocumentsSection({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={viewingDocument.fileUrl}
-                    alt={viewingDocument.fileName}
+                    alt={getDocProp(viewingDocument, 'fileName')}
                     className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
                   />
                 </div>
@@ -622,7 +638,7 @@ export default function DocumentsSection({
                 <iframe
                   src={viewingDocument.fileUrl}
                   className="w-full h-[70vh] rounded-lg border border-gray-200"
-                  title={viewingDocument.fileName}
+                  title={getDocProp(viewingDocument, 'fileName')}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
