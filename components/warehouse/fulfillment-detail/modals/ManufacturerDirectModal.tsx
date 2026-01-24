@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FulfillmentOrder, FulfillmentOrderLineItem } from '@/lib/types/warehouse';
+import { FulfillmentOrder, FulfillmentOrderLineItem } from '../../api/fulfillmentApi';
 
 interface BackorderItem {
   lineItem: FulfillmentOrderLineItem;
+  backorderQty: number;
   inventoryOnHand: number;
   manufacturerName: string;
   manufacturerId: string;
@@ -68,9 +69,10 @@ export default function ManufacturerDirectModal({
     return acc;
   }, {} as Record<string, { name: string; items: BackorderItem[] }>);
 
+  // Total ordered qty for selected items (entire quantity goes to manufacturer)
   const totalSelectedQty = backorderItems
     .filter((item) => selectedItems.has(item.lineItem.id))
-    .reduce((sum, item) => sum + (item.lineItem.orderedQty - item.lineItem.allocatedQty), 0);
+    .reduce((sum, item) => sum + item.lineItem.orderedQty, 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -105,7 +107,7 @@ export default function ManufacturerDirectModal({
                 Request Manufacturer Direct Shipment
               </h2>
               <p className="text-sm text-gray-600">
-                Order #{fulfillmentOrder.orderNumber} - {fulfillmentOrder.customerName}
+                Order #{fulfillmentOrder.order?.orderNumber || '-'} - {fulfillmentOrder.customer?.companyName || '-'}
               </p>
             </div>
           </div>
@@ -114,8 +116,8 @@ export default function ManufacturerDirectModal({
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6">
           <p className="text-sm text-gray-600 mb-4">
-            Select the items you want the manufacturer to ship directly to the customer.
-            These items will be marked as &quot;Fulfilled by Manufacturer&quot; on this order.
+            Select items for manufacturer direct shipment. The <strong>entire ordered quantity</strong> for
+            each selected item will be shipped by the manufacturer directly to the customer.
           </p>
 
           {/* Ship To Info */}
@@ -124,15 +126,21 @@ export default function ManufacturerDirectModal({
               Ship To Address
             </h4>
             <div className="text-sm text-gray-900">
-              <div className="font-medium">{fulfillmentOrder.shipTo.name}</div>
-              <div>{fulfillmentOrder.shipTo.addressLine1}</div>
-              {fulfillmentOrder.shipTo.addressLine2 && (
-                <div>{fulfillmentOrder.shipTo.addressLine2}</div>
+              {fulfillmentOrder.shipToAddress ? (
+                <>
+                  <div className="font-medium">{fulfillmentOrder.shipToAddress.name || 'N/A'}</div>
+                  <div>{fulfillmentOrder.shipToAddress.street || ''}</div>
+                  {fulfillmentOrder.shipToAddress.streetLine2 && (
+                    <div>{fulfillmentOrder.shipToAddress.streetLine2}</div>
+                  )}
+                  <div>
+                    {fulfillmentOrder.shipToAddress.city || ''}, {fulfillmentOrder.shipToAddress.state || ''}{' '}
+                    {fulfillmentOrder.shipToAddress.postalCode || ''}
+                  </div>
+                </>
+              ) : (
+                <div className="text-gray-500 italic">No shipping address provided</div>
               )}
-              <div>
-                {fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state}{' '}
-                {fulfillmentOrder.shipTo.postalCode}
-              </div>
             </div>
           </div>
 
@@ -179,16 +187,16 @@ export default function ManufacturerDirectModal({
                         />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm text-gray-900 truncate">
-                            {item.lineItem.productName}
+                            {item.lineItem.product?.description || item.lineItem.product?.factoryPartNumber || '-'}
                           </div>
-                          <div className="text-xs text-gray-500">{item.lineItem.partNumber}</div>
+                          <div className="text-xs text-gray-500">{item.lineItem.product?.factoryPartNumber || '-'}</div>
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-semibold text-gray-900">
-                            Qty: {shortQty}
+                            Qty: {Math.floor(item.lineItem.orderedQty)}
                           </div>
-                          <div className="text-xs text-gray-500">
-                            of {item.lineItem.orderedQty} ordered
+                          <div className="text-xs text-red-500">
+                            ({Math.floor(shortQty)} short)
                           </div>
                         </div>
                       </label>
@@ -209,7 +217,7 @@ export default function ManufacturerDirectModal({
                 <li className="flex items-start gap-2">
                   <span className="text-indigo-500 mt-0.5">1.</span>
                   <span>
-                    Selected items ({totalSelectedQty} units) will be marked as
+                    Selected items ({Math.floor(totalSelectedQty)} units) will be marked as
                     &quot;Fulfilled by Manufacturer&quot;
                   </span>
                 </li>

@@ -134,52 +134,106 @@ export default function AssignmentPanel({
 
   // Check if required roles are missing
   const missingWorker = showRequiredWarnings && assignedWorkers.length === 0;
+  const isLoading = isLoadingWarehouse || isLoadingUsers;
 
-  const renderAssignedUser = (user: AssignedUser, role: AssignedUserRole) => (
-    <div
-      key={user.id}
-      className="flex items-center gap-3 p-3 bg-[var(--background)] rounded-lg border border-[var(--border)]"
-    >
-      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/70 flex items-center justify-center flex-shrink-0">
-        <span className="text-sm font-semibold text-white">
-          {user.userName.split(' ').map(n => n[0]).join('')}
-        </span>
+  const renderAssignedUser = (assignment: AssignedUser, role: AssignedUserRole) => {
+    const userName = assignment.user?.fullName || 'Unknown';
+    return (
+      <div
+        key={assignment.id}
+        className="flex items-center gap-3 p-3 bg-[var(--background)] rounded-lg border border-[var(--border)]"
+      >
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/70 flex items-center justify-center flex-shrink-0">
+          <span className="text-sm font-semibold text-white">
+            {userName.split(' ').map(n => n[0]).join('')}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-[var(--foreground)] truncate">{userName}</p>
+          <p className="text-xs text-[var(--muted-foreground)] capitalize">{role === 'worker' ? 'Picker' : role}</p>
+        </div>
+        {isEditable && (
+          <button
+            onClick={() => onRemoveAssignment(assignment.id, role)}
+            className="p-1.5 text-[var(--muted-foreground)] hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+            title="Remove"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[var(--foreground)] truncate">{user.userName}</p>
-        <p className="text-xs text-[var(--muted-foreground)] capitalize">{role === 'worker' ? 'Picker' : role}</p>
+    );
+  };
+
+  const renderDropdownContent = (
+    availableUsers: AvailableUser[],
+    role: AssignedUserRole,
+    setShowDropdown: (show: boolean) => void,
+    dropdownStyle: React.CSSProperties
+  ) => (
+    <>
+      <div
+        className="fixed inset-0 z-[100]"
+        onClick={() => setShowDropdown(false)}
+      />
+      <div
+        className="bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-[101] overflow-y-auto"
+        style={dropdownStyle}
+      >
+        <div className="p-2">
+          {availableUsers.map(user => (
+            <button
+              key={user.id}
+              onClick={() => {
+                onAddAssignment(user.id, role);
+                setShowDropdown(false);
+              }}
+              className="w-full px-3 py-2.5 text-left hover:bg-[var(--muted)] rounded-md transition-colors flex items-center gap-3"
+            >
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--primary)]/80 to-[var(--primary)]/50 flex items-center justify-center flex-shrink-0">
+                <span className="text-xs font-semibold text-white">
+                  {user.name.split(' ').map(n => n[0]).join('')}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-[var(--foreground)]">{user.name}</p>
+                <p className="text-xs text-[var(--muted-foreground)]">{user.email}</p>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
-      {isEditable && (
-        <button
-          onClick={() => onRemoveAssignment(user.id, role)}
-          className="p-1.5 text-[var(--muted-foreground)] hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-          title="Remove"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-      )}
-    </div>
+    </>
   );
 
   const renderAddButton = (
     role: AssignedUserRole,
-    availableUsers: WarehouseUser[],
+    availableUsers: AvailableUser[],
     showDropdown: boolean,
     setShowDropdown: (show: boolean) => void,
-    label: string
+    label: string,
+    buttonRef: React.RefObject<HTMLButtonElement | null>,
+    dropdownStyle: React.CSSProperties
   ) => (
     <div className="relative">
       <button
+        ref={buttonRef}
         onClick={() => setShowDropdown(!showDropdown)}
-        disabled={availableUsers.length === 0}
+        disabled={availableUsers.length === 0 && !isLoading}
         className="w-full px-4 py-3 text-sm text-[var(--muted-foreground)] border-2 border-dashed border-[var(--border)] rounded-lg hover:border-[var(--primary)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/5 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[var(--border)] disabled:hover:text-[var(--muted-foreground)] disabled:hover:bg-transparent"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        {label}
+        {isLoading ? (
+          <span className="text-xs">Loading...</span>
+        ) : (
+          <>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            {availableUsers.length === 0 ? `No ${role}s available` : label}
+          </>
+        )}
       </button>
       {showDropdown && availableUsers.length > 0 && (
         <>
@@ -268,7 +322,9 @@ export default function AssignmentPanel({
               filteredWorkers,
               showWorkerDropdown,
               setShowWorkerDropdown,
-              assignedWorkers.length > 0 ? 'Add another worker' : 'Assign worker'
+              assignedWorkers.length > 0 ? 'Add another worker' : 'Assign worker',
+              workerButtonRef,
+              workerDropdownStyle
             )}
           </div>
         </div>
@@ -297,7 +353,9 @@ export default function AssignmentPanel({
               filteredManagers,
               showManagerDropdown,
               setShowManagerDropdown,
-              assignedManagers.length > 0 ? 'Change manager' : 'Assign manager'
+              assignedManagers.length > 0 ? 'Change manager' : 'Assign manager',
+              managerButtonRef,
+              managerDropdownStyle
             )}
           </div>
         </div>

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FulfillmentOrder, FulfillmentOrderStatus, fulfillmentOrderStatusColors, fulfillmentOrderStatusLabels } from '@/lib/types/warehouse';
+import type { FulfillmentOrder, FulfillmentOrderStatus } from '../api/fulfillmentApi';
+import { fulfillmentOrderStatusColors, fulfillmentOrderStatusLabels } from '@/lib/types/warehouse';
 import type { FulfillmentSortField, SortDirection, FulfillmentColumnFilters } from '../WarehouseFulfillmentContent';
 
 interface FulfillmentOrdersTableProps {
@@ -327,8 +328,13 @@ export default function FulfillmentOrdersTable({
   selectedOrderIds,
   onSelectionChange,
 }: FulfillmentOrdersTableProps) {
+  // State for products popover
+  const [productsPopover, setProductsPopover] = useState<{ orderId: string; x: number; y: number } | null>(null);
+
   const getTotalQty = (fo: FulfillmentOrder) => {
-    return fo.lineItems.reduce((sum, li) => sum + li.orderedQty, 0);
+    const total = fo.lineItems.reduce((sum, li) => sum + Number(li.orderedQty), 0);
+    // Format to remove unnecessary decimals
+    return Number.isInteger(total) ? total : total.toFixed(2);
   };
 
   const handleSelectAll = () => {
@@ -350,15 +356,16 @@ export default function FulfillmentOrdersTable({
 
   // Check if order has any backorder items (ordered > allocated)
   const hasBackorderItems = (fo: FulfillmentOrder) => {
-    return fo.lineItems.some(li => li.backorderQty > 0 || li.orderedQty > li.allocatedQty);
+    return fo.lineItems.some(li => Number(li.backorderQty) > 0 || Number(li.orderedQty) > Number(li.allocatedQty));
   };
 
   // Get total backorder quantity
   const getTotalBackorderQty = (fo: FulfillmentOrder) => {
-    return fo.lineItems.reduce((sum, li) => {
-      const backorder = li.backorderQty > 0 ? li.backorderQty : Math.max(0, li.orderedQty - li.allocatedQty);
+    const total = fo.lineItems.reduce((sum, li) => {
+      const backorder = Number(li.backorderQty) > 0 ? Number(li.backorderQty) : Math.max(0, Number(li.orderedQty) - Number(li.allocatedQty));
       return sum + backorder;
     }, 0);
+    return Number.isInteger(total) ? total : total.toFixed(2);
   };
 
   const formatDate = (dateString: string) => {
@@ -545,7 +552,7 @@ export default function FulfillmentOrdersTable({
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-[var(--foreground)]">
                     <div className="flex items-center gap-2">
-                      {fo.orderNumber}
+                      {fo.order?.orderNumber || '-'}
                       {hasBackorderItems(fo) && (
                         <span
                           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200"
@@ -559,17 +566,30 @@ export default function FulfillmentOrdersTable({
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-[var(--foreground)]">{fo.customerName}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 text-sm text-[var(--foreground)]">{fo.customer?.companyName || '-'}</td>
+                  <td className="px-6 py-4 relative">
                     {fo.lineItems.length === 1 ? (
                       <>
-                        <div className="text-sm text-[var(--foreground)]">{fo.lineItems[0].productName}</div>
-                        <div className="text-xs text-[var(--muted-foreground)]">{fo.lineItems[0].partNumber}</div>
+                        <div className="text-sm text-[var(--foreground)]">{fo.lineItems[0].product?.description || fo.lineItems[0].product?.factoryPartNumber || '-'}</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">{fo.lineItems[0].product?.factoryPartNumber || '-'}</div>
                       </>
                     ) : (
                       <>
                         <div className="text-sm text-[var(--foreground)]">{fo.lineItems.length} products</div>
-                        <div className="text-xs text-[var(--muted-foreground)]">{fo.lineItems[0].partNumber} + {fo.lineItems.length - 1} more</div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setProductsPopover(
+                              productsPopover?.orderId === fo.id
+                                ? null
+                                : { orderId: fo.id, x: rect.left, y: rect.bottom + 4 }
+                            );
+                          }}
+                          className="text-xs text-[var(--primary)] hover:underline cursor-pointer"
+                        >
+                          {fo.lineItems[0].product?.factoryPartNumber || '-'} + {fo.lineItems.length - 1} more
+                        </button>
                       </>
                     )}
                   </td>
@@ -580,39 +600,47 @@ export default function FulfillmentOrdersTable({
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    {fo.assignedManagers && fo.assignedManagers.length > 0 ? (
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-medium text-amber-700">
-                            {fo.assignedManagers[0].userName.split(' ').map(n => n[0]).join('')}
+                    {(() => {
+                      const managers = fo.assignments?.filter(a => a.role === 'MANAGER') || [];
+                      const managerName = managers[0]?.user?.fullName;
+                      return managers.length > 0 ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-medium text-amber-700">
+                              {managerName?.split(' ').map(n => n[0]).join('') || '?'}
+                            </span>
+                          </div>
+                          <span className="text-sm text-[var(--foreground)] truncate max-w-[100px]">
+                            {managerName || 'Unknown'}
                           </span>
                         </div>
-                        <span className="text-sm text-[var(--foreground)] truncate max-w-[100px]">
-                          {fo.assignedManagers[0].userName}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-[var(--muted-foreground)]">—</span>
-                    )}
+                      ) : (
+                        <span className="text-sm text-[var(--muted-foreground)]">—</span>
+                      );
+                    })()}
                   </td>
                   <td className="px-6 py-4">
-                    {fo.assignedWorkers && fo.assignedWorkers.length > 0 ? (
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-medium text-blue-700">
-                            {fo.assignedWorkers[0].userName.split(' ').map(n => n[0]).join('')}
+                    {(() => {
+                      const workers = fo.assignments?.filter(a => a.role === 'WORKER') || [];
+                      const workerName = workers[0]?.user?.fullName;
+                      return workers.length > 0 ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-medium text-blue-700">
+                              {workerName?.split(' ').map(n => n[0]).join('') || '?'}
+                            </span>
+                          </div>
+                          <span className="text-sm text-[var(--foreground)] truncate max-w-[100px]">
+                            {workerName || 'Unknown'}
                           </span>
+                          {workers.length > 1 && (
+                            <span className="text-xs text-[var(--muted-foreground)]">+{workers.length - 1}</span>
+                          )}
                         </div>
-                        <span className="text-sm text-[var(--foreground)] truncate max-w-[100px]">
-                          {fo.assignedWorkers[0].userName}
-                        </span>
-                        {fo.assignedWorkers.length > 1 && (
-                          <span className="text-xs text-[var(--muted-foreground)]">+{fo.assignedWorkers.length - 1}</span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-[var(--muted-foreground)]">—</span>
-                    )}
+                      ) : (
+                        <span className="text-sm text-[var(--muted-foreground)]">—</span>
+                      );
+                    })()}
                   </td>
                   <td className="px-6 py-4 text-sm text-[var(--muted-foreground)]">{formatDate(fo.createdAt)}</td>
                   <td className="px-6 py-4 text-right">
@@ -623,7 +651,14 @@ export default function FulfillmentOrdersTable({
                       }}
                       className="px-3 py-1.5 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded-lg transition-colors"
                     >
-                      Start Picking
+                      {fo.status === 'PENDING' && 'Release'}
+                      {fo.status === 'RELEASED' && 'Start Picking'}
+                      {fo.status === 'PICKING' && 'Continue Picking'}
+                      {fo.status === 'PACKING' && 'Continue Packing'}
+                      {fo.status === 'SHIPPING' && 'Complete Shipping'}
+                      {fo.status === 'BACKORDER_REVIEW' && 'Review'}
+                      {(fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED') && 'Send Confirmation'}
+                      {(fo.status === 'COMMUNICATED' || fo.status === 'DELIVERED' || fo.status === 'CANCELLED') && 'View'}
                     </button>
                   </td>
                 </tr>
@@ -633,6 +668,61 @@ export default function FulfillmentOrdersTable({
           </tbody>
         </table>
       </div>
+
+      {/* Products Popover */}
+      {productsPopover && (() => {
+        const order = orders.find(o => o.id === productsPopover.orderId);
+        if (!order) return null;
+        return (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setProductsPopover(null)} />
+            <div
+              className="fixed z-50 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl min-w-[300px] max-w-[400px]"
+              style={{ left: productsPopover.x, top: productsPopover.y }}
+            >
+              <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-[var(--foreground)]">Products ({order.lineItems.length})</h4>
+                  <p className="text-xs text-[var(--muted-foreground)]">{order.order?.orderNumber || '-'}</p>
+                </div>
+                <button
+                  onClick={() => setProductsPopover(null)}
+                  className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
+              <div className="max-h-[300px] overflow-y-auto">
+                {order.lineItems.map((li, idx) => (
+                  <div
+                    key={li.id}
+                    className={`px-4 py-3 flex items-center justify-between ${idx !== order.lineItems.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-[var(--foreground)] truncate">{li.product?.description || li.product?.factoryPartNumber || '-'}</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">{li.product?.factoryPartNumber || '-'}</div>
+                    </div>
+                    <div className="ml-4 text-right flex-shrink-0">
+                      <div className="text-sm font-medium text-[var(--foreground)]">
+                        {Number.isInteger(Number(li.orderedQty)) ? Number(li.orderedQty) : Number(li.orderedQty).toFixed(2)}
+                      </div>
+                      <div className="text-xs text-[var(--muted-foreground)]">{'EA'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="px-4 py-2 border-t border-[var(--border)] bg-[var(--muted)]/30">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium text-[var(--muted-foreground)]">Total Qty:</span>
+                  <span className="font-semibold text-[var(--foreground)]">{getTotalQty(order)}</span>
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }

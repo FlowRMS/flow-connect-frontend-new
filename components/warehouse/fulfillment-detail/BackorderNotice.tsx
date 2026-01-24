@@ -1,7 +1,17 @@
 'use client';
 
 import React from 'react';
-import { FulfillmentOrder, FulfillmentOrderLineItem } from '@/lib/types/warehouse';
+import type { FulfillmentOrder, FulfillmentOrderLineItem } from '../api/fulfillmentApi';
+
+// Format quantity to remove unnecessary decimal places (30.0000 -> 30, 30.5000 -> 30.5)
+const formatQty = (qty: number | string | null | undefined): string => {
+  if (qty === null || qty === undefined) return '0';
+  const num = typeof qty === 'string' ? parseFloat(qty) : qty;
+  if (isNaN(num)) return '0';
+  if (Number.isInteger(num)) return num.toString();
+  // Remove trailing zeros after decimal
+  return parseFloat(num.toFixed(4)).toString();
+};
 
 interface BackorderItem {
   lineItem: FulfillmentOrderLineItem;
@@ -72,7 +82,7 @@ export default function BackorderNotice({
           <p className="text-sm text-amber-700 mt-0.5">
             {backorderItems.length} product{backorderItems.length > 1 ? 's' : ''} on this order
             {backorderItems.length > 1 ? ' have' : ' has'} insufficient warehouse inventory.
-            Total backorder quantity: <span className="font-semibold">{totalBackorderQty} units</span>
+            Total backorder quantity: <span className="font-semibold">{formatQty(totalBackorderQty)} units</span>
           </p>
         </div>
       </div>
@@ -106,19 +116,19 @@ export default function BackorderNotice({
                 <tr key={item.lineItem.id} className="hover:bg-amber-50/50">
                   <td className="px-4 py-3">
                     <div className="font-medium text-sm text-gray-900">
-                      {item.lineItem.productName}
+                      {item.lineItem.product?.description || item.lineItem.product?.factoryPartNumber || '-'}
                     </div>
-                    <div className="text-xs text-gray-500">{item.lineItem.partNumber}</div>
+                    <div className="text-xs text-gray-500">{item.lineItem.product?.factoryPartNumber || '-'}</div>
                   </td>
                   <td className="px-4 py-3 text-center text-sm text-gray-900">
-                    {item.lineItem.orderedQty}
+                    {formatQty(item.lineItem.orderedQty)}
                   </td>
                   <td className="px-4 py-3 text-center text-sm text-gray-900">
-                    {item.inventoryOnHand}
+                    {formatQty(item.inventoryOnHand)}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-800">
-                      -{shortQty}
+                      -{formatQty(shortQty)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{item.manufacturerName}</td>

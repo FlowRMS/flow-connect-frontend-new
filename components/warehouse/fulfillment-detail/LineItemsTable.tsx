@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { FulfillmentOrder, manufacturerFulfillmentStatusLabels } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '../api/fulfillmentApi';
+import { manufacturerFulfillmentStatusLabels, ManufacturerFulfillmentStatus } from '@/lib/types/warehouse';
 import { mockInventory } from '@/lib/data/warehouse-mock';
 
 interface LineItemsTableProps {
@@ -66,28 +67,28 @@ export default function LineItemsTable({ fulfillmentOrder }: LineItemsTableProps
                 const backorderQty = isShort ? lineItem.orderedQty - onHand : 0;
                 return (
                   <tr key={lineItem.id} className="hover:bg-[var(--muted)]/20 transition-colors">
-                    <td className="px-4 py-2 text-sm font-medium text-[var(--foreground)]">{lineItem.partNumber}</td>
-                    <td className="px-4 py-2 text-sm text-[var(--foreground)]">{lineItem.productName}</td>
-                    <td className="px-4 py-2 text-sm text-[var(--muted-foreground)] text-center">{lineItem.uom}</td>
-                    <td className="px-4 py-2 text-sm text-[var(--foreground)] text-right">{lineItem.orderedQty}</td>
+                    <td className="px-4 py-2 text-sm font-medium text-[var(--foreground)]">{lineItem.product?.factoryPartNumber || '-'}</td>
+                    <td className="px-4 py-2 text-sm text-[var(--foreground)]">{lineItem.product?.description || lineItem.product?.factoryPartNumber || '-'}</td>
+                    <td className="px-4 py-2 text-sm text-[var(--muted-foreground)] text-center">{'EA'}</td>
+                    <td className="px-4 py-2 text-sm text-[var(--foreground)] text-right">{Math.floor(lineItem.orderedQty)}</td>
                     <td className="px-4 py-2 text-sm text-right">
                       <span className={isShort ? 'text-amber-600 font-medium' : 'text-[var(--foreground)]'}>
-                        {onHand}
+                        {Math.floor(onHand)}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-sm text-[var(--foreground)] text-right">{lineItem.allocatedQty}</td>
+                    <td className="px-4 py-2 text-sm text-[var(--foreground)] text-right">{Math.floor(lineItem.allocatedQty)}</td>
                     <td className="px-4 py-2 text-sm text-[var(--foreground)] text-right">0</td>
-                    <td className="px-4 py-2 text-sm text-[var(--foreground)] text-right">{lineItem.shippedQty}</td>
+                    <td className="px-4 py-2 text-sm text-[var(--foreground)] text-right">{Math.floor(lineItem.shippedQty)}</td>
                     <td className="px-4 py-2 text-sm text-right">
                       {backorderQty > 0 ? (
-                        <span className="text-red-600 font-medium">{backorderQty}</span>
+                        <span className="text-red-600 font-medium">{Math.floor(backorderQty)}</span>
                       ) : (
                         '0'
                       )}
                     </td>
                     <td className="px-4 py-2">
                       <span className="text-sm text-[var(--muted-foreground)]">
-                        {lineItem.pickLocation || '-'}
+                        {'-'}
                       </span>
                     </td>
                   </tr>
@@ -135,15 +136,15 @@ export default function LineItemsTable({ fulfillmentOrder }: LineItemsTableProps
             <tbody className="divide-y divide-indigo-100">
               {manufacturerItems.map((lineItem) => (
                 <tr key={lineItem.id} className="hover:bg-indigo-50/30 transition-colors">
-                  <td className="px-4 py-2 text-sm font-medium text-gray-500">{lineItem.partNumber}</td>
-                  <td className="px-4 py-2 text-sm text-gray-500">{lineItem.productName}</td>
-                  <td className="px-4 py-2 text-sm text-gray-400 text-center">{lineItem.uom}</td>
-                  <td className="px-4 py-2 text-sm text-gray-500 text-right">{lineItem.orderedQty}</td>
-                  <td className="px-4 py-2 text-sm text-indigo-600">{lineItem.manufacturerName || '-'}</td>
+                  <td className="px-4 py-2 text-sm font-medium text-gray-500">{lineItem.product?.factoryPartNumber || '-'}</td>
+                  <td className="px-4 py-2 text-sm text-gray-500">{lineItem.product?.description || lineItem.product?.factoryPartNumber || '-'}</td>
+                  <td className="px-4 py-2 text-sm text-gray-400 text-center">{'EA'}</td>
+                  <td className="px-4 py-2 text-sm text-gray-500 text-right">{Math.floor(lineItem.orderedQty)}</td>
+                  <td className="px-4 py-2 text-sm text-indigo-600">{lineItem.product?.factory?.title || '-'}</td>
                   <td className="px-4 py-2">
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
                       {lineItem.manufacturerFulfillmentStatus
-                        ? manufacturerFulfillmentStatusLabels[lineItem.manufacturerFulfillmentStatus]
+                        ? manufacturerFulfillmentStatusLabels[lineItem.manufacturerFulfillmentStatus as ManufacturerFulfillmentStatus]
                         : 'Pending'}
                     </span>
                   </td>
