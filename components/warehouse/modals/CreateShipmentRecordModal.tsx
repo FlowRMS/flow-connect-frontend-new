@@ -39,6 +39,8 @@ export interface ShipmentRecord {
   poNumber: string;
   vendorId: string;
   vendorName: string;
+  vendorContact?: string;
+  vendorEmail?: string;
   warehouseId: string;
   warehouseName: string;
   eta: string;

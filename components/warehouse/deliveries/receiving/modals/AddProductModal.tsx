@@ -72,7 +72,7 @@ export default function AddProductModal({
           {isLoadingProducts ? (
             <div className="p-4 text-center text-[var(--muted-foreground)]">Searching products...</div>
           ) : productsError ? (
-            <div className="p-4 text-center text-red-500">{productsError}</div>
+            <div className="p-4 text-center text-red-500">{productsError?.message || 'Error loading products'}</div>
           ) : filteredProducts.length === 0 ? (
             <div className="p-4 text-center text-[var(--muted-foreground)]">
               {searchTerm ? 'No products found' : 'No products found for this vendor'}

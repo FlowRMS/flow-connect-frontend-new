@@ -53,6 +53,7 @@ import type {
   PackingSlipLineItem,
   ScannedPackingSlip,
   WarehouseUser,
+  ConditionType,
 } from './types';
 import { receivingSteps } from './types';
 
@@ -453,7 +454,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         id: issue.id,
         lineItemId: issue.deliveryItemId,
         type: mapIssueTypeToDiscrepancy(issue.issueType),
-        quantity: issue.quantity,
+        quantity: issue.qty,
         description: issue.description || '',
         customType: issue.customIssueType,
       }))
@@ -676,8 +677,8 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         trackingNumber: editTrackingNumber || null,
         status: shipment.status,
         expectedDate,
-        arrivedAt: null,
-        receivingStartedAt: null,
+        arrivedAt: undefined,
+        receivingStartedAt: undefined,
         receivedAt: shipment.receivedAt || null,
         originAddressId: null,
         destinationAddressId: null,
@@ -937,9 +938,9 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       trackingNumber: editTrackingNumber || null,
       status: 'PENDING',
       expectedDate,
-      arrivedAt: null,
-      receivingStartedAt: null,
-      receivedAt: null,
+      arrivedAt: undefined,
+      receivingStartedAt: undefined,
+      receivedAt: undefined,
       originAddressId: null,
       destinationAddressId: null,
       recurringShipmentId: shipment.recurringShipmentId || null,
@@ -953,9 +954,9 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       {
         status: 'PENDING',
         eta: expectedDate || shipment.eta,
-        arrivedAt: null,
-        receivingStartedAt: null,
-        receivedAt: null,
+        arrivedAt: undefined,
+        receivingStartedAt: undefined,
+        receivedAt: undefined,
       },
       {
         id: shipment.id,
@@ -1045,8 +1046,8 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           trackingNumber: shipment.trackingNumber || null,
           status: 'PENDING',
           expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
-          arrivedAt: null,
-          receivingStartedAt: null,
+          arrivedAt: undefined,
+          receivingStartedAt: undefined,
           receivedAt: shipment.receivedAt || null,
           originAddressId: null,
           destinationAddressId: null,
@@ -1103,7 +1104,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           status: 'ARRIVED',
           expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
           arrivedAt: nowIso,
-          receivingStartedAt: null,
+          receivingStartedAt: undefined,
           receivedAt: shipment.receivedAt || null,
           originAddressId: null,
           destinationAddressId: null,
@@ -1344,7 +1345,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
               status: 'OPEN',
               description: disc.description || null,
               notes: null,
-              communicatedAt: null,
+              communicatedAt: undefined,
             });
           })
         );
@@ -1787,7 +1788,11 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       });
   };
 
-  const handleAddAssignment = async (userId: string, role: 'manager' | 'worker') => {
+  const handleAddAssignment = async (userId: string, role: AssignedUserRole) => {
+    if (role !== 'manager' && role !== 'worker') {
+      console.warn('Unsupported assignment role for receiving:', role);
+      return;
+    }
     if (shouldDeferPersistence) {
       const userPool = role === 'manager' ? availableManagers : availableWorkers;
       const userInfo = userPool.find((user) => user.id === userId);
@@ -1810,15 +1815,16 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
       }
       return;
     }
+    const rolePayload = role === 'manager' ? 'MANAGER' : 'WORKER';
     await createDeliveryAssigneeMutation.mutateAsync({
       deliveryId: shipmentId,
       userId,
-      role: role === 'manager' ? 'MANAGER' : 'WORKER',
+      role: rolePayload,
     });
     await refreshShipment();
   };
 
-  const handleRemoveAssignment = async (assignmentId: string, role: 'manager' | 'worker') => {
+  const handleRemoveAssignment = async (assignmentId: string, role: AssignedUserRole) => {
     void role;
     if (shouldDeferPersistence) {
       setResolvedManagers((prev) => prev.filter((assignment) => assignment.id !== assignmentId));
@@ -2371,7 +2377,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
             onAddAssignment={handleAddAssignment}
             onRemoveAssignment={handleRemoveAssignment}
             attachedDocuments={attachedDocuments}
-            onAddDocument={handleAddDocument}
+            onAddDocument={async (doc) => { await handleAddDocument(doc); }}
             onRemoveDocument={handleRemoveDocument}
             isEditable={!isWorkerView && shipment.status !== 'RECEIVED' && shipment.status !== 'CANCELLED'}
           />

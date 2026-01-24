@@ -50,6 +50,9 @@ export type DeliveryIssueApi = {
   description?: string | null;
   notes?: string | null;
   communicatedAt?: string | null;
+  communicatedBy?: string | null;
+  resolvedAt?: string | null;
+  resolvedBy?: string | null;
   createdAt: string;
   createdById?: string | null;
 };

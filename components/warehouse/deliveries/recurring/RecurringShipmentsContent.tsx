@@ -13,7 +13,10 @@ import {
 import RecurringShipmentDetailModal from '../../modals/RecurringShipmentDetailModal';
 import CreateRecurringShipmentModal from '../../modals/CreateRecurringShipmentModal';
 
-type RecurringShipmentCreatePayload = Omit<RecurringShipment, 'id' | 'createdAt' | 'updatedAt'>;
+type RecurringShipmentCreatePayload = Omit<
+  RecurringShipment,
+  'id' | 'createdAt' | 'updatedAt' | 'generatedShipmentIds' | 'lastGeneratedDate' | 'nextExpectedDate'
+>;
 
 interface RecurringShipmentsContentProps {
   recurringShipments: RecurringShipment[];

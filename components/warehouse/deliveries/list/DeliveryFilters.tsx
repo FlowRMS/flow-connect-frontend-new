@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 
-export type DeliverySortField = 'poNumber' | 'vendorName' | 'itemCount' | 'eta' | 'status';
+export type DeliverySortField = 'poNumber' | 'vendorName' | 'itemCount' | 'eta' | 'expectedDate' | 'status';
 export type SortDirection = 'asc' | 'desc';
 
 export function SortIcon({

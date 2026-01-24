@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AssignmentPanel from '@/components/warehouse/AssignmentPanel';
 import DocumentsSection from '@/components/warehouse/DocumentsSection';
-import type { AssignedUser, AttachedDocument, IncomingShipment } from '@/lib/types/warehouse';
+import type { AssignedUser, AssignedUserRole, AttachedDocument, IncomingShipment } from '@/lib/types/warehouse';
 import { getFilePresignedUrl } from '@/components/lib/graphql/files';
 import type { DeliveryDiscrepancy, WarehouseUser } from '../types';
 
@@ -17,8 +17,8 @@ interface ReceivingSummarySidebarProps {
   resolvedWorkers: AssignedUser[];
   availableManagers: WarehouseUser[];
   availableWorkers: WarehouseUser[];
-  onAddAssignment: (userId: string, role: 'manager' | 'worker') => Promise<void> | void;
-  onRemoveAssignment: (assignmentId: string, role: 'manager' | 'worker') => Promise<void> | void;
+  onAddAssignment: (userId: string, role: AssignedUserRole) => Promise<void> | void;
+  onRemoveAssignment: (assignmentId: string, role: AssignedUserRole) => Promise<void> | void;
   attachedDocuments: AttachedDocument[];
   onAddDocument: (doc: Omit<AttachedDocument, 'id'>) => Promise<void> | void;
   onRemoveDocument: (documentId: string) => Promise<void> | void;

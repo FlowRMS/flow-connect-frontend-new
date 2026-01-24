@@ -196,7 +196,7 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
         input: buildIssueInput(issue, {
           status: 'COMMUNICATED',
           communicatedAt: nowIso,
-          notes: communicationNotes || issue.notes || null,
+          notes: communicationNotes || issue.notes || undefined,
         }),
       });
       setIssue({
@@ -225,7 +225,7 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
         id: issue.id,
         input: buildIssueInput(issue, {
           status: 'RESOLVED',
-          notes: resolutionNotes || issue.notes || null,
+          notes: resolutionNotes || issue.notes || undefined,
         }),
       });
       setIssue({
@@ -269,7 +269,7 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
     try {
       await updateDeliveryIssueMutation.mutateAsync({
         id: issue.id,
-        input: buildIssueInput(issue, { status: 'OPEN', communicatedAt: null }),
+        input: buildIssueInput(issue, { status: 'OPEN', communicatedAt: undefined }),
       });
       setIssue({
         ...issue,

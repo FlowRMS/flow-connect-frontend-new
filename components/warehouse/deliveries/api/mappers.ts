@@ -1,6 +1,7 @@
 import type {
   DeliveryIssue,
   DeliveryIssueItem,
+  DocumentType,
   IncomingShipment,
   IncomingShipmentIssue,
   RecurringShipment,
@@ -147,7 +148,7 @@ export function mapDeliveryToShipment(
     documents: dedupedDocuments.map((doc) => ({
       id: doc.id,
       name: doc.name,
-      type: doc.docType as string,
+      type: doc.docType as DocumentType,
       fileId: doc.fileId,
       fileUrl: doc.fileUrl,
       mimeType: doc.mimeType,
@@ -180,7 +181,7 @@ export function mapRecurringShipment(
           }
         })()
       : rawPattern;
-  const pattern = parsedPattern as RecurringShipment['recurrencePattern'];
+  const pattern = parsedPattern as unknown as RecurringShipment['recurrencePattern'];
   const expectedItems = (pattern?.expectedItems || (parsedPattern as Record<string, unknown>)?.expected_items || []) as ExpectedItem[];
 
   return {

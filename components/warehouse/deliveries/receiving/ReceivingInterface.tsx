@@ -908,9 +908,9 @@ export default function ReceivingInterface() {
                                     ))}
                                   </optgroup>
                                   <optgroup label="Available Bins">
-                                    {warehouseBins.filter(b => b.id !== lineItem.primaryBinId && b.currentQuantity > 0).map((bin) => (
+                                    {warehouseBins.filter(b => b.id !== lineItem.primaryBinId && (b.currentQuantity ?? 0) > 0).map((bin) => (
                                       <option key={bin.id} value={bin.id}>
-                                        Bin {bin.letterCode} ({Math.round((bin.currentQuantity / bin.maxCapacity) * 100)}% full)
+                                        Bin {bin.letterCode} ({bin.maxCapacity ? Math.round(((bin.currentQuantity ?? 0) / bin.maxCapacity) * 100) : 0}% full)
                                       </option>
                                     ))}
                                   </optgroup>
@@ -1057,7 +1057,3 @@ export default function ReceivingInterface() {
   
   );
 }
-
-
-
-
