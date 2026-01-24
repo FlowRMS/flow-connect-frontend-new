@@ -66,7 +66,7 @@ export default function UnassignedItems({
             </span>
             <div>
               <div className="text-sm font-medium">{lineItem.product?.factoryPartNumber || '-'}</div>
-              <div className="text-xs text-[var(--muted-foreground)]">{lineItem.product?.uom?.title || 'EA'}</div>
+              <div className="text-xs text-[var(--muted-foreground)]">{'EA'}</div>
             </div>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)] ml-1">
               <circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/>

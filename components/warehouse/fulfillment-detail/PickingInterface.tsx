@@ -866,7 +866,7 @@ export default function PickingInterface({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-[var(--foreground)]">{lineItem.product?.factoryPartNumber || '-'}</span>
-                    <span className="text-xs px-2 py-0.5 bg-[var(--muted)] rounded">{lineItem.product?.uom?.title || 'EA'}</span>
+                    <span className="text-xs px-2 py-0.5 bg-[var(--muted)] rounded">{'EA'}</span>
                     {hasNote && !isNoteExpanded && (
                       <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded flex items-center gap-1">
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

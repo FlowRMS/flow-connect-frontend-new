@@ -119,12 +119,6 @@ export interface PackingBox {
   items: PackingBoxItem[];
 }
 
-export interface ProductUom {
-  id: string;
-  title: string;
-  description: string | null;
-}
-
 export interface Factory {
   id: string;
   title: string;
@@ -134,7 +128,6 @@ export interface Product {
   id: string;
   factoryPartNumber: string;
   description: string | null;
-  uom: ProductUom | null;
   factory: Factory | null;
 }
 
@@ -395,11 +388,6 @@ const FULFILLMENT_ORDER_LIST_FRAGMENT = `
         id
         factoryPartNumber
         description
-        uom {
-          id
-          title
-          description
-        }
       }
       orderedQty
       allocatedQty
@@ -488,11 +476,6 @@ const FULFILLMENT_ORDER_FRAGMENT = `
         id
         factoryPartNumber
         description
-        uom {
-          id
-          title
-          description
-        }
         factory {
           id
           title

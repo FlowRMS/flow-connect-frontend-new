@@ -203,7 +203,7 @@ export default function PackingBox({
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-bold">{Math.round(Number(lineItem.allocatedQty))}</div>
-                  <div className="text-xs text-[var(--muted-foreground)]">{lineItem.product?.uom?.title || 'EA'}</div>
+                  <div className="text-xs text-[var(--muted-foreground)]">{'EA'}</div>
                 </div>
                 <button
                   onClick={() => onRemoveItemFromBox(box.id, lineItem.id)}

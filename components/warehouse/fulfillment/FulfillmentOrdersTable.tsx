@@ -708,7 +708,7 @@ export default function FulfillmentOrdersTable({
                       <div className="text-sm font-medium text-[var(--foreground)]">
                         {Number.isInteger(Number(li.orderedQty)) ? Number(li.orderedQty) : Number(li.orderedQty).toFixed(2)}
                       </div>
-                      <div className="text-xs text-[var(--muted-foreground)]">{li.product?.uom?.title || 'EA'}</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">{'EA'}</div>
                     </div>
                   </div>
                 ))}
