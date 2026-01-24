@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FulfillmentOrder } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '../api/fulfillmentApi';
 import { mockWarehouses } from '@/lib/data/warehouse-mock';
 import { PackingBoxType } from './packing/PackingBox';
 import ShippingConfigPanel from './shipping/ShippingConfigPanel';
@@ -156,6 +156,7 @@ export default function ShippingInterface({
           shippingMethod={shippingMethod}
           carrierType={carrierType}
           selectedCarrier={selectedCarrier}
+          carrierName={fulfillmentOrder.carrier?.name}
           trackingNumbers={trackingNumbers}
           proNumber={proNumber}
           bolNumber={bolNumber}
@@ -211,7 +212,7 @@ export default function ShippingInterface({
           </div>
           <div className="bg-[var(--muted)]/30 rounded-lg p-3 text-center">
             <div className="text-2xl font-bold text-[var(--foreground)]">
-              {fulfillmentOrder.lineItems.reduce((sum, li) => sum + li.allocatedQty, 0)}
+              {fulfillmentOrder.lineItems.reduce((sum, li) => sum + Number(li.allocatedQty), 0)}
             </div>
             <div className="text-xs text-[var(--muted-foreground)]">Items</div>
           </div>
