@@ -39,6 +39,12 @@ interface LineItemsTableProps {
   onOpenAdditionalDetails?: (lineItem: InvoiceLineItem) => void;
   isEditable?: boolean;
   factoryId?: string;
+  // Pinning props
+  isPinned?: (colKey: ColumnKey) => boolean;
+  getPinnedColumnStyle?: (colKey: ColumnKey, isHeader?: boolean) => React.CSSProperties;
+  // Toolbar props
+  onOpenSectionsModal?: () => void;
+  onOpenColumnsModal?: () => void;
 }
 
 export function LineItemsTable({
@@ -60,6 +66,10 @@ export function LineItemsTable({
   onOpenAdditionalDetails,
   isEditable = true,
   factoryId,
+  isPinned = () => false,
+  getPinnedColumnStyle = () => ({}),
+  onOpenSectionsModal,
+  onOpenColumnsModal,
 }: LineItemsTableProps) {
   // Client-side check for portal
   const [isMounted, setIsMounted] = useState(false);
@@ -531,8 +541,50 @@ export function LineItemsTable({
         />
       )}
 
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 flex-shrink-0 bg-[var(--card)] rounded-t-lg">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-[var(--foreground)]">Line Items</span>
+          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+            {(invoice.lineItems || []).length}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Sections Button */}
+          <div className="relative">
+            <button
+              disabled
+              className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg transition-colors opacity-50 cursor-not-allowed"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 6h12M4 10h12M4 14h12" strokeLinecap="round" />
+              </svg>
+              Sections
+              <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
+            </button>
+          </div>
+
+          {/* Columns Button */}
+          <button
+            onClick={onOpenColumnsModal}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="4" height="14" rx="1" />
+              <rect x="8" y="3" width="4" height="14" rx="1" />
+              <rect x="13" y="3" width="4" height="14" rx="1" />
+            </svg>
+            Columns
+            <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+              {visibleColumns.size}
+            </span>
+          </button>
+        </div>
+      </div>
+
       {/* Line Items Table */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full">
+      <div className="bg-[var(--card)] rounded-b-lg border border-[var(--border)] border-t-0 flex flex-col h-full">
         {/* Add Line Button - at top */}
         {isEditable && (
           <div className="border-b border-[var(--border)] flex-shrink-0">
@@ -557,6 +609,8 @@ export function LineItemsTable({
             onToggleAllLineItems={onToggleAllLineItems}
             visibleColumns={visibleColumns}
             viewMode={viewMode}
+            isPinned={isPinned}
+            getPinnedColumnStyle={getPinnedColumnStyle}
           />
 
           <tbody>
@@ -668,56 +722,56 @@ export function LineItemsTable({
 
                     {/* Part Number - Dropdown */}
                     {visibleColumns.has('partNumber') && (
-                      <td className="px-3 py-2 text-sm">
+                      <td className="px-3 py-2 text-sm" style={getPinnedColumnStyle('partNumber')}>
                         {renderEditableCell(item, 'partNumber', 'left')}
                       </td>
                     )}
 
                     {/* Customer Part Number - Read-only, populated by product selection */}
                     {visibleColumns.has('custPartNumber') && (
-                      <td className="px-3 py-2 text-sm">
+                      <td className="px-3 py-2 text-sm" style={getPinnedColumnStyle('custPartNumber')}>
                         {renderEditableCell(item, 'custPartNumber', 'left')}
                       </td>
                     )}
 
                     {/* Description - Read-only, populated by product selection */}
                     {visibleColumns.has('description') && (
-                      <td className="px-3 py-2 text-sm min-w-[250px] max-w-[400px]">
+                      <td className="px-3 py-2 text-sm min-w-[250px] max-w-[400px]" style={getPinnedColumnStyle('description')}>
                         {renderEditableCell(item, 'description', 'left')}
                       </td>
                     )}
 
                     {/* UOM - Dropdown */}
                     {visibleColumns.has('uom') && (
-                      <td className="px-3 py-2 text-sm">
+                      <td className="px-3 py-2 text-sm" style={getPinnedColumnStyle('uom')}>
                         {renderEditableCell(item, 'uom', 'center')}
                       </td>
                     )}
 
                     {/* Divisor - Inline Edit */}
                     {visibleColumns.has('divisor') && (
-                      <td className="px-3 py-2 text-sm">
+                      <td className="px-3 py-2 text-sm" style={getPinnedColumnStyle('divisor')}>
                         {renderEditableCell(item, 'divisor', 'center')}
                       </td>
                     )}
 
                     {/* Unit Price - Inline Edit */}
                     {visibleColumns.has('unitPrice') && (
-                      <td className="px-3 py-2 text-sm">
+                      <td className="px-3 py-2 text-sm" style={getPinnedColumnStyle('unitPrice')}>
                         {renderEditableCell(item, 'unitPrice', 'right')}
                       </td>
                     )}
 
                     {/* Quantity - Inline Edit */}
                     {visibleColumns.has('quantity') && (
-                      <td className="px-3 py-2 text-sm">
+                      <td className="px-3 py-2 text-sm" style={getPinnedColumnStyle('quantity')}>
                         {renderEditableCell(item, 'quantity', 'center')}
                       </td>
                     )}
 
                     {/* Sell Total */}
                     {visibleColumns.has('sellTotal') && (
-                      <td className="px-3 py-2 text-sm text-right font-medium">
+                      <td className="px-3 py-2 text-sm text-right font-medium" style={getPinnedColumnStyle('sellTotal')}>
                         {formatCurrency(item.amount - (item.discount || 0))}
                       </td>
                     )}

@@ -13,6 +13,8 @@ import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import { calculateInvoiceTotals } from '../utils';
 import { useInvoiceSettings } from '@/contexts/UserSettingsContext';
+import { useLineItemsColumnConfig } from '@/components/shared/hooks/useLineItemsColumnConfig';
+import { defaultInvoiceColumnConfig, defaultInvoiceSettings } from '../config/defaultColumnConfig';
 import {
   useInvoice,
   useCreateInvoice,
@@ -317,7 +319,7 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   const isCreateMode = invoiceId === 'new';
 
   // Get saved invoice settings from context (already cached, no extra API calls)
-  const { settings: savedInvoiceSettings, isInitialized: settingsInitialized } = useInvoiceSettings();
+  const { settings: savedInvoiceSettings, isInitialized: settingsInitialized, saveSettings } = useInvoiceSettings();
 
   // Track if we've applied column settings to avoid re-applying on every render
   const hasAppliedColumnSettings = useRef(false);
@@ -767,26 +769,32 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     new Set()
   );
 
-  // Column visibility
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
-    new Set(DEFAULT_VISIBLE_COLUMNS)
-  );
-  const [showColumnsMenu, setShowColumnsMenu] = useState(false);
+  // Column configuration - managed by generic hook with Settings API persistence
+  const { columnConfig, setColumnConfig } = useLineItemsColumnConfig({
+    settings: savedInvoiceSettings,
+    isInitialized: settingsInitialized,
+    saveSettings,
+    defaultColumnConfig: defaultInvoiceColumnConfig,
+    defaultSettings: defaultInvoiceSettings,
+    getColumnConfig: (s) => s.columnConfig,
+    setColumnConfig: (s, config) => ({ ...s, columnConfig: config }),
+  });
 
-  // Apply saved column configuration when settings are loaded
-  // This runs once when settings are initialized and applies to ALL invoices (new and existing)
-  useEffect(() => {
-    if (settingsInitialized && !hasAppliedColumnSettings.current) {
-      if (savedInvoiceSettings?.columnConfig && savedInvoiceSettings.columnConfig.length > 0) {
-        // Use saved settings - only include columns marked as visible
-        const visibleKeys = savedInvoiceSettings.columnConfig
-          .filter(col => col.visible)
-          .map(col => col.key as ColumnKey);
-        setVisibleColumns(new Set(visibleKeys));
-      }
-      hasAppliedColumnSettings.current = true;
-    }
-  }, [settingsInitialized, savedInvoiceSettings?.columnConfig]);
+  // Derive visibleColumns and pinnedColumns from columnConfig
+  const visibleColumns = useMemo(() => {
+    return new Set<ColumnKey>(
+      columnConfig.filter(col => col.visible).map(col => col.key as ColumnKey)
+    );
+  }, [columnConfig]);
+
+  const pinnedColumns = useMemo(() => {
+    return new Set<ColumnKey>(
+      columnConfig.filter(col => col.visible && col.pinned).map(col => col.key as ColumnKey)
+    );
+  }, [columnConfig]);
+
+  // Columns modal state
+  const [showColumnsModal, setShowColumnsModal] = useState(false);
 
   // Header dropdowns
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
@@ -1066,11 +1074,74 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     selectAllLineItems,
     clearLineItemSelection,
 
-    // Column visibility
+    // Column configuration
+    columnConfig,
+    setColumnConfig,
     visibleColumns,
-    setVisibleColumns,
-    showColumnsMenu,
-    setShowColumnsMenu,
+    pinnedColumns,
+    showColumnsModal,
+    setShowColumnsModal,
+    openColumnsModal: () => setShowColumnsModal(true),
+    closeColumnsModal: () => setShowColumnsModal(false),
+    isPinned: (colKey: ColumnKey) => pinnedColumns.has(colKey),
+    getPinnedColumnStyle: (colKey: ColumnKey, isHeader: boolean = false): React.CSSProperties => {
+      if (!pinnedColumns.has(colKey)) return {};
+
+      const fixedLeftOffset = 40; // checkbox width
+
+      const allColumns: ColumnKey[] = [
+        'partNumber', 'custPartNumber', 'description', 'uom', 'divisor', 'unitPrice',
+        'quantity', 'sellTotal', 'commissionPercent', 'commission', 'commissionTotal',
+        'linkedOrder', 'linkedCheck', 'percentOver', 'commissionAmount',
+        'ovgPercent', 'ovgAmount', 'earnPercent', 'earnAmount',
+      ];
+
+      const visiblePinnedColumns = allColumns.filter(
+        (key) => {
+          const col = columnConfig.find((c) => c.key === key);
+          return col?.visible && col?.pinned;
+        }
+      );
+
+      const indexInPinned = visiblePinnedColumns.indexOf(colKey);
+      if (indexInPinned === -1) return {};
+
+      const columnWidths: Record<ColumnKey, number> = {
+        partNumber: 150,
+        custPartNumber: 150,
+        description: 300,
+        uom: 80,
+        divisor: 80,
+        unitPrice: 120,
+        quantity: 100,
+        sellTotal: 120,
+        commissionPercent: 130,
+        commission: 120,
+        commissionTotal: 150,
+        linkedOrder: 120,
+        linkedCheck: 120,
+        percentOver: 100,
+        commissionAmount: 120,
+        ovgPercent: 100,
+        ovgAmount: 120,
+        earnPercent: 110,
+        earnAmount: 120,
+      };
+
+      let leftOffset = 0 //fixedLeftOffset;
+      for (let i = 0; i < indexInPinned; i++) {
+        const prevCol = visiblePinnedColumns[i];
+        const colWidth = columnWidths[prevCol] || 120;
+        leftOffset += colWidth - 12;
+      }
+
+      return {
+        position: 'sticky',
+        left: `${leftOffset}px`,
+        zIndex: 10,
+        backgroundColor: isHeader ? '#f9fafb' : 'white',
+      };
+    },
 
     // Header dropdowns
     showActionsDropdown,

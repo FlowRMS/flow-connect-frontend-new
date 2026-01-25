@@ -50,6 +50,7 @@ export interface InvoiceColumnConfig {
   key: string;
   label: string;
   visible: boolean;
+  pinned?: boolean;
 }
 
 export interface InvoiceSettingsValue {
