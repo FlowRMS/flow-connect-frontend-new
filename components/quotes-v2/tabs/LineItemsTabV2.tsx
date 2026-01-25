@@ -284,7 +284,7 @@ export function LineItemsTabV2({
 
     // Calculate left offset based on which columns are pinned before this one
     // Fixed columns: checkbox (40px)
-    const fixedLeftOffset = 10; // checkbox width
+    const fixedLeftOffset = 40; // checkbox width
 
     // Get ordered list of visible pinned columns (in display order)
     const allColumns: LineItemColumnKey[] = [
@@ -333,7 +333,7 @@ export function LineItemsTabV2({
       linkedOrder: 120,
     };
 
-    let leftOffset = fixedLeftOffset;
+    let leftOffset = 0; //fixedLeftOffset;
     for (let i = 0; i < indexInPinned; i++) {
       const prevCol = visiblePinnedColumns[i];
       const colWidth = columnWidths[prevCol] || 120;
