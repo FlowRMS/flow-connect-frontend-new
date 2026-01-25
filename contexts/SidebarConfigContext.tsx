@@ -152,6 +152,9 @@ const defaultConfig: SidebarConfig = {
       collapsed: false,
       items: [
         // { id: 'warehouse-overview', name: 'Overview', href: '/warehouse', enabled: true },
+        // { id: 'warehouse-fulfillment', name: 'Fulfillment', href: '/warehouse/fulfillment', enabled: true },
+        { id: 'warehouse-deliveries', name: 'Deliveries', href: '/warehouse/deliveries', enabled: true },
+//         { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
         {
           id: "warehouse-settings",
           name: "Settings",

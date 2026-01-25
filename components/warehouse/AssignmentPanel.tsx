@@ -1,21 +1,24 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { AssignedUser, AssignedUserRole } from '@/lib/types/warehouse';
-import { useWarehouseQuery } from './settings/api/useWarehousesApi';
-import { useUsersQuery } from './settings/api/useUsersApi';
+import { useUsersByIds, useWarehouseMembers } from '@/components/warehouse/api/useWarehouseDeliveriesApi';
 
-// Type for displaying available users in the dropdown
-interface AvailableUser {
+type WarehouseUser = {
   id: string;
   name: string;
   email: string;
-}
+  role: AssignedUserRole;
+  warehouseIds: string[];
+  isActive: boolean;
+};
 
 interface AssignmentPanelProps {
   assignedManagers: AssignedUser[];
   assignedWorkers: AssignedUser[];
   warehouseId?: string;
+  availableManagers?: WarehouseUser[];
+  availableWorkers?: WarehouseUser[];
   onAddAssignment: (userId: string, role: AssignedUserRole) => void;
   onRemoveAssignment: (assignmentId: string, role: AssignedUserRole) => void;
   isEditable?: boolean;
@@ -26,6 +29,8 @@ export default function AssignmentPanel({
   assignedManagers,
   assignedWorkers,
   warehouseId,
+  availableManagers,
+  availableWorkers,
   onAddAssignment,
   onRemoveAssignment,
   isEditable = true,
@@ -33,67 +38,38 @@ export default function AssignmentPanel({
 }: AssignmentPanelProps) {
   const [showManagerDropdown, setShowManagerDropdown] = useState(false);
   const [showWorkerDropdown, setShowWorkerDropdown] = useState(false);
-
-  // Refs for dropdown positioning
-  const workerButtonRef = useRef<HTMLButtonElement>(null);
-  const managerButtonRef = useRef<HTMLButtonElement>(null);
+  const managerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const workerButtonRef = useRef<HTMLButtonElement | null>(null);
   const [workerDropdownStyle, setWorkerDropdownStyle] = useState<React.CSSProperties>({});
   const [managerDropdownStyle, setManagerDropdownStyle] = useState<React.CSSProperties>({});
 
-  // Fetch warehouse to get its members
-  const { data: warehouse, isLoading: isLoadingWarehouse } = useWarehouseQuery(warehouseId || '');
+  const membersQuery = useWarehouseMembers(warehouseId || null, !availableManagers && !availableWorkers);
+  const memberIds = useMemo(() => {
+    if (!membersQuery.data) return [];
+    const ids = new Set<string>();
+    membersQuery.data.forEach((member) => ids.add(member.userId));
+    return Array.from(ids);
+  }, [membersQuery.data]);
+  const usersQuery = useUsersByIds(memberIds);
 
-  // Fetch all users to get their details
-  const { data: allUsers = [], isLoading: isLoadingUsers } = useUsersQuery(100);
+  // Track loading state from both queries
+  const isLoading = membersQuery.isLoading || usersQuery.isLoading;
 
-  // Normalize role to string (backend may return number: 1=WORKER, 2=MANAGER or string 'WORKER'/'MANAGER'/'worker'/'manager')
-  const normalizeRole = (role: number | string): 'WORKER' | 'MANAGER' => {
-    if (typeof role === 'number') {
-      return role === 2 ? 'MANAGER' : 'WORKER';
+  useEffect(() => {
+    if (!isEditable) {
+      setShowManagerDropdown(false);
+      setShowWorkerDropdown(false);
     }
-    const roleStr = String(role).toUpperCase();
-    return roleStr === 'MANAGER' ? 'MANAGER' : 'WORKER';
-  };
+  }, [isEditable]);
 
-  // Get available workers and managers from warehouse members
-  let availableWorkers: AvailableUser[] = [];
-  let availableManagers: AvailableUser[] = [];
-
-  if (warehouse?.members && warehouse.members.length > 0 && allUsers.length > 0) {
-    warehouse.members.forEach(member => {
-      const memberRole = normalizeRole(member.role);
-      const user = allUsers.find(u => u.id === member.userId);
-      if (!user || !user.enabled) return;
-
-      const availableUser: AvailableUser = {
-        id: user.id,
-        name: user.fullName || `${user.firstName} ${user.lastName}`.trim() || user.username,
-        email: user.email,
-      };
-
-      if (memberRole === 'WORKER') {
-        if (!assignedWorkers.some(aw => aw.user?.id === user.id)) {
-          availableWorkers.push(availableUser);
-        }
-      } else if (memberRole === 'MANAGER') {
-        if (!assignedManagers.some(am => am.user?.id === user.id)) {
-          availableManagers.push(availableUser);
-        }
-      }
-    });
-  }
-
-  // Calculate dropdown position when opened
   const calculateDropdownPosition = (buttonRef: React.RefObject<HTMLButtonElement | null>) => {
     if (!buttonRef.current) return {};
 
     const rect = buttonRef.current.getBoundingClientRect();
-    const dropdownHeight = 224; // max-h-56 = 14rem = 224px
+    const dropdownHeight = 224;
     const viewportHeight = window.innerHeight;
     const spaceBelow = viewportHeight - rect.bottom;
     const spaceAbove = rect.top;
-
-    // Prefer showing below, but show above if not enough space
     const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
 
     return {
@@ -108,7 +84,6 @@ export default function AssignmentPanel({
     };
   };
 
-  // Update dropdown positions when they open
   useEffect(() => {
     if (showWorkerDropdown) {
       setWorkerDropdownStyle(calculateDropdownPosition(workerButtonRef));
@@ -121,9 +96,99 @@ export default function AssignmentPanel({
     }
   }, [showManagerDropdown]);
 
+  const resolvedManagers = useMemo(() => {
+    if (availableManagers) return availableManagers;
+    const members = membersQuery.data || [];
+    const userLookup = new Map(
+      (usersQuery.data || [])
+        .filter((user) => user.enabled)
+        .map((user) => {
+          const name =
+            user.fullName ||
+            [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+            user.email ||
+            user.id;
+          return [user.id, { name, email: user.email || '' }];
+        })
+    );
+    const normalizeRole = (role: string | number) => {
+      if (typeof role === 'number') {
+        if (role === 2) return 'MANAGER';
+        if (role === 3) return 'WORKER';
+        return 'UNKNOWN';
+      }
+      return role.toUpperCase();
+    };
+    return members
+      .filter((member) => normalizeRole(member.role) === 'MANAGER')
+      .map((member) => {
+        const userInfo = userLookup.get(member.userId);
+        if (!userInfo) {
+          return null;
+        }
+        return {
+          id: member.userId,
+          name: userInfo?.name || member.userId,
+          email: userInfo?.email || '',
+          role: 'manager' as AssignedUserRole,
+          warehouseIds: warehouseId ? [warehouseId] : [],
+          isActive: true,
+        };
+      })
+      .filter((member): member is WarehouseUser => Boolean(member));
+  }, [availableManagers, membersQuery.data, usersQuery.data, warehouseId]);
+
+  const resolvedWorkers = useMemo(() => {
+    if (availableWorkers) return availableWorkers;
+    const members = membersQuery.data || [];
+    const userLookup = new Map(
+      (usersQuery.data || [])
+        .filter((user) => user.enabled)
+        .map((user) => {
+          const name =
+            user.fullName ||
+            [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+            user.email ||
+            user.id;
+          return [user.id, { name, email: user.email || '' }];
+        })
+    );
+    const normalizeRole = (role: string | number) => {
+      if (typeof role === 'number') {
+        if (role === 2) return 'MANAGER';
+        if (role === 3) return 'WORKER';
+        return 'UNKNOWN';
+      }
+      return role.toUpperCase();
+    };
+    return members
+      .filter((member) => normalizeRole(member.role) === 'WORKER')
+      .map((member) => {
+        const userInfo = userLookup.get(member.userId);
+        if (!userInfo) {
+          return null;
+        }
+        return {
+          id: member.userId,
+          name: userInfo?.name || member.userId,
+          email: userInfo?.email || '',
+          role: 'worker' as AssignedUserRole,
+          warehouseIds: warehouseId ? [warehouseId] : [],
+          isActive: true,
+        };
+      })
+      .filter((member): member is WarehouseUser => Boolean(member));
+  }, [availableWorkers, membersQuery.data, usersQuery.data, warehouseId]);
+
+  const filteredManagers = resolvedManagers.filter(
+    m => !assignedManagers.some(am => am.user?.id === m.id)
+  );
+  const filteredWorkers = resolvedWorkers.filter(
+    w => !assignedWorkers.some(aw => aw.user?.id === w.id)
+  );
+
   // Check if required roles are missing
   const missingWorker = showRequiredWarnings && assignedWorkers.length === 0;
-  const isLoading = isLoadingWarehouse || isLoadingUsers;
 
   const renderAssignedUser = (assignment: AssignedUser, role: AssignedUserRole) => {
     const userName = assignment.user?.fullName || 'Unknown';
@@ -156,50 +221,9 @@ export default function AssignmentPanel({
     );
   };
 
-  const renderDropdownContent = (
-    availableUsers: AvailableUser[],
-    role: AssignedUserRole,
-    setShowDropdown: (show: boolean) => void,
-    dropdownStyle: React.CSSProperties
-  ) => (
-    <>
-      <div
-        className="fixed inset-0 z-[100]"
-        onClick={() => setShowDropdown(false)}
-      />
-      <div
-        className="bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-[101] overflow-y-auto"
-        style={dropdownStyle}
-      >
-        <div className="p-2">
-          {availableUsers.map(user => (
-            <button
-              key={user.id}
-              onClick={() => {
-                onAddAssignment(user.id, role);
-                setShowDropdown(false);
-              }}
-              className="w-full px-3 py-2.5 text-left hover:bg-[var(--muted)] rounded-md transition-colors flex items-center gap-3"
-            >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--primary)]/80 to-[var(--primary)]/50 flex items-center justify-center flex-shrink-0">
-                <span className="text-xs font-semibold text-white">
-                  {user.name.split(' ').map(n => n[0]).join('')}
-                </span>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-[var(--foreground)]">{user.name}</p>
-                <p className="text-xs text-[var(--muted-foreground)]">{user.email}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </>
-  );
-
   const renderAddButton = (
     role: AssignedUserRole,
-    availableUsers: AvailableUser[],
+    availableUsers: WarehouseUser[],
     showDropdown: boolean,
     setShowDropdown: (show: boolean) => void,
     label: string,
@@ -224,11 +248,40 @@ export default function AssignmentPanel({
           </>
         )}
       </button>
-      {showDropdown && availableUsers.length > 0 && renderDropdownContent(
-        availableUsers,
-        role,
-        setShowDropdown,
-        dropdownStyle
+      {showDropdown && availableUsers.length > 0 && (
+        <>
+          <div
+            className="fixed inset-0 z-[100]"
+            onClick={() => setShowDropdown(false)}
+          />
+          <div
+            className="bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-[101] overflow-y-auto"
+            style={dropdownStyle}
+          >
+            <div className="p-2">
+              {availableUsers.map(user => (
+                <button
+                  key={user.id}
+                  onClick={() => {
+                    onAddAssignment(user.id, role);
+                    setShowDropdown(false);
+                  }}
+                  className="w-full px-3 py-2.5 text-left hover:bg-[var(--muted)] rounded-md transition-colors flex items-center gap-3"
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--primary)]/80 to-[var(--primary)]/50 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-semibold text-white">
+                      {user.name.split(' ').map(n => n[0]).join('')}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-[var(--foreground)]">{user.name}</p>
+                    <p className="text-xs text-[var(--muted-foreground)]">{user.email}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -282,7 +335,7 @@ export default function AssignmentPanel({
             {assignedWorkers.map(user => renderAssignedUser(user, 'worker'))}
             {isEditable && renderAddButton(
               'worker',
-              availableWorkers,
+              filteredWorkers,
               showWorkerDropdown,
               setShowWorkerDropdown,
               assignedWorkers.length > 0 ? 'Add another worker' : 'Assign worker',
@@ -313,7 +366,7 @@ export default function AssignmentPanel({
             )}
             {isEditable && renderAddButton(
               'manager',
-              availableManagers,
+              filteredManagers,
               showManagerDropdown,
               setShowManagerDropdown,
               assignedManagers.length > 0 ? 'Change manager' : 'Assign manager',

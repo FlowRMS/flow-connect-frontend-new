@@ -3,19 +3,13 @@
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  mockDeliveryIssues,
-  getDeliveryIssuesByWarehouse,
-} from '@/lib/data/warehouse-mock';
-import {
   DeliveryIssue,
-  DeliveryIssueStatus,
-  DeliveryIssueType,
   deliveryIssueStatusColors,
   deliveryIssueStatusLabels,
   deliveryIssueTypeColors,
   deliveryIssueTypeLabels,
 } from '@/lib/types/warehouse';
-import { useWarehouse } from './WarehouseContext';
+import { useWarehouse } from '../../WarehouseContext';
 
 type SortField = 'issueNumber' | 'vendorName' | 'poNumber' | 'reportedAt' | 'status' | 'totalAffectedQuantity';
 type SortDirection = 'asc' | 'desc';
@@ -35,7 +29,11 @@ function SortIcon({ field, currentSortField, currentSortDirection }: { field: So
   );
 }
 
-export default function WarehouseDeliveryIssuesContent() {
+interface WarehouseDeliveryIssuesContentProps {
+  deliveryIssues: DeliveryIssue[];
+}
+
+export default function WarehouseDeliveryIssuesContent({ deliveryIssues }: WarehouseDeliveryIssuesContentProps) {
   const router = useRouter();
   const { selectedWarehouse } = useWarehouse();
 
@@ -47,14 +45,14 @@ export default function WarehouseDeliveryIssuesContent() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // Get issues for selected warehouse
-  const deliveryIssues = useMemo(() => {
-    if (!selectedWarehouse) return mockDeliveryIssues;
-    return getDeliveryIssuesByWarehouse(selectedWarehouse.id);
-  }, [selectedWarehouse]);
+  const warehouseIssues = useMemo(() => {
+    if (!selectedWarehouse) return deliveryIssues;
+    return deliveryIssues.filter((issue) => issue.warehouseId === selectedWarehouse.id);
+  }, [deliveryIssues, selectedWarehouse]);
 
   // Filter and sort issues
   const filteredIssues = useMemo(() => {
-    let result = [...deliveryIssues];
+    let result = [...warehouseIssues];
 
     // Search filter
     if (searchQuery) {
@@ -109,7 +107,7 @@ export default function WarehouseDeliveryIssuesContent() {
     });
 
     return result;
-  }, [deliveryIssues, searchQuery, statusFilter, typeFilter, sortField, sortDirection]);
+  }, [warehouseIssues, searchQuery, statusFilter, typeFilter, sortField, sortDirection]);
 
   // Toggle sort
   const handleSort = (field: SortField) => {
@@ -121,23 +119,14 @@ export default function WarehouseDeliveryIssuesContent() {
     }
   };
 
-  // Get unique issue types from all issues
-  const issueTypes = useMemo(() => {
-    const types = new Set<DeliveryIssueType>();
-    deliveryIssues.forEach(issue => {
-      issue.items.forEach(item => types.add(item.issueType));
-    });
-    return Array.from(types);
-  }, [deliveryIssues]);
-
   // Stats
   const stats = useMemo(() => {
-    const open = deliveryIssues.filter(i => i.status === 'OPEN').length;
-    const communicated = deliveryIssues.filter(i => i.status === 'COMMUNICATED').length;
-    const resolved = deliveryIssues.filter(i => i.status === 'RESOLVED').length;
-    const closed = deliveryIssues.filter(i => i.status === 'CLOSED').length;
-    return { open, communicated, resolved, closed, total: deliveryIssues.length };
-  }, [deliveryIssues]);
+    const open = warehouseIssues.filter(i => i.status === 'OPEN').length;
+    const communicated = warehouseIssues.filter(i => i.status === 'COMMUNICATED').length;
+    const resolved = warehouseIssues.filter(i => i.status === 'RESOLVED').length;
+    const closed = warehouseIssues.filter(i => i.status === 'CLOSED').length;
+    return { open, communicated, resolved, closed, total: warehouseIssues.length };
+  }, [warehouseIssues]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {

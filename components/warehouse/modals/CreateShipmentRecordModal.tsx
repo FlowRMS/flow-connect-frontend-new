@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { getWarehouseFactories, mockInventory, mockWarehouses } from '@/lib/data/warehouse-mock';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useWarehouseLookups, useWarehouseProducts } from '../api/useWarehouseDeliveriesApi';
 import { ShipmentStatus } from '@/lib/types/warehouse';
 
 interface ShipmentLineItem {
@@ -16,12 +16,31 @@ interface CreateShipmentRecordModalProps {
   onClose: () => void;
   onSubmit: (record: ShipmentRecord) => void;
   initialStatus?: ShipmentStatus;
+  isSubmitting?: boolean;
+  carriers: Array<{ id: string; name: string }>;
+  recurringShipments?: Array<{
+    id: string;
+    name: string;
+    vendorId: string;
+    warehouseId: string;
+    nextExpectedDate: string;
+    carrier?: string;
+    notes?: string;
+    expectedItems: Array<{
+      productId: string;
+      productName: string;
+      partNumber: string;
+      expectedQuantity: number;
+    }>;
+  }>;
 }
 
 export interface ShipmentRecord {
   poNumber: string;
   vendorId: string;
   vendorName: string;
+  vendorContact?: string;
+  vendorEmail?: string;
   warehouseId: string;
   warehouseName: string;
   eta: string;
@@ -30,16 +49,22 @@ export interface ShipmentRecord {
   carrier?: string;
   items: ShipmentLineItem[];
   notes?: string;
+  recurringShipmentId?: string;
 }
 
-const carriers = ['UPS', 'FedEx', 'USPS', 'DHL', 'Freight', 'Other'];
-
-export default function CreateShipmentRecordModal({ onClose, onSubmit, initialStatus }: CreateShipmentRecordModalProps) {
-  const factories = useMemo(() => getWarehouseFactories(), []);
+export default function CreateShipmentRecordModal({
+  onClose,
+  onSubmit,
+  initialStatus,
+  isSubmitting = false,
+  carriers,
+  recurringShipments = [],
+}: CreateShipmentRecordModalProps) {
+  const { warehousesQuery, vendorsQuery } = useWarehouseLookups();
   const isArrivingNow = initialStatus === 'ARRIVED';
   const [poNumber, setPoNumber] = useState<string>(`PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`);
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(mockWarehouses[0]?.id || '');
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('');
   const [eta, setEta] = useState<string>(
     isArrivingNow
       ? new Date().toISOString().split('T')[0]
@@ -49,27 +74,61 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
   const [trackingNumber, setTrackingNumber] = useState('');
   const [carrier, setCarrier] = useState('');
   const [notes, setNotes] = useState('');
+  const [recurringShipmentId, setRecurringShipmentId] = useState<string>('');
   const [lineItems, setLineItems] = useState<ShipmentLineItem[]>([]);
   const [showProductSelector, setShowProductSelector] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+
+  // Debounce search term to avoid too many API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(productSearchTerm);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [productSearchTerm]);
+
+  // Only fetch products when product selector is open AND vendor is selected (lazy loading)
+  // This prevents unnecessary fetches when just opening the modal
+  const { data: vendorProducts = [], isLoading: isLoadingProducts } = useWarehouseProducts(
+    debouncedSearchTerm,
+    showProductSelector ? selectedVendorId : null,
+    50
+  );
+  const factories = useMemo(
+    () => (vendorsQuery.data || []).map((vendor) => ({ id: vendor.id, name: vendor.title })),
+    [vendorsQuery.data]
+  );
+  const warehouses = useMemo(
+    () => (warehousesQuery.data || []).map((wh) => ({ id: wh.id, name: wh.name })),
+    [warehousesQuery.data]
+  );
 
   const selectedVendor = factories.find(f => f.id === selectedVendorId);
-  const selectedWarehouse = mockWarehouses.find(w => w.id === selectedWarehouseId);
+  const selectedWarehouse = warehouses.find(w => w.id === selectedWarehouseId);
 
-  // Get products available from selected vendor
-  const vendorProducts = useMemo(() => {
+  // Filter recurring shipments by selected vendor
+  const availableRecurringShipments = useMemo(() => {
     if (!selectedVendorId) return [];
-    return mockInventory.filter(inv => inv.factoryId === selectedVendorId);
-  }, [selectedVendorId]);
+    return recurringShipments.filter(rs => rs.vendorId === selectedVendorId);
+  }, [recurringShipments, selectedVendorId]);
 
-  const handleAddProduct = (product: typeof mockInventory[0]) => {
-    if (lineItems.some(item => item.productId === product.productId)) {
+  useEffect(() => {
+    if (!selectedWarehouseId && warehouses.length > 0) {
+      setSelectedWarehouseId(warehouses[0]?.id || '');
+    }
+  }, [selectedWarehouseId, warehouses]);
+
+  const handleAddProduct = (product: { id: string; factoryPartNumber: string; description?: string | null }) => {
+    if (lineItems.some(item => item.productId === product.id)) {
       return;
     }
     setLineItems(prev => [...prev, {
       id: `line-${Date.now()}`,
-      productId: product.productId,
-      productName: product.productName,
-      partNumber: product.partNumber,
+      productId: product.id,
+      productName: product.description || product.factoryPartNumber,
+      partNumber: product.factoryPartNumber,
       expectedQuantity: 1,
     }]);
     setShowProductSelector(false);
@@ -87,12 +146,13 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     // For arriving now, line items are optional
     const lineItemsRequired = !isArrivingNow;
     if (!selectedWarehouseId || !poNumber) return;
     if (lineItemsRequired && (lineItems.length === 0 || !selectedVendorId)) return;
 
-    onSubmit({
+    const recordData = {
       poNumber,
       vendorId: selectedVendorId,
       vendorName: selectedVendor?.name || '',
@@ -104,7 +164,10 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
       carrier: carrier || undefined,
       items: lineItems,
       notes: notes || undefined,
-    });
+      recurringShipmentId: recurringShipmentId || undefined,
+    };
+
+    onSubmit(recordData);
   };
 
   const totalItems = lineItems.reduce((sum, item) => sum + item.expectedQuantity, 0);
@@ -127,7 +190,8 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+            disabled={isSubmitting}
+            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6L6 18M6 6l12 12"/>
@@ -167,7 +231,6 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
                 >
                   <option value="PENDING">Pending</option>
                   <option value="CONFIRMED">Confirmed</option>
-                  <option value="IN_TRANSIT">In Transit</option>
                   <option value="ARRIVED">Arrived</option>
                 </select>
               )}
@@ -185,6 +248,7 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
                 onChange={(e) => {
                   setSelectedVendorId(e.target.value);
                   setLineItems([]);
+                  setRecurringShipmentId(''); // Reset recurring shipment when vendor changes
                 }}
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                 required={!isArrivingNow}
@@ -207,7 +271,7 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                 required
               >
-                {mockWarehouses.map((warehouse) => (
+                {warehouses.map((warehouse) => (
                   <option key={warehouse.id} value={warehouse.id}>
                     {warehouse.name}
                   </option>
@@ -215,6 +279,75 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
               </select>
             </div>
           </div>
+
+          {/* Recurring Shipment Selection (Optional) */}
+          {availableRecurringShipments.length > 0 && (
+            <div className="border border-dashed border-blue-300 rounded-lg p-4 bg-blue-50/50">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                    <path d="M17 1l4 4-4 4"/>
+                    <path d="M3 11V9a4 4 0 014-4h14"/>
+                    <path d="M7 23l-4-4 4-4"/>
+                    <path d="M21 13v2a4 4 0 01-4 4H3"/>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-[var(--foreground)] mb-1">Link to Recurring Shipment (Optional)</h4>
+                  <p className="text-xs text-[var(--muted-foreground)] mb-3">
+                    If this delivery is part of a recurring schedule, select it below. When received, the next delivery will be automatically created.
+                  </p>
+                  <select
+                    value={recurringShipmentId}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      setRecurringShipmentId(selectedId);
+
+                      // Auto-fill form from recurring shipment data instead of auto-creating
+                      if (selectedId) {
+                        const selected = availableRecurringShipments.find(rs => rs.id === selectedId);
+                        if (selected) {
+                          // Pre-fill form fields
+                          setSelectedWarehouseId(selected.warehouseId);
+                          if (selected.nextExpectedDate) {
+                            setEta(selected.nextExpectedDate.split('T')[0]);
+                          }
+                          if (selected.carrier) {
+                            setCarrier(selected.carrier);
+                          }
+                          if (selected.notes) {
+                            setNotes(selected.notes);
+                          }
+                          // Pre-fill line items from expected items
+                          if (selected.expectedItems && selected.expectedItems.length > 0) {
+                            setLineItems(selected.expectedItems.map((item, index) => ({
+                              id: `recurring-${selectedId}-${index}`,
+                              productId: item.productId,
+                              productName: item.productName,
+                              partNumber: item.partNumber,
+                              expectedQuantity: item.expectedQuantity,
+                            })));
+                          }
+                        }
+                      } else {
+                        // Clear pre-filled data when deselecting
+                        setLineItems([]);
+                        setNotes('');
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  >
+                    <option value="">Not a recurring delivery</option>
+                    {availableRecurringShipments.map((rs) => (
+                      <option key={rs.id} value={rs.id}>
+                        {rs.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ETA and Carrier */}
           <div className="grid grid-cols-2 gap-4">
@@ -240,8 +373,8 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               >
                 <option value="">Select carrier</option>
-                {carriers.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                {carriers.map((carrierOption) => (
+                  <option key={carrierOption.id} value={carrierOption.name}>{carrierOption.name}</option>
                 ))}
               </select>
             </div>
@@ -391,20 +524,50 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={
+                isSubmitting ||
                 !selectedWarehouseId ||
                 !poNumber ||
                 (!isArrivingNow && (lineItems.length === 0 || !selectedVendorId))
               }
               className="px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isArrivingNow ? 'Create & Start Receiving' : 'Create Record'}
+              <span className="inline-flex items-center gap-2">
+                {isSubmitting && (
+                  <svg
+                    className="h-4 w-4 animate-spin"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                    />
+                  </svg>
+                )}
+                {isSubmitting
+                  ? 'Creating...'
+                  : isArrivingNow
+                    ? 'Create & Start Receiving'
+                    : 'Create Record'}
+              </span>
             </button>
           </div>
         </div>
@@ -417,7 +580,10 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
             <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
               <h3 className="font-medium text-[var(--foreground)]">Select Product</h3>
               <button
-                onClick={() => setShowProductSelector(false)}
+                onClick={() => {
+                  setShowProductSelector(false);
+                  setProductSearchTerm(''); // Clear search when closing
+                }}
                 className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -425,15 +591,44 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
                 </svg>
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {vendorProducts.length === 0 ? (
+            {/* Product Search */}
+            <div className="px-4 pt-3 pb-2">
+              <div className="relative">
+                <svg
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={productSearchTerm}
+                  onChange={(e) => setProductSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 pt-2">
+              {isLoadingProducts ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]" />
+                </div>
+              ) : vendorProducts.length === 0 ? (
                 <p className="text-center text-[var(--muted-foreground)] py-8">
-                  No products found from this vendor
+                  {productSearchTerm ? `No products found matching "${productSearchTerm}"` : 'No products found from this vendor'}
                 </p>
               ) : (
                 <div className="space-y-2">
                   {vendorProducts.map((product) => {
-                    const isAdded = lineItems.some(item => item.productId === product.productId);
+                    const isAdded = lineItems.some(item => item.productId === product.id);
                     return (
                       <button
                         key={product.id}
@@ -445,9 +640,9 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit, initialSt
                             : 'border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--muted)]/30'
                         }`}
                       >
-                        <div className="font-medium text-sm text-[var(--foreground)]">{product.productName}</div>
+                        <div className="font-medium text-sm text-[var(--foreground)]">{product.factoryPartNumber}</div>
                         <div className="text-xs text-[var(--muted-foreground)] mt-1">
-                          {product.partNumber} | Current Stock: {product.availableQuantity}
+                          {product.description || '-'}
                         </div>
                         {isAdded && (
                           <span className="text-xs text-green-600 mt-1">Already added</span>

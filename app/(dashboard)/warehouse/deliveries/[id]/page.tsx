@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import ReceivingDetailContent from '@/components/warehouse/ReceivingDetailContent';
+import ReceivingDetailContent from '@/components/warehouse/deliveries/receiving/ReceivingDetailContent';
 
 interface PageProps {
   params: Promise<{ id: string }>;
