@@ -6,11 +6,10 @@ import WarehouseLayoutModal from '../layout/WarehouseLayoutModal';
 import WarehouseQRCodesModal from '../qr-codes/WarehouseQRCodesModal';
 import { useWarehouseSettings, useShippingCarriers, useContainerTypes } from './hooks';
 import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList, ContainerTypesList, SavingOverlay } from './components';
-import ManufacturerProfilesContent from '../ManufacturerProfilesContent';
 import { NewWarehouseModal, AddWorkerModal } from './modals';
 import type { SettingsTab } from './types';
 
-const ALL_TAB_IDS: SettingsTab[] = ['warehouses', 'shipping-carriers', 'containers', 'manufacturer-profiles'];
+const ALL_TAB_IDS: SettingsTab[] = ['warehouses', 'shipping-carriers', 'containers'];
 
 export default function WarehouseSettingsContent() {
   const router = useRouter();
@@ -154,11 +153,6 @@ export default function WarehouseSettingsContent() {
           onDragOver={containerSettings.handleDragOver}
           onDragEnd={containerSettings.endDrag}
         />
-      )}
-
-      {/* Manufacturer Profiles Tab Content */}
-      {activeTab === 'manufacturer-profiles' && (
-        <ManufacturerProfilesContent />
       )}
 
       {/* Modals */}
