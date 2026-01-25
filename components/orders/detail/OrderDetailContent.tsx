@@ -623,6 +623,21 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     state.openWarehouseConversionModal('selected');
   };
 
+  const handleGenerateFulfillmentRequest = () => {
+    const selectedItems = order.lineItems
+      .filter((li) => state.selectedLineItems.has(li.id))
+      .filter((li) => li.productId)
+      .map((li) => ({
+        id: li.id,
+        partNumber: li.partNumber || '',
+        quantity: li.quantity,
+        hasExistingRequest: !!li.fulfillmentRequestNumber,
+        productId: li.productId!,
+        orderDetailId: li.id,
+      }));
+    state.openFulfillmentRequestModal('selected', selectedItems);
+  };
+
   const handleAddCredit = () => {
     creditsState.openCreateCreditModal();
   };
@@ -884,6 +899,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onSetEndUser={handleSetEndUser}
               onSetOutsideRepSplits={handleSetOutsideRepSplits}
               onConvertToWarehouse={handleConvertToWarehouse}
+              onGenerateFulfillmentRequest={handleGenerateFulfillmentRequest}
               onAddCredit={handleAddCredit}
               onAddAcknowledgement={handleAddAcknowledgement}
               onDeleteLines={handleDeleteLines}
@@ -1108,10 +1124,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onClose={state.closeFulfillmentRequestModal}
         mode={state.fulfillmentRequestMode}
         lineItems={state.lineItemsForFulfillment}
-        onConfirm={() => {
-          alert('Fulfillment request generated');
-          state.closeFulfillmentRequestModal();
-        }}
+        onConfirm={(warehouseId: string) => state.saveFulfillmentRequest(warehouseId)}
+        isSubmitting={state.isCreatingFulfillment}
       />
 
       {/* Additional Details Modal (3-dots menu) */}

@@ -822,6 +822,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   const bulkActionsState = useLineItemBulkActions({
     selectedLineItems,
     clearSelection: clearLineItemSelection,
+    orderId,
   });
 
   // Return loading/error state if order not available (skip for create mode - we have a local order)
@@ -1003,13 +1004,14 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       productsToConvert: [],
       setProductsToConvert: noop,
       showFulfillmentRequestModal: false,
-      openFulfillmentRequestModal: noop,
+      openFulfillmentRequestModal: noopWithArg,
       closeFulfillmentRequestModal: noop,
-      saveFulfillmentRequest: noop,
+      saveFulfillmentRequest: noopWithArg,
       fulfillmentRequestMode: 'all' as const,
       setFulfillmentRequestMode: noop,
       lineItemsForFulfillment: [],
       setLineItemsForFulfillment: noop,
+      isCreatingFulfillment: false,
     };
   }
 
