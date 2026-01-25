@@ -182,7 +182,7 @@ export interface UpdatePreOpportunityInput {
 export interface ProductSearchResult {
   id: string;
   factoryPartNumber: string;
-  description?: string;
+  description?: string | null;
   unitPrice?: number;
   defaultCommissionRate?: number;
   approvalNeeded?: boolean;
@@ -275,7 +275,7 @@ export interface FactoryLineItem {
   productId: string;
   factoryId: string;
   factoryPartNumber: string;
-  description?: string;
+  description?: string | null;
   quantity: number;
   unitPrice: number;
   discountRate: number;

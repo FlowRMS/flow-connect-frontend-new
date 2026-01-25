@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FulfillmentOrder } from '@/lib/types/warehouse';
+import type { FulfillmentOrder } from '../api/fulfillmentApi';
 import { getWarehouseWorkers, getWarehouseManagers } from '@/lib/data/warehouse-mock';
 
 interface BulkAssignModalProps {
@@ -165,8 +165,8 @@ export default function BulkAssignModal({ selectedOrders, onClose, onSubmit }: B
             <div className="max-h-32 overflow-y-auto border border-[var(--border)] rounded-lg bg-[var(--muted)]/20">
               {selectedOrders.slice(0, 5).map((order) => (
                 <div key={order.id} className="px-4 py-2.5 text-sm flex items-center justify-between border-b border-[var(--border)] last:border-b-0">
-                  <span className="font-medium text-[var(--foreground)]">{order.orderNumber}</span>
-                  <span className="text-[var(--muted-foreground)]">{order.customerName}</span>
+                  <span className="font-medium text-[var(--foreground)]">{order.order?.orderNumber || '-'}</span>
+                  <span className="text-[var(--muted-foreground)]">{order.customer?.companyName || '-'}</span>
                 </div>
               ))}
               {selectedOrders.length > 5 && (

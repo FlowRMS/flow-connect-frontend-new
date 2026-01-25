@@ -60,6 +60,7 @@ interface LineItemsTableProps {
   onSetEndUser: () => void;
   onSetOutsideRepSplits: () => void;
   onConvertToWarehouse: () => void;
+  onGenerateFulfillmentRequest: () => void;
   onAddCredit: () => void;
   onAddAcknowledgement: () => void;
   onDeleteLines: () => void;
@@ -102,6 +103,7 @@ export function LineItemsTable({
   onSetEndUser,
   onSetOutsideRepSplits,
   onConvertToWarehouse,
+  onGenerateFulfillmentRequest,
   onAddCredit,
   onAddAcknowledgement,
   onDeleteLines,
@@ -987,6 +989,7 @@ export function LineItemsTable({
           onSetEndUser={onSetEndUser}
           onSetOutsideRepSplits={onSetOutsideRepSplits}
           onConvertToWarehouse={onConvertToWarehouse}
+          onGenerateFulfillmentRequest={onGenerateFulfillmentRequest}
           onAddCredit={onAddCredit}
           onAddAcknowledgement={onAddAcknowledgement}
           onDeleteLines={onDeleteLines}

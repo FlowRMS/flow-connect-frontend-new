@@ -442,7 +442,8 @@ export function AdjustmentModal({
       creationType: 'MANUAL',
       splitRates: allocationMethod === 'REP_SPLIT'
         ? splitRates.map((r): AdjustmentSplitRateInput => ({
-            id: r.id.startsWith('split-') ? undefined : r.id,
+            // Only include id if it's an existing split rate (not a new one with 'new-' or 'split-' prefix)
+            id: (r.id.startsWith('new-') || r.id.startsWith('split-')) ? undefined : r.id,
             userId: r.userId,
             splitRate: r.splitRate.toString(),
             position: r.position,
@@ -591,6 +592,12 @@ export function AdjustmentModal({
                         className="w-full pl-7 pr-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                       />
                     </div>
+                    <p className="text-xs text-[var(--muted-foreground)] mt-1 flex items-center gap-1">
+                      <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-amber-500 flex-shrink-0">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+                      </svg>
+                      Use positive (+) for additions, negative (-) for deductions
+                    </p>
                     {touched.amount && errors.amount && (
                       <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
                     )}

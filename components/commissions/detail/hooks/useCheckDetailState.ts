@@ -36,7 +36,7 @@ import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import {
   calculateLineItemsSummary,
-  calculateTotalAdjustments,
+  calculateTotalAdjustmentsFromLineItems,
   toggleAllLineItems,
 } from '../utils';
 import { useCommissionSettings } from '@/contexts/UserSettingsContext';
@@ -478,35 +478,37 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
           });
         }
 
-        // Handle adjustments - now added to line items table
+        // Handle adjustments - previously added to line items table, now commented out
+        // Adjustments are displayed in the Deductions tab instead
         if (isAdjustment && detail.adjustment) {
           const adjustmentAmount = parseFloat(detail.adjustment.amount || '0');
-          convertedLineItems.push({
-            id: detail.id,
-            type: 'adjustment' as const,
-            number: detail.adjustment.adjustmentNumber || '',
-            orderId: '', // Adjustments don't have orderId
-            customer: detail.adjustment.customer?.companyName || '-',
-            customerName: detail.adjustment.customer?.companyName || '',
-            salesRep: '-',
-            commissionRateExpected: 0,
-            commissionRateActual: 0,
-            expectedCommission: adjustmentAmount,
-            paidCommission: appliedAmount,
-            balance: adjustmentAmount - appliedAmount,
-            paid: detail.adjustment.status === 'POSTED',
-            adjustmentId: detail.adjustmentId,
-            entityDate: detail.adjustment.entityDate,
-            status: detail.adjustment.status,
-            createdAt: detail.adjustment.createdAt,
-            reason: detail.adjustment.reason,
-            amount: adjustmentAmount,
-            factoryId: detail.adjustment.factoryId,
-            factoryName: detail.adjustment.factory?.title || '',
-            locked: detail.adjustment.locked,
-          });
+          // COMMENTED OUT: Do not display adjustments in line items
+          // convertedLineItems.push({
+          //   id: detail.id,
+          //   type: 'adjustment' as const,
+          //   number: detail.adjustment.adjustmentNumber || '',
+          //   orderId: '', // Adjustments don't have orderId
+          //   customer: detail.adjustment.customer?.companyName || '-',
+          //   customerName: detail.adjustment.customer?.companyName || '',
+          //   salesRep: '-',
+          //   commissionRateExpected: 0,
+          //   commissionRateActual: 0,
+          //   expectedCommission: adjustmentAmount,
+          //   paidCommission: appliedAmount,
+          //   balance: adjustmentAmount - appliedAmount,
+          //   paid: detail.adjustment.status === 'POSTED',
+          //   adjustmentId: detail.adjustmentId,
+          //   entityDate: detail.adjustment.entityDate,
+          //   status: detail.adjustment.status,
+          //   createdAt: detail.adjustment.createdAt,
+          //   reason: detail.adjustment.reason,
+          //   amount: adjustmentAmount,
+          //   factoryId: detail.adjustment.factoryId,
+          //   factoryName: detail.adjustment.factory?.title || '',
+          //   locked: detail.adjustment.locked,
+          // });
 
-          // Also add to adjustments for the Deductions tab (for backward compatibility)
+          // Add to adjustments for the Deductions tab
           convertedAdjustments.push({
             id: detail.id,
             factory: apiCheck.factory?.title || '',
@@ -521,10 +523,11 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
           });
 
           // Add to deductionAdjustments in AdjustmentLandingPage format for new UI
+          // Use appliedAmount for calculations (the actual amount applied to the check)
           convertedDeductionAdjustments.push({
             id: detail.adjustment.id || detail.id,
             adjustmentNumber: detail.adjustment.adjustmentNumber,
-            amount: detail.adjustment.amount,
+            amount: detail.appliedAmount || detail.adjustment.amount, // Use appliedAmount for correct totals
             createdAt: detail.adjustment.createdAt,
             entityDate: detail.adjustment.entityDate,
             locked: detail.adjustment.locked,
@@ -792,8 +795,9 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   }, [lineItems]);
 
   const totalAdjustments = useMemo(() => {
-    return calculateTotalAdjustments(adjustments);
-  }, [adjustments]);
+    // Calculate from deductionAdjustments since adjustments are no longer in lineItems
+    return deductionAdjustments.reduce((sum, adj) => sum + (parseFloat(adj.amount || '0') || 0), 0);
+  }, [deductionAdjustments]);
 
   // Factory ID state (needed for API)
   const [factoryId, setFactoryId] = useState<string>(apiCheck?.factoryId || '');

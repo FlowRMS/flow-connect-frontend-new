@@ -2,22 +2,50 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { getDeliveriesForMonth } from '@/lib/data/warehouse-mock';
 import { RecurringShipment, IncomingShipment } from '@/lib/types/warehouse';
 
 interface DeliveriesCalendarViewProps {
+  deliveries: IncomingShipment[];
+  recurringShipments: RecurringShipment[];
   onViewRecurring?: (recurring: RecurringShipment) => void;
 }
 
-export default function DeliveriesCalendarView({ onViewRecurring }: DeliveriesCalendarViewProps) {
+export default function DeliveriesCalendarView({
+  deliveries,
+  recurringShipments,
+  onViewRecurring,
+}: DeliveriesCalendarViewProps) {
   const router = useRouter();
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
 
   const monthData = useMemo(() => {
-    return getDeliveriesForMonth(currentYear, currentMonth);
-  }, [currentYear, currentMonth]);
+    const oneOff = deliveries
+      .filter((shipment) => {
+        if (!shipment.eta) return false;
+        const date = new Date(shipment.eta);
+        return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
+      })
+      .map((shipment) => ({
+        date: new Date(shipment.eta).toISOString().split('T')[0],
+        shipment,
+      }));
+
+    const recurring = recurringShipments
+      .filter((shipment) => shipment.status === 'ACTIVE' || shipment.status === 'PAUSED')
+      .filter((shipment) => shipment.nextExpectedDate)
+      .filter((shipment) => {
+        const date = new Date(shipment.nextExpectedDate as string);
+        return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
+      })
+      .map((shipment) => ({
+        date: shipment.nextExpectedDate as string,
+        recurring: shipment,
+      }));
+
+    return { oneOff, recurring };
+  }, [deliveries, recurringShipments, currentYear, currentMonth]);
 
   // Build calendar grid
   const calendarDays = useMemo(() => {
@@ -183,24 +211,48 @@ export default function DeliveriesCalendarView({ onViewRecurring }: DeliveriesCa
                       ))}
 
                       {/* Recurring schedules - Green */}
-                      {deliveries.recurring.slice(0, 2 - Math.min(deliveries.oneOff.length, 2)).map(({ recurring }, idx) => (
-                        <button
-                          key={`${recurring.id}-${idx}`}
-                          onClick={() => onViewRecurring?.(recurring)}
-                          className="w-full text-left text-xs p-1.5 bg-green-50 border-l-2 border-green-500 rounded cursor-pointer hover:bg-green-100 transition-colors truncate"
-                        >
-                          <div className="font-medium text-green-900 truncate flex items-center gap-1">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
-                              <path d="M17 1l4 4-4 4"/>
-                              <path d="M3 11V9a4 4 0 014-4h14"/>
-                              <path d="M7 23l-4-4 4-4"/>
-                              <path d="M21 13v2a4 4 0 01-4 4H3"/>
-                            </svg>
-                            <span className="truncate">{recurring.name}</span>
-                          </div>
-                          <div className="text-green-700 truncate">{recurring.vendorName}</div>
-                        </button>
-                      ))}
+                      {deliveries.recurring
+                        .slice(0, 2 - Math.min(deliveries.oneOff.length, 2))
+                        .map(({ recurring }, idx) => {
+                          const isPaused = recurring.status === 'PAUSED';
+
+                          return (
+                            <button
+                              key={`${recurring.id}-${idx}`}
+                              onClick={() => onViewRecurring?.(recurring)}
+                              className={`w-full text-left text-xs p-1.5 rounded cursor-pointer transition-colors truncate ${
+                                isPaused
+                                  ? 'bg-gray-50 border-l-2 border-gray-400 hover:bg-gray-100'
+                                  : 'bg-green-50 border-l-2 border-green-500 hover:bg-green-100'
+                              }`}
+                            >
+                              <div
+                                className={`font-medium truncate flex items-center gap-1 ${
+                                  isPaused ? 'text-gray-800' : 'text-green-900'
+                                }`}
+                              >
+                                <svg
+                                  width="10"
+                                  height="10"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  className="flex-shrink-0"
+                                >
+                                  <path d="M17 1l4 4-4 4" />
+                                  <path d="M3 11V9a4 4 0 014-4h14" />
+                                  <path d="M7 23l-4-4 4-4" />
+                                  <path d="M21 13v2a4 4 0 01-4 4H3" />
+                                </svg>
+                                <span className="truncate">{recurring.name}</span>
+                              </div>
+                              <div className={`truncate ${isPaused ? 'text-gray-600' : 'text-green-700'}`}>
+                                {recurring.vendorName}
+                              </div>
+                            </button>
+                          );
+                        })}
 
                       {/* Overflow indicator */}
                       {totalItems > 2 && (

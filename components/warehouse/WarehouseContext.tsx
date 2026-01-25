@@ -1,48 +1,99 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
-import { useQuery } from '@apollo/client/react';
-import { Warehouse } from '@/lib/types/warehouse';
-import { GET_ALL_WAREHOUSES } from '@/app/graphql/warehouse';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { fetchWarehouses } from './settings/api/warehousesApi';
 
 export type WarehouseViewMode = 'manager' | 'worker';
 
+// Simplified warehouse type for the context
+export interface ContextWarehouse {
+  id: string;
+  name: string;
+  status: string;
+  isActive?: boolean | null;
+  city?: string | null;
+  state?: string | null;
+  addressLine1?: string | null;
+  address?: string | null;
+}
+
 interface WarehouseContextType {
-  warehouses: Warehouse[];
-  selectedWarehouse: Warehouse | null;
-  setSelectedWarehouse: (warehouse: Warehouse | null) => void;
+  warehouses: ContextWarehouse[];
+  selectedWarehouse: ContextWarehouse | null;
+  setSelectedWarehouse: (warehouse: ContextWarehouse | null) => void;
   viewMode: WarehouseViewMode;
   setViewMode: (mode: WarehouseViewMode) => void;
   isWorkerView: boolean;
   isManagerView: boolean;
+  isLoading: boolean;
 }
 
 const VIEW_MODE_STORAGE_KEY = 'warehouse-view-mode';
+const SELECTED_WAREHOUSE_KEY = 'selected-warehouse-id';
 
 const WarehouseContext = createContext<WarehouseContextType | undefined>(undefined);
 
+// Helper to get initial view mode from localStorage (runs only on client)
+function getInitialViewMode(): WarehouseViewMode {
+  if (typeof window === 'undefined') return 'manager';
+  const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+  return stored === 'worker' || stored === 'manager' ? stored : 'manager';
+}
+
 export function WarehouseProvider({ children }: { children: ReactNode }) {
-  const { data } = useQuery<{ warehouses: any[] }>(GET_ALL_WAREHOUSES);
-  const warehouses = useMemo(() => (data?.warehouses || []) as Warehouse[], [data]);
+  const [warehouses, setWarehouses] = useState<ContextWarehouse[]>([]);
+  const [selectedWarehouse, setSelectedWarehouseState] = useState<ContextWarehouse | null>(null);
+  const [viewMode, setViewModeState] = useState<WarehouseViewMode>(getInitialViewMode);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
-
-  // Default to first warehouse when data loads
+  // Fetch warehouses from API on mount
   useEffect(() => {
-    if (warehouses.length > 0 && !selectedWarehouse) {
-      setSelectedWarehouse(warehouses[0]);
-    }
-  }, [warehouses, selectedWarehouse]);
+    async function loadWarehouses() {
+      try {
+        const apiWarehouses = await fetchWarehouses();
+        const contextWarehouses: ContextWarehouse[] = apiWarehouses.map((w) => ({
+          id: w.id,
+          name: w.name,
+          status: w.status,
+          isActive: w.isActive,
+          city: w.city,
+          state: w.state,
+          addressLine1: w.address,
+          address: w.address,
+        }));
+        setWarehouses(contextWarehouses);
 
-  const [viewMode, setViewModeState] = useState<WarehouseViewMode>('manager');
+        // Try to restore previously selected warehouse from localStorage
+        const savedId = localStorage.getItem(SELECTED_WAREHOUSE_KEY);
+        const savedWarehouse = savedId
+          ? contextWarehouses.find((w) => w.id === savedId)
+          : null;
 
-  // Load view mode from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-    if (stored === 'worker' || stored === 'manager') {
-      setViewModeState(stored);
+        // Set selected warehouse (saved or first available)
+        if (savedWarehouse) {
+          setSelectedWarehouseState(savedWarehouse);
+        } else if (contextWarehouses.length > 0) {
+          setSelectedWarehouseState(contextWarehouses[0]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch warehouses:', error);
+      } finally {
+        setIsLoading(false);
+      }
     }
+
+    loadWarehouses();
   }, []);
+
+  // Wrapper to persist selected warehouse
+  const setSelectedWarehouse = (warehouse: ContextWarehouse | null) => {
+    setSelectedWarehouseState(warehouse);
+    if (warehouse) {
+      localStorage.setItem(SELECTED_WAREHOUSE_KEY, warehouse.id);
+    } else {
+      localStorage.removeItem(SELECTED_WAREHOUSE_KEY);
+    }
+  };
 
   // Persist view mode to localStorage and notify other components
   const setViewMode = (mode: WarehouseViewMode) => {
@@ -62,6 +113,7 @@ export function WarehouseProvider({ children }: { children: ReactNode }) {
         setViewMode,
         isWorkerView: viewMode === 'worker',
         isManagerView: viewMode === 'manager',
+        isLoading,
       }}
     >
       {children}

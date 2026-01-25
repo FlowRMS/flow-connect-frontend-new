@@ -1,51 +1,63 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  mockIncomingShipments,
-  mockWarehouses,
-  getWarehouseFactories,
-  addIncomingShipment,
-  updateShipmentStatus,
-  completeShipmentReceiving,
-} from '@/lib/data/warehouse-mock';
+  mapDeliveryToShipment,
+  mapIssueFromDelivery,
+  mapRecurringShipment,
+} from '../api';
+import {
+  useCreateDelivery,
+  useCreateDeliveryItem,
+  useCreateDeliveryStatusHistory,
+  useCreateRecurringShipment,
+  useUpdateDelivery,
+  useUpdateRecurringShipment,
+  useWarehouseDeliveries,
+  useWarehouseLookups,
+  useWarehouseRecurringShipments,
+  warehouseDeliveriesQueryKeys,
+} from '../../api/useWarehouseDeliveriesApi';
 import {
   IncomingShipment,
   shipmentStatusColors,
   shipmentStatusLabels,
   ShipmentStatus,
   RecurringShipment,
+  DeliveryIssue,
 } from '@/lib/types/warehouse';
-import { updateRecurringShipment, calculateNextDate, getShipmentsForRecurring } from '@/lib/data/warehouse-mock';
-import ReceiveShipmentModal from './modals/ReceiveShipmentModal';
-import CreateShipmentRecordModal, { ShipmentRecord } from './modals/CreateShipmentRecordModal';
-import ShipmentDetailModal from './modals/ShipmentDetailModal';
-import ShipmentTypeSelectionModal, { ShipmentCreationType } from './modals/ShipmentTypeSelectionModal';
-import WarehouseSelector from './WarehouseSelector';
-import { useWarehouse } from './WarehouseContext';
-import RecurringShipmentsContent from './RecurringShipmentsContent';
-import DeliveryIssuesTabContent from './DeliveryIssuesTabContent';
-import DeliveriesCalendarView from './DeliveriesCalendarView';
-import RecurringShipmentDetailModal from './modals/RecurringShipmentDetailModal';
+import { calculateNextDate, formatDateOnly, parseDateInput } from '../utils/recurrence';
+import ReceiveShipmentModal from '../../modals/ReceiveShipmentModal';
+import CreateShipmentRecordModal, { ShipmentRecord } from '../../modals/CreateShipmentRecordModal';
+import ShipmentDetailModal from '../../modals/ShipmentDetailModal';
+import ShipmentTypeSelectionModal, { ShipmentCreationType } from '../../modals/ShipmentTypeSelectionModal';
+import WarehouseSelector from '../../WarehouseSelector';
+import { useWarehouse } from '../../WarehouseContext';
+import RecurringShipmentsContent from '../recurring/RecurringShipmentsContent';
+import DeliveryIssuesTabContent from '../issues/DeliveryIssuesTabContent';
+import DeliveriesCalendarView from '../calendar/DeliveriesCalendarView';
+import RecurringShipmentDetailModal from '../../modals/RecurringShipmentDetailModal';
+import {
+  DateRangeFilterDropdown,
+  MultiSelectFilterDropdown,
+  SortIcon,
+  TextFilterDropdown,
+  type DeliverySortField,
+  type SortDirection,
+} from './DeliveryFilters';
+import { useQueryClient } from '@tanstack/react-query';
 
 type ViewMode = 'table' | 'cards';
 
-// Statuses that workers can see (released = CONFIRMED and beyond, not DRAFT/PENDING)
+// Statuses that workers can see (released = PENDING/CONFIRMED and beyond, not DRAFT)
 const WORKER_VISIBLE_STATUSES: ShipmentStatus[] = [
+  'PENDING',
   'CONFIRMED',
-  'IN_TRANSIT',
   'ARRIVED',
   'RECEIVING',
-  'PROCESSING',
-  'SHIPPED',
-  'DELIVERED',
   'RECEIVED',
 ];
-
-// Sort types
-type DeliverySortField = 'poNumber' | 'vendorName' | 'itemCount' | 'eta' | 'status';
-type SortDirection = 'asc' | 'desc';
 
 // Column filter types
 interface DeliveryColumnFilters {
@@ -63,105 +75,18 @@ const carrierTrackingUrls: Record<string, string> = {
   'DHL': 'https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id=',
 };
 
-// Sort Icon Component
-function SortIcon({ field, currentSortField, currentSortDirection }: { field: DeliverySortField; currentSortField: DeliverySortField; currentSortDirection: SortDirection }) {
-  const isActive = currentSortField === field;
-  return (
-    <span className="ml-1 inline-flex flex-col">
-      <svg className={`w-2 h-2 ${isActive && currentSortDirection === 'asc' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`} viewBox="0 0 8 4" fill="currentColor">
-        <path d="M4 0L8 4H0L4 0Z" />
-      </svg>
-      <svg className={`w-2 h-2 -mt-0.5 ${isActive && currentSortDirection === 'desc' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`} viewBox="0 0 8 4" fill="currentColor">
-        <path d="M4 4L0 0H8L4 4Z" />
-      </svg>
-    </span>
-  );
-}
-
-// Text Filter Dropdown
-function TextFilterDropdown({ value, onChange, placeholder, isOpen, onToggle }: { value: string; onChange: (value: string) => void; placeholder?: string; isOpen: boolean; onToggle: () => void }) {
-  const hasValue = value !== '';
-  return (
-    <div className="relative">
-      <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className={`ml-1.5 p-1 rounded hover:bg-[var(--muted)] transition-colors ${hasValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`} title="Filter">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
-      </button>
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={onToggle} />
-          <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 min-w-[180px] p-2">
-            <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50" autoFocus onClick={(e) => e.stopPropagation()} />
-            {hasValue && <button onClick={() => onChange('')} className="w-full mt-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors">Clear</button>}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// MultiSelect Filter Dropdown
-function MultiSelectFilterDropdown({ options, value, onChange, isOpen, onToggle, renderLabel }: { options: string[]; value: string[]; onChange: (value: string[]) => void; isOpen: boolean; onToggle: () => void; renderLabel?: (opt: string) => string }) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const hasValue = value.length > 0;
-  const filteredOptions = options.filter((opt) => (renderLabel ? renderLabel(opt) : opt).toLowerCase().includes(searchTerm.toLowerCase()));
-  const toggleOption = (optValue: string) => { if (value.includes(optValue)) { onChange(value.filter((v) => v !== optValue)); } else { onChange([...value, optValue]); } };
-  return (
-    <div className="relative">
-      <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className={`ml-1.5 p-1 rounded hover:bg-[var(--muted)] transition-colors ${hasValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`} title="Filter">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
-        {hasValue && <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--primary)] text-white text-[10px] rounded-full flex items-center justify-center">{value.length}</span>}
-      </button>
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={onToggle} />
-          <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 min-w-[200px] max-h-[300px] flex flex-col">
-            <div className="p-2 border-b border-[var(--border)]">
-              <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search..." className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50" autoFocus onClick={(e) => e.stopPropagation()} />
-            </div>
-            <div className="overflow-y-auto flex-1 py-1">
-              {filteredOptions.length === 0 ? <div className="px-3 py-2 text-xs text-[var(--muted-foreground)]">No results</div> : filteredOptions.map((opt) => (
-                <label key={opt} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--muted)] transition-colors cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                  <input type="checkbox" checked={value.includes(opt)} onChange={() => toggleOption(opt)} className="rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)]/50" />
-                  <span className={value.includes(opt) ? 'text-[var(--primary)] font-medium' : 'text-[var(--foreground)]'}>{renderLabel ? renderLabel(opt) : opt}</span>
-                </label>
-              ))}
-            </div>
-            {hasValue && <div className="p-2 border-t border-[var(--border)]"><button onClick={(e) => { e.stopPropagation(); onChange([]); }} className="w-full px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors">Clear all</button></div>}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// Date Range Filter Dropdown
-function DateRangeFilterDropdown({ value, onChange, isOpen, onToggle }: { value: { start: string; end: string }; onChange: (value: { start: string; end: string }) => void; isOpen: boolean; onToggle: () => void }) {
-  const hasValue = value.start !== '' || value.end !== '';
-  return (
-    <div className="relative">
-      <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className={`ml-1.5 p-1 rounded hover:bg-[var(--muted)] transition-colors ${hasValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`} title="Filter">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
-      </button>
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={onToggle} />
-          <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 p-3 min-w-[200px]">
-            <div className="space-y-3">
-              <div><label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">From</label><input type="date" value={value.start} onChange={(e) => onChange({ ...value, start: e.target.value })} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50" onClick={(e) => e.stopPropagation()} /></div>
-              <div><label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">To</label><input type="date" value={value.end} onChange={(e) => onChange({ ...value, end: e.target.value })} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50" onClick={(e) => e.stopPropagation()} /></div>
-              {hasValue && <button onClick={(e) => { e.stopPropagation(); onChange({ start: '', end: '' }); }} className="w-full px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors">Clear</button>}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 export default function WarehouseDeliveriesContent() {
   const router = useRouter();
-  const { selectedWarehouse, isWorkerView, isManagerView } = useWarehouse();
+  const queryClient = useQueryClient();
+  const { selectedWarehouse, isWorkerView, isManagerView, warehouses } = useWarehouse();
   const [activeTab, setActiveTab] = useState<'deliveries' | 'recurring' | 'issues' | 'calendar'>('deliveries');
+  const { warehousesQuery, carriersQuery, vendorsQuery } = useWarehouseLookups();
+  const deliveriesQuery = useWarehouseDeliveries(selectedWarehouse?.id || null, { includeIssues: false, enabled: !!selectedWarehouse });
+  const recurringQuery = useWarehouseRecurringShipments(selectedWarehouse?.id || null, !!selectedWarehouse);
+  const issuesDeliveriesQuery = useWarehouseDeliveries(selectedWarehouse?.id || null, {
+    includeIssues: true,
+    enabled: activeTab === 'issues' && !!selectedWarehouse,
+  });
   const [selectedRecurringForModal, setSelectedRecurringForModal] = useState<RecurringShipment | null>(null);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -172,11 +97,18 @@ export default function WarehouseDeliveriesContent() {
   const [showTypeSelectionModal, setShowTypeSelectionModal] = useState(false);
   const [showCreateRecordModal, setShowCreateRecordModal] = useState(false);
   const [createRecordInitialStatus, setCreateRecordInitialStatus] = useState<ShipmentStatus | undefined>(undefined);
+  const [isCreatingDelivery, setIsCreatingDelivery] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [showQuickActions, setShowQuickActions] = useState<string | null>(null);
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
+  const [quickStatusUpdate, setQuickStatusUpdate] = useState<{ id: string; status: ShipmentStatus } | null>(null);
+  const [shipments, setShipments] = useState<IncomingShipment[]>([]);
+  const [recurringShipments, setRecurringShipments] = useState<RecurringShipment[]>([]);
+  const [deliveryIssues, setDeliveryIssues] = useState<DeliveryIssue[]>([]);
+  const [carrierLookups, setCarrierLookups] = useState<Array<{ id: string; name: string; trackingUrlTemplate?: string | null }>>([]);
+  const [factoryLookups, setFactoryLookups] = useState<Array<{ id: string; title: string; email?: string | null }>>([]);
+  const [warehouseLookups, setWarehouseLookups] = useState<Array<{ id: string; name: string }>>([]);
 
   // Sorting state
   const [sortField, setSortField] = useState<DeliverySortField>('eta');
@@ -190,17 +122,164 @@ export default function WarehouseDeliveriesContent() {
     dateRange: { start: '', end: '' },
   });
   const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const createDeliveryMutation = useCreateDelivery();
+  const createDeliveryItemMutation = useCreateDeliveryItem();
+  const createDeliveryStatusHistoryMutation = useCreateDeliveryStatusHistory();
+  const updateDeliveryMutation = useUpdateDelivery();
+  const createRecurringShipmentMutation = useCreateRecurringShipment();
+  const updateRecurringShipmentMutation = useUpdateRecurringShipment();
 
-  const factories = useMemo(() => getWarehouseFactories(), []);
+  const factories = useMemo(() => {
+    const uniqueFactories = new Map<string, { id: string; name: string }>();
+    factoryLookups.forEach((factory) => {
+      if (!uniqueFactories.has(factory.id)) {
+        uniqueFactories.set(factory.id, { id: factory.id, name: factory.title });
+      }
+    });
+    return Array.from(uniqueFactories.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [factoryLookups]);
+
+  const resolveWarehouseName = useCallback((warehouseId?: string) => {
+    if (!warehouseId) return undefined;
+    return warehouseLookups.find((warehouse) => warehouse.id === warehouseId)?.name;
+  }, [warehouseLookups]);
+
+  const resolveVendorName = useCallback((vendorId?: string) => {
+    if (!vendorId) return undefined;
+    return factoryLookups.find((factory) => factory.id === vendorId)?.title;
+  }, [factoryLookups]);
+
+  const isLoading =
+    deliveriesQuery.isLoading ||
+    recurringQuery.isLoading ||
+    warehousesQuery.isLoading ||
+    carriersQuery.isLoading;
+  const showDeliveriesLoading = isLoading && activeTab === 'deliveries';
+  const loadError = deliveriesQuery.error ? deliveriesQuery.error.message : null;
+  const isIssuesLoading = issuesDeliveriesQuery.isLoading;
+
+  const updateRecurringState = useCallback((
+    shipmentId: string,
+    updates: Partial<RecurringShipment>
+  ) => {
+    setRecurringShipments((prev) =>
+      prev.map((shipment) => {
+        if (shipment.id !== shipmentId) return shipment;
+
+        const nextVendorId = updates.vendorId ?? shipment.vendorId;
+        const nextWarehouseId = updates.warehouseId ?? shipment.warehouseId;
+
+        return {
+          ...shipment,
+          ...updates,
+          vendorId: nextVendorId,
+          vendorName: resolveVendorName(nextVendorId) || shipment.vendorName,
+          warehouseId: nextWarehouseId,
+          warehouseName: resolveWarehouseName(nextWarehouseId) || shipment.warehouseName,
+          recurrencePattern: updates.recurrencePattern || shipment.recurrencePattern,
+          expectedItems: updates.expectedItems || shipment.expectedItems,
+        };
+      })
+    );
+
+    setSelectedRecurringForModal((prev) => {
+      if (!prev || prev.id !== shipmentId) return prev;
+      return {
+        ...prev,
+        ...updates,
+        vendorId: updates.vendorId ?? prev.vendorId,
+        vendorName: resolveVendorName(updates.vendorId ?? prev.vendorId) || prev.vendorName,
+        warehouseId: updates.warehouseId ?? prev.warehouseId,
+        warehouseName: resolveWarehouseName(updates.warehouseId ?? prev.warehouseId) || prev.warehouseName,
+        recurrencePattern: updates.recurrencePattern || prev.recurrencePattern,
+        expectedItems: updates.expectedItems || prev.expectedItems,
+      };
+    });
+  }, [resolveVendorName, resolveWarehouseName]);
+
+  useEffect(() => {
+    if (!selectedWarehouse) {
+      setShipments([]);
+      setFactoryLookups([]);
+      setWarehouseLookups([]);
+      setCarrierLookups([]);
+      return;
+    }
+
+    const deliveriesData = deliveriesQuery.data || [];
+    const warehouseSource = warehousesQuery.data && warehousesQuery.data.length > 0
+      ? warehousesQuery.data
+      : (selectedWarehouse ? [selectedWarehouse] : []);
+    const warehouseEntries = warehouseSource.map((warehouse) => ({ id: warehouse.id, name: warehouse.name }));
+    const carriersData = carriersQuery.data || [];
+
+    const vendors = deliveriesData
+      .map((delivery) => delivery.vendor)
+      .filter(Boolean) as Array<{ id: string; title: string; email?: string | null }>;
+
+    const warehouseMap = new Map(warehouseSource.map((warehouse) => [warehouse.id, warehouse]));
+    const carrierMap = new Map(carriersData.map((carrier) => [carrier.id, carrier]));
+    const factoryMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
+    const mappedShipments = deliveriesData.map((delivery) =>
+      mapDeliveryToShipment(delivery, warehouseMap, factoryMap, carrierMap)
+    );
+
+    setCarrierLookups(carriersData);
+    setFactoryLookups(vendors);
+    setWarehouseLookups(warehouseEntries);
+    setShipments(mappedShipments);
+  }, [selectedWarehouse, deliveriesQuery.data, carriersQuery.data, warehousesQuery.data]);
+
+  useEffect(() => {
+    if (!selectedWarehouse) {
+      setRecurringShipments([]);
+      return;
+    }
+
+    const recurringData = recurringQuery.data || [];
+    const warehouseSource = warehousesQuery.data && warehousesQuery.data.length > 0
+      ? warehousesQuery.data
+      : (selectedWarehouse ? [selectedWarehouse] : []);
+    const vendorsSource = vendorsQuery.data && vendorsQuery.data.length > 0
+      ? vendorsQuery.data
+      : factoryLookups;
+    const warehouseMap = new Map(warehouseSource.map((warehouse) => [warehouse.id, warehouse]));
+    const factoryMap = new Map(
+      vendorsSource.map((vendor) => [vendor.id, vendor])
+    );
+
+    const mappedRecurring = recurringData.map((recurring) =>
+      mapRecurringShipment(recurring, warehouseMap, factoryMap)
+    );
+    setRecurringShipments(mappedRecurring);
+  }, [selectedWarehouse, recurringQuery.data, warehousesQuery.data, vendorsQuery.data, factoryLookups]);
+
+  useEffect(() => {
+    if (!selectedWarehouse || activeTab !== 'issues') {
+      setDeliveryIssues([]);
+      return;
+    }
+
+    const deliveriesData = issuesDeliveriesQuery.data || [];
+    const warehouseSource = warehousesQuery.data && warehousesQuery.data.length > 0
+      ? warehousesQuery.data
+      : (selectedWarehouse ? [selectedWarehouse] : []);
+    const warehouseMap = new Map(warehouseSource.map((warehouse) => [warehouse.id, warehouse]));
+    const factoryMap = new Map(factoryLookups.map((vendor) => [vendor.id, vendor]));
+    const mappedIssues = deliveriesData.flatMap((delivery) =>
+      (delivery.issues || []).map((issue) => mapIssueFromDelivery(issue, delivery, warehouseMap, factoryMap))
+    );
+    setDeliveryIssues(mappedIssues);
+  }, [activeTab, selectedWarehouse, issuesDeliveriesQuery.data, warehousesQuery.data, factoryLookups]);
 
   // Get unique values for filters
   const uniqueVendors = useMemo(() => {
-    return [...new Set(mockIncomingShipments.map(s => s.vendorName))].sort();
-  }, []);
+    return [...new Set(shipments.map(s => s.vendorName))].sort();
+  }, [shipments]);
 
   const uniqueStatuses = useMemo(() => {
-    return [...new Set(mockIncomingShipments.map(s => s.status))];
-  }, []);
+    return [...new Set(shipments.map(s => s.status))];
+  }, [shipments]);
 
   // Handle sorting
   const handleSort = (field: DeliverySortField) => {
@@ -213,7 +292,7 @@ export default function WarehouseDeliveriesContent() {
   };
 
   const filteredShipments = useMemo(() => {
-    let result = mockIncomingShipments;
+    let result = shipments;
 
     // For workers, only show released deliveries (CONFIRMED and beyond)
     if (isWorkerView) {
@@ -283,7 +362,7 @@ export default function WarehouseDeliveriesContent() {
     });
 
     return result;
-  }, [searchTerm, statusFilter, vendorFilter, refreshKey, columnFilters, sortField, sortDirection, isWorkerView]);
+  }, [shipments, searchTerm, statusFilter, vendorFilter, columnFilters, sortField, sortDirection, isWorkerView]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -308,115 +387,180 @@ export default function WarehouseDeliveriesContent() {
 
   const handleShipmentTypeSelect = (type: ShipmentCreationType) => {
     setShowTypeSelectionModal(false);
-    createAndNavigateToShipment(type === 'arriving' ? 'ARRIVED' : 'DRAFT');
+    setCreateRecordInitialStatus(type === 'arriving' ? 'ARRIVED' : 'DRAFT');
+    setShowCreateRecordModal(true);
   };
 
   const handleOpenCreateExpected = () => {
     setShowCreateDropdown(false);
-    createAndNavigateToShipment('DRAFT');
+    setCreateRecordInitialStatus('DRAFT');
+    setShowCreateRecordModal(true);
   };
 
   const handleOpenCreateArriving = () => {
     setShowCreateDropdown(false);
-    createAndNavigateToShipment('ARRIVED');
+    setCreateRecordInitialStatus('ARRIVED');
+    setShowCreateRecordModal(true);
   };
 
-  const createAndNavigateToShipment = (status: ShipmentStatus) => {
-    const selectedWarehouse = mockWarehouses[0];
-    const newShipment = addIncomingShipment({
-      poNumber: `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`,
-      vendorId: '',
-      vendorName: '',
-      warehouseId: selectedWarehouse?.id || '',
-      warehouseName: selectedWarehouse?.name || '',
-      eta: status === 'ARRIVED'
-        ? new Date().toISOString()
-        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      status,
-      expectedItems: [],
-      items: [],
-      itemCount: 0,
-      expectedQuantity: 0,
-    });
+  const handleCreateRecord = useCallback(async (record: ShipmentRecord) => {
+    const carrierId = carrierLookups.find((carrier) => carrier.name === record.carrier)?.id;
+    const expectedDate = record.eta ? record.eta.split('T')[0] : null;
 
-    setRefreshKey(prev => prev + 1);
-    router.push(`/warehouse/deliveries/${newShipment.id}`);
-  };
+    setIsCreatingDelivery(true);
+    try {
+      // 1. Create delivery with recurring_shipment_id
+      const deliveryInput = {
+        poNumber: record.poNumber,
+        warehouseId: record.warehouseId,
+        vendorId: record.vendorId,
+        carrierId: carrierId || null,
+        trackingNumber: record.trackingNumber || null,
+        status: record.status,
+        expectedDate,
+        vendorContactName: record.vendorContact || null,
+        vendorContactEmail: record.vendorEmail || null,
+        notes: record.notes || null,
+        recurringShipmentId: record.recurringShipmentId || null,
+      };
 
-  const handleCreateRecord = useCallback((record: ShipmentRecord) => {
-    const newShipment = addIncomingShipment({
-      poNumber: record.poNumber,
-      vendorId: record.vendorId,
-      vendorName: record.vendorName,
-      warehouseId: record.warehouseId,
-      warehouseName: record.warehouseName,
-      eta: record.eta,
-      status: record.status,
-      trackingNumber: record.trackingNumber,
-      carrier: record.carrier,
-      expectedItems: record.items.map((item, index) => ({
-        id: `EI-NEW-${index}`,
-        productId: item.productId,
-        productName: item.productName,
-        partNumber: item.partNumber,
-        expectedQuantity: item.expectedQuantity,
-        receivedQuantity: 0,
-        status: 'pending' as const,
-      })),
-      items: record.items.map((item, index) => ({
-        id: `SLI-NEW-${index}`,
-        productId: item.productId,
-        productName: item.productName,
-        partNumber: item.partNumber,
-        expectedQuantity: item.expectedQuantity,
-        receivedQuantity: 0,
-      })),
-      itemCount: record.items.length,
-      expectedQuantity: record.items.reduce((sum, item) => sum + item.expectedQuantity, 0),
-      notes: record.notes,
-    });
+      const delivery = await createDeliveryMutation.mutateAsync(deliveryInput);
 
-    setShowCreateRecordModal(false);
-    setCreateRecordInitialStatus(undefined);
-    setRefreshKey(prev => prev + 1);
+      // 2. Create delivery items in parallel WITHOUT triggering refetch for each one
+      // We'll manually invalidate queries at the end to avoid N refetches
+      if (record.items.length > 0) {
+        const itemPromises = record.items.map((item) =>
+          createDeliveryItemMutation.mutateAsync(
+            {
+              deliveryId: delivery.id,
+              productId: item.productId,
+              expectedQuantity: item.expectedQuantity,
+              receivedQuantity: 0,
+              damagedQuantity: 0,
+              status: 'PENDING',
+            },
+            {
+              // Disable automatic cache invalidation for each item
+              // We'll do it once at the end
+              onSuccess: undefined,
+            }
+          )
+        );
+        await Promise.all(itemPromises);
+      }
 
-    // If arriving now, navigate directly to the detail page for receiving
-    if (record.status === 'ARRIVED') {
-      router.push(`/warehouse/deliveries/${newShipment.id}`);
-    } else {
-      setSelectedShipment(newShipment);
-      setShowDetailModal(true);
+      // NOTE: Backend automatically creates initial status history (delivery_service.py:67-75)
+      // NOTE: Backend automatically updates recurring shipment when delivery is marked as RECEIVED
+      // See delivery_service.py lines 100-118 for auto-generation logic
+
+      setShowCreateRecordModal(false);
+      setCreateRecordInitialStatus(undefined);
+
+      router.push(`/warehouse/deliveries/${delivery.id}`);
+    } catch (error) {
+      console.error('Failed to create delivery record', error);
+    } finally {
+      setIsCreatingDelivery(false);
     }
-  }, [router]);
+  }, [carrierLookups, createDeliveryMutation, createDeliveryItemMutation, router]);
 
-  const handleUpdateShipmentStatus = useCallback((status: ShipmentStatus) => {
+  const handleUpdateShipmentStatus = useCallback(async (status: ShipmentStatus) => {
     if (!selectedShipment) return;
-    const updated = updateShipmentStatus(selectedShipment.id, status);
-    if (updated) {
-      setSelectedShipment(updated);
-      setRefreshKey(prev => prev + 1);
+    try {
+      await updateDeliveryMutation.mutateAsync({
+        id: selectedShipment.id,
+        input: {
+          poNumber: selectedShipment.poNumber,
+          warehouseId: selectedShipment.warehouseId,
+          vendorId: selectedShipment.vendorId,
+          status,
+          expectedDate: selectedShipment.eta ? selectedShipment.eta.split('T')[0] : null,
+          trackingNumber: selectedShipment.trackingNumber || null,
+          recurringShipmentId: selectedShipment.recurringShipmentId || null,
+          vendorContactName: selectedShipment.vendorContact || null,
+          vendorContactEmail: selectedShipment.vendorEmail || null,
+          notes: selectedShipment.notes || null,
+        },
+      });
+      await createDeliveryStatusHistoryMutation.mutateAsync({
+        deliveryId: selectedShipment.id,
+        status,
+        timestamp: null,
+        userId: null,
+        note: 'Status updated',
+      });
+    } catch (error) {
+      console.error('Failed to update delivery status', error);
     }
-  }, [selectedShipment]);
+  }, [selectedShipment, updateDeliveryMutation, createDeliveryStatusHistoryMutation]);
 
-  const handleQuickStatusUpdate = useCallback((shipmentId: string, status: ShipmentStatus) => {
-    const updated = updateShipmentStatus(shipmentId, status);
-    if (updated) {
-      setRefreshKey(prev => prev + 1);
+  const handleQuickStatusUpdate = useCallback(async (shipmentId: string, status: ShipmentStatus) => {
+    const shipment = shipments.find((item) => item.id === shipmentId);
+    if (!shipment) return;
+    const previousStatus = shipment.status;
+    setQuickStatusUpdate({ id: shipmentId, status });
+    setShipments((prev) =>
+      prev.map((item) => (item.id === shipmentId ? { ...item, status } : item))
+    );
+    try {
+      await updateDeliveryMutation.mutateAsync({
+        id: shipmentId,
+        input: {
+          poNumber: shipment.poNumber,
+          warehouseId: shipment.warehouseId,
+          vendorId: shipment.vendorId,
+          status,
+          expectedDate: shipment.eta ? shipment.eta.split('T')[0] : null,
+          trackingNumber: shipment.trackingNumber || null,
+          recurringShipmentId: shipment.recurringShipmentId || null,
+          vendorContactName: shipment.vendorContact || null,
+          vendorContactEmail: shipment.vendorEmail || null,
+          notes: shipment.notes || null,
+        },
+      });
+      await createDeliveryStatusHistoryMutation.mutateAsync({
+        deliveryId: shipmentId,
+        status,
+        timestamp: null,
+        userId: null,
+        note: 'Quick status update',
+      });
+    } catch (error) {
+      setShipments((prev) =>
+        prev.map((item) => (item.id === shipmentId ? { ...item, status: previousStatus } : item))
+      );
+      console.error('Failed to update delivery status', error);
+    } finally {
+      setQuickStatusUpdate((prev) => (prev?.id === shipmentId ? null : prev));
+      setShowQuickActions(null);
     }
-    setShowQuickActions(null);
-  }, []);
+  }, [shipments, updateDeliveryMutation, createDeliveryStatusHistoryMutation]);
 
-  const handleReceiveComplete = useCallback(() => {
+  const handleReceiveComplete = useCallback(async () => {
     if (!selectedShipment) return;
-    const updatedItems = selectedShipment.items.map(item => ({
-      productId: item.productId,
-      receivedQuantity: item.expectedQuantity,
-    }));
-    completeShipmentReceiving(selectedShipment.id, updatedItems);
-    setShowReceiveModal(false);
-    setSelectedShipment(null);
-    setRefreshKey(prev => prev + 1);
-  }, [selectedShipment]);
+    try {
+      await updateDeliveryMutation.mutateAsync({
+        id: selectedShipment.id,
+        input: {
+          poNumber: selectedShipment.poNumber,
+          warehouseId: selectedShipment.warehouseId,
+          vendorId: selectedShipment.vendorId,
+          status: 'RECEIVED',
+          expectedDate: selectedShipment.eta ? selectedShipment.eta.split('T')[0] : null,
+          trackingNumber: selectedShipment.trackingNumber || null,
+          recurringShipmentId: selectedShipment.recurringShipmentId || null,
+          vendorContactName: selectedShipment.vendorContact || null,
+          vendorContactEmail: selectedShipment.vendorEmail || null,
+          notes: selectedShipment.notes || null,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to complete receiving', error);
+    } finally {
+      setShowReceiveModal(false);
+      setSelectedShipment(null);
+    }
+  }, [selectedShipment, updateDeliveryMutation]);
 
   const getTrackingUrl = (carrier: string | undefined, trackingNumber: string | undefined) => {
     if (!carrier || !trackingNumber) return null;
@@ -438,6 +582,17 @@ export default function WarehouseDeliveriesContent() {
     if (diffDays === 1) return { label: 'Tomorrow', color: 'text-blue-600 bg-blue-50' };
     return null;
   };
+
+  if (showDeliveriesLoading) {
+    return (
+      <main className="flex-1 overflow-hidden bg-[var(--background)] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
+          <p className="text-sm text-[var(--muted-foreground)]">Loading deliveries...</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)]">
@@ -517,6 +672,12 @@ export default function WarehouseDeliveriesContent() {
             )}
           </div>
         </div>
+
+        {loadError && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {loadError}
+          </div>
+        )}
 
         {/* Tabs - Recurring tab only visible to managers */}
         <div className="flex gap-1 mb-6 border-b border-[var(--border)]">
@@ -613,17 +774,148 @@ export default function WarehouseDeliveriesContent() {
 
         {/* Tab Content */}
         {activeTab === 'recurring' ? (
-          <RecurringShipmentsContent />
+          <RecurringShipmentsContent
+            recurringShipments={recurringShipments}
+            deliveries={shipments}
+            onCreateRecurring={async (data) => {
+              try {
+                const recurrencePattern = {
+                  ...data.recurrencePattern,
+                  expectedItems: data.expectedItems,
+                };
+                const startDate = parseDateInput(data.startDate);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const expectedDate = startDate >= today
+                  ? startDate
+                  : calculateNextDate(data.recurrencePattern, startDate);
+                const expectedDateIso = formatDateOnly(expectedDate);
+
+                await createRecurringShipmentMutation.mutateAsync({
+                  name: data.name,
+                  vendorId: data.vendorId,
+                  warehouseId: data.warehouseId,
+                  recurrencePattern,
+                  startDate: data.startDate.split('T')[0],
+                  endDate: data.endDate ? data.endDate.split('T')[0] : null,
+                  vendorContactName: data.vendorContact || null,
+                  vendorContactEmail: data.vendorEmail || null,
+                  carrier: data.carrier || null,
+                  notes: data.notes || null,
+                  status: data.status,
+                  nextExpectedDate: expectedDateIso,
+                });
+                // Mutation already invalidates recurring queries in onSuccess - no manual invalidation needed
+              } catch (error) {
+                console.error('Failed to create recurring shipment', error);
+              }
+            }}
+            onUpdateRecurring={async (id, updates) => {
+              const current = recurringShipments.find((shipment) => shipment.id === id);
+              if (!current) return;
+              try {
+                const recurrencePattern = {
+                  ...(updates.recurrencePattern || current.recurrencePattern),
+                  expectedItems: updates.expectedItems || current.expectedItems,
+                };
+                await updateRecurringShipmentMutation.mutateAsync({
+                  id,
+                  input: {
+                    name: updates.name || current.name,
+                    vendorId: updates.vendorId || current.vendorId,
+                    warehouseId: updates.warehouseId || current.warehouseId,
+                    recurrencePattern,
+                    startDate: (updates.startDate || current.startDate).split('T')[0],
+                    endDate: updates.endDate ? updates.endDate.split('T')[0] : current.endDate || null,
+                    vendorContactName: updates.vendorContact || current.vendorContact || null,
+                    vendorContactEmail: updates.vendorEmail || current.vendorEmail || null,
+                    carrier: updates.carrier || current.carrier || null,
+                    notes: updates.notes || current.notes || null,
+                    status: updates.status || current.status,
+                    nextExpectedDate: updates.nextExpectedDate || current.nextExpectedDate || null,
+                  },
+                });
+                updateRecurringState(id, {
+                  ...updates,
+                  recurrencePattern,
+                  expectedItems: updates.expectedItems || current.expectedItems,
+                });
+                queryClient.invalidateQueries({ queryKey: warehouseDeliveriesQueryKeys.recurring(selectedWarehouse?.id || null) });
+              } catch (error) {
+                console.error('Failed to update recurring shipment', error);
+              }
+            }}
+            onToggleStatus={async (recurring, status) => {
+              try {
+                const recurrencePattern = {
+                  ...recurring.recurrencePattern,
+                  expectedItems: recurring.expectedItems,
+                };
+                await updateRecurringShipmentMutation.mutateAsync({
+                  id: recurring.id,
+                  input: {
+                    name: recurring.name,
+                    vendorId: recurring.vendorId,
+                    warehouseId: recurring.warehouseId,
+                    recurrencePattern,
+                    startDate: recurring.startDate,
+                    endDate: recurring.endDate || null,
+                    vendorContactName: recurring.vendorContact || null,
+                    vendorContactEmail: recurring.vendorEmail || null,
+                    carrier: recurring.carrier || null,
+                    notes: recurring.notes || null,
+                    status,
+                    nextExpectedDate: recurring.nextExpectedDate || null,
+                  },
+                });
+                updateRecurringState(recurring.id, { status });
+                queryClient.invalidateQueries({ queryKey: warehouseDeliveriesQueryKeys.recurring(selectedWarehouse?.id || null) });
+              } catch (error) {
+                console.error('Failed to toggle recurring shipment', error);
+              }
+            }}
+            onCancel={async (recurring) => {
+              try {
+                const recurrencePattern = {
+                  ...recurring.recurrencePattern,
+                  expectedItems: recurring.expectedItems,
+                };
+                await updateRecurringShipmentMutation.mutateAsync({
+                  id: recurring.id,
+                  input: {
+                    name: recurring.name,
+                    vendorId: recurring.vendorId,
+                    warehouseId: recurring.warehouseId,
+                    recurrencePattern,
+                    startDate: recurring.startDate,
+                    endDate: recurring.endDate || null,
+                    vendorContactName: recurring.vendorContact || null,
+                    vendorContactEmail: recurring.vendorEmail || null,
+                    carrier: recurring.carrier || null,
+                    notes: recurring.notes || null,
+                    status: 'CANCELLED',
+                    nextExpectedDate: recurring.nextExpectedDate || null,
+                  },
+                });
+                updateRecurringState(recurring.id, { status: 'CANCELLED' });
+                queryClient.invalidateQueries({ queryKey: warehouseDeliveriesQueryKeys.recurring(selectedWarehouse?.id || null) });
+              } catch (error) {
+                console.error('Failed to cancel recurring shipment', error);
+              }
+            }}
+          />
         ) : activeTab === 'issues' ? (
-          <DeliveryIssuesTabContent />
+          <DeliveryIssuesTabContent deliveryIssues={deliveryIssues} isLoading={isIssuesLoading} />
         ) : activeTab === 'calendar' ? (
           <DeliveriesCalendarView
+            deliveries={shipments}
+            recurringShipments={recurringShipments}
             onViewRecurring={(recurring) => {
               setSelectedRecurringForModal(recurring);
               setShowRecurringModal(true);
             }}
           />
-        ) : (
+        ) : showDeliveriesLoading ? null : (
           <>
             {/* Filters */}
             <div className="flex items-center gap-4 mb-6">
@@ -657,7 +949,6 @@ export default function WarehouseDeliveriesContent() {
             <option value="all">All Statuses</option>
             <option value="PENDING">Pending</option>
             <option value="CONFIRMED">Confirmed</option>
-            <option value="IN_TRANSIT">In Transit</option>
             <option value="ARRIVED">Arrived</option>
             <option value="RECEIVING">Receiving</option>
             <option value="RECEIVED">Received</option>
@@ -858,36 +1149,42 @@ export default function WarehouseDeliveriesContent() {
                               </button>
                               {showQuickActions === shipment.id && (
                                 <div className="absolute right-0 top-full mt-1 w-48 bg-[var(--card)] rounded-lg border border-[var(--border)] shadow-lg z-10 py-1">
+                                  {quickStatusUpdate?.id === shipment.id && (
+                                    <div className="px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                                      Updating status...
+                                    </div>
+                                  )}
                                   {shipment.status === 'PENDING' && (
                                     <button
                                       onClick={() => handleQuickStatusUpdate(shipment.id, 'CONFIRMED')}
-                                      className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors"
+                                      disabled={quickStatusUpdate?.id === shipment.id}
+                                      className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
-                                      Mark as Confirmed
+                                      {quickStatusUpdate?.id === shipment.id && quickStatusUpdate.status === 'CONFIRMED'
+                                        ? 'Confirming...'
+                                        : 'Mark as Confirmed'}
                                     </button>
                                   )}
                                   {shipment.status === 'CONFIRMED' && (
                                     <button
-                                      onClick={() => handleQuickStatusUpdate(shipment.id, 'IN_TRANSIT')}
-                                      className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors"
-                                    >
-                                      Mark In Transit
-                                    </button>
-                                  )}
-                                  {shipment.status === 'IN_TRANSIT' && (
-                                    <button
                                       onClick={() => handleQuickStatusUpdate(shipment.id, 'ARRIVED')}
-                                      className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors"
+                                      disabled={quickStatusUpdate?.id === shipment.id}
+                                      className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
-                                      Mark as Arrived
+                                      {quickStatusUpdate?.id === shipment.id && quickStatusUpdate.status === 'ARRIVED'
+                                        ? 'Marking as Arrived...'
+                                        : 'Mark as Arrived'}
                                     </button>
                                   )}
                                   {shipment.status !== 'RECEIVED' && shipment.status !== 'CANCELLED' && (
                                     <button
                                       onClick={() => handleQuickStatusUpdate(shipment.id, 'CANCELLED')}
-                                      className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                      disabled={quickStatusUpdate?.id === shipment.id}
+                                      className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
-                                      Cancel Delivery
+                                      {quickStatusUpdate?.id === shipment.id && quickStatusUpdate.status === 'CANCELLED'
+                                        ? 'Cancelling...'
+                                        : 'Cancel Delivery'}
                                     </button>
                                   )}
                                   <hr className="my-1 border-[var(--border)]" />
@@ -1048,6 +1345,18 @@ export default function WarehouseDeliveriesContent() {
           }}
           onSubmit={handleCreateRecord}
           initialStatus={createRecordInitialStatus}
+          isSubmitting={isCreatingDelivery}
+          carriers={carrierLookups.map((carrier) => ({ id: carrier.id, name: carrier.name }))}
+          recurringShipments={recurringShipments.map((rs) => ({
+            id: rs.id,
+            name: rs.name,
+            vendorId: rs.vendorId,
+            warehouseId: rs.warehouseId,
+            nextExpectedDate: rs.nextExpectedDate || '',
+            carrier: rs.carrier,
+            notes: rs.notes,
+            expectedItems: rs.expectedItems
+          }))}
         />
       )}
 
@@ -1066,7 +1375,9 @@ export default function WarehouseDeliveriesContent() {
       {showRecurringModal && selectedRecurringForModal && (
         <RecurringShipmentDetailModal
           recurring={selectedRecurringForModal}
-          linkedShipments={getShipmentsForRecurring(selectedRecurringForModal.id)}
+          linkedShipments={shipments.filter(
+            (shipment) => shipment.recurringShipmentId === selectedRecurringForModal.id
+          )}
           onClose={() => {
             setShowRecurringModal(false);
             setSelectedRecurringForModal(null);
@@ -1086,14 +1397,30 @@ export default function WarehouseDeliveriesContent() {
             if (updates.recurrencePattern || updates.startDate) {
               const pattern = updates.recurrencePattern || selectedRecurringForModal.recurrencePattern;
               const startDate = updates.startDate || selectedRecurringForModal.startDate;
-              nextExpectedDate = calculateNextDate(pattern, new Date(startDate)).toISOString().split('T')[0];
+              nextExpectedDate = formatDateOnly(calculateNextDate(pattern, parseDateInput(startDate)));
             }
-            updateRecurringShipment(selectedRecurringForModal.id, {
-              ...updates,
-              nextExpectedDate,
-            });
-            setShowRecurringModal(false);
-            setSelectedRecurringForModal(null);
+            updateRecurringShipmentMutation.mutateAsync({
+              id: selectedRecurringForModal.id,
+              input: {
+                name: updates.name || selectedRecurringForModal.name,
+                vendorId: updates.vendorId || selectedRecurringForModal.vendorId,
+                warehouseId: updates.warehouseId || selectedRecurringForModal.warehouseId,
+                recurrencePattern: updates.recurrencePattern || selectedRecurringForModal.recurrencePattern,
+                startDate: (updates.startDate || selectedRecurringForModal.startDate).split('T')[0],
+                endDate: updates.endDate ? updates.endDate.split('T')[0] : selectedRecurringForModal.endDate || null,
+                vendorContactName: updates.vendorContact || selectedRecurringForModal.vendorContact || null,
+                vendorContactEmail: updates.vendorEmail || selectedRecurringForModal.vendorEmail || null,
+                carrier: updates.carrier || selectedRecurringForModal.carrier || null,
+                notes: updates.notes || selectedRecurringForModal.notes || null,
+                status: updates.status || selectedRecurringForModal.status,
+                nextExpectedDate,
+              },
+            })
+              .catch((error) => console.error('Failed to update recurring shipment', error))
+              .finally(() => {
+                setShowRecurringModal(false);
+                setSelectedRecurringForModal(null);
+              });
           }}
         />
       )}

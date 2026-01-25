@@ -1,12 +1,35 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { AttachedDocument, DocumentType } from '@/lib/types/warehouse';
+import { DocumentType } from '@/lib/types/warehouse';
+import { uploadDocument, deleteDocument, type FulfillmentDocument } from './api/fulfillmentApi';
+
+// Generic document type for cross-compatibility (supports both fulfillment and receiving documents)
+interface GenericDocument {
+  id: string;
+  documentType?: string;
+  type?: string;  // Alias for documentType (for AttachedDocument compatibility)
+  fileName?: string;
+  name?: string;  // Alias for fileName (for AttachedDocument compatibility)
+  fileUrl: string;
+  mimeType?: string;
+  fileSize?: number;
+  notes?: string;
+  createdAt?: string;
+  uploadedAt?: string;  // Alias for createdAt (for AttachedDocument compatibility)
+  uploadedBy?: string;  // For AttachedDocument compatibility
+  thumbnailUrl?: string;  // For AttachedDocument compatibility
+  file?: File;  // For upload with actual file
+}
 
 interface DocumentsSectionProps {
-  documents: AttachedDocument[];
-  onAddDocument: (document: Omit<AttachedDocument, 'id'>) => void;
-  onRemoveDocument: (documentId: string) => void;
+  fulfillmentOrderId?: string;  // Optional - if not provided, use callback mode
+  documents: (FulfillmentDocument | GenericDocument)[];
+  onDocumentsChange?: () => void;
+  // Callback mode for non-fulfillment use cases (like receiving)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onAddDocument?: (doc: any) => Promise<void> | void;
+  onRemoveDocument?: (docId: string) => void;
   isEditable?: boolean;
   title?: string;
 }
@@ -100,7 +123,9 @@ const documentTypeInfo: Record<DocumentType, { label: string; icon: React.ReactN
 };
 
 export default function DocumentsSection({
+  fulfillmentOrderId,
   documents,
+  onDocumentsChange,
   onAddDocument,
   onRemoveDocument,
   isEditable = true,
@@ -110,10 +135,12 @@ export default function DocumentsSection({
   const [selectedDocType, setSelectedDocType] = useState<DocumentType>('PACKING_SLIP');
   const [docName, setDocName] = useState('');
   const [docNotes, setDocNotes] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewMimeType, setPreviewMimeType] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
-  const [viewingDocument, setViewingDocument] = useState<AttachedDocument | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [viewingDocument, setViewingDocument] = useState<FulfillmentDocument | GenericDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const formatDate = (dateStr: string) => {
@@ -123,6 +150,21 @@ export default function DocumentsSection({
       hour: 'numeric',
       minute: '2-digit',
     });
+  };
+
+  const normalizeDocType = (docType: string) => (docType === 'BOL' ? 'BILL_OF_LADING' : docType);
+
+  // Helper to normalize document properties (handles both API and legacy formats)
+  const getDocProp = (doc: FulfillmentDocument | GenericDocument, prop: 'documentType' | 'fileName' | 'createdAt') => {
+    const d = doc as GenericDocument;
+    switch (prop) {
+      case 'documentType':
+        return d.documentType || d.type || 'OTHER';
+      case 'fileName':
+        return d.fileName || d.name || 'Document';
+      case 'createdAt':
+        return d.createdAt || d.uploadedAt || new Date().toISOString();
+    }
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -136,6 +178,7 @@ export default function DocumentsSection({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setSelectedFile(file);
     const reader = new FileReader();
     reader.onloadend = () => {
       setPreviewUrl(reader.result as string);
@@ -156,6 +199,7 @@ export default function DocumentsSection({
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
+        setSelectedFile(file);
         const reader = new FileReader();
         reader.onloadend = () => {
           setPreviewUrl(reader.result as string);
@@ -170,35 +214,63 @@ export default function DocumentsSection({
     input.click();
   };
 
-  const handleUpload = () => {
-    if (!previewUrl || !docName) return;
+  const resetForm = () => {
+    setShowUploadModal(false);
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setPreviewMimeType('');
+    setDocName('');
+    setDocNotes('');
+    setSelectedDocType('PACKING_SLIP');
+    setUploadError(null);
+  };
+
+  const handleUpload = async () => {
+    if (!previewUrl || !docName || !selectedFile) return;
 
     setIsUploading(true);
-    // Simulate upload delay
-    setTimeout(() => {
-      onAddDocument({
-        name: docName,
-        type: selectedDocType,
-        fileUrl: previewUrl,
-        mimeType: previewMimeType,
-        uploadedAt: new Date().toISOString(),
-        uploadedBy: 'Current User',
-        notes: docNotes || undefined,
-      });
+    setUploadError(null);
 
-      // Reset form
-      setShowUploadModal(false);
-      setPreviewUrl(null);
-      setPreviewMimeType('');
-      setDocName('');
-      setDocNotes('');
-      setSelectedDocType('PACKING_SLIP');
+    try {
+      // If fulfillmentOrderId is provided, use the API
+      if (fulfillmentOrderId) {
+        await uploadDocument({
+          fulfillmentOrderId,
+          documentType: selectedDocType,
+          file: selectedFile,
+          notes: docNotes || undefined,
+        });
+        onDocumentsChange?.();
+      } else if (onAddDocument) {
+        // Callback mode for non-fulfillment use cases (like receiving)
+        await Promise.resolve(
+          onAddDocument({
+            name: docName,
+            type: selectedDocType,
+            fileUrl: previewUrl,
+            mimeType: previewMimeType,
+            fileSize: selectedFile.size,
+            file: selectedFile,
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: 'Current User',
+            notes: docNotes || undefined,
+          })
+        );
+      }
+
+      resetForm();
+    } catch (error) {
+      console.error('Failed to upload document:', error);
+      setUploadError(error instanceof Error ? error.message : 'Failed to upload document');
+    } finally {
       setIsUploading(false);
-    }, 500);
+    }
   };
 
   const isImageType = (mimeType: string) => mimeType.startsWith('image/');
   const isPdfType = (mimeType: string) => mimeType === 'application/pdf';
+  const viewingDocType = viewingDocument ? normalizeDocType(getDocProp(viewingDocument, 'documentType')) : 'OTHER';
+  const viewingDocInfo = documentTypeInfo[viewingDocType as DocumentType] || documentTypeInfo.OTHER;
 
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
@@ -251,7 +323,10 @@ export default function DocumentsSection({
       ) : (
         <div className="space-y-2">
           {documents.map((doc) => {
-            const typeInfo = documentTypeInfo[doc.type];
+            const docType = normalizeDocType(getDocProp(doc, 'documentType'));
+            const docFileName = getDocProp(doc, 'fileName');
+            const docCreatedAt = getDocProp(doc, 'createdAt');
+            const typeInfo = documentTypeInfo[docType as DocumentType] || documentTypeInfo.OTHER;
             return (
               <div
                 key={doc.id}
@@ -260,11 +335,11 @@ export default function DocumentsSection({
               >
                 {/* Thumbnail or Icon */}
                 <div className="w-10 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                  {isImageType(doc.mimeType) ? (
+                  {doc.mimeType && isImageType(doc.mimeType) ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={doc.thumbnailUrl || doc.fileUrl}
-                      alt={doc.name}
+                      src={doc.fileUrl}
+                      alt={docFileName}
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -274,13 +349,13 @@ export default function DocumentsSection({
 
                 {/* Document Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[var(--foreground)] truncate">{doc.name}</p>
+                  <p className="text-sm font-medium text-[var(--foreground)] truncate">{docFileName}</p>
                   <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
                     <span className={`flex items-center gap-1 ${typeInfo.color}`}>
                       {typeInfo.icon}
                       {typeInfo.label}
                     </span>
-                    <span>{formatDate(doc.uploadedAt)}</span>
+                    <span>{formatDate(docCreatedAt)}</span>
                     {doc.fileSize && <span>{formatFileSize(doc.fileSize)}</span>}
                   </div>
                 </div>
@@ -303,9 +378,18 @@ export default function DocumentsSection({
                   </button>
                   {isEditable && (
                     <button
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
-                        onRemoveDocument(doc.id);
+                        try {
+                          if (fulfillmentOrderId) {
+                            await deleteDocument(doc.id);
+                          } else if (onRemoveDocument) {
+                            onRemoveDocument(doc.id);
+                          }
+                          onDocumentsChange?.();
+                        } catch (error) {
+                          console.error('Failed to delete document:', error);
+                        }
                       }}
                       className="p-1.5 text-[var(--muted-foreground)] hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                       title="Remove document"
@@ -329,12 +413,7 @@ export default function DocumentsSection({
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-[var(--foreground)]">Add Document</h3>
               <button
-                onClick={() => {
-                  setShowUploadModal(false);
-                  setPreviewUrl(null);
-                  setDocName('');
-                  setDocNotes('');
-                }}
+                onClick={resetForm}
                 className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -428,7 +507,10 @@ export default function DocumentsSection({
                     </div>
                   )}
                   <button
-                    onClick={() => setPreviewUrl(null)}
+                    onClick={() => {
+                      setPreviewUrl(null);
+                      setSelectedFile(null);
+                    }}
                     className="absolute top-2 right-2 p-1 bg-white/90 rounded-full hover:bg-white transition-colors shadow"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -454,7 +536,7 @@ export default function DocumentsSection({
             </div>
 
             {/* Notes (optional) */}
-            <div className="mb-6">
+            <div className="mb-4">
               <label className="block text-xs font-medium text-[var(--muted-foreground)] uppercase mb-2">
                 Notes (Optional)
               </label>
@@ -467,22 +549,24 @@ export default function DocumentsSection({
               />
             </div>
 
+            {/* Error Message */}
+            {uploadError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">{uploadError}</p>
+              </div>
+            )}
+
             {/* Actions */}
             <div className="flex items-center justify-end gap-3">
               <button
-                onClick={() => {
-                  setShowUploadModal(false);
-                  setPreviewUrl(null);
-                  setDocName('');
-                  setDocNotes('');
-                }}
+                onClick={resetForm}
                 className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleUpload}
-                disabled={!previewUrl || !docName || isUploading}
+                disabled={!selectedFile || !docName || isUploading}
                 className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isUploading ? (
@@ -508,13 +592,13 @@ export default function DocumentsSection({
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className={documentTypeInfo[viewingDocument.type].color}>
-                  {documentTypeInfo[viewingDocument.type].icon}
+                <span className={viewingDocInfo.color}>
+                  {viewingDocInfo.icon}
                 </span>
                 <div>
-                  <h3 className="font-medium text-[var(--foreground)]">{viewingDocument.name}</h3>
+                  <h3 className="font-medium text-[var(--foreground)]">{getDocProp(viewingDocument, 'fileName')}</h3>
                   <p className="text-xs text-[var(--muted-foreground)]">
-                    {documentTypeInfo[viewingDocument.type].label} - Uploaded {formatDate(viewingDocument.uploadedAt)} by {viewingDocument.uploadedBy}
+                    {viewingDocInfo.label} - Uploaded {formatDate(getDocProp(viewingDocument, 'createdAt'))}
                   </p>
                 </div>
               </div>
@@ -541,20 +625,20 @@ export default function DocumentsSection({
               </div>
             </div>
             <div className="flex-1 overflow-auto p-4 bg-gray-100">
-              {isImageType(viewingDocument.mimeType) ? (
+              {viewingDocument.mimeType && isImageType(viewingDocument.mimeType) ? (
                 <div className="flex items-center justify-center min-h-[400px]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={viewingDocument.fileUrl}
-                    alt={viewingDocument.name}
+                    alt={getDocProp(viewingDocument, 'fileName')}
                     className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
                   />
                 </div>
-              ) : isPdfType(viewingDocument.mimeType) ? (
+              ) : viewingDocument.mimeType && isPdfType(viewingDocument.mimeType) ? (
                 <iframe
                   src={viewingDocument.fileUrl}
                   className="w-full h-[70vh] rounded-lg border border-gray-200"
-                  title={viewingDocument.name}
+                  title={getDocProp(viewingDocument, 'fileName')}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center min-h-[400px] text-center">

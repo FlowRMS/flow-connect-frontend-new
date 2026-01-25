@@ -17,6 +17,7 @@ interface BulkActionsBarProps {
   onSetEndUser: () => void;
   onSetOutsideRepSplits: () => void;
   onConvertToWarehouse: () => void;
+  onGenerateFulfillmentRequest: () => void;
   onAddCredit: () => void;
   onAddAcknowledgement: () => void;
   onDeleteLines: () => void;
@@ -31,6 +32,7 @@ export function BulkActionsBar({
   onSetEndUser,
   onSetOutsideRepSplits,
   onConvertToWarehouse,
+  onGenerateFulfillmentRequest,
   onAddCredit,
   onAddAcknowledgement,
   onDeleteLines,
@@ -56,18 +58,20 @@ export function BulkActionsBar({
           {showBulkActionsMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowBulkActionsMenu(false)} />
-              <div className="fixed right-[200px] top-1/2 -translate-y-1/2 w-64 bg-white border border-[var(--border)] rounded-lg shadow-xl z-50 py-3 px-4">
-                <div className="flex flex-col items-center justify-center text-center py-4">
-                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-3">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600">
-                      <circle cx="12" cy="12" r="10"/>
-                      <path d="M12 6v6l4 2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-semibold text-gray-900 mb-1">Coming Soon</h3>
-                  <p className="text-sm text-gray-500">
-                    Bulk actions for order line items are currently under development.
-                  </p>
+              <div className="absolute right-0 top-full mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
+                <button
+                  onClick={() => { onGenerateFulfillmentRequest(); setShowBulkActionsMenu(false); }}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-600">
+                    <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Generate Fulfillment Request
+                </button>
+                <div className="border-t border-[var(--border)] my-1" />
+                <div className="px-4 py-2">
+                  <span className="text-xs text-[var(--muted-foreground)]">More actions coming soon</span>
                 </div>
               </div>
             </>

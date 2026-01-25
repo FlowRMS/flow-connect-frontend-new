@@ -106,6 +106,10 @@ export function CheckDetailsFields({
   currentCheckId,
   onOpenInvoicesLoaded,
 }: CheckDetailsFieldsProps) {
+  // Calculate stated commissions excluding adjustments
+  // summary.paidTotal includes adjustments (since adjustments are stored as line items)
+  // So we subtract totalAdjustments to get only invoice/credit commissions
+  const statedCommissions = summary.paidTotal - totalAdjustments;
   // Factory search state
   const [factorySearch, setFactorySearch] = useState(factory || '');
   const [factories, setFactories] = useState<FactorySearchResult[]>([]);
@@ -254,11 +258,13 @@ export function CheckDetailsFields({
     fetchOpenInvoices();
   }, [factoryId, unpaidInvoicesAfterDate, onOpenInvoicesLoaded]);
 
-  const checkAmt = isTotalStatedCommission ? summary.paidTotal : commissionAmount;
-  const balance = checkAmt - summary.paidTotal + totalAdjustments;
+  const checkAmt = isTotalStatedCommission ? statedCommissions : commissionAmount;
+  // Balance = Check Amount - Stated Commissions - Adjustments
+  // (Adjustments added to check, so positive adjustment reduces balance)
+  const balance = checkAmt - statedCommissions - totalAdjustments;
   const reconciledPercentage =
     checkAmt > 0
-      ? ((summary.paidTotal - totalAdjustments) / checkAmt) * 100
+      ? ((statedCommissions + totalAdjustments) / checkAmt) * 100
       : 0;
 
   const toggleCheckNumber = (checkId: string) => {
@@ -599,7 +605,7 @@ export function CheckDetailsFields({
                         Stated Commissions
                       </span>
                       <span className="text-sm font-medium text-[var(--foreground)]">
-                        -${summary.paidTotal.toFixed(2)}
+                        -${statedCommissions.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between">

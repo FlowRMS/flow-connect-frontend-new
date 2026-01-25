@@ -1,22 +1,29 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  getDeliveryIssueById,
-  updateDeliveryIssue,
-  mockIncomingShipments,
-} from '@/lib/data/warehouse-mock';
+  mapDeliveryToShipment,
+  mapIssueFromDelivery,
+} from '../api';
+import {
+  useFactoryById,
+  useUpdateDeliveryIssue,
+  useUserById,
+  useWarehouseDelivery,
+  useWarehouseDeliveryIssue,
+  useWarehouseLookups,
+} from '../../api/useWarehouseDeliveriesApi';
 import {
   DeliveryIssue,
-  DeliveryIssueStatus,
   DeliveryIssueActivity,
   DeliveryIssueActivityType,
   deliveryIssueStatusColors,
   deliveryIssueStatusLabels,
   deliveryIssueTypeColors,
   deliveryIssueTypeLabels,
+  IncomingShipment,
 } from '@/lib/types/warehouse';
 
 interface DeliveryIssueDetailContentProps {
@@ -25,34 +32,122 @@ interface DeliveryIssueDetailContentProps {
 
 export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDetailContentProps) {
   const router = useRouter();
-  const [issue, setIssue] = useState<DeliveryIssue | null>(() => getDeliveryIssueById(issueId) || null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [notes, setNotes] = useState(issue?.notes || '');
+  const isUuid = (value?: string | null) =>
+    Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value));
+  const { warehousesQuery, carriersQuery, vendorsQuery } = useWarehouseLookups();
+  const issueQuery = useWarehouseDeliveryIssue(issueId);
+  const deliveryQuery = useWarehouseDelivery(issueQuery.data?.deliveryId ?? null);
+  const factoryQuery = useFactoryById(deliveryQuery.data?.vendorId ?? null);
+  const reporterQuery = useUserById(issueQuery.data?.createdById ?? null);
+  const communicatedByQuery = useUserById(
+    isUuid(issueQuery.data?.communicatedBy) ? issueQuery.data?.communicatedBy ?? null : null
+  );
+  const resolvedByQuery = useUserById(
+    isUuid(issueQuery.data?.resolvedBy) ? issueQuery.data?.resolvedBy ?? null : null
+  );
+  const updateDeliveryIssueMutation = useUpdateDeliveryIssue();
+  const [issue, setIssue] = useState<DeliveryIssue | null>(null);
+  const [shipment, setShipment] = useState<IncomingShipment | null>(null);
+  const [reportedByName, setReportedByName] = useState('');
+  const [communicatedByName, setCommunicatedByName] = useState('');
+  const [resolvedByName, setResolvedByName] = useState('');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [communicationMessage, setCommunicationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [resolutionMessage, setResolutionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [communicationNotes, setCommunicationNotes] = useState(issue?.communicationNotes || '');
   const [resolutionNotes, setResolutionNotes] = useState(issue?.resolutionNotes || '');
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [newNote, setNewNote] = useState('');
-  const [itemNotes, setItemNotes] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {};
-    issue?.items.forEach(item => {
-      initial[item.id] = item.notes || '';
-    });
-    return initial;
-  });
+  const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const isLoading =
+    issueQuery.isLoading ||
+    deliveryQuery.isLoading ||
+    warehousesQuery.isLoading ||
+    carriersQuery.isLoading;
 
-  // Get original shipment
-  const shipment = useMemo(() => {
-    if (!issue) return null;
-    return mockIncomingShipments.find(s => s.id === issue.shipmentId);
-  }, [issue]);
+  useEffect(() => {
+    if (!issueQuery.data || !deliveryQuery.data) {
+      setIssue(null);
+      setShipment(null);
+      return;
+    }
+
+    const warehousesData = warehousesQuery.data || [];
+    const carriersData = carriersQuery.data || [];
+    const vendorCandidates = vendorsQuery.data || [];
+    const factoryMap = new Map(
+      [
+        ...vendorCandidates.map((vendor) => [vendor.id, vendor] as const),
+        ...(factoryQuery.data ? [[factoryQuery.data.id, factoryQuery.data] as const] : []),
+      ]
+    );
+    const warehouseMap = new Map(warehousesData.map((warehouse) => [warehouse.id, warehouse]));
+    const carrierMap = new Map(carriersData.map((carrier) => [carrier.id, carrier]));
+
+    const mappedIssue = mapIssueFromDelivery(issueQuery.data, deliveryQuery.data, warehouseMap, factoryMap);
+    const mappedShipment = mapDeliveryToShipment(deliveryQuery.data, warehouseMap, factoryMap, carrierMap);
+
+    setIssue(mappedIssue);
+    setShipment(mappedShipment);
+    setCommunicationNotes(mappedIssue.communicationNotes || '');
+    setResolutionNotes(mappedIssue.resolutionNotes || '');
+
+    const reporterName =
+      reporterQuery.data?.fullName ||
+      [reporterQuery.data?.firstName, reporterQuery.data?.lastName].filter(Boolean).join(' ').trim() ||
+      reporterQuery.data?.email ||
+      mappedIssue.reportedBy ||
+      'Unknown';
+    setReportedByName(isUuid(reporterName) ? 'Unknown' : reporterName);
+
+    const communicatorName =
+      communicatedByQuery.data?.fullName ||
+      [communicatedByQuery.data?.firstName, communicatedByQuery.data?.lastName].filter(Boolean).join(' ').trim() ||
+      communicatedByQuery.data?.email ||
+      mappedIssue.communicatedBy ||
+      '';
+    setCommunicatedByName(isUuid(communicatorName) ? '' : communicatorName);
+    const resolverName =
+      resolvedByQuery.data?.fullName ||
+      [resolvedByQuery.data?.firstName, resolvedByQuery.data?.lastName].filter(Boolean).join(' ').trim() ||
+      resolvedByQuery.data?.email ||
+      mappedIssue.resolvedBy ||
+      '';
+    setResolvedByName(isUuid(resolverName) ? '' : resolverName);
+
+    const initialNotes: Record<string, string> = {};
+    mappedIssue.items.forEach((item) => {
+      initialNotes[item.id] = item.notes || '';
+    });
+    setItemNotes(initialNotes);
+  }, [
+    issueQuery.data,
+    deliveryQuery.data,
+    warehousesQuery.data,
+    carriersQuery.data,
+    vendorsQuery.data,
+    factoryQuery.data,
+    reporterQuery.data,
+    communicatedByQuery.data,
+    resolvedByQuery.data,
+  ]);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center text-[var(--muted-foreground)]">Loading issue details...</div>
+      </div>
+    );
+  }
 
   if (!issue) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-lg font-medium text-[var(--foreground)]">Issue Not Found</h2>
-          <p className="text-[var(--muted-foreground)] mt-1">The delivery issue you're looking for doesn't exist.</p>
+          <p className="text-[var(--muted-foreground)] mt-1">The delivery issue you are looking for does not exist.</p>
           <button
             onClick={() => router.back()}
             className="mt-4 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary)]/90"
@@ -74,49 +169,130 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
     });
   };
 
-  const handleMarkCommunicated = () => {
-    const updated = updateDeliveryIssue(issue.id, {
-      status: 'COMMUNICATED',
-      communicatedAt: new Date().toISOString(),
-      communicatedBy: 'Current User', // Would come from auth
-      communicationNotes: communicationNotes,
-    });
-    if (updated) setIssue(updated);
+  const buildIssueInput = (current: DeliveryIssue, overrides: Partial<DeliveryIssue>) => {
+    const item = current.items[0];
+    return {
+      deliveryId: current.shipmentId,
+      deliveryItemId: item?.id || '',
+      issueType: item?.issueType || 'OTHER',
+      customIssueType: item?.customIssueType || null,
+      quantity: item?.quantity || 0,
+      status: overrides.status || current.status,
+      description: item?.description || null,
+      notes: overrides.notes ?? current.notes ?? null,
+      communicatedAt: overrides.communicatedAt ?? current.communicatedAt ?? null,
+    };
   };
 
-  const handleMarkResolved = () => {
-    const updated = updateDeliveryIssue(issue.id, {
-      status: 'RESOLVED',
-      resolvedAt: new Date().toISOString(),
-      resolvedBy: 'Current User', // Would come from auth
-      resolutionNotes: resolutionNotes,
-    });
-    if (updated) setIssue(updated);
+  const handleMarkCommunicated = async () => {
+    if (!issue) return;
+    setIsUpdatingStatus(true);
+    setCommunicationMessage(null);
+    setActionMessage(null);
+    const nowIso = new Date().toISOString();
+    try {
+      await updateDeliveryIssueMutation.mutateAsync({
+        id: issue.id,
+        input: buildIssueInput(issue, {
+          status: 'COMMUNICATED',
+          communicatedAt: nowIso,
+          notes: communicationNotes || issue.notes || undefined,
+        }),
+      });
+      setIssue({
+        ...issue,
+        status: 'COMMUNICATED',
+        communicatedAt: nowIso,
+        communicationNotes,
+      });
+      setCommunicatedByName(communicatedByName || 'Current User');
+      setCommunicationMessage({ type: 'success', text: 'Marked as communicated.' });
+    } catch (error) {
+      console.error('Failed to mark issue communicated', error);
+      setCommunicationMessage({ type: 'error', text: 'Failed to mark as communicated.' });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
-  const handleClose = () => {
-    const updated = updateDeliveryIssue(issue.id, {
-      status: 'CLOSED',
-    });
-    if (updated) setIssue(updated);
+  const handleMarkResolved = async () => {
+    if (!issue) return;
+    setIsUpdatingStatus(true);
+    setResolutionMessage(null);
+    setActionMessage(null);
+    try {
+      await updateDeliveryIssueMutation.mutateAsync({
+        id: issue.id,
+        input: buildIssueInput(issue, {
+          status: 'RESOLVED',
+          notes: resolutionNotes || issue.notes || undefined,
+        }),
+      });
+      setIssue({
+        ...issue,
+        status: 'RESOLVED',
+        resolutionNotes,
+      });
+      setResolvedByName(resolvedByName || 'Current User');
+      setResolutionMessage({ type: 'success', text: 'Marked as resolved.' });
+    } catch (error) {
+      console.error('Failed to resolve issue', error);
+      setResolutionMessage({ type: 'error', text: 'Failed to mark as resolved.' });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
-  const handleReopen = () => {
-    const updated = updateDeliveryIssue(issue.id, {
-      status: 'OPEN',
-      communicatedAt: undefined,
-      communicatedBy: undefined,
-      resolvedAt: undefined,
-      resolvedBy: undefined,
-    });
-    if (updated) setIssue(updated);
+  const handleClose = async () => {
+    if (!issue) return;
+    setIsUpdatingStatus(true);
+    setActionMessage(null);
+    try {
+      await updateDeliveryIssueMutation.mutateAsync({
+        id: issue.id,
+        input: buildIssueInput(issue, { status: 'CLOSED' }),
+      });
+      setIssue({ ...issue, status: 'CLOSED' });
+      setActionMessage({ type: 'success', text: 'Issue closed.' });
+    } catch (error) {
+      console.error('Failed to close issue', error);
+      setActionMessage({ type: 'error', text: 'Failed to close issue.' });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
-  const handleSaveNotes = () => {
-    const updated = updateDeliveryIssue(issue.id, { notes });
-    if (updated) {
-      setIssue(updated);
-      setIsEditing(false);
+  const handleReopen = async () => {
+    if (!issue) return;
+    setIsUpdatingStatus(true);
+    setActionMessage(null);
+    try {
+      await updateDeliveryIssueMutation.mutateAsync({
+        id: issue.id,
+        input: buildIssueInput(issue, { status: 'OPEN', communicatedAt: undefined }),
+      });
+      setIssue({
+        ...issue,
+        status: 'OPEN',
+        communicatedAt: undefined,
+        communicatedBy: undefined,
+        communicationMethod: undefined,
+        communicationNotes: undefined,
+        resolvedAt: undefined,
+        resolvedBy: undefined,
+        resolutionType: undefined,
+        resolutionNotes: undefined,
+        creditAmount: undefined,
+        replacementShipmentId: undefined,
+      });
+      setCommunicatedByName('');
+      setResolvedByName('');
+      setActionMessage({ type: 'success', text: 'Issue reopened.' });
+    } catch (error) {
+      console.error('Failed to reopen issue', error);
+      setActionMessage({ type: 'error', text: 'Failed to reopen issue.' });
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
@@ -132,14 +308,23 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
     };
 
     const currentActivities = issue.activities || [];
-    const updated = updateDeliveryIssue(issue.id, {
-      activities: [...currentActivities, newActivity],
-    });
-
-    if (updated) {
-      setIssue(updated);
-      setNewNote('');
-    }
+    updateDeliveryIssueMutation
+      .mutateAsync({
+        id: issue.id,
+        input: {
+          activities: [...currentActivities, newActivity],
+        },
+      })
+      .then(() => {
+        setIssue({
+          ...issue,
+          activities: [...currentActivities, newActivity],
+        });
+        setNewNote('');
+      })
+      .catch((error) => {
+        console.error('Failed to add issue note', error);
+      });
   };
 
   const handleSaveItemNote = (itemId: string) => {
@@ -164,19 +349,29 @@ export default function DeliveryIssueDetailContent({ issueId }: DeliveryIssueDet
     };
 
     const currentActivities = issue.activities || [];
-    const updated = updateDeliveryIssue(issue.id, {
-      items: updatedItems,
-      activities: [...currentActivities, newActivity],
-    });
-
-    if (updated) {
-      setIssue(updated);
-      setExpandedItems(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(itemId);
-        return newSet;
+    updateDeliveryIssueMutation
+      .mutateAsync({
+        id: issue.id,
+        input: {
+          items: updatedItems,
+          activities: [...currentActivities, newActivity],
+        },
+      })
+      .then(() => {
+        setIssue({
+          ...issue,
+          items: updatedItems,
+          activities: [...currentActivities, newActivity],
+        });
+        setExpandedItems(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to save item note', error);
       });
-    }
   };
 
   const toggleItemExpanded = (itemId: string) => {
@@ -311,9 +506,10 @@ ${issue.warehouseName}`;
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="flex-1 overflow-auto">
+      <div className="space-y-6 p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
@@ -331,7 +527,7 @@ ${issue.warehouseName}`;
               </span>
             </div>
             <p className="text-[var(--muted-foreground)]">
-              Reported on {formatDate(issue.reportedAt)} by {issue.reportedBy}
+              Reported on {formatDate(issue.reportedAt)} by {reportedByName || issue.reportedBy}
             </p>
           </div>
         </div>
@@ -339,21 +535,30 @@ ${issue.warehouseName}`;
           {issue.status === 'CLOSED' && (
             <button
               onClick={handleReopen}
-              className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              disabled={isUpdatingStatus}
+              className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Reopen Issue
+              {isUpdatingStatus ? 'Saving...' : 'Reopen Issue'}
             </button>
           )}
           {issue.status === 'RESOLVED' && (
             <button
               onClick={handleClose}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+              disabled={isUpdatingStatus}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Close Issue
+              {isUpdatingStatus ? 'Saving...' : 'Close Issue'}
             </button>
           )}
         </div>
       </div>
+      {actionMessage && (
+        <div className={`text-sm ${
+          actionMessage.type === 'success' ? 'text-green-600' : 'text-red-600'
+        }`}>
+          {actionMessage.text}
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-6">
         {/* Main Content */}
@@ -469,6 +674,13 @@ ${issue.warehouseName}`;
               )}
             </div>
             <div className="p-4 space-y-4">
+              {communicationMessage && (
+                <div className={`text-sm ${
+                  communicationMessage.type === 'success' ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {communicationMessage.text}
+                </div>
+              )}
               {issue.communicatedAt ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-green-600">
@@ -478,7 +690,7 @@ ${issue.warehouseName}`;
                     <span className="font-medium">Communicated on {formatDate(issue.communicatedAt)}</span>
                   </div>
                   <div className="text-sm text-[var(--muted-foreground)]">
-                    By: {issue.communicatedBy} via {issue.communicationMethod || 'N/A'}
+                    By: {communicatedByName || issue.communicatedBy || 'N/A'} via {issue.communicationMethod || 'N/A'}
                   </div>
                   {issue.communicationNotes && (
                     <div className="p-3 bg-[var(--muted)]/30 rounded-lg text-sm text-[var(--foreground)]">
@@ -505,9 +717,10 @@ ${issue.warehouseName}`;
                   </div>
                   <button
                     onClick={handleMarkCommunicated}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                    disabled={isUpdatingStatus}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Mark as Communicated
+                    {isUpdatingStatus ? 'Saving...' : 'Mark as Communicated'}
                   </button>
                 </div>
               )}
@@ -529,7 +742,7 @@ ${issue.warehouseName}`;
                     <span className="font-medium">Resolved on {formatDate(issue.resolvedAt)}</span>
                   </div>
                   <div className="text-sm text-[var(--muted-foreground)]">
-                    By: {issue.resolvedBy}
+                    By: {resolvedByName || issue.resolvedBy || 'N/A'}
                   </div>
                   {issue.resolutionType && (
                     <div className="flex items-center gap-2">
@@ -555,6 +768,13 @@ ${issue.warehouseName}`;
                   <p className="text-sm text-[var(--muted-foreground)]">
                     Issue has not yet been resolved.
                   </p>
+                  {resolutionMessage && (
+                    <div className={`text-sm ${
+                      resolutionMessage.type === 'success' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {resolutionMessage.text}
+                    </div>
+                  )}
                   {issue.status === 'COMMUNICATED' && (
                     <>
                       <div>
@@ -571,9 +791,10 @@ ${issue.warehouseName}`;
                       </div>
                       <button
                         onClick={handleMarkResolved}
+                        disabled={isUpdatingStatus}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
                       >
-                        Mark as Resolved
+                        {isUpdatingStatus ? 'Saving...' : 'Mark as Resolved'}
                       </button>
                     </>
                   )}
@@ -818,6 +1039,7 @@ ${issue.warehouseName}`;
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
