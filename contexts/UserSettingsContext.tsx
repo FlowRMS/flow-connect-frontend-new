@@ -8,6 +8,7 @@ import {
   type QuoteSettingsValue,
   type OrderSettingsValue,
   type InvoiceSettingsValue,
+  type CommissionSettingsValue,
   type ChatSettingsValue,
   type SidebarSettingsValue,
   type FlowAISettingsValue,
@@ -45,6 +46,7 @@ interface UserSettingsContextType {
   getQuoteSettings: () => QuoteSettingsValue | null;
   getOrderSettings: () => OrderSettingsValue | null;
   getInvoiceSettings: () => InvoiceSettingsValue | null;
+  getCommissionSettings: () => CommissionSettingsValue | null;
   getChatSettings: () => ChatSettingsValue | null;
   getSidebarSettings: () => SidebarSettingsValue | null;
 
@@ -154,6 +156,11 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
     [getSetting]
   );
 
+  const getCommissionSettings = useCallback(
+    (): CommissionSettingsValue | null => getSetting<CommissionSettingsValue>('CHECKS_SETTINGS'),
+    [getSetting]
+  );
+
   const getChatSettings = useCallback(
     (): ChatSettingsValue | null => getSetting<ChatSettingsValue>('CHAT_SETTINGS'),
     [getSetting]
@@ -258,6 +265,7 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
         getQuoteSettings,
         getOrderSettings,
         getInvoiceSettings,
+        getCommissionSettings,
         getChatSettings,
         getSidebarSettings,
         saveSetting: saveSettingHandler,
@@ -379,6 +387,41 @@ export function useInvoiceSettings() {
 
   const saveSettingsHandler = useCallback(
     (value: InvoiceSettingsValue, scope: SettingScope) => saveSetting('INVOICE_SETTINGS', value, scope),
+    [saveSetting]
+  );
+
+  return {
+    settings,
+    mySettings: mySettingsValue,
+    tenantSettings: tenantSettingsValue,
+    saveSettings: saveSettingsHandler,
+    isLoading,
+    isInitialized,
+  };
+}
+
+export function useCommissionSettings() {
+  const { getMySettingValue, getTenantSettingValue, saveSetting, isLoading, isInitialized, mySettings, tenantSettings } =
+    useUserSettings();
+
+  const settings = useMemo(() => {
+    const mySetting = mySettings.get('CHECKS_SETTINGS');
+    const tenantSetting = tenantSettings.get('CHECKS_SETTINGS');
+    return getEffectiveSetting<CommissionSettingsValue>(mySetting || null, tenantSetting || null);
+  }, [mySettings, tenantSettings]);
+
+  const mySettingsValue = useMemo(
+    () => getMySettingValue<CommissionSettingsValue>('CHECKS_SETTINGS'),
+    [getMySettingValue]
+  );
+
+  const tenantSettingsValue = useMemo(
+    () => getTenantSettingValue<CommissionSettingsValue>('CHECKS_SETTINGS'),
+    [getTenantSettingValue]
+  );
+
+  const saveSettingsHandler = useCallback(
+    (value: CommissionSettingsValue, scope: SettingScope) => saveSetting('CHECKS_SETTINGS', value, scope),
     [saveSetting]
   );
 

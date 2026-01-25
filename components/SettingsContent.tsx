@@ -8,6 +8,7 @@ import SidebarSettings from './SidebarSettings';
 import { QuoteSettingsTab } from './settings/QuoteSettingsTab';
 import { OrderSettingsTab } from './settings/OrderSettingsTab';
 import { InvoiceSettingsTab } from './settings/InvoiceSettingsTab';
+import { CommissionSettingsTab } from './settings/CommissionSettingsTab';
 import { ChatSettingsTab } from './settings/ChatSettingsTab';
 import {
   mockTeamMembers,
@@ -111,9 +112,9 @@ type ActivityRule = {
   tagModifiers: { tag: string; multiplier: number }[];
 };
 
-type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'chat-settings';
+type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'commission-settings' | 'chat-settings';
 
-const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'chat-settings'];
+const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'commission-settings', 'chat-settings'];
 
 export default function SettingsContent() {
   const searchParams = useSearchParams();
@@ -248,14 +249,15 @@ export default function SettingsContent() {
         { id: 'takeoffs' as TabType, label: 'Take-Off Settings' },
       ],
     },
-    {
-      label: 'Document Defaults',
-      tabs: [
-        { id: 'quote-settings' as TabType, label: 'Quote Settings' },
-        { id: 'order-settings' as TabType, label: 'Order Settings' },
-        { id: 'invoice-settings' as TabType, label: 'Invoice Settings' },
-      ],
-    },
+      {
+        label: 'Document Defaults',
+        tabs: [
+          { id: 'quote-settings' as TabType, label: 'Quote Settings' },
+          { id: 'order-settings' as TabType, label: 'Order Settings' },
+          { id: 'invoice-settings' as TabType, label: 'Invoice Settings' },
+          { id: 'commission-settings' as TabType, label: 'Commission Settings' },
+        ],
+      },
     {
       label: 'Preferences',
       tabs: [
@@ -588,6 +590,11 @@ export default function SettingsContent() {
       {/* Invoice Settings Tab */}
       {activeTab === 'invoice-settings' && (
         <InvoiceSettingsTab />
+      )}
+
+      {/* Commission Settings Tab */}
+      {activeTab === 'commission-settings' && (
+        <CommissionSettingsTab />
       )}
 
       {/* Chat Settings Tab */}
