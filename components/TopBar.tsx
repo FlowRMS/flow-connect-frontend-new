@@ -65,7 +65,7 @@ export default function TopBar() {
     : '/flow-ai/upload';
 
   return (
-    <div className="relative z-[60]">
+    <div className="relative z-40">
       {/* Main TopBar Content */}
       <div
         className={`bg-[var(--card)] border-b border-[var(--border)] px-3 sm:px-6 py-3 flex items-center justify-between transition-all duration-300 ease-in-out ${
@@ -306,7 +306,7 @@ export default function TopBar() {
           <AnimatePresence>
             {showAccountMenu && (
               <motion.div
-                className="absolute right-0 top-full mt-2 w-72 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-lg overflow-hidden z-50"
+                className="absolute right-0 top-full mt-2 w-72 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-lg overflow-hidden z-[100]"
                 initial={{ opacity: 0, scale: 0.95, y: -10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: -10 }}
