@@ -204,7 +204,7 @@ export function OrdersTableHeader({
         {/* Factory */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Factory</span>
+          <span className="whitespace-nowrap">Factory</span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('factoryName')}
             </div>

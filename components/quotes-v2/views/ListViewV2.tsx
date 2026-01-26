@@ -338,7 +338,7 @@ export function ListViewV2({
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
                     onClick={() => onSortChange?.('factories')}
                   >
-                    Factories
+                Factories
                   </span>
                   {onSortChange && (
                     <div className="flex-shrink-0">
@@ -559,7 +559,7 @@ export function ListViewV2({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {(isLoading || isFetching) ? (
+            {(isLoading || (isFetching && !isFetchingNextPage)) ? (
               <QuotesTableSkeleton rowCount={8} />
             ) : quotes.length === 0 ? (
               <tr>
