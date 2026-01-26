@@ -99,16 +99,11 @@ export function SelectTemplateModal({
     if (!open) {
       setSearchTerm('');
       setSelectedClusterId(null);
-      setShowNoInstructionsWarning(false);
     }
   }, [open, entityType]);
 
   const handleSelectCluster = useCallback((cluster: EnrichedCluster) => {
-    if (cluster.additionalInstructions.length === 0) {
-      setShowNoInstructionsWarning(true);
-    } else {
       setSelectedClusterId(cluster.id);
-    }
   }, []);
 
   const enrichedClusters = useMemo<EnrichedCluster[]>(() => {
@@ -369,7 +364,7 @@ export function SelectTemplateModal({
       </DialogContent>
 
       {/* No Instructions Warning Modal */}
-      <Dialog open={showNoInstructionsWarning} onOpenChange={setShowNoInstructionsWarning}>
+      {/* <Dialog open={showNoInstructionsWarning} onOpenChange={setShowNoInstructionsWarning}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -386,7 +381,7 @@ export function SelectTemplateModal({
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
     </Dialog>
   );
 }

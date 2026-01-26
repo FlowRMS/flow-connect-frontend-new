@@ -73,6 +73,7 @@ export const Q_GET_PENDING = gql`
       cluster {
         id
         clusterName
+        additionalInstructions
       }
     }
   }
