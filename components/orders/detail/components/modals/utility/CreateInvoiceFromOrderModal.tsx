@@ -8,6 +8,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateInvoiceFromOrder } from '@/components/invoices/api/useInvoicesApi';
+import { createLink } from '@/components/lib/graphql/entity-links';
 import type { Invoice, OrderDetailInputForInvoice } from '@/components/invoices/api/invoicesApi';
 import type { OrderLineItem } from '@/lib/types/rms';
 
@@ -205,6 +206,19 @@ export function CreateInvoiceFromOrderModal({
         dueDate,
         orderDetailsInputs,
       });
+
+      // Auto-link the order to the newly created invoice
+      try {
+        await createLink({
+          sourceEntityType: 'ORDER',
+          sourceEntityId: orderId,
+          targetEntityType: 'INVOICE',
+          targetEntityId: invoice.id,
+        });
+      } catch (linkError) {
+        // Log but don't fail the whole operation if linking fails
+        console.warn('Failed to auto-link order to invoice:', linkError);
+      }
 
       setCreatedInvoice(invoice);
       setStep('success');

@@ -8,6 +8,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateOrderFromQuote } from '../../orders/api';
+import { createLink } from '../../lib/graphql/entity-links';
 import type { Order } from '../../orders/api/ordersApi';
 import type { QuoteDetailToOrderDetailInput } from '../../lib/graphql/orders';
 import type { LineItemV2 } from '../types';
@@ -181,6 +182,19 @@ export function CreateOrderFromQuoteModal({
         dueDate,
         quoteDetailsInputs,
       });
+
+      // Auto-link the quote to the newly created order
+      try {
+        await createLink({
+          sourceEntityType: 'QUOTE',
+          sourceEntityId: quoteId,
+          targetEntityType: 'ORDER',
+          targetEntityId: order.id,
+        });
+      } catch (linkError) {
+        // Log but don't fail the whole operation if linking fails
+        console.warn('Failed to auto-link quote to order:', linkError);
+      }
 
       setCreatedOrder(order);
       setStep('success');
