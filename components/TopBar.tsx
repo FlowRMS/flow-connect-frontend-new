@@ -65,7 +65,7 @@ export default function TopBar() {
     : '/flow-ai/upload';
 
   return (
-    <div className="relative z-50">
+    <div className="relative z-[60]">
       {/* Main TopBar Content */}
       <div
         className={`bg-[var(--card)] border-b border-[var(--border)] px-3 sm:px-6 py-3 flex items-center justify-between transition-all duration-300 ease-in-out ${
