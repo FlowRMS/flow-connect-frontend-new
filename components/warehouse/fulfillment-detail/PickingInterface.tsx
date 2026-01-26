@@ -1,8 +1,13 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
-import { FulfillmentOrder, InventoryLocation, FulfillmentOrderLineItem } from '@/lib/types/warehouse';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { FulfillmentOrder, FulfillmentOrderLineItem } from '../api/fulfillmentApi';
 import { getProductLocations, calculatePickingAllocation } from '@/lib/data/warehouse-mock';
+import {
+  Inventory,
+  calculatePickingAllocationFromInventory,
+  PickingAllocation,
+} from '../api/inventoryApi';
 
 interface LocationPickState {
   locationId: string;
@@ -46,6 +51,33 @@ interface PickingInterfaceProps {
   onExpandNote: (lineItemId: string | null) => void;
   onCompletePicking: () => void;
   onReportInventoryDiscrepancy?: (discrepancy: InventoryDiscrepancy) => void;
+  /** Real inventory data from API - when provided, uses real data instead of mocks */
+  inventoryData?: Map<string, Inventory>;
+}
+
+// Helper function to get allocations - uses real inventory if available, falls back to mock
+function getAllocationsForLineItem(
+  lineItem: FulfillmentOrderLineItem,
+  inventoryData?: Map<string, Inventory>
+): { locationId: string; locationName: string; locationType: string; quantity: number }[] {
+  // If real inventory data is available, use it
+  if (inventoryData) {
+    const inventory = inventoryData.get(lineItem.productId);
+    if (inventory) {
+      const allocations = calculatePickingAllocationFromInventory(inventory, lineItem.allocatedQty);
+      return allocations.map((alloc) => ({
+        locationId: alloc.locationId,
+        locationName: alloc.locationName,
+        locationType: alloc.locationType,
+        quantity: alloc.quantity,
+      }));
+    }
+    // Product not in inventory - return empty (will show as shortage)
+    return [];
+  }
+
+  // Fall back to mock data
+  return calculatePickingAllocation(lineItem.productId, lineItem.allocatedQty);
 }
 
 export default function PickingInterface({
@@ -59,30 +91,84 @@ export default function PickingInterface({
   onExpandNote,
   onCompletePicking,
   onReportInventoryDiscrepancy,
+  inventoryData,
 }: PickingInterfaceProps) {
   // Track picked quantities per location per line item
   const [locationPicks, setLocationPicks] = useState<Record<string, LineItemPickState>>(() => {
     const initial: Record<string, LineItemPickState> = {};
     fulfillmentOrder.lineItems.forEach(li => {
-      const allocations = calculatePickingAllocation(li.productId, li.allocatedQty);
-      initial[li.id] = {
-        lineItemId: li.id,
-        locations: allocations.map(loc => ({
+      const allocations = getAllocationsForLineItem(li, inventoryData);
+      const serverPickedQty = Number(li.pickedQty) || 0;
+      const isFullyPicked = serverPickedQty >= li.allocatedQty;
+
+      // If already picked on server, distribute picked qty across locations proportionally
+      let remainingPicked = serverPickedQty;
+      const locations = allocations.map((loc, idx) => {
+        const locPickedQty = isFullyPicked
+          ? loc.quantity  // Fully picked - each location has its full quantity
+          : (idx === allocations.length - 1
+              ? remainingPicked  // Last location gets remainder
+              : Math.min(loc.quantity, remainingPicked));
+        remainingPicked = Math.max(0, remainingPicked - locPickedQty);
+
+        return {
           locationId: loc.locationId,
           locationName: loc.locationName,
           locationType: loc.locationType,
           expectedQty: loc.quantity,
-          pickedQty: 0,
-          isFinalized: false,
-        })),
+          pickedQty: locPickedQty,
+          isFinalized: locPickedQty > 0,
+        };
+      });
+
+      initial[li.id] = {
+        lineItemId: li.id,
+        locations,
         totalExpected: li.allocatedQty,
-        totalPicked: 0,
-        isShort: false,
+        totalPicked: serverPickedQty,
+        isShort: serverPickedQty < li.allocatedQty && locations.every(l => l.isFinalized),
         shortageNotes: '',
       };
     });
     return initial;
   });
+
+  // Update locations when inventory data becomes available (it loads async)
+  useEffect(() => {
+    if (!inventoryData) return;
+
+    // Reinitialize locations with real inventory data
+    setLocationPicks(prev => {
+      const updated: Record<string, LineItemPickState> = {};
+      fulfillmentOrder.lineItems.forEach(li => {
+        const existingState = prev[li.id];
+        const allocations = getAllocationsForLineItem(li, inventoryData);
+
+        // Only update if we have new allocations and current state has no locations
+        if (allocations.length > 0 && (!existingState || existingState.locations.length === 0)) {
+          updated[li.id] = {
+            lineItemId: li.id,
+            locations: allocations.map(loc => ({
+              locationId: loc.locationId,
+              locationName: loc.locationName,
+              locationType: loc.locationType,
+              expectedQty: loc.quantity,
+              pickedQty: 0,
+              isFinalized: false,
+            })),
+            totalExpected: li.allocatedQty,
+            totalPicked: 0,
+            isShort: false,
+            shortageNotes: '',
+          };
+        } else if (existingState) {
+          // Keep existing state if it has locations or picking progress
+          updated[li.id] = existingState;
+        }
+      });
+      return updated;
+    });
+  }, [inventoryData, fulfillmentOrder.lineItems]);
 
   // Track reported discrepancies for visual feedback
   const [reportedDiscrepancies, setReportedDiscrepancies] = useState<Set<string>>(new Set());
@@ -97,12 +183,38 @@ export default function PickingInterface({
   // Search filter for line items
   const [itemSearchQuery, setItemSearchQuery] = useState('');
 
-  const totalToPick = fulfillmentOrder.lineItems.reduce((sum, li) => sum + li.allocatedQty, 0);
-  const totalPicked = Object.values(locationPicks).reduce((sum, lp) => sum + lp.totalPicked, 0);
+  // Track expanded/collapsed state for each line item
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+  const toggleItemExpanded = useCallback((lineItemId: string) => {
+    setExpandedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(lineItemId)) {
+        next.delete(lineItemId);
+      } else {
+        next.add(lineItemId);
+      }
+      return next;
+    });
+  }, []);
+
+  const totalToPick = fulfillmentOrder.lineItems.reduce((sum, li) => sum + Number(li.allocatedQty), 0);
+  const totalPicked = Object.values(locationPicks).reduce((sum, lp) => sum + Number(lp.totalPicked), 0);
   const allItemsPicked = fulfillmentOrder.lineItems.every(li => {
     const state = locationPicks[li.id];
     return state && state.totalPicked >= state.totalExpected;
   });
+
+  // Sync picked quantities to parent component when locationPicks changes
+  // This avoids calling setState during render which causes React errors
+  useEffect(() => {
+    Object.entries(locationPicks).forEach(([lineItemId, lineState]) => {
+      const currentPicked = pickedItems[lineItemId] ?? 0;
+      if (lineState.totalPicked !== currentPicked) {
+        onMarkAsPicked(lineItemId, lineState.totalPicked);
+      }
+    });
+  }, [locationPicks, pickedItems, onMarkAsPicked]);
 
   // Calculate all shortages across all finalized locations
   const allShortages = useMemo(() => {
@@ -284,9 +396,6 @@ export default function PickingInterface({
       const allFinalized = newLocations.every(l => l.isFinalized);
       const isShort = allFinalized && newTotalPicked < currentLineState.totalExpected;
 
-      // Sync with parent component
-      onMarkAsPicked(lineItemId, newTotalPicked);
-
       return {
         ...prev,
         [lineItemId]: {
@@ -297,7 +406,7 @@ export default function PickingInterface({
         },
       };
     });
-  }, [locationPicks, fulfillmentOrder.lineItems, onMarkAsPicked, onReportInventoryDiscrepancy]);
+  }, [locationPicks, fulfillmentOrder.lineItems, onReportInventoryDiscrepancy]);
 
   // Unfinalize a location - allows editing again and recalculates expected quantities
   const handleUnfinalizeLocation = useCallback((lineItemId: string, locationId: string) => {
@@ -312,7 +421,7 @@ export default function PickingInterface({
       const lineItem = fulfillmentOrder.lineItems.find(li => li.id === lineItemId);
       if (!lineItem) return prev;
 
-      const originalAllocations = calculatePickingAllocation(lineItem.productId, lineItem.allocatedQty);
+      const originalAllocations = getAllocationsForLineItem(lineItem, inventoryData);
 
       // Rebuild locations: restore original expected for this and subsequent locations
       const newLocations = lineState.locations.map((loc, idx) => {
@@ -357,7 +466,6 @@ export default function PickingInterface({
 
       const newTotalPicked = newLocations.reduce((sum, l) => sum + (l.isFinalized ? l.pickedQty : 0), 0);
       const allFinalized = newLocations.every(l => l.isFinalized);
-      onMarkAsPicked(lineItemId, newTotalPicked);
 
       return {
         ...prev,
@@ -369,7 +477,7 @@ export default function PickingInterface({
         },
       };
     });
-  }, [onMarkAsPicked, fulfillmentOrder.lineItems]);
+  }, [fulfillmentOrder.lineItems, inventoryData]);
 
   // Pick all from a specific location and finalize it
   const handlePickAllFromLocation = useCallback((lineItemId: string, locationId: string) => {
@@ -385,7 +493,6 @@ export default function PickingInterface({
 
       const newTotalPicked = newLocations.reduce((sum, l) => sum + (l.isFinalized ? l.pickedQty : 0), 0);
       const allFinalized = newLocations.every(l => l.isFinalized);
-      onMarkAsPicked(lineItemId, newTotalPicked);
 
       return {
         ...prev,
@@ -397,7 +504,7 @@ export default function PickingInterface({
         },
       };
     });
-  }, [onMarkAsPicked]);
+  }, []);
 
   // Pick all from all locations for a line item and finalize all
   const handlePickAllForItem = useCallback((lineItemId: string) => {
@@ -412,7 +519,6 @@ export default function PickingInterface({
       }));
 
       const newTotalPicked = newLocations.reduce((sum, l) => sum + l.pickedQty, 0);
-      onMarkAsPicked(lineItemId, newTotalPicked);
 
       return {
         ...prev,
@@ -424,7 +530,7 @@ export default function PickingInterface({
         },
       };
     });
-  }, [onMarkAsPicked]);
+  }, []);
 
   // Reset picking for a line item
   const handleResetItem = useCallback((lineItemId: string) => {
@@ -436,7 +542,7 @@ export default function PickingInterface({
       const lineItem = fulfillmentOrder.lineItems.find(li => li.id === lineItemId);
       if (!lineItem) return prev;
 
-      const allocations = calculatePickingAllocation(lineItem.productId, lineItem.allocatedQty);
+      const allocations = getAllocationsForLineItem(lineItem, inventoryData);
       const newLocations = allocations.map(loc => ({
         locationId: loc.locationId,
         locationName: loc.locationName,
@@ -445,8 +551,6 @@ export default function PickingInterface({
         pickedQty: 0,
         isFinalized: false,
       }));
-
-      onMarkAsPicked(lineItemId, 0);
 
       return {
         ...prev,
@@ -458,7 +562,7 @@ export default function PickingInterface({
         },
       };
     });
-  }, [onMarkAsPicked, fulfillmentOrder.lineItems]);
+  }, [fulfillmentOrder.lineItems, inventoryData]);
 
   // Report all inventory discrepancies across the order
   const handleReportAllDiscrepancies = useCallback(() => {
@@ -471,8 +575,8 @@ export default function PickingInterface({
         onReportInventoryDiscrepancy({
           lineItemId: shortage.lineItemId,
           productId: lineItem.productId,
-          productName: lineItem.productName,
-          partNumber: lineItem.partNumber,
+          productName: lineItem.product?.description || lineItem.product?.factoryPartNumber || '',
+          partNumber: lineItem.product?.factoryPartNumber || '',
           locationId: shortage.locationId,
           locationName: shortage.locationName,
           locationType: shortage.locationType,
@@ -524,7 +628,7 @@ export default function PickingInterface({
           <div>
             <h3 className="text-lg font-semibold text-[var(--foreground)]">Picking Mode</h3>
             <p className="text-sm text-[var(--muted-foreground)]">
-              {totalPicked} of {totalToPick} items picked
+              {Math.round(totalPicked)} of {Math.round(totalToPick)} items picked
             </p>
           </div>
         </div>
@@ -588,11 +692,11 @@ export default function PickingInterface({
               {itemsAtScannedLocation.map(({ lineItemId, lineItem, location }) => (
                 <div key={lineItemId} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-blue-200">
                   <div className="flex-1 min-w-0">
-                    <span className="font-medium text-sm">{lineItem.partNumber}</span>
-                    <p className="text-xs text-[var(--muted-foreground)] truncate">{lineItem.productName}</p>
+                    <span className="font-medium text-sm">{lineItem.product?.factoryPartNumber || '-'}</span>
+                    <p className="text-xs text-[var(--muted-foreground)] truncate">{lineItem.product?.description || lineItem.product?.factoryPartNumber || '-'}</p>
                   </div>
                   <div className="text-sm text-[var(--muted-foreground)]">
-                    Pick <span className="font-semibold text-[var(--foreground)]">{location.expectedQty}</span>
+                    Pick <span className="font-semibold text-[var(--foreground)]">{Math.round(location.expectedQty)}</span>
                   </div>
                   <button
                     onClick={() => handlePickAllFromLocation(lineItemId, scannedLocationId)}
@@ -703,9 +807,11 @@ export default function PickingInterface({
           .filter((item) => {
             if (!itemSearchQuery) return true;
             const query = itemSearchQuery.toLowerCase();
+            const partNumber = item.product?.factoryPartNumber || '';
+            const productName = item.product?.description || item.product?.factoryPartNumber || '';
             return (
-              item.partNumber.toLowerCase().includes(query) ||
-              item.productName.toLowerCase().includes(query)
+              partNumber.toLowerCase().includes(query) ||
+              productName.toLowerCase().includes(query)
             );
           })
           .map((lineItem) => {
@@ -716,32 +822,51 @@ export default function PickingInterface({
           const hasNote = !!pickingNotes[lineItem.id];
           const isNoteExpanded = expandedNoteId === lineItem.id;
           const isShort = lineState.totalPicked > 0 && lineState.totalPicked < lineState.totalExpected;
+          const isExpanded = expandedItems.has(lineItem.id);
 
           return (
             <div
               key={lineItem.id}
               className={`transition-colors ${isPicked ? 'bg-green-50' : isShort ? 'bg-amber-50' : ''}`}
             >
-              {/* Header row */}
-              <div className="p-4 flex items-start gap-4">
+              {/* Header row - clickable to expand/collapse */}
+              <div
+                className="p-4 flex items-start gap-4 cursor-pointer hover:bg-[var(--muted)]/30 transition-colors"
+                onClick={() => toggleItemExpanded(lineItem.id)}
+              >
+                {/* Expand/collapse indicator */}
+                <div className="flex items-center justify-center w-6 flex-shrink-0 mt-3">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className={`text-[var(--muted-foreground)] transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                  >
+                    <path d="M9 18l6-6-6-6"/>
+                  </svg>
+                </div>
+
                 {/* Status indicator */}
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  isPicked ? 'bg-green-500' : isShort ? 'bg-amber-500' : 'bg-[var(--muted)]'
+                  isPicked ? 'bg-green-500' : isShort ? 'bg-amber-500' : 'bg-gray-300'
                 }`}>
                   {isPicked ? (
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
                       <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   ) : (
-                    <span className="text-lg font-bold text-white">{lineState.totalExpected}</span>
+                    <span className="text-lg font-bold text-gray-700">{Math.round(lineState.totalExpected)}</span>
                   )}
                 </div>
 
                 {/* Product info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-[var(--foreground)]">{lineItem.partNumber}</span>
-                    <span className="text-xs px-2 py-0.5 bg-[var(--muted)] rounded">{lineItem.uom}</span>
+                    <span className="font-semibold text-[var(--foreground)]">{lineItem.product?.factoryPartNumber || '-'}</span>
+                    <span className="text-xs px-2 py-0.5 bg-[var(--muted)] rounded">{'EA'}</span>
                     {hasNote && !isNoteExpanded && (
                       <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded flex items-center gap-1">
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -751,13 +876,13 @@ export default function PickingInterface({
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-[var(--muted-foreground)] truncate">{lineItem.productName}</p>
+                  <p className="text-sm text-[var(--muted-foreground)] truncate">{lineItem.product?.description || lineItem.product?.factoryPartNumber || '-'}</p>
                 </div>
 
                 {/* Quantity display */}
                 <div className="text-right">
                   <div className={`text-2xl font-bold ${isShort ? 'text-amber-600' : 'text-[var(--foreground)]'}`}>
-                    {lineState.totalPicked} / {lineState.totalExpected}
+                    {Math.round(lineState.totalPicked)} / {Math.round(lineState.totalExpected)}
                   </div>
                   <div className="text-xs text-[var(--muted-foreground)]">picked</div>
                 </div>
@@ -799,8 +924,9 @@ export default function PickingInterface({
                 </div>
               </div>
 
-              {/* Location rows */}
-              <div className="px-4 pb-4 ml-16 space-y-2">
+              {/* Location rows - only show when expanded */}
+              {isExpanded && (
+              <div className="px-4 pb-4 ml-22 space-y-2">
                 {lineState.locations.map((loc, idx) => {
                   const isLocFinalized = loc.isFinalized;
                   const isLocComplete = isLocFinalized && loc.pickedQty >= loc.expectedQty;
@@ -853,7 +979,7 @@ export default function PickingInterface({
 
                       {/* Expected qty */}
                       <div className="text-sm text-[var(--muted-foreground)]">
-                        of <span className="font-semibold text-[var(--foreground)]">{loc.expectedQty}</span>
+                        of <span className="font-semibold text-[var(--foreground)]">{Math.round(loc.expectedQty)}</span>
                       </div>
 
                       {/* Editable picked qty - simple input without +/- buttons */}
@@ -861,7 +987,7 @@ export default function PickingInterface({
                         <div className={`w-16 h-8 flex items-center justify-center text-sm font-semibold rounded ${
                           loc.pickedQty >= loc.expectedQty ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                         }`}>
-                          {loc.pickedQty}
+                          {Math.round(loc.pickedQty)}
                         </div>
                       ) : (
                         <input
@@ -907,6 +1033,7 @@ export default function PickingInterface({
                 })}
 
               </div>
+              )}
 
               {/* Expandable note input */}
               {isNoteExpanded && (

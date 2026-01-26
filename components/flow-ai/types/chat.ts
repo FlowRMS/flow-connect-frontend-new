@@ -51,6 +51,40 @@ export interface ChatStreamResponse {
   documentReferences?: DocumentReference[];
 }
 
+// Custom Instructions Types
+export type InstructionLevel = 'ORGANIZATION' | 'USER';
 
+export interface CustomInstructionScope {
+  objects?: string[];
+  keywords?: string[];
+}
 
+export interface CustomInstruction {
+  id: string;
+  name: string;
+  instruction: string;
+  level: InstructionLevel;
+  isActive: boolean;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+  userId?: string;
+  scope: CustomInstructionScope;
+}
 
+export interface CreateCustomInstructionInput {
+  name: string;
+  instruction: string;
+  level?: InstructionLevel;
+  scope?: CustomInstructionScope;
+  isDefault?: boolean;
+}
+
+export interface UpdateCustomInstructionInput {
+  id: string;
+  name?: string;
+  instruction?: string;
+  scope?: CustomInstructionScope;
+  isActive?: boolean;
+  isDefault?: boolean;
+}

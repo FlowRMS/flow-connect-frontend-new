@@ -1191,6 +1191,14 @@ export const M_EXECUTE_DOCUMENT_WORKFLOW = gql`
   }
 `;
 
+// Retry Document Processing Mutation - called to retry failed document processing
+// Endpoint: NEXT_PUBLIC_FLOWRMS_HTTP_GRAPHQL_URL (staging.hive.flowrms.com)
+export const M_RETRY_DOCUMENT_PROCESSING = gql`
+  mutation RetryDocumentProcessing($pendingId: UUID!) {
+    retryDocumentProcessing(pendingId: $pendingId)
+  }
+`;
+
 // Query to get processing results for a pending document
 export const Q_PENDING_DOCUMENT_PROCESSINGS = gql`
   query PendingDocumentProcessings($pendingDocumentId: UUID!) {
@@ -1216,6 +1224,50 @@ export const M_SEND_PENDING_DOCUMENT_STATUS_EMAIL = gql`
   }
 `;
 
+// ============================================
+// CUSTOM INSTRUCTIONS QUERIES AND MUTATIONS
+// ============================================
+
+// Fragment for custom instruction fields
+const CUSTOM_INSTRUCTION_FIELDS = `
+  id
+  name
+  instruction
+  level
+  isActive
+  isDefault
+  createdAt
+  updatedAt
+  userId
+  scope {
+    objects
+    keywords
+  }
+`;
+
+export const Q_GET_ORGANIZATION_INSTRUCTIONS = gql`
+  query GetOrganizationInstructions {
+    organizationInstructions {
+      ${CUSTOM_INSTRUCTION_FIELDS}
+    }
+  }
+`;
+
+export const Q_GET_MY_CUSTOM_INSTRUCTIONS = gql`
+  query GetMyCustomInstructions {
+    myCustomInstructions {
+      ${CUSTOM_INSTRUCTION_FIELDS}
+    }
+  }
+`;
+
+export const Q_GET_ALL_AVAILABLE_INSTRUCTIONS = gql`
+  query GetAllAvailableInstructions {
+    allAvailableInstructions {
+      ${CUSTOM_INSTRUCTION_FIELDS}
+    }
+  }
+`;
 // Mutation to trigger pending entities by factory
 // Used when factory is matched in CHECKS/INVOICES documents to populate Orders, Invoices, Credits, Adjustments tabs
 export const M_TRIGGER_PENDING_ENTITIES_BY_FACTORY = gql`
@@ -1249,6 +1301,49 @@ export const M_TRIGGER_PENDING_ENTITIES_BY_FACTORY = gql`
 `;
 
 
+export const Q_GET_CUSTOM_INSTRUCTION = gql`
+  query GetCustomInstruction($instructionId: UUID!) {
+    customInstruction(instructionId: $instructionId) {
+      ${CUSTOM_INSTRUCTION_FIELDS}
+    }
+  }
+`;
 
+export const M_CREATE_CUSTOM_INSTRUCTION = gql`
+  mutation CreateCustomInstruction($input: CreateCustomInstructionInput!) {
+    createCustomInstruction(input: $input) {
+      ${CUSTOM_INSTRUCTION_FIELDS}
+    }
+  }
+`;
 
+export const M_UPDATE_CUSTOM_INSTRUCTION = gql`
+  mutation UpdateCustomInstruction($input: UpdateCustomInstructionInput!) {
+    updateCustomInstruction(input: $input) {
+      ${CUSTOM_INSTRUCTION_FIELDS}
+    }
+  }
+`;
+
+export const M_DELETE_CUSTOM_INSTRUCTION = gql`
+  mutation DeleteCustomInstruction($instructionId: UUID!) {
+    deleteCustomInstruction(instructionId: $instructionId)
+  }
+`;
+
+export const M_TOGGLE_CUSTOM_INSTRUCTION = gql`
+  mutation ToggleCustomInstruction($instructionId: UUID!, $isActive: Boolean!) {
+    toggleCustomInstruction(instructionId: $instructionId, isActive: $isActive) {
+      ${CUSTOM_INSTRUCTION_FIELDS}
+    }
+  }
+`;
+
+export const M_SET_INSTRUCTION_DEFAULT = gql`
+  mutation SetInstructionDefault($instructionId: UUID!, $isDefault: Boolean!) {
+    setInstructionDefault(instructionId: $instructionId, isDefault: $isDefault) {
+      ${CUSTOM_INSTRUCTION_FIELDS}
+    }
+  }
+`;
 

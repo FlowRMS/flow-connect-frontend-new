@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FulfillmentOrder } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '../api/fulfillmentApi';
 import PackingBox, { PackingBoxType, packagingOptions } from './packing/PackingBox';
 import UnassignedItems from './packing/UnassignedItems';
 

@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "2mb",
     },
+    // Allow large file uploads through proxy/API routes (100MB)
+    proxyClientMaxBodySize: "100mb",
   },
   // Reduce bundle size by excluding source maps in production
   productionBrowserSourceMaps: false,

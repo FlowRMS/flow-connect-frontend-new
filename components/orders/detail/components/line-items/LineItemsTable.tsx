@@ -60,6 +60,7 @@ interface LineItemsTableProps {
   onSetEndUser: () => void;
   onSetOutsideRepSplits: () => void;
   onConvertToWarehouse: () => void;
+  onGenerateFulfillmentRequest: () => void;
   onAddCredit: () => void;
   onAddAcknowledgement: () => void;
   onDeleteLines: () => void;
@@ -99,6 +100,7 @@ export function LineItemsTable({
   onSetEndUser,
   onSetOutsideRepSplits,
   onConvertToWarehouse,
+  onGenerateFulfillmentRequest,
   onAddCredit,
   onAddAcknowledgement,
   onDeleteLines,
@@ -707,15 +709,18 @@ export function LineItemsTable({
       const isEmpty = column === 'manufacturer' ? !(item as any).manufacturerName :
                       column === 'endUser' ? !(item as any).endUserName :
                       !item[column as keyof OrderLineItem];
-      
+
       return (
         <div className={`w-full ${alignClass} flex items-center gap-1`}>
-          <span 
-            className="flex-1 py-1 select-text truncate"
+          <span
+            className="flex-1 py-1 select-text truncate cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
             style={{ userSelect: 'text' }}
-            onMouseDown={(e) => {
-              // Allow text selection without opening dropdown
-              e.stopPropagation();
+            onClick={(e) => {
+              // Only open dropdown if no text is selected (user clicked, not dragged to select)
+              const selection = window.getSelection();
+              if (!selection || selection.toString().length === 0) {
+                handleCellClick(item.id, column, e);
+              }
             }}
           >
             {displayValue}
@@ -979,6 +984,7 @@ export function LineItemsTable({
           onSetEndUser={onSetEndUser}
           onSetOutsideRepSplits={onSetOutsideRepSplits}
           onConvertToWarehouse={onConvertToWarehouse}
+          onGenerateFulfillmentRequest={onGenerateFulfillmentRequest}
           onAddCredit={onAddCredit}
           onAddAcknowledgement={onAddAcknowledgement}
           onDeleteLines={onDeleteLines}
@@ -1013,9 +1019,11 @@ export function LineItemsTable({
             getPinnedColumnStyle={getPinnedColumnStyle}
           />
           <tbody>
-            {(order.lineItems || []).map((item) => {
+            {(order.lineItems || []).map((item, itemIndex) => {
               const linkedInvoices = getLinkedInvoicesForLineItem(item, order.id, mockInvoices);
               const lineStatus = getLineShipStatus(item, linkedInvoices);
+              const totalItems = order.lineItems?.length || 0;
+              const isNearBottom = itemIndex >= totalItems - 2;
               const hasAcknowledgement = lineItemAcknowledgements[item.id];
               const hasCredit = lineItemCredits[item.id];
 
@@ -1144,9 +1152,20 @@ export function LineItemsTable({
                   {/* Status */}
                   {visibleColumns.has('lineStatus') && (
                     <td className="px-3 py-2 text-sm text-center">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${lineStatus.color}`}>
-                        {lineStatus.label}
-                      </span>
+                      <div className="relative group inline-block">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium cursor-help ${lineStatus.color}`}>
+                          {lineStatus.label}
+                        </span>
+                        <div className={`absolute left-1/2 -translate-x-1/2 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-[9999] pointer-events-none shadow-xl min-w-[180px] ${isNearBottom ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
+                          <div className="font-semibold mb-2 text-blue-400">Shipping Balance</div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-gray-400">Qty:</span>
+                              <span className="font-medium">{(item.quantity || 0) - (item.quantityShipped || 0)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </td>
                   )}
 

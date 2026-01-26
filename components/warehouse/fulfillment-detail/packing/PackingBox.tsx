@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FulfillmentOrder } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '../../api/fulfillmentApi';
 
 export interface PackingBoxType {
   id: string;
@@ -198,12 +198,12 @@ export default function PackingBox({
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{lineItem.partNumber}</div>
-                  <div className="text-xs text-[var(--muted-foreground)] truncate">{lineItem.productName}</div>
+                  <div className="text-sm font-medium">{lineItem.product?.factoryPartNumber || '-'}</div>
+                  <div className="text-xs text-[var(--muted-foreground)] truncate">{lineItem.product?.description || lineItem.product?.factoryPartNumber || '-'}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-bold">{lineItem.allocatedQty}</div>
-                  <div className="text-xs text-[var(--muted-foreground)]">{lineItem.uom}</div>
+                  <div className="text-sm font-bold">{Math.round(Number(lineItem.allocatedQty))}</div>
+                  <div className="text-xs text-[var(--muted-foreground)]">{'EA'}</div>
                 </div>
                 <button
                   onClick={() => onRemoveItemFromBox(box.id, lineItem.id)}

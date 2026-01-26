@@ -34,7 +34,7 @@ import { WorkflowBreadcrumb } from '@/components/flow-ai/flowrms/WorkflowBreadcr
 import { fetchRelatedEntities } from '@/components/lib/graphql/entity-links';
 import type { RelatedEntities } from '@/components/lib/graphql/types';
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
-import { Q_GET_PENDING, Q_PENDING_DOCUMENT_PROCESSINGS, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
+import { Q_GET_PENDING, Q_PENDING_DOCUMENT_PROCESSINGS, M_RETRY_DOCUMENT_PROCESSING } from '@/lib/flow-ai/gql';
 import * as XLSX from 'xlsx';
 
 // Constants for pagination
@@ -641,27 +641,22 @@ function UploadCompleteContent() {
 
     setIsRetrying(true);
     try {
-      // Call the executeDocumentWorkflow mutation to re-process the document
+      // Call the retryDocumentProcessing mutation to re-process the document
       const result = await flowrmsApolloClient.mutate<{
-        executeDocumentWorkflow: {
-          success: boolean;
-          message: string | null;
-          taskId: string | null;
-        };
+        retryDocumentProcessing: boolean;
       }>({
-        mutation: M_EXECUTE_DOCUMENT_WORKFLOW,
+        mutation: M_RETRY_DOCUMENT_PROCESSING,
         variables: {
-          pendingDocumentId: pendingId,
+          pendingId: pendingId,
         },
       });
 
-      if (result.data?.executeDocumentWorkflow?.success) {
+      if (result.data?.retryDocumentProcessing) {
         toast.success('Document queued for reprocessing');
-        // Navigate to queue page
-        router.push('/flow-ai/queue');
+        // Navigate to preview page to view the reprocessed document
+        router.push(`/flow-ai?pendingId=${pendingId}`);
       } else {
-        const errorMsg = result.data?.executeDocumentWorkflow?.message || 'Unknown error occurred';
-        toast.error(`Retry failed: ${errorMsg}`);
+        toast.error('Retry failed: Unable to queue document for reprocessing');
       }
     } catch (error) {
       console.error('Retry failed:', error);
@@ -1780,7 +1775,7 @@ function PaginatedDetailsTable({
               <tr key={startIdx + itemIdx} className="border-t border-slate-200 dark:border-slate-600">
                 {columns.map((col, colIdx) => (
                   <td key={colIdx} className="px-3 py-2 text-slate-700 dark:text-slate-300">
-                    {formatCellValue(item[col])}
+                    {formatCellValue(col.includes('.') ? getNestedValue(item, col) : item[col])}
                   </td>
                 ))}
               </tr>
@@ -2017,9 +2012,30 @@ function formatCellValue(value: unknown): string {
     if (Array.isArray(value)) return `${value.length} items`;
     const obj = value as Record<string, unknown>;
     if (obj.name) return String(obj.name);
+    // For address objects, format nicely
+    if ('city' in obj || 'state' in obj || 'zip_code' in obj) {
+      const parts: string[] = [];
+      if (obj.city) parts.push(String(obj.city));
+      if (obj.state) parts.push(String(obj.state));
+      if (obj.zip_code) parts.push(String(obj.zip_code));
+      return parts.length > 0 ? parts.join(', ') : '-';
+    }
     return JSON.stringify(value);
   }
   return String(value);
+}
+
+// Helper to get nested value from object using dot notation
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  const parts = path.split('.');
+  let current: unknown = obj;
+  for (const part of parts) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
 }
 
 // Helper functions for processing results display
@@ -2139,7 +2155,7 @@ function getArrayFields(dtoJson: string | null): { key: string; items: Record<st
   }
 }
 
-// Get display columns for array items (skip internal fields)
+// Get display columns for array items (skip internal fields, flatten nested objects)
 function getArrayItemColumns(items: Record<string, unknown>[]): string[] {
   if (items.length === 0) return [];
 
@@ -2148,12 +2164,50 @@ function getArrayItemColumns(items: Record<string, unknown>[]): string[] {
     'tenant_id', 'pending_document_id', 'dto_id'
   ]);
 
+  const columns: string[] = [];
   const firstItem = items[0];
-  return Object.keys(firstItem).filter(key => !skipFields.has(key.toLowerCase()));
+
+  for (const key of Object.keys(firstItem)) {
+    if (skipFields.has(key.toLowerCase())) continue;
+
+    const value = firstItem[key];
+    // Check if this is a nested object that should be flattened (like end_user)
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      const nestedObj = value as Record<string, unknown>;
+      // Handle end_user or similar nested objects with name/address
+      if ('name' in nestedObj) {
+        columns.push(`${key}.name`);
+      }
+      if ('address' in nestedObj && nestedObj.address && typeof nestedObj.address === 'object') {
+        const address = nestedObj.address as Record<string, unknown>;
+        if ('city' in address) columns.push(`${key}.address.city`);
+        if ('state' in address) columns.push(`${key}.address.state`);
+        if ('zip_code' in address) columns.push(`${key}.address.zip_code`);
+        if ('address_line_one' in address) columns.push(`${key}.address.address_line_one`);
+      }
+      // If nested object has no recognized structure, just add the key as-is (will JSON stringify)
+      if (!('name' in nestedObj) && !('address' in nestedObj)) {
+        columns.push(key);
+      }
+    } else {
+      columns.push(key);
+    }
+  }
+
+  return columns;
 }
 
 // Format field names for display
 function formatFieldName(name: string): string {
+  // Handle dot notation (e.g., "end_user.address.city" -> "End User City")
+  if (name.includes('.')) {
+    const parts = name.split('.');
+    // Skip 'address' in the middle for cleaner names
+    const filteredParts = parts.filter(p => p !== 'address');
+    return filteredParts
+      .map(part => part.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))
+      .join(' ');
+  }
   return name
     .replace(/_/g, ' ')
     .replace(/\b\w/g, l => l.toUpperCase());

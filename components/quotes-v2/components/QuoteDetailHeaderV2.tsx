@@ -5,6 +5,8 @@ import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2, QuoteV2S
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
 import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
 import { useCustomerSearch, useUserSearch, useJobSearch, useFactorySearch } from '../../quotes/api/useQuotesApi';
+import { useCreateCRMJob, useCRMJobStatuses } from '../../hooks/useCRMApi';
+import type { JobInput } from '../../lib/crm-graphql';
 import { searchUsers } from '../../quotes/api/quotesApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
@@ -403,6 +405,10 @@ export function QuoteDetailHeaderV2({
   const { data: endUserCustomers, isLoading: isEndUserLoading } = useCustomerSearch(endUserSearchTerm, endUserSearchEnabled);
   const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(insideRepSearchTerm, true, insideRepSearchEnabled, false); // isInside=true, isOutside=false
   const { data: jobs, isLoading: isJobsLoading } = useJobSearch(jobSearchTerm, jobSearchEnabled);
+  
+  // Job creation mutation and statuses
+  const createJobMutation = useCreateCRMJob();
+  const { data: jobStatuses } = useCRMJobStatuses();
   const { data: factories, isLoading: isFactoriesLoading } = useFactorySearch(factorySearchTerm, factorySearchEnabled);
   const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, false, outsideRepSearchEnabled, true); // isInside=false, isOutside=true
   const { data: insideSplitRepResults, isLoading: isInsideSplitRepLoading } = useUserSearch(insideSplitRepSearchTerm, true, insideSplitRepSearchEnabled, false); // isInside=true, isOutside=false
@@ -1453,6 +1459,31 @@ export function QuoteDetailHeaderV2({
                 onQuoteChange({ jobId: id || undefined, jobName: label });
                 setJobSearchEnabled(false);
               }}
+              onCreateNew={async (jobName) => {
+                // Get default status (use first status if available)
+                const defaultStatus = jobStatuses?.[0];
+                if (!defaultStatus) {
+                  console.error('No job statuses available');
+                  return;
+                }
+
+                const jobInput: JobInput = {
+                  jobName,
+                  statusId: defaultStatus.id,
+                };
+
+                try {
+                  const newJob = await createJobMutation.mutateAsync(jobInput);
+                  return {
+                    id: newJob.id,
+                    label: newJob.jobName,
+                  };
+                } catch (error) {
+                  console.error('Failed to create job:', error);
+                  throw error;
+                }
+              }}
+              createLabel="job"
             />
           </div>
           <div>
@@ -1568,7 +1599,7 @@ export function QuoteDetailHeaderV2({
                       }}
                       className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                     />
-                    <span className="text-xs text-gray-500">Split Commission</span>
+                    <span className="text-xs text-gray-500">Select Multiple Reps</span>
                   </label>
                 )}
               </>

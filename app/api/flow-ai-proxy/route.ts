@@ -3,10 +3,14 @@
  *
  * Proxies GraphQL requests to the flow-ai backend.
  * Needed to avoid CORS restrictions when calling flow-ai from the browser.
- * Supports both JSON and multipart/form-data (file uploads).
+ * Supports both JSON and multipart/form-data (file uploads up to 100MB).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+
+// Route segment config for App Router - allows larger request bodies
+export const maxDuration = 300; // 5 minutes timeout for large uploads
+export const dynamic = 'force-dynamic';
 
 const FLOW_AI_ENDPOINT = process.env.NEXT_PUBLIC_FLOW_AI_GRAPHQL_URL || 'http://localhost:8005/graphql';
 
@@ -28,27 +32,33 @@ export async function POST(request: NextRequest) {
       headers['x-auth-provider'] = authProvider;
     }
 
-    let body: BodyInit;
+    let response: Response;
 
     // Handle multipart/form-data (file uploads)
     if (contentType.includes('multipart/form-data')) {
-      // For multipart, we need to pass through the raw body
-      // and let fetch handle the content-type with boundary
-      const formData = await request.formData();
-      body = formData;
-      // Don't set Content-Type - fetch will set it with the correct boundary
+      // Read body as ArrayBuffer to preserve exact multipart format
+      // middlewareClientMaxBodySize in next.config.ts allows up to 100MB
+      const bodyBuffer = await request.arrayBuffer();
+
+      response = await fetch(FLOW_AI_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': contentType, // Pass original content-type with boundary
+        },
+        body: bodyBuffer,
+      });
     } else {
       // JSON request
       const jsonBody = await request.json();
-      body = JSON.stringify(jsonBody);
       headers['Content-Type'] = 'application/json';
-    }
 
-    const response = await fetch(FLOW_AI_ENDPOINT, {
-      method: 'POST',
-      headers,
-      body,
-    });
+      response = await fetch(FLOW_AI_ENDPOINT, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(jsonBody),
+      });
+    }
 
     // Check if response is JSON
     const responseContentType = response.headers.get('content-type') || '';

@@ -233,44 +233,11 @@ export function HeaderTopBar({
             </button>
           )}
 
-          {/* Status Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setShowStatusDropdown(!showStatusDropdown);
-                setShowActionsDropdown(false);
-                setShowSaveDropdown(false);
-              }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${getStatusColor(order.status)}`}
-            >
-              {orderStatusLabels[order.status]}
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            {showStatusDropdown && (
-              <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                {(['OPEN', 'PARTIAL_SHIPPED', 'SHIPPED_COMPLETE', 'CANCELLED', 'OVER_SHIPPED', 'PARTIAL_CANCELLED', 'OVER_CANCELLED'] as Order['status'][]).map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => {
-                      updateOrderStatus(status);
-                      setShowStatusDropdown(false);
-                    }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
-                      order.status === status ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
-                    }`}
-                  >
-                    {orderStatusLabels[status]}
-                    {order.status === status && (
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+          {/* Status Display (Read-only) */}
+          <div
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${getStatusColor(order.status)}`}
+          >
+            {orderStatusLabels[order.status]}
           </div>
 
           {/* Version Dropdown */}

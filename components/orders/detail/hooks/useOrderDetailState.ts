@@ -822,6 +822,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   const bulkActionsState = useLineItemBulkActions({
     selectedLineItems,
     clearSelection: clearLineItemSelection,
+    orderId,
   });
 
   // Return loading/error state if order not available (skip for create mode - we have a local order)
@@ -1003,13 +1004,14 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       productsToConvert: [],
       setProductsToConvert: noop,
       showFulfillmentRequestModal: false,
-      openFulfillmentRequestModal: noop,
+      openFulfillmentRequestModal: noopWithArg,
       closeFulfillmentRequestModal: noop,
-      saveFulfillmentRequest: noop,
+      saveFulfillmentRequest: noopWithArg,
       fulfillmentRequestMode: 'all' as const,
       setFulfillmentRequestMode: noop,
       lineItemsForFulfillment: [],
       setLineItemsForFulfillment: noop,
+      isCreatingFulfillment: false,
     };
   }
 
@@ -1033,11 +1035,29 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     applyMutationResult: (savedOrder: ApiOrder) => {
       const transformed = transformApiOrderToUiOrder(savedOrder);
       // Preserve any display names we already have (factory, customer, rep names)
-      setLocalOrder(prev => ({
-        ...transformed,
-        manufacturerName: prev.manufacturerName || transformed.manufacturerName,
-        customerName: prev.customerName || transformed.customerName,
-      }));
+      // Also preserve custPartNumber and uom for each line item since mutation response may not include them
+      setLocalOrder(prev => {
+        // Create a map of previous line items by ID to preserve custPartNumber and uom
+        const prevLineItemsMap = new Map(
+          (prev.lineItems || []).map(li => [li.id, li])
+        );
+
+        return {
+          ...transformed,
+          manufacturerName: prev.manufacturerName || transformed.manufacturerName,
+          customerName: prev.customerName || transformed.customerName,
+          // Preserve custPartNumber and uom from previous line items if not in response
+          lineItems: (transformed.lineItems || []).map(li => {
+            const prevItem = prevLineItemsMap.get(li.id);
+            return {
+              ...li,
+              custPartNumber: prevItem?.custPartNumber || li.custPartNumber,
+              uom: li.uom || prevItem?.uom || null,
+              uomId: li.uomId || prevItem?.uomId || null,
+            };
+          }),
+        };
+      });
     },
     // Order data
     order,

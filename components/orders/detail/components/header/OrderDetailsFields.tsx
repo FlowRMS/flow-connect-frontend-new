@@ -19,6 +19,8 @@ import {
   useUserSearch,
   useJobSearch,
 } from '../../../api';
+import { useCreateCRMJob, useCRMJobStatuses } from '@/components/hooks/useCRMApi';
+import type { JobInput } from '@/components/lib/crm-graphql';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 
 // ComingSoonBadge component for unsupported features
@@ -91,6 +93,10 @@ export function OrderDetailsFields({
     fetchOutsideRepsFromCustomer,
     fetchInsideRepsFromFactory,
   } = useAutoPopulateReps();
+  
+  // Job creation mutation and statuses
+  const createJobMutation = useCreateCRMJob();
+  const { data: jobStatuses } = useCRMJobStatuses();
   // Search states
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
   const [soldToSearchEnabled, setSoldToSearchEnabled] = useState(false);
@@ -575,6 +581,31 @@ export function OrderDetailsFields({
                   setJobSearchTerm(query);
                   setJobSearchEnabled(true);
                 }}
+                onCreateNew={async (jobName) => {
+                  // Get default status (use first status if available)
+                  const defaultStatus = jobStatuses?.[0];
+                  if (!defaultStatus) {
+                    console.error('No job statuses available');
+                    return;
+                  }
+
+                  const jobInput: JobInput = {
+                    jobName,
+                    statusId: defaultStatus.id,
+                  };
+
+                  try {
+                    const newJob = await createJobMutation.mutateAsync(jobInput);
+                    return {
+                      id: newJob.id,
+                      label: newJob.jobName,
+                    };
+                  } catch (error) {
+                    console.error('Failed to create job:', error);
+                    throw error;
+                  }
+                }}
+                createLabel="job"
               />
             </div>
           </div>
@@ -743,7 +774,7 @@ export function OrderDetailsFields({
                         className="accent-[var(--primary)]"
                       />
                       <label htmlFor="splitInsideCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
-                        Split commission
+                        Select Multiple Reps
                       </label>
                     </div>
                   )}

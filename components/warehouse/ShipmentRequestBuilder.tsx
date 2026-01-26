@@ -222,23 +222,24 @@ export default function ShipmentRequestBuilder() {
 
     // Get backorders for this vendor
     fulfillmentOrders.forEach(fo => {
-      fo.lineItems.forEach(item => {
-        if (item.backorderQty > 0) {
+      fo.lineItems.forEach((item) => {
+        if (item.backorderQty && item.backorderQty > 0) {
           const inv = mockInventory.find(i => i.productId === item.productId);
           if (inv && inv.factoryId === selectedVendorId) {
-            const alertId = `backorder-${fo.orderNumber}-${item.productId}`;
+            const orderNum = fo.order?.orderNumber || fo.fulfillmentOrderNumber || '-';
+            const alertId = `backorder-${orderNum}-${item.productId}`;
             if (!dismissedAlerts.has(alertId)) {
               alertItems.push({
                 type: 'backorder',
                 productId: item.productId,
-                productName: item.productName,
-                partNumber: item.partNumber,
+                productName: item.product?.description || item.product?.factoryPartNumber || '-',
+                partNumber: item.product?.factoryPartNumber || '-',
                 currentStock: inv.availableQuantity,
                 reorderPoint: inv.reorderPoint,
                 reorderQuantity: inv.reorderQuantity,
                 backorderQty: item.backorderQty,
-                orderNumber: fo.orderNumber,
-                customerName: fo.customerName,
+                orderNumber: orderNum,
+                customerName: fo.customer?.companyName || '-',
               });
             }
           }

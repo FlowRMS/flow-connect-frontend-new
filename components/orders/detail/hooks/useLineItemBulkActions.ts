@@ -4,22 +4,26 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { OrderLineItem } from '@/lib/types/rms';
 import type {
   AcknowledgementLineItem,
   ProductToConvert,
   LineItemForFulfillment,
 } from '../types';
+import { useCreateFulfillmentOrder } from '@/components/warehouse/api/useFulfillmentApi';
+import { fulfillmentToasts } from '@/components/lib/toast';
 
 interface UseLineItemBulkActionsProps {
   selectedLineItems: Set<string>;
   clearSelection: () => void;
+  orderId: string;
 }
 
 export function useLineItemBulkActions({
   selectedLineItems,
   clearSelection,
+  orderId,
 }: UseLineItemBulkActionsProps) {
+  const createFulfillmentMutation = useCreateFulfillmentOrder();
   // Bulk actions menu
   const [showLineItemsBulkActionsMenu, setShowLineItemsBulkActionsMenu] =
     useState(false);
@@ -172,8 +176,11 @@ export function useLineItemBulkActions({
 
   // Open fulfillment request modal
   const openFulfillmentRequestModal = useCallback(
-    (mode: 'all' | 'selected') => {
+    (mode: 'all' | 'selected', items?: LineItemForFulfillment[]) => {
       setFulfillmentRequestMode(mode);
+      if (items) {
+        setLineItemsForFulfillment(items);
+      }
       setShowFulfillmentRequestModal(true);
       setShowLineItemsBulkActionsMenu(false);
     },
@@ -187,12 +194,42 @@ export function useLineItemBulkActions({
   }, []);
 
   // Save fulfillment request
-  const saveFulfillmentRequest = useCallback(() => {
-    // TODO: Implement fulfillment request logic
-    alert('Fulfillment request created');
-    closeFulfillmentRequestModal();
-    clearSelection();
-  }, [closeFulfillmentRequestModal, clearSelection]);
+  const saveFulfillmentRequest = useCallback(
+    (warehouseId: string) => {
+      const itemsToSubmit = lineItemsForFulfillment.filter(
+        (item) => !item.hasExistingRequest
+      );
+
+      createFulfillmentMutation.mutate(
+        {
+          orderId,
+          warehouseId,
+          lineItems: itemsToSubmit.map((item) => ({
+            productId: item.productId,
+            orderedQty: item.quantity,
+            orderDetailId: item.orderDetailId,
+          })),
+        },
+        {
+          onSuccess: (result) => {
+            fulfillmentToasts.createSuccess(result.fulfillmentOrderNumber);
+            closeFulfillmentRequestModal();
+            clearSelection();
+          },
+          onError: (error) => {
+            fulfillmentToasts.createError(error.message);
+          },
+        }
+      );
+    },
+    [
+      lineItemsForFulfillment,
+      orderId,
+      createFulfillmentMutation,
+      closeFulfillmentRequestModal,
+      clearSelection,
+    ]
+  );
 
   return {
     // Bulk actions menu
@@ -252,5 +289,6 @@ export function useLineItemBulkActions({
     setFulfillmentRequestMode,
     lineItemsForFulfillment,
     setLineItemsForFulfillment,
+    isCreatingFulfillment: createFulfillmentMutation.isPending,
   };
 }
