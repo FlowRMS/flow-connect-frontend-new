@@ -44,6 +44,20 @@ export type TransmittalPurposeGQL =
   | 'FOR_RECORD'
   | 'RESUBMITTAL';
 
+export type ChangeAnalysisSourceGQL = 'MANUAL' | 'AI';
+
+export type OverallChangeStatusGQL =
+  | 'APPROVED'
+  | 'APPROVED_AS_NOTED'
+  | 'REVISE_AND_RESUBMIT'
+  | 'REJECTED';
+
+export type ItemChangeStatusGQL =
+  | 'APPROVED'
+  | 'APPROVED_AS_NOTED'
+  | 'REVISE'
+  | 'REJECTED';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -89,6 +103,51 @@ export interface SubmittalEmailResponse {
   createdAt: string;
 }
 
+export interface SubmittalItemChangeResponse {
+  id: string;
+  changeAnalysisId: string;
+  itemId: string | null;
+  fixtureType: string;
+  catalogNumber: string;
+  manufacturer: string;
+  status: ItemChangeStatusGQL;
+  notes: string[] | null;
+  pageReferences: number[] | null;
+  resolved: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubmittalChangeAnalysisResponse {
+  id: string;
+  returnedPdfId: string;
+  analyzedBy: ChangeAnalysisSourceGQL;
+  overallStatus: OverallChangeStatusGQL;
+  totalChangesDetected: number;
+  summary: string | null;
+  createdAt: string;
+  itemChanges: SubmittalItemChangeResponse[];
+}
+
+export interface SubmittalReturnedPdfResponse {
+  id: string;
+  revisionId: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  returnedByStakeholderId: string | null;
+  receivedDate: string | null;
+  notes: string | null;
+  createdAt: string;
+  createdById: string | null;
+  createdBy: {
+    id: string;
+    fullName: string;
+  } | null;
+  returnedByStakeholder: SubmittalStakeholderResponse | null;
+  changeAnalysis: SubmittalChangeAnalysisResponse | null;
+}
+
 export interface SubmittalRevisionResponse {
   id: string;
   submittalId: string;
@@ -104,6 +163,7 @@ export interface SubmittalRevisionResponse {
     fullName: string;
   };
   emailsSent: SubmittalEmailResponse[];
+  returnedPdfs?: SubmittalReturnedPdfResponse[];
 }
 
 export interface SubmittalConfigResponse {
@@ -243,6 +303,44 @@ export interface GenerateSubmittalPdfInput {
   revisionNotes?: string;
 }
 
+export interface AddReturnedPdfInput {
+  revisionId: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize?: number;
+  returnedByStakeholderId?: string;
+  receivedDate?: string; // ISO date string (YYYY-MM-DD)
+  notes?: string;
+}
+
+export interface SubmittalItemChangeInput {
+  itemId?: string;
+  fixtureType: string;
+  catalogNumber: string;
+  manufacturer: string;
+  status?: ItemChangeStatusGQL;
+  notes?: string[];
+  pageReferences?: number[];
+}
+
+export interface AddChangeAnalysisInput {
+  returnedPdfId: string;
+  analyzedBy?: ChangeAnalysisSourceGQL;
+  overallStatus?: OverallChangeStatusGQL;
+  summary?: string;
+  itemChanges?: SubmittalItemChangeInput[];
+}
+
+export interface UpdateItemChangeInput {
+  status?: ItemChangeStatusGQL;
+  notes?: string[];
+  pageReferences?: number[];
+  resolved?: boolean;
+  fixtureType?: string;
+  catalogNumber?: string;
+  manufacturer?: string;
+}
+
 export interface GenerateSubmittalPdfResponse {
   success: boolean;
   error?: string;
@@ -301,6 +399,66 @@ const SUBMITTAL_STAKEHOLDER_FRAGMENT = `
   }
 `;
 
+const SUBMITTAL_ITEM_CHANGE_FRAGMENT = `
+  fragment SubmittalItemChangeFields on SubmittalItemChangeResponse {
+    id
+    changeAnalysisId
+    itemId
+    fixtureType
+    catalogNumber
+    manufacturer
+    status
+    notes
+    pageReferences
+    resolved
+    createdAt
+    updatedAt
+  }
+`;
+
+const SUBMITTAL_CHANGE_ANALYSIS_FRAGMENT = `
+  fragment SubmittalChangeAnalysisFields on SubmittalChangeAnalysisResponse {
+    id
+    returnedPdfId
+    analyzedBy
+    overallStatus
+    totalChangesDetected
+    summary
+    createdAt
+    itemChanges {
+      ...SubmittalItemChangeFields
+    }
+  }
+  ${SUBMITTAL_ITEM_CHANGE_FRAGMENT}
+`;
+
+const SUBMITTAL_RETURNED_PDF_FRAGMENT = `
+  fragment SubmittalReturnedPdfFields on SubmittalReturnedPdfResponse {
+    id
+    revisionId
+    fileName
+    fileUrl
+    fileSize
+    returnedByStakeholderId
+    receivedDate
+    notes
+    createdAt
+    createdById
+    createdBy {
+      id
+      fullName
+    }
+    returnedByStakeholder {
+      ...SubmittalStakeholderFields
+    }
+    changeAnalysis {
+      ...SubmittalChangeAnalysisFields
+    }
+  }
+  ${SUBMITTAL_STAKEHOLDER_FRAGMENT}
+  ${SUBMITTAL_CHANGE_ANALYSIS_FRAGMENT}
+`;
+
 const SUBMITTAL_REVISION_FRAGMENT = `
   fragment SubmittalRevisionFields on SubmittalRevisionResponse {
     id
@@ -325,7 +483,11 @@ const SUBMITTAL_REVISION_FRAGMENT = `
       recipientEmails
       createdAt
     }
+    returnedPdfs {
+      ...SubmittalReturnedPdfFields
+    }
   }
+  ${SUBMITTAL_RETURNED_PDF_FRAGMENT}
 `;
 
 const SUBMITTAL_CONFIG_FRAGMENT = `
@@ -518,6 +680,48 @@ const GENERATE_SUBMITTAL_PDF = `
     }
   }
   ${SUBMITTAL_REVISION_FRAGMENT}
+`;
+
+const ADD_RETURNED_PDF = `
+  mutation AddReturnedPdf($input: AddReturnedPdfInput!) {
+    addReturnedPdf(input: $input) {
+      ...SubmittalReturnedPdfFields
+    }
+  }
+  ${SUBMITTAL_RETURNED_PDF_FRAGMENT}
+`;
+
+const ADD_CHANGE_ANALYSIS = `
+  mutation AddChangeAnalysis($input: AddChangeAnalysisInput!) {
+    addChangeAnalysis(input: $input) {
+      ...SubmittalChangeAnalysisFields
+    }
+  }
+  ${SUBMITTAL_CHANGE_ANALYSIS_FRAGMENT}
+`;
+
+const UPDATE_ITEM_CHANGE = `
+  mutation UpdateItemChange($id: UUID!, $input: UpdateItemChangeInput!) {
+    updateItemChange(id: $id, input: $input) {
+      ...SubmittalItemChangeFields
+    }
+  }
+  ${SUBMITTAL_ITEM_CHANGE_FRAGMENT}
+`;
+
+const DELETE_ITEM_CHANGE = `
+  mutation DeleteItemChange($id: UUID!) {
+    deleteItemChange(id: $id)
+  }
+`;
+
+const RESOLVE_ITEM_CHANGE = `
+  mutation ResolveItemChange($id: UUID!) {
+    resolveItemChange(id: $id) {
+      ...SubmittalItemChangeFields
+    }
+  }
+  ${SUBMITTAL_ITEM_CHANGE_FRAGMENT}
 `;
 
 // ============================================================================
@@ -782,4 +986,92 @@ export async function generateSubmittalPdf(
   }
 
   return response.data.generateSubmittalPdf;
+}
+
+export async function addReturnedPdf(
+  input: AddReturnedPdfInput
+): Promise<SubmittalReturnedPdfResponse> {
+  const response = await crmGraphQLRequest<{ addReturnedPdf: SubmittalReturnedPdfResponse }>({
+    query: ADD_RETURNED_PDF,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to add returned PDF');
+  }
+
+  if (!response.data?.addReturnedPdf) {
+    throw new Error('No response returned from add returned PDF mutation');
+  }
+
+  return response.data.addReturnedPdf;
+}
+
+export async function addChangeAnalysis(
+  input: AddChangeAnalysisInput
+): Promise<SubmittalChangeAnalysisResponse> {
+  const response = await crmGraphQLRequest<{ addChangeAnalysis: SubmittalChangeAnalysisResponse }>({
+    query: ADD_CHANGE_ANALYSIS,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to add change analysis');
+  }
+
+  if (!response.data?.addChangeAnalysis) {
+    throw new Error('No response returned from add change analysis mutation');
+  }
+
+  return response.data.addChangeAnalysis;
+}
+
+export async function updateItemChange(
+  id: string,
+  input: UpdateItemChangeInput
+): Promise<SubmittalItemChangeResponse> {
+  const response = await crmGraphQLRequest<{ updateItemChange: SubmittalItemChangeResponse }>({
+    query: UPDATE_ITEM_CHANGE,
+    variables: { id, input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update item change');
+  }
+
+  if (!response.data?.updateItemChange) {
+    throw new Error('No response returned from update item change mutation');
+  }
+
+  return response.data.updateItemChange;
+}
+
+export async function deleteItemChange(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteItemChange: boolean }>({
+    query: DELETE_ITEM_CHANGE,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete item change');
+  }
+
+  return response.data?.deleteItemChange || false;
+}
+
+export async function resolveItemChange(id: string): Promise<SubmittalItemChangeResponse> {
+  const response = await crmGraphQLRequest<{ resolveItemChange: SubmittalItemChangeResponse }>({
+    query: RESOLVE_ITEM_CHANGE,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to resolve item change');
+  }
+
+  if (!response.data?.resolveItemChange) {
+    throw new Error('No response returned from resolve item change mutation');
+  }
+
+  return response.data.resolveItemChange;
 }

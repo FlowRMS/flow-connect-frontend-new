@@ -6,7 +6,7 @@
  * across all entity types (Quotes, Orders, Jobs, etc.)
  */
 
-import { crmGraphQLRequest, crmGraphQLMultipartRequest, mapFormattedCreatedBy } from './client';
+import { crmGraphQLRequest, crmGraphQLMultipartRequest, mapFormattedCreatedBy, getAccessToken } from './client';
 import type { CRMEntityType } from './types';
 
 // ============================================================================
@@ -68,6 +68,10 @@ export interface MultiFileUploadInput {
   fileNames: string[];
   folderId?: string;
   folderPath?: string;
+}
+
+export interface FileUploadWithProgressInput extends FileUploadInput {
+  onProgress?: (progress: number) => void;
 }
 
 // Entity types that support file linking
@@ -756,6 +760,96 @@ export async function uploadFile(input: FileUploadInput): Promise<FileResponse> 
   }
 
   return response.data.uploadFile;
+}
+
+/**
+ * Upload a single file with progress tracking
+ * Uses XMLHttpRequest to enable progress events
+ *
+ * NOTE: For files larger than 100MB, consider implementing S3 multipart upload:
+ * 1. Backend: createMultipartUpload -> returns uploadId
+ * 2. Frontend: Split file into 10MB chunks
+ * 3. For each chunk: getPresignedUploadPartUrl(uploadId, partNumber)
+ * 4. Upload chunks in parallel with progress tracking
+ * 5. Backend: completeMultipartUpload(uploadId, parts[])
+ */
+export async function uploadFileWithProgress(input: FileUploadWithProgressInput): Promise<FileResponse> {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/sign-in';
+    }
+    throw new Error('Session expired. Please sign in again.');
+  }
+
+  const uploadProxyUrl = '/api/upload';
+
+  // Build FormData according to GraphQL multipart spec
+  const formData = new FormData();
+
+  const operations = {
+    query: UPLOAD_FILE,
+    variables: {
+      file: null, // Will be replaced by map
+      fileName: input.fileName,
+      folderId: input.folderId || null,
+      folderPath: input.folderPath || null,
+      fileEntityType: input.fileEntityType || null,
+    },
+  };
+  formData.append('operations', JSON.stringify(operations));
+
+  // Map the file to the variable path
+  formData.append('map', JSON.stringify({ '0': ['variables.file'] }));
+
+  // Append the file
+  formData.append('0', input.file);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    // Track upload progress
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable && input.onProgress) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        input.onProgress(progress);
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const response = JSON.parse(xhr.responseText);
+          if (response.errors) {
+            reject(new Error(response.errors[0]?.message || 'Failed to upload file'));
+            return;
+          }
+          if (!response.data?.uploadFile) {
+            reject(new Error('No file returned from upload mutation'));
+            return;
+          }
+          resolve(response.data.uploadFile);
+        } catch {
+          reject(new Error('Failed to parse upload response'));
+        }
+      } else {
+        reject(new Error(`Upload failed with status ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      reject(new Error('Network error during file upload'));
+    });
+
+    xhr.addEventListener('abort', () => {
+      reject(new Error('File upload was cancelled'));
+    });
+
+    xhr.open('POST', uploadProxyUrl);
+    xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+    xhr.setRequestHeader('x-auth-provider', 'WORKOS');
+    xhr.send(formData);
+  });
 }
 
 /**

@@ -352,7 +352,10 @@ export default function SubmittalDetailPanel({
             submittal={submittal}
             revision={uploadDialogRevision}
             onClose={() => setUploadDialogRevision(null)}
-            onUpload={handleUploadReturned}
+            onSuccess={() => {
+              setUploadDialogRevision(null);
+              // Refresh submittal data
+            }}
           />
         )}
 

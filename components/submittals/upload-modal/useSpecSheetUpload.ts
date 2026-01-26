@@ -2,6 +2,10 @@ import { useState, useMemo, useCallback } from 'react';
 import type { SpecSheetCategory, UploadSource } from '../../../lib/types/submittals';
 import { useManufacturersWithSpecSheets, useCreateSpecSheet, useFoldersByFactory, useCreateFolder, type FolderResponse } from '../api/useSpecSheetsApi';
 
+// Maximum file size in bytes (100MB)
+export const MAX_FILE_SIZE_MB = 100;
+export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
 export interface FolderOption {
   id: string;
   name: string;
@@ -80,8 +84,14 @@ export function useSpecSheetUpload({ defaultManufacturerId, onSuccess, onClose }
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    setError(null);
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile && droppedFile.type === 'application/pdf') {
+      // Validate file size
+      if (droppedFile.size > MAX_FILE_SIZE_BYTES) {
+        setError(`File too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Your file is ${(droppedFile.size / (1024 * 1024)).toFixed(1)}MB.`);
+        return;
+      }
       setFile(droppedFile);
       if (!displayName) {
         setDisplayName(droppedFile.name.replace('.pdf', ''));
@@ -90,8 +100,15 @@ export function useSpecSheetUpload({ defaultManufacturerId, onSuccess, onClose }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError(null);
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
+      // Validate file size
+      if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
+        setError(`File too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Your file is ${(selectedFile.size / (1024 * 1024)).toFixed(1)}MB.`);
+        e.target.value = ''; // Clear the input
+        return;
+      }
       setFile(selectedFile);
       if (!displayName) {
         setDisplayName(selectedFile.name.replace('.pdf', ''));

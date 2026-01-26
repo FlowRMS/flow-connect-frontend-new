@@ -6,7 +6,14 @@ import type {
   EmailSendRecord,
   ItemChange,
 } from '../../../lib/types/submittals';
-import { useSendSubmittalEmail } from '../api/useSubmittalsApi';
+import {
+  useSendSubmittalEmail,
+  useUpdateItemChange,
+  useDeleteItemChange,
+  useResolveItemChange,
+  type UpdateItemChangeInput,
+  type ItemChangeStatusGQL,
+} from '../api/useSubmittalsApi';
 import { submittalToasts } from '../../lib/toast';
 
 interface UseRevisionWorkflowParams {
@@ -25,8 +32,11 @@ export function useRevisionWorkflow({
   const [analysisReturnedPdf, setAnalysisReturnedPdf] = useState<ReturnedPdf | null>(null);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
-  // API hook for sending email
+  // API hooks
   const sendEmailMutation = useSendSubmittalEmail();
+  const updateItemChangeMutation = useUpdateItemChange();
+  const deleteItemChangeMutation = useDeleteItemChange();
+  const resolveItemChangeMutation = useResolveItemChange();
 
   const handleSendEmail = useCallback(async (emailRecord: Omit<EmailSendRecord, 'id' | 'sentAt'>) => {
     if (!emailDialogRevision || !submittal.id) return;
@@ -83,28 +93,61 @@ export function useRevisionWorkflow({
     }
   };
 
-  const handleUpdateChange = (changeId: string, updates: Partial<ItemChange>) => {
-    if (!analysisReturnedPdf || !onUpdate) return;
+  const handleUpdateChange = useCallback(async (changeId: string, updates: Partial<ItemChange>) => {
+    if (!analysisReturnedPdf || !submittal.id) return;
 
-    const updatedRevisions = submittal.revisions.map(rev => ({
-      ...rev,
-      returnedPdfs: rev.returnedPdfs.map(pdf => {
-        if (pdf.id === analysisReturnedPdf.id && pdf.changeAnalysis) {
-          return {
-            ...pdf,
-            changeAnalysis: {
-              ...pdf.changeAnalysis,
-              itemChanges: pdf.changeAnalysis.itemChanges.map(change =>
-                change.id === changeId ? { ...change, ...updates } : change
-              ),
-            },
-          };
-        }
-        return pdf;
-      }),
-    }));
+    // Map local updates to GraphQL input
+    const input: UpdateItemChangeInput = {};
+    if (updates.status !== undefined) {
+      // Map local status to GraphQL enum
+      const statusMap: Record<string, ItemChangeStatusGQL> = {
+        'approved': 'APPROVED',
+        'approved_as_noted': 'APPROVED_AS_NOTED',
+        'revise': 'REVISE',
+        'rejected': 'REJECTED',
+      };
+      input.status = statusMap[updates.status] || 'APPROVED';
+    }
+    if (updates.notes !== undefined) {
+      input.notes = updates.notes;
+    }
+    if (updates.pageReferences !== undefined) {
+      input.pageReferences = updates.pageReferences;
+    }
+    if (updates.resolved !== undefined) {
+      input.resolved = updates.resolved;
+    }
+    if (updates.fixtureType !== undefined) {
+      input.fixtureType = updates.fixtureType;
+    }
+    if (updates.catalogNumber !== undefined) {
+      input.catalogNumber = updates.catalogNumber;
+    }
+    if (updates.manufacturer !== undefined) {
+      input.manufacturer = updates.manufacturer;
+    }
 
-    onUpdate({ revisions: updatedRevisions });
+    // Optimistic update for immediate UI feedback
+    if (onUpdate) {
+      const updatedRevisions = submittal.revisions.map(rev => ({
+        ...rev,
+        returnedPdfs: rev.returnedPdfs.map(pdf => {
+          if (pdf.id === analysisReturnedPdf.id && pdf.changeAnalysis) {
+            return {
+              ...pdf,
+              changeAnalysis: {
+                ...pdf.changeAnalysis,
+                itemChanges: pdf.changeAnalysis.itemChanges.map(change =>
+                  change.id === changeId ? { ...change, ...updates } : change
+                ),
+              },
+            };
+          }
+          return pdf;
+        }),
+      }));
+      onUpdate({ revisions: updatedRevisions });
+    }
 
     if (analysisReturnedPdf.changeAnalysis) {
       setAnalysisReturnedPdf({
@@ -117,7 +160,19 @@ export function useRevisionWorkflow({
         },
       });
     }
-  };
+
+    // Call mutation
+    try {
+      await updateItemChangeMutation.mutateAsync({
+        id: changeId,
+        input,
+        submittalId: submittal.id,
+      });
+    } catch (error) {
+      console.error('Error updating item change:', error);
+      submittalToasts.changeUpdateError(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }, [analysisReturnedPdf, submittal.id, submittal.revisions, onUpdate, updateItemChangeMutation]);
 
   const handleAddChange = (change: Omit<ItemChange, 'id'>) => {
     if (!analysisReturnedPdf || !analysisReturnedPdf.changeAnalysis || !onUpdate) return;
@@ -156,27 +211,29 @@ export function useRevisionWorkflow({
     });
   };
 
-  const handleDeleteChange = (changeId: string) => {
-    if (!analysisReturnedPdf || !analysisReturnedPdf.changeAnalysis || !onUpdate) return;
+  const handleDeleteChange = useCallback(async (changeId: string) => {
+    if (!analysisReturnedPdf || !analysisReturnedPdf.changeAnalysis || !submittal.id) return;
 
-    const updatedRevisions = submittal.revisions.map(rev => ({
-      ...rev,
-      returnedPdfs: rev.returnedPdfs.map(pdf => {
-        if (pdf.id === analysisReturnedPdf.id && pdf.changeAnalysis) {
-          return {
-            ...pdf,
-            changeAnalysis: {
-              ...pdf.changeAnalysis,
-              totalChangesDetected: Math.max(0, pdf.changeAnalysis.totalChangesDetected - 1),
-              itemChanges: pdf.changeAnalysis.itemChanges.filter(c => c.id !== changeId),
-            },
-          };
-        }
-        return pdf;
-      }),
-    }));
-
-    onUpdate({ revisions: updatedRevisions });
+    // Optimistic update for immediate UI feedback
+    if (onUpdate) {
+      const updatedRevisions = submittal.revisions.map(rev => ({
+        ...rev,
+        returnedPdfs: rev.returnedPdfs.map(pdf => {
+          if (pdf.id === analysisReturnedPdf.id && pdf.changeAnalysis) {
+            return {
+              ...pdf,
+              changeAnalysis: {
+                ...pdf.changeAnalysis,
+                totalChangesDetected: Math.max(0, pdf.changeAnalysis.totalChangesDetected - 1),
+                itemChanges: pdf.changeAnalysis.itemChanges.filter(c => c.id !== changeId),
+              },
+            };
+          }
+          return pdf;
+        }),
+      }));
+      onUpdate({ revisions: updatedRevisions });
+    }
 
     setAnalysisReturnedPdf({
       ...analysisReturnedPdf,
@@ -186,7 +243,65 @@ export function useRevisionWorkflow({
         itemChanges: analysisReturnedPdf.changeAnalysis.itemChanges.filter(c => c.id !== changeId),
       },
     });
-  };
+
+    // Call mutation
+    try {
+      await deleteItemChangeMutation.mutateAsync({
+        id: changeId,
+        submittalId: submittal.id,
+      });
+    } catch (error) {
+      console.error('Error deleting item change:', error);
+      submittalToasts.changeDeleteError(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }, [analysisReturnedPdf, submittal.id, submittal.revisions, onUpdate, deleteItemChangeMutation]);
+
+  const handleResolveChange = useCallback(async (changeId: string) => {
+    if (!analysisReturnedPdf || !analysisReturnedPdf.changeAnalysis || !submittal.id) return;
+
+    // Optimistic update for immediate UI feedback
+    if (onUpdate) {
+      const updatedRevisions = submittal.revisions.map(rev => ({
+        ...rev,
+        returnedPdfs: rev.returnedPdfs.map(pdf => {
+          if (pdf.id === analysisReturnedPdf.id && pdf.changeAnalysis) {
+            return {
+              ...pdf,
+              changeAnalysis: {
+                ...pdf.changeAnalysis,
+                itemChanges: pdf.changeAnalysis.itemChanges.map(change =>
+                  change.id === changeId ? { ...change, resolved: true } : change
+                ),
+              },
+            };
+          }
+          return pdf;
+        }),
+      }));
+      onUpdate({ revisions: updatedRevisions });
+    }
+
+    setAnalysisReturnedPdf({
+      ...analysisReturnedPdf,
+      changeAnalysis: {
+        ...analysisReturnedPdf.changeAnalysis,
+        itemChanges: analysisReturnedPdf.changeAnalysis.itemChanges.map(change =>
+          change.id === changeId ? { ...change, resolved: true } : change
+        ),
+      },
+    });
+
+    // Call mutation
+    try {
+      await resolveItemChangeMutation.mutateAsync({
+        id: changeId,
+        submittalId: submittal.id,
+      });
+    } catch (error) {
+      console.error('Error resolving item change:', error);
+      submittalToasts.changeResolveError(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }, [analysisReturnedPdf, submittal.id, submittal.revisions, onUpdate, resolveItemChangeMutation]);
 
   const handleResubmit = (revision: SubmittalRevision, returnedPdf: ReturnedPdf) => {
     if (!returnedPdf.changeAnalysis || !onResubmit) return;
@@ -210,7 +325,11 @@ export function useRevisionWorkflow({
     handleUpdateChange,
     handleAddChange,
     handleDeleteChange,
+    handleResolveChange,
     handleResubmit,
     isSendingEmail,
+    isUpdatingChange: updateItemChangeMutation.isPending,
+    isDeletingChange: deleteItemChangeMutation.isPending,
+    isResolvingChange: resolveItemChangeMutation.isPending,
   };
 }

@@ -5,16 +5,25 @@ import type {
   Submittal,
   SubmittalRevision,
   SubmittalStakeholder,
-  ReturnedPdf,
-  ChangeAnalysis,
-  ItemChange,
 } from '../../lib/types/submittals';
+import { uploadFileWithProgress, getFilePresignedUrl } from '../lib/graphql/files';
+import {
+  useAddReturnedPdf,
+  useAddChangeAnalysis,
+  type ChangeAnalysisSourceGQL,
+  type OverallChangeStatusGQL,
+  type ItemChangeStatusGQL,
+} from './api/useSubmittalsApi';
+
+// Maximum file size in bytes (100MB)
+const MAX_FILE_SIZE_MB = 100;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface ReturnedPdfUploadProps {
   submittal: Submittal;
   revision: SubmittalRevision;
   onClose: () => void;
-  onUpload: (returnedPdf: Omit<ReturnedPdf, 'id' | 'uploadedAt' | 'uploadedBy'>) => void;
+  onSuccess?: () => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -23,21 +32,33 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// Simulated AI analysis - would be replaced with actual AI service
-function simulateAIAnalysis(submittal: Submittal): ChangeAnalysis {
+// Simulated AI analysis - will be replaced with actual AI service when available
+function simulateAIAnalysis(submittal: Submittal): {
+  analyzedBy: ChangeAnalysisSourceGQL;
+  overallStatus: OverallChangeStatusGQL;
+  summary: string;
+  itemChanges: Array<{
+    itemId?: string;
+    fixtureType: string;
+    catalogNumber: string;
+    manufacturer: string;
+    status: ItemChangeStatusGQL;
+    notes?: string[];
+    pageReferences?: number[];
+  }>;
+} {
   // Randomly select some items to have changes
   const itemsWithChanges = submittal.items
     .filter(() => Math.random() > 0.5)
     .slice(0, 3);
 
-  const statuses: Array<'approved' | 'approved_as_noted' | 'revise' | 'rejected'> = [
-    'approved_as_noted',
-    'revise',
-    'rejected',
+  const statuses: ItemChangeStatusGQL[] = [
+    'APPROVED_AS_NOTED',
+    'REVISE',
+    'REJECTED',
   ];
 
-  const itemChanges: ItemChange[] = itemsWithChanges.map((item, idx) => ({
-    id: `ic-sim-${Date.now()}-${idx}`,
+  const itemChanges = itemsWithChanges.map((item, idx) => ({
     itemId: item.id,
     fixtureType: item.fixtureType,
     catalogNumber: item.catalogNumber,
@@ -49,29 +70,25 @@ function simulateAIAnalysis(submittal: Submittal): ChangeAnalysis {
       'Check lead time availability',
     ],
     pageReferences: [Math.floor(Math.random() * 20) + 1],
-    resolved: false,
   }));
 
-  const hasRejected = itemChanges.some(c => c.status === 'rejected');
-  const hasRevise = itemChanges.some(c => c.status === 'revise');
-  const overallStatus = hasRejected
-    ? 'rejected'
+  const hasRejected = itemChanges.some(c => c.status === 'REJECTED');
+  const hasRevise = itemChanges.some(c => c.status === 'REVISE');
+  const overallStatus: OverallChangeStatusGQL = hasRejected
+    ? 'REJECTED'
     : hasRevise
-    ? 'revise_and_resubmit'
+    ? 'REVISE_AND_RESUBMIT'
     : itemChanges.length > 0
-    ? 'approved_as_noted'
-    : 'approved';
+    ? 'APPROVED_AS_NOTED'
+    : 'APPROVED';
 
   return {
-    id: `ca-sim-${Date.now()}`,
-    analyzedAt: new Date().toISOString(),
-    analyzedBy: 'ai',
-    totalChangesDetected: itemChanges.length,
-    itemChanges,
+    analyzedBy: 'AI' as ChangeAnalysisSourceGQL,
     overallStatus,
     summary: itemChanges.length > 0
       ? `${itemChanges.length} items require attention. Please review the marked changes.`
       : 'No changes detected. Document appears to be approved.',
+    itemChanges,
   };
 }
 
@@ -79,7 +96,7 @@ export default function ReturnedPdfUpload({
   submittal,
   revision,
   onClose,
-  onUpload,
+  onSuccess,
 }: ReturnedPdfUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -88,9 +105,14 @@ export default function ReturnedPdfUpload({
   const [notes, setNotes] = useState('');
   const [analyzeWithAI, setAnalyzeWithAI] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const addReturnedPdfMutation = useAddReturnedPdf();
+  const addChangeAnalysisMutation = useAddChangeAnalysis();
 
   // All stakeholders who might return a document
   const stakeholders = [
@@ -116,14 +138,28 @@ export default function ReturnedPdfUpload({
     const files = Array.from(e.dataTransfer.files);
     const pdfFile = files.find(f => f.type === 'application/pdf');
     if (pdfFile) {
+      // Validate file size
+      if (pdfFile.size > MAX_FILE_SIZE_BYTES) {
+        setError(`File too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Your file is ${(pdfFile.size / (1024 * 1024)).toFixed(1)}MB.`);
+        return;
+      }
       setSelectedFile(pdfFile);
+      setError(null);
     }
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      setSelectedFile(files[0]);
+      const file = files[0];
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setError(`File too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
+        e.target.value = ''; // Clear the input
+        return;
+      }
+      setSelectedFile(file);
+      setError(null);
     }
   };
 
@@ -131,33 +167,73 @@ export default function ReturnedPdfUpload({
     if (!selectedFile || !selectedStakeholder) return;
 
     setUploading(true);
+    setUploadProgress(0);
+    setError(null);
 
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      // 1. Upload the file to storage with progress tracking
+      const uploadedFile = await uploadFileWithProgress({
+        file: selectedFile,
+        fileName: selectedFile.name,
+        folderPath: `submittals/${submittal.id}/returned`,
+        onProgress: (progress) => setUploadProgress(progress),
+      });
 
-    let changeAnalysis: ChangeAnalysis | undefined;
+      // 2. Get the presigned URL for the file
+      const fileUrl = await getFilePresignedUrl(uploadedFile.id);
+      if (!fileUrl) {
+        throw new Error('Failed to get file URL');
+      }
 
-    if (analyzeWithAI) {
-      setAnalyzing(true);
-      // Simulate AI analysis delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      changeAnalysis = simulateAIAnalysis(submittal);
+      // 3. Add the returned PDF to the revision
+      if (!revision.id) {
+        throw new Error('Revision ID is required');
+      }
+      const returnedPdf = await addReturnedPdfMutation.mutateAsync({
+        submittalId: submittal.id,
+        input: {
+          revisionId: revision.id,
+          fileName: selectedFile.name,
+          fileUrl: fileUrl,
+          fileSize: selectedFile.size,
+          returnedByStakeholderId: selectedStakeholder.contactId,
+          receivedDate: receivedDate,
+          notes: notes || undefined,
+        },
+      });
+
+      // 4. If AI analysis is enabled, add change analysis
+      if (analyzeWithAI) {
+        setAnalyzing(true);
+
+        // Simulate AI analysis delay (will be replaced with real AI service)
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const analysisResult = simulateAIAnalysis(submittal);
+
+        await addChangeAnalysisMutation.mutateAsync({
+          submittalId: submittal.id,
+          input: {
+            returnedPdfId: returnedPdf.id,
+            analyzedBy: analysisResult.analyzedBy,
+            overallStatus: analysisResult.overallStatus,
+            summary: analysisResult.summary,
+            itemChanges: analysisResult.itemChanges,
+          },
+        });
+
+        setAnalyzing(false);
+      }
+
+      // Success - close modal and notify parent
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      console.error('Error uploading returned PDF:', err);
+      setError(err instanceof Error ? err.message : 'Failed to upload file');
+      setUploading(false);
       setAnalyzing(false);
     }
-
-    // Create mock URL for uploaded file
-    const mockUrl = `/submittals/returned/${selectedFile.name}`;
-
-    onUpload({
-      revisionNumber: revision.revisionNumber,
-      fileName: selectedFile.name,
-      fileUrl: mockUrl,
-      fileSize: selectedFile.size,
-      returnedBy: selectedStakeholder,
-      receivedDate,
-      notes: notes || undefined,
-      changeAnalysis,
-    });
   };
 
   const isValid = selectedFile && selectedStakeholder && receivedDate;
@@ -194,6 +270,13 @@ export default function ReturnedPdfUpload({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
           {/* Drop Zone */}
           <div
             onDragOver={handleDragOver}
@@ -253,7 +336,7 @@ export default function ReturnedPdfUpload({
                   Drag and drop PDF here, or click to browse
                 </p>
                 <p className="text-xs text-[var(--muted-foreground)]">
-                  PDF files only
+                  PDF files only (max {MAX_FILE_SIZE_MB}MB)
                 </p>
               </>
             )}
@@ -329,6 +412,23 @@ export default function ReturnedPdfUpload({
           </div>
         </div>
 
+        {/* Progress Bar */}
+        {uploading && (
+          <div className="px-6 py-2 bg-[var(--muted)]/20">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-2 bg-[var(--muted)] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[var(--primary)] transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+              <span className="text-xs text-[var(--muted-foreground)] min-w-[3rem] text-right">
+                {uploadProgress}%
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/20">
           <button
@@ -348,7 +448,7 @@ export default function ReturnedPdfUpload({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                {analyzing ? 'Analyzing...' : 'Uploading...'}
+                {analyzing ? 'Analyzing...' : `Uploading... ${uploadProgress}%`}
               </>
             ) : (
               <>

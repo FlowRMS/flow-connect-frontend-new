@@ -19,7 +19,7 @@ const MAX_AUTH_ERRORS = 3;
  * Fetch access token from WorkOS via /api/auth/token endpoint
  * Caches token for 5 minutes with 30-second buffer
  */
-async function getAccessToken(): Promise<string | null> {
+export async function getAccessToken(): Promise<string | null> {
   if (typeof window === "undefined") {
     return null;
   }
@@ -91,6 +91,16 @@ export interface GraphQLRequestOptions {
   query: string;
   variables?: Record<string, unknown>;
   operationName?: string;
+}
+
+export interface GraphQLMultipartRequestOptions extends GraphQLRequestOptions {
+  onProgress?: (progress: UploadProgress) => void;
+}
+
+export interface UploadProgress {
+  loaded: number;
+  total: number;
+  percentage: number;
 }
 
 export interface GraphQLResponse<T = unknown> {
@@ -178,13 +188,72 @@ function extractFilesFromVariables(
 }
 
 /**
+ * Upload file with progress tracking using XMLHttpRequest
+ * Used internally by crmGraphQLMultipartRequest when onProgress is provided
+ */
+function uploadWithProgress<T>(
+  url: string,
+  formData: FormData,
+  headers: Record<string, string>,
+  onProgress: (progress: UploadProgress) => void
+): Promise<GraphQLResponse<T>> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    // Track upload progress
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        onProgress({
+          loaded: event.loaded,
+          total: event.total,
+          percentage: Math.round((event.loaded / event.total) * 100),
+        });
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const result = JSON.parse(xhr.responseText) as GraphQLResponse<T>;
+          resolve(result);
+        } catch {
+          reject(new Error('Failed to parse upload response'));
+        }
+      } else if (xhr.status === 401 || xhr.status === 403) {
+        reject(new Error('Session expired. Please sign in again.'));
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      reject(new Error('Network error during upload'));
+    });
+
+    xhr.addEventListener('abort', () => {
+      reject(new Error('Upload aborted'));
+    });
+
+    xhr.open('POST', url);
+
+    // Set headers (except Content-Type which is set automatically for FormData)
+    Object.entries(headers).forEach(([key, value]) => {
+      xhr.setRequestHeader(key, value);
+    });
+
+    xhr.send(formData);
+  });
+}
+
+/**
  * Execute a GraphQL mutation with file upload using multipart/form-data
  * Uses a Next.js API route as proxy to avoid CORS/middleware issues
  * Follows the GraphQL multipart request specification
  * https://github.com/jaydenseric/graphql-multipart-request-spec
+ * Supports optional upload progress callback via XMLHttpRequest
  */
 export async function crmGraphQLMultipartRequest<T = unknown>(
-  options: GraphQLRequestOptions
+  options: GraphQLMultipartRequestOptions
 ): Promise<GraphQLResponse<T>> {
   // Get access token from WorkOS
   const accessToken = await getAccessToken();
@@ -236,6 +305,35 @@ export async function crmGraphQLMultipartRequest<T = unknown>(
     'x-auth-provider': 'WORKOS',
   };
 
+  // Use XMLHttpRequest if progress callback is provided (for upload progress tracking)
+  if (options.onProgress) {
+    const result = await uploadWithProgress<T>(uploadProxyUrl, formData, headers, options.onProgress);
+
+    // Check for UserNotFoundError
+    if (isUserNotFoundError(result.errors)) {
+      clearTokenCache();
+      if (typeof window !== 'undefined') {
+        triggerGlobalUnauthorized();
+      }
+      throw new Error('User not authorized on this tenancy.');
+    }
+
+    // Check for signature expired error
+    if (result.errors?.some(error =>
+      error.message?.toLowerCase().includes('signature has expired') ||
+      error.message?.toLowerCase().includes('unauthorized')
+    )) {
+      clearTokenCache();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/sign-in';
+      }
+      throw new Error('Session expired. Please sign in again.');
+    }
+
+    return result;
+  }
+
+  // Standard fetch without progress tracking
   let response = await fetch(uploadProxyUrl, {
     method: 'POST',
     headers,

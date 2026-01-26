@@ -20,10 +20,18 @@ import {
   createSubmittalRevision,
   sendSubmittalEmail,
   generateSubmittalPdf,
+  addReturnedPdf,
+  addChangeAnalysis,
+  updateItemChange,
+  deleteItemChange,
+  resolveItemChange,
   type SubmittalResponse,
   type SubmittalItemResponse,
   type SubmittalStakeholderResponse,
   type SubmittalRevisionResponse,
+  type SubmittalReturnedPdfResponse,
+  type SubmittalChangeAnalysisResponse,
+  type SubmittalItemChangeResponse,
   type CreateSubmittalInput,
   type UpdateSubmittalInput,
   type SubmittalItemInput,
@@ -33,6 +41,9 @@ import {
   type SendSubmittalEmailResponse,
   type GenerateSubmittalPdfInput,
   type GenerateSubmittalPdfResponse,
+  type AddReturnedPdfInput,
+  type AddChangeAnalysisInput,
+  type UpdateItemChangeInput,
   type SubmittalStatusGQL,
 } from '@/components/lib/graphql/submittals';
 
@@ -293,6 +304,84 @@ export function useGenerateSubmittalPdf() {
 }
 
 // ============================================================================
+// Mutation Hooks - Returned PDFs & Change Analysis
+// ============================================================================
+
+/**
+ * Add a returned PDF to a revision
+ */
+export function useAddReturnedPdf() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SubmittalReturnedPdfResponse, Error, { submittalId: string; input: AddReturnedPdfInput }>({
+    mutationFn: ({ input }) => addReturnedPdf(input),
+    onSuccess: (_, { submittalId }) => {
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+    },
+  });
+}
+
+/**
+ * Add a change analysis to a returned PDF
+ */
+export function useAddChangeAnalysis() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SubmittalChangeAnalysisResponse, Error, { submittalId: string; input: AddChangeAnalysisInput }>({
+    mutationFn: ({ input }) => addChangeAnalysis(input),
+    onSuccess: (_, { submittalId }) => {
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+    },
+  });
+}
+
+// ============================================================================
+// Mutation Hooks - Item Changes
+// ============================================================================
+
+/**
+ * Update an item change in a change analysis
+ */
+export function useUpdateItemChange() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SubmittalItemChangeResponse, Error, { id: string; input: UpdateItemChangeInput; submittalId: string }>({
+    mutationFn: ({ id, input }) => updateItemChange(id, input),
+    onSuccess: (_, { submittalId }) => {
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+    },
+  });
+}
+
+/**
+ * Delete an item change from a change analysis
+ */
+export function useDeleteItemChange() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, { id: string; submittalId: string }>({
+    mutationFn: ({ id }) => deleteItemChange(id),
+    onSuccess: (_, { submittalId }) => {
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+    },
+  });
+}
+
+/**
+ * Mark an item change as resolved
+ */
+export function useResolveItemChange() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SubmittalItemChangeResponse, Error, { id: string; submittalId: string }>({
+    mutationFn: ({ id }) => resolveItemChange(id),
+    onSuccess: (_, { submittalId }) => {
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+    },
+  });
+}
+
+// ============================================================================
 // Re-export types
 // ============================================================================
 
@@ -301,6 +390,9 @@ export type {
   SubmittalItemResponse,
   SubmittalStakeholderResponse,
   SubmittalRevisionResponse,
+  SubmittalReturnedPdfResponse,
+  SubmittalChangeAnalysisResponse,
+  SubmittalItemChangeResponse,
   CreateSubmittalInput,
   UpdateSubmittalInput,
   SubmittalItemInput,
@@ -310,9 +402,15 @@ export type {
   SendSubmittalEmailResponse,
   GenerateSubmittalPdfInput,
   GenerateSubmittalPdfResponse,
+  AddReturnedPdfInput,
+  AddChangeAnalysisInput,
+  UpdateItemChangeInput,
   SubmittalStatusGQL,
   SubmittalItemApprovalStatusGQL,
   SubmittalItemMatchStatusGQL,
   SubmittalStakeholderRoleGQL,
   TransmittalPurposeGQL,
+  ChangeAnalysisSourceGQL,
+  OverallChangeStatusGQL,
+  ItemChangeStatusGQL,
 } from '@/components/lib/graphql/submittals';

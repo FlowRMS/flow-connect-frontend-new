@@ -917,4 +917,34 @@ export const submittalToasts = {
     showErrorToast('Failed to Remove Spec Sheet', {
       description: error || 'Please try again or contact support',
     }),
+
+  changeUpdated: () =>
+    showSuccessToast('Change Updated', {
+      description: 'Item change has been saved',
+    }),
+
+  changeUpdateError: (error?: string) =>
+    showErrorToast('Failed to Update Change', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  changeDeleted: () =>
+    showSuccessToast('Change Deleted', {
+      description: 'Item change has been removed',
+    }),
+
+  changeDeleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Change', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  changeResolved: () =>
+    showSuccessToast('Change Resolved', {
+      description: 'Item change has been marked as resolved',
+    }),
+
+  changeResolveError: (error?: string) =>
+    showErrorToast('Failed to Resolve Change', {
+      description: error || 'Please try again or contact support',
+    }),
 };
