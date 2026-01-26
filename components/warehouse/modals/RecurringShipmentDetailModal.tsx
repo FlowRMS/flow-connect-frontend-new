@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   RecurringShipment,
@@ -16,14 +16,8 @@ import {
   dayOfWeekLabels,
   weekOfMonthLabels,
 } from '@/lib/types/warehouse';
-import {
-  getRecurrenceDescription,
-  getWarehouseFactories,
-  mockWarehouses,
-  getAllProducts,
-} from '@/lib/data/warehouse-mock';
-
-const carriers = ['UPS', 'FedEx', 'USPS', 'DHL', 'Freight', 'Other'];
+import { getRecurrenceDescription } from '../deliveries/utils/recurrence';
+import { useWarehouseLookups, useWarehouseProducts } from '../api/useWarehouseDeliveriesApi';
 
 interface RecurringShipmentDetailModalProps {
   recurring: RecurringShipment;
@@ -43,9 +37,7 @@ export default function RecurringShipmentDetailModal({
   onSave,
 }: RecurringShipmentDetailModalProps) {
   const router = useRouter();
-  const factories = useMemo(() => getWarehouseFactories(), []);
-  const warehouses = useMemo(() => mockWarehouses.filter(w => w.isActive), []);
-  const products = useMemo(() => getAllProducts(), []);
+  const { carriersQuery, warehousesQuery, vendorsQuery } = useWarehouseLookups();
 
   // Editable state
   const [name, setName] = useState(recurring.name);
@@ -58,18 +50,54 @@ export default function RecurringShipmentDetailModal({
   const [startDate, setStartDate] = useState(recurring.startDate);
   const [endDate, setEndDate] = useState(recurring.endDate || '');
   const [hasEndDate, setHasEndDate] = useState(!!recurring.endDate);
-  const [expectedItems, setExpectedItems] = useState<ExpectedItem[]>(recurring.expectedItems);
+  const [expectedItems, setExpectedItems] = useState<ExpectedItem[]>(recurring.expectedItems || []);
+  const normalizePattern = (pattern?: RecurrencePattern | null): RecurrencePattern => ({
+    frequency: pattern?.frequency || 'MONTHLY',
+    interval: pattern?.interval || 1,
+    dayOfWeek: pattern?.dayOfWeek || 'MONDAY',
+    weekOfMonth: pattern?.weekOfMonth || 'FIRST',
+    dayOfMonth: pattern?.dayOfMonth || 1,
+  });
+  const fallbackPattern = normalizePattern(recurring.recurrencePattern);
 
   // Recurrence pattern state
-  const [frequency, setFrequency] = useState<RecurrenceFrequency>(recurring.recurrencePattern.frequency);
-  const [interval, setInterval] = useState(recurring.recurrencePattern.interval);
-  const [dayOfWeek, setDayOfWeek] = useState<DayOfWeek>(recurring.recurrencePattern.dayOfWeek || 'MONDAY');
-  const [weekOfMonth, setWeekOfMonth] = useState<WeekOfMonth>(recurring.recurrencePattern.weekOfMonth || 'FIRST');
-  const [dayOfMonth, setDayOfMonth] = useState(recurring.recurrencePattern.dayOfMonth || 1);
+  const [frequency, setFrequency] = useState<RecurrenceFrequency>(fallbackPattern.frequency);
+  const [interval, setInterval] = useState(fallbackPattern.interval);
+  const [dayOfWeek, setDayOfWeek] = useState<DayOfWeek>(fallbackPattern.dayOfWeek || 'MONDAY');
+  const [weekOfMonth, setWeekOfMonth] = useState<WeekOfMonth>(fallbackPattern.weekOfMonth || 'FIRST');
+  const [dayOfMonth, setDayOfMonth] = useState(fallbackPattern.dayOfMonth || 1);
 
   // Product selector state
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+
+  useEffect(() => {
+    const vendors = vendorsQuery.data || [];
+    const warehouses = warehousesQuery.data || [];
+    if (!vendorId && vendors.length > 0) {
+      setVendorId(vendors[0]?.id || '');
+      setVendorName(vendors[0]?.title || '');
+    }
+    if (!warehouseId && warehouses.length > 0) {
+      setWarehouseId(warehouses[0]?.id || '');
+      setWarehouseName(warehouses[0]?.name || '');
+    }
+  }, [vendorId, warehouseId, vendorsQuery.data, warehousesQuery.data]);
+
+  const productsVendorId = showProductSelector ? vendorId : null;
+  const { data: productsData = [] } = useWarehouseProducts(productSearch || '', productsVendorId, 200);
+  const factories = useMemo(
+    () => (vendorsQuery.data || []).map((vendor) => ({ id: vendor.id, name: vendor.title })),
+    [vendorsQuery.data]
+  );
+  const warehouses = useMemo(
+    () => (warehousesQuery.data || []).map((wh) => ({ id: wh.id, name: wh.name })),
+    [warehousesQuery.data]
+  );
+  const carrierOptions = useMemo(
+    () => (carriersQuery.data || []).map((carrier) => carrier.name),
+    [carriersQuery.data]
+  );
 
   const currentPattern: RecurrencePattern = {
     frequency,
@@ -82,16 +110,16 @@ export default function RecurringShipmentDetailModal({
   // Check if there are changes
   const hasChanges = useMemo(() => {
     const patternChanged =
-      frequency !== recurring.recurrencePattern.frequency ||
-      interval !== recurring.recurrencePattern.interval ||
-      dayOfWeek !== (recurring.recurrencePattern.dayOfWeek || 'MONDAY') ||
-      weekOfMonth !== (recurring.recurrencePattern.weekOfMonth || 'FIRST') ||
-      dayOfMonth !== (recurring.recurrencePattern.dayOfMonth || 1);
+      frequency !== fallbackPattern.frequency ||
+      interval !== fallbackPattern.interval ||
+      dayOfWeek !== (fallbackPattern.dayOfWeek || 'MONDAY') ||
+      weekOfMonth !== (fallbackPattern.weekOfMonth || 'FIRST') ||
+      dayOfMonth !== (fallbackPattern.dayOfMonth || 1);
 
     const itemsChanged =
-      expectedItems.length !== recurring.expectedItems.length ||
+      expectedItems.length !== (recurring.expectedItems || []).length ||
       expectedItems.some((item, i) => {
-        const orig = recurring.expectedItems[i];
+        const orig = recurring.expectedItems?.[i];
         return !orig || item.productId !== orig.productId || item.expectedQuantity !== orig.expectedQuantity;
       });
 
@@ -126,7 +154,7 @@ export default function RecurringShipmentDetailModal({
   };
 
   const upcomingDelivery = linkedShipments.find(
-    s => s.status === 'PENDING' || s.status === 'CONFIRMED' || s.status === 'IN_TRANSIT'
+    s => s.status === 'PENDING' || s.status === 'CONFIRMED'
   );
 
   const canPause = recurring.status === 'ACTIVE';
@@ -160,7 +188,7 @@ export default function RecurringShipmentDetailModal({
     setExpectedItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleAddProduct = (product: { id: string; name: string; partNumber: string }) => {
+  const handleAddProduct = (product: { id: string; title: string; factoryPartNumber?: string | null }) => {
     // Check if already exists
     if (expectedItems.some(item => item.productId === product.id)) {
       setShowProductSelector(false);
@@ -171,8 +199,8 @@ export default function RecurringShipmentDetailModal({
     const newItem: ExpectedItem = {
       id: `EI-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       productId: product.id,
-      productName: product.name,
-      partNumber: product.partNumber,
+      productName: product.title,
+      partNumber: product.factoryPartNumber || '',
       expectedQuantity: 1,
       receivedQuantity: 0,
       status: 'pending',
@@ -183,12 +211,17 @@ export default function RecurringShipmentDetailModal({
   };
 
   const filteredProducts = useMemo(() => {
+    const products = productsData.map((item) => ({
+      id: item.id,
+      title: item.description || item.factoryPartNumber,
+      factoryPartNumber: item.factoryPartNumber,
+    }));
     if (!productSearch.trim()) return products.slice(0, 10);
     const search = productSearch.toLowerCase();
     return products
-      .filter(p => p.name.toLowerCase().includes(search) || p.partNumber.toLowerCase().includes(search))
+      .filter(p => p.title.toLowerCase().includes(search) || (p.factoryPartNumber || '').toLowerCase().includes(search))
       .slice(0, 10);
-  }, [products, productSearch]);
+  }, [productsData, productSearch]);
 
   const handleReset = () => {
     setName(recurring.name);
@@ -201,12 +234,12 @@ export default function RecurringShipmentDetailModal({
     setStartDate(recurring.startDate);
     setEndDate(recurring.endDate || '');
     setHasEndDate(!!recurring.endDate);
-    setExpectedItems(recurring.expectedItems);
-    setFrequency(recurring.recurrencePattern.frequency);
-    setInterval(recurring.recurrencePattern.interval);
-    setDayOfWeek(recurring.recurrencePattern.dayOfWeek || 'MONDAY');
-    setWeekOfMonth(recurring.recurrencePattern.weekOfMonth || 'FIRST');
-    setDayOfMonth(recurring.recurrencePattern.dayOfMonth || 1);
+    setExpectedItems(recurring.expectedItems || []);
+    setFrequency(fallbackPattern.frequency);
+    setInterval(fallbackPattern.interval);
+    setDayOfWeek(fallbackPattern.dayOfWeek || 'MONDAY');
+    setWeekOfMonth(fallbackPattern.weekOfMonth || 'FIRST');
+    setDayOfMonth(fallbackPattern.dayOfMonth || 1);
   };
 
   const handleSave = () => {
@@ -338,9 +371,9 @@ export default function RecurringShipmentDetailModal({
                   className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                 >
                   <option value="">Select carrier...</option>
-                  {carriers.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
+                    {carrierOptions.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
                 </select>
               </div>
               <div className="col-span-2">
@@ -433,7 +466,7 @@ export default function RecurringShipmentDetailModal({
                     <span className="text-sm text-[var(--muted-foreground)]">
                       {frequency === 'DAILY' ? 'day(s)' :
                        frequency === 'WEEKLY' ? 'week(s)' :
-                       frequency.includes('MONTHLY') ? 'month(s)' : ''}
+                       (frequency || '').includes('MONTHLY') ? 'month(s)' : ''}
                     </span>
                   </div>
                 </div>
@@ -522,8 +555,8 @@ export default function RecurringShipmentDetailModal({
                       onClick={() => handleAddProduct(product)}
                       className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--muted)]/50 flex items-center justify-between"
                     >
-                      <span className="font-medium">{product.name}</span>
-                      <span className="text-xs text-[var(--muted-foreground)]">{product.partNumber}</span>
+                      <span className="font-medium">{product.title}</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">{product.factoryPartNumber || 'No part number'}</span>
                     </button>
                   ))}
                   {filteredProducts.length === 0 && (

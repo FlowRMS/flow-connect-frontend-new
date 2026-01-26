@@ -12,6 +12,7 @@ import { type CustomerLandingPage } from '../../api/useCustomersApi';
 import { CustomersTableSkeleton } from './components/CustomersTableSkeleton';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
 import type { ActiveFilter, FilterOption } from '@/components/advancedFilters/types';
+import { RepsDisplay } from '@/components/shared/RepsDisplay';
 
 interface ListViewProps {
   customers: CustomerLandingPage[];
@@ -175,7 +176,7 @@ export function ListView({
               <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
                 <div className="flex items-center gap-1 whitespace-nowrap">
                   <span className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                    Type
+                    Hierarchy
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('isParent')}
@@ -252,32 +253,16 @@ export function ListView({
                     </div>
                   </td>
                   <td className="px-2 md:px-3 py-3 md:py-4">
-                    {customer.insideReps ? (
-                      <div className="flex items-center gap-1">
-                        <span className="inline-flex items-center px-1.5 md:px-2 py-0.5 rounded-full text-[10px] md:text-xs font-medium bg-blue-100 text-blue-700">
-                          <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                          {customer.insideReps}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-xs md:text-sm text-[var(--muted-foreground)]">-</span>
-                    )}
+                    <RepsDisplay 
+                      reps={customer.insideReps} 
+                      type="inside"
+                    />
                   </td>
                   <td className="px-2 md:px-3 py-3 md:py-4">
-                    {customer.outsideReps ? (
-                      <div className="flex items-center gap-1">
-                        <span className="inline-flex items-center px-1.5 md:px-2 py-0.5 rounded-full text-[10px] md:text-xs font-medium bg-purple-100 text-purple-700">
-                          <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          {customer.outsideReps}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-xs md:text-sm text-[var(--muted-foreground)]">-</span>
-                    )}
+                    <RepsDisplay 
+                      reps={customer.outsideReps} 
+                      type="outside"
+                    />
                   </td>
                   <td className="px-2 md:px-3 py-3 md:py-4">
                     {/* Hierarchy: Buying Group (top) -> Parent Customer -> Customer */}

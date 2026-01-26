@@ -1,20 +1,67 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  getFulfillmentOrderById,
-  updateFulfillmentOrder,
-  getBackorderItems,
-  getPendingShipmentRequestsForManufacturer,
-  markAsManufacturerFulfilled,
-  splitLineItemForManufacturer,
-  addShipmentRequest,
-  addFulfillmentOrderAssignment,
-  removeFulfillmentOrderAssignment,
-  BackorderItem,
-} from '@/lib/data/warehouse-mock';
-import { FulfillmentOrderStatus, FulfillmentMethod, FulfillmentOrderLineItem, BackorderReviewData, AssignedUserRole, AttachedDocument, FulfillmentActivity, FulfillmentActivityType } from '@/lib/types/warehouse';
+  useFulfillmentOrder,
+  useUpdateFulfillmentOrder,
+  useReleaseToWarehouse,
+  useCancelFulfillmentOrder,
+  useStartPicking,
+  useUpdatePickedQuantity,
+  useCompletePicking,
+  useAddPackingBox,
+  useDeletePackingBox,
+  useAssignItemToBox,
+  useRemoveItemFromBox,
+  useCompletePacking,
+  useCompleteShipping,
+  useMarkCommunicated,
+  useMarkDelivered,
+  useAddFulfillmentNote,
+  useReportInventoryDiscrepancy,
+  // Hooks for assignments and backorder
+  useAddFulfillmentAssignment,
+  useRemoveFulfillmentAssignment,
+  useMarkManufacturerFulfilled,
+  useSplitFulfillmentLineItem,
+  useCancelBackorderItems,
+  useLinkShipmentRequest,
+} from './api/useFulfillmentApi';
+import type {
+  FulfillmentOrderStatus,
+  FulfillmentMethod,
+  FulfillmentOrderLineItem,
+  FulfillmentAssignmentRole,
+  FulfillmentActivity,
+} from './api/fulfillmentApi';
+import { BackorderReviewData, AssignedUserRole, AttachedDocument, ShipmentRequestMethod } from '@/lib/types/warehouse';
+// Shipment Request API
+import { useCreateShipmentRequest, useShipmentRequests } from './api/useShipmentRequestApi';
+import type { ShipmentPriority, ShipmentMethod } from './api/shipmentRequestApi';
+// Inventory API for real inventory data
+import { useInventoriesByProducts } from './api/useInventoryApi';
+import type { Inventory } from './api/inventoryApi';
+// Shipping carriers API
+import { useShippingCarriersQuery } from './settings/api/useShippingCarriersApi';
+import type { ShippingCarrier } from './settings/api/shippingCarriersApi';
+// Warehouses API
+import { useWarehousesQuery } from './settings/api/useWarehousesApi';
+import type { Warehouse } from './settings/api/warehousesApi';
+// Users API
+import { useUsersQuery } from './settings/api/useUsersApi';
+import type { User } from './settings/api/usersApi';
+// Toast notifications
+import { fulfillmentToasts } from '@/components/lib/toast';
+
+// Local type for backorder items compatible with API types
+interface BackorderItem {
+  lineItem: FulfillmentOrderLineItem;
+  backorderQty: number;
+  inventoryOnHand: number;
+  manufacturerName: string;
+  manufacturerId: string;
+}
 
 // Import new sub-components
 import FulfillmentHeader from './fulfillment-detail/FulfillmentHeader';
@@ -26,7 +73,7 @@ import ShippedInterface from './fulfillment-detail/ShippedInterface';
 import FulfillmentDetailsForm from './fulfillment-detail/FulfillmentDetailsForm';
 import AuditTimestamps from './fulfillment-detail/AuditTimestamps';
 import LineItemsTable from './fulfillment-detail/LineItemsTable';
-import { PackingBoxType } from './fulfillment-detail/packing/PackingBox';
+import { PackingBoxType, packagingOptions } from './fulfillment-detail/packing/PackingBox';
 
 // Import modal components
 import PackingSlipModal from './fulfillment-detail/modals/PackingSlipModal';
@@ -55,49 +102,195 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const router = useRouter();
   const [_, setForceUpdate] = useState(0);
 
+  // Fetch fulfillment order from API
+  const { data: fulfillmentOrder, isLoading, error, refetch: refetchOrder } = useFulfillmentOrder(fulfillmentOrderId);
 
-  // Get fulfillment order directly from shared mock data
-  const fulfillmentOrder = getFulfillmentOrderById(fulfillmentOrderId);
+  // Mutations
+  const updateOrderMutation = useUpdateFulfillmentOrder();
+  const releaseToWarehouseMutation = useReleaseToWarehouse();
+  const cancelOrderMutation = useCancelFulfillmentOrder();
+  const startPickingMutation = useStartPicking();
+  const updatePickedQuantityMutation = useUpdatePickedQuantity();
+  const completePickingMutation = useCompletePicking();
+  const addPackingBoxMutation = useAddPackingBox();
+  const deletePackingBoxMutation = useDeletePackingBox();
+  const assignItemToBoxMutation = useAssignItemToBox();
+  const removeItemFromBoxMutation = useRemoveItemFromBox();
+  const completePackingMutation = useCompletePacking();
+  const completeShippingMutation = useCompleteShipping();
+  const markCommunicatedMutation = useMarkCommunicated();
+  const markDeliveredMutation = useMarkDelivered();
+  const addNoteMutation = useAddFulfillmentNote();
+  const reportDiscrepancyMutation = useReportInventoryDiscrepancy();
 
-  // Editable state
-  const [warehouseId, setWarehouseId] = useState(fulfillmentOrder?.warehouseId || '');
-  const [fulfillmentMethod, setFulfillmentMethod] = useState<FulfillmentMethod>(fulfillmentOrder?.fulfillmentMethod || 'SHIP');
-  const [shipToName, setShipToName] = useState(fulfillmentOrder?.shipTo.name || '');
-  const [shipToAddressLine1, setShipToAddressLine1] = useState(fulfillmentOrder?.shipTo.addressLine1 || '');
-  const [shipToAddressLine2, setShipToAddressLine2] = useState(fulfillmentOrder?.shipTo.addressLine2 || '');
-  const [shipToCity, setShipToCity] = useState(fulfillmentOrder?.shipTo.city || '');
-  const [shipToState, setShipToState] = useState(fulfillmentOrder?.shipTo.state || '');
-  const [shipToPostalCode, setShipToPostalCode] = useState(fulfillmentOrder?.shipTo.postalCode || '');
-  const [shipToPhone, setShipToPhone] = useState(fulfillmentOrder?.shipTo.contactPhone || '');
-  const [needByDate, setNeedByDate] = useState(fulfillmentOrder?.needByDate || '');
+  // New mutations for assignments and backorder
+  const addAssignmentMutation = useAddFulfillmentAssignment();
+  const removeAssignmentMutation = useRemoveFulfillmentAssignment();
+  const markManufacturerFulfilledMutation = useMarkManufacturerFulfilled();
+  const splitLineItemMutation = useSplitFulfillmentLineItem();
+  const cancelBackorderMutation = useCancelBackorderItems();
+  const linkShipmentRequestMutation = useLinkShipmentRequest();
+
+  // Shipment request hooks
+  const createShipmentRequestMutation = useCreateShipmentRequest();
+  const { data: allShipmentRequests = [] } = useShipmentRequests(
+    fulfillmentOrder?.warehouseId || '',
+    undefined,
+    { enabled: !!fulfillmentOrder?.warehouseId }
+  );
+
+  // Editable state - initialized with useEffect when data loads
+  const [warehouseId, setWarehouseId] = useState('');
+  const [fulfillmentMethod, setFulfillmentMethod] = useState<FulfillmentMethod>('SHIP');
+  const [shipToName, setShipToName] = useState('');
+  const [shipToAddressLine1, setShipToAddressLine1] = useState('');
+  const [shipToAddressLine2, setShipToAddressLine2] = useState('');
+  const [shipToCity, setShipToCity] = useState('');
+  const [shipToState, setShipToState] = useState('');
+  const [shipToPostalCode, setShipToPostalCode] = useState('');
+  const [shipToPhone, setShipToPhone] = useState('');
+  const [needByDate, setNeedByDate] = useState('');
   const [shipToDifferentFromPO, setShipToDifferentFromPO] = useState(false);
-  // Note: carrier is now managed via selectedCarrier state below
-  const [trackingNumbers, setTrackingNumbers] = useState(fulfillmentOrder?.trackingNumbers?.join(', ') || '');
+  const [trackingNumbers, setTrackingNumbers] = useState('');
+
+  // Shipping state - must be declared before the useEffect that uses them
+  const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL'>(fulfillmentOrder?.fulfillmentMethod || 'SHIP');
+  const [carrierType, setCarrierType] = useState<'parcel' | 'freight'>((fulfillmentOrder as any)?.carrierType?.toLowerCase() || 'parcel');
+  const [selectedCarrier, setSelectedCarrier] = useState(fulfillmentOrder?.carrierId || '');
+  const [freightClass, setFreightClass] = useState(fulfillmentOrder?.freightClass || '');
+
+  // Initialize form state when fulfillment order loads
+  useEffect(() => {
+    if (fulfillmentOrder) {
+      setWarehouseId(fulfillmentOrder.warehouseId || '');
+      setFulfillmentMethod(fulfillmentOrder.fulfillmentMethod || 'SHIP');
+      setShipToName(fulfillmentOrder.shipToAddress?.name || '');
+      setShipToAddressLine1(fulfillmentOrder.shipToAddress?.street || '');
+      setShipToAddressLine2(fulfillmentOrder.shipToAddress?.streetLine2 || '');
+      setShipToCity(fulfillmentOrder.shipToAddress?.city || '');
+      setShipToState(fulfillmentOrder.shipToAddress?.state || '');
+      setShipToPostalCode(fulfillmentOrder.shipToAddress?.postalCode || '');
+      setShipToPhone(fulfillmentOrder.shipToAddress?.phone || '');
+      setNeedByDate(fulfillmentOrder.needByDate || '');
+      setTrackingNumbers(fulfillmentOrder.trackingNumbers?.join(', ') || '');
+
+      // Update shipping method state
+      const method = fulfillmentOrder.fulfillmentMethod || 'SHIP';
+      setShippingMethod(method);
+
+      // Update carrier type if available
+      if (fulfillmentOrder.carrierType) {
+        setCarrierType(fulfillmentOrder.carrierType.toLowerCase() as 'parcel' | 'freight');
+      }
+
+      // Update carrier ID if available
+      if (fulfillmentOrder.carrierId) {
+        setSelectedCarrier(fulfillmentOrder.carrierId);
+      }
+
+      // Update freight class if available
+      if (fulfillmentOrder.freightClass) {
+        setFreightClass(fulfillmentOrder.freightClass);
+      }
+    }
+  }, [fulfillmentOrder]);
 
   // Picking state
   const [viewingStatus, setViewingStatus] = useState<FulfillmentOrderStatus | null>(null);
-  const [pickedItems, setPickedItems] = useState<Record<string, number>>(() => {
-    const initial: Record<string, number> = {};
-    fulfillmentOrder?.lineItems.forEach(item => {
-      initial[item.id] = 0;
-    });
-    return initial;
-  });
+  const [pickedItems, setPickedItems] = useState<Record<string, number>>({});
   const [pickingNotes, setPickingNotes] = useState<Record<string, string>>({});
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
 
-  // Packing state
-  const [packingBoxes, setPackingBoxes] = useState<PackingBoxType[]>([
-    {
-      id: 'box-1',
+  // Initialize picked items when fulfillment order loads
+  useEffect(() => {
+    if (fulfillmentOrder?.lineItems) {
+      const initial: Record<string, number> = {};
+      fulfillmentOrder.lineItems.forEach(item => {
+        initial[item.id] = item.pickedQty || 0;
+      });
+      setPickedItems(initial);
+    }
+  }, [fulfillmentOrder?.lineItems]);
+
+  // Helper to format decimal numbers - removes trailing zeros
+  const formatDecimal = (value: number | null): string => {
+    if (value === null || value === undefined) return '';
+    // Parse the number and format it, removing unnecessary trailing zeros
+    const num = Number(value);
+    if (isNaN(num)) return '';
+    // Use toFixed(2) then remove trailing zeros
+    return parseFloat(num.toFixed(2)).toString();
+  };
+
+  // Helper to convert server PackingBox to local PackingBoxType
+  // Note: This is a plain function, not a hook, so it can be called in useState initializers
+  const convertServerBoxToLocal = (serverBox: {
+    id: string;
+    length: number | null;
+    width: number | null;
+    height: number | null;
+    weight: number | null;
+    items: { fulfillmentLineItemId: string }[];
+  }): PackingBoxType => {
+    // Format dimensions for comparison (remove decimals for matching)
+    const lengthStr = formatDecimal(serverBox.length);
+    const widthStr = formatDecimal(serverBox.width);
+    const heightStr = formatDecimal(serverBox.height);
+
+    // Determine packaging type from dimensions
+    let packagingType = 'custom';
+    if (serverBox.length && serverBox.width && serverBox.height) {
+      const match = packagingOptions.find((opt) =>
+        opt.dimensions.length === lengthStr &&
+        opt.dimensions.width === widthStr &&
+        opt.dimensions.height === heightStr
+      );
+      if (match) packagingType = match.value;
+    }
+
+    return {
+      id: serverBox.id,
+      packagingType,
+      customWeight: formatDecimal(serverBox.weight),
+      useCustomWeight: serverBox.weight !== null,
+      customDimensions: {
+        length: lengthStr,
+        width: widthStr,
+        height: heightStr,
+      },
+      lineItemIds: serverBox.items.map(item => item.fulfillmentLineItemId),
+    };
+  };
+
+  // Packing state - initialize from server data if available
+  const [packingBoxes, setPackingBoxes] = useState<PackingBoxType[]>(() => {
+    if (fulfillmentOrder?.packingBoxes && fulfillmentOrder.packingBoxes.length > 0) {
+      return fulfillmentOrder.packingBoxes.map(convertServerBoxToLocal);
+    }
+    // Default empty box
+    return [{
+      id: 'local-box-1',
       packagingType: 'pallet_48x40x6',
       customWeight: '',
       useCustomWeight: false,
       customDimensions: { length: '', width: '', height: '' },
       lineItemIds: [],
+    }];
+  });
+
+  // Track which items are verified (packed)
+  const [verifiedItems, setVerifiedItems] = useState<Record<string, boolean>>(() => {
+    // Initialize from server packing boxes
+    const verified: Record<string, boolean> = {};
+    if (fulfillmentOrder?.packingBoxes) {
+      fulfillmentOrder.packingBoxes.forEach(box => {
+        box.items.forEach(item => {
+          verified[item.fulfillmentLineItemId] = true;
+        });
+      });
     }
-  ]);
-  const [verifiedItems, setVerifiedItems] = useState<Record<string, boolean>>({});
+    return verified;
+  });
   const [packingNotes, setPackingNotes] = useState<Record<string, string>>({});
   const [expandedPackingNoteId, setExpandedPackingNoteId] = useState<string | null>(null);
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
@@ -107,6 +300,39 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     return fulfillmentOrder?.activities || [];
   });
 
+  // Sync activities when fulfillment order updates
+  useEffect(() => {
+    if (fulfillmentOrder?.activities) {
+      setActivities(fulfillmentOrder.activities);
+    }
+  }, [fulfillmentOrder?.activities]);
+
+  // Track if packing boxes have been initialized from server
+  const [packingInitialized, setPackingInitialized] = useState(false);
+
+  // Track boxes to delete on save (server-side boxes that were removed locally)
+  const [boxesToDelete, setBoxesToDelete] = useState<string[]>([]);
+
+  // Counter for generating unique local box IDs
+  const [localBoxCounter, setLocalBoxCounter] = useState(1);
+
+  // Initialize packing boxes from server data on first load only
+  // After that, local state is managed independently until Save
+  useEffect(() => {
+    if (!packingInitialized && fulfillmentOrder?.packingBoxes && fulfillmentOrder.packingBoxes.length > 0) {
+      setPackingBoxes(fulfillmentOrder.packingBoxes.map(convertServerBoxToLocal));
+      // Update verified items based on what's in boxes
+      const verified: Record<string, boolean> = {};
+      fulfillmentOrder.packingBoxes.forEach(box => {
+        box.items.forEach(item => {
+          verified[item.fulfillmentLineItemId] = true;
+        });
+      });
+      setVerifiedItems(verified);
+      setPackingInitialized(true);
+    }
+  }, [fulfillmentOrder?.packingBoxes, packingInitialized]);
+
   // Modal state
   const [showPackingSlipModal, setShowPackingSlipModal] = useState(false);
   const [showShippingLabelsModal, setShowShippingLabelsModal] = useState(false);
@@ -115,11 +341,8 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [selectedPackingTemplate, setSelectedPackingTemplate] = useState('standard');
   const [selectedLabelFormat, setSelectedLabelFormat] = useState('4x6');
 
-  // Shipping state
-  const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL'>(fulfillmentOrder?.fulfillmentMethod === 'JOBSITE' ? 'SHIP' : (fulfillmentOrder?.fulfillmentMethod || 'SHIP'));
-  const [carrierType, setCarrierType] = useState<'parcel' | 'freight'>((fulfillmentOrder as any)?.carrierType || 'parcel');
-  const [selectedCarrier, setSelectedCarrier] = useState(fulfillmentOrder?.carrier || '');
-  const [freightClass, setFreightClass] = useState((fulfillmentOrder as any)?.freightClass || '');
+  // Additional shipping state (shippingMethod, carrierType, selectedCarrier, freightClass declared earlier)
+  const [serviceType, setServiceType] = useState((fulfillmentOrder as any)?.serviceType || '');
   const [bolNumber, setBolNumber] = useState((fulfillmentOrder as any)?.bolNumber || '');
   const [proNumber, setProNumber] = useState((fulfillmentOrder as any)?.proNumber || '');
   const [shippingNotes, setShippingNotes] = useState((fulfillmentOrder as any)?.shippingNotes || '');
@@ -142,21 +365,199 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   // Shipment confirmation modal state
   const [showShipmentConfirmationModal, setShowShipmentConfirmationModal] = useState(false);
 
-  // Attached documents state
-  const [attachedDocuments, setAttachedDocuments] = useState<AttachedDocument[]>(fulfillmentOrder?.documents || []);
-
-  // Get backorder items for this order
+  // Get backorder items for this order - items with backorderQty > 0 that aren't already handled by manufacturer
   const backorderItems = useMemo(() => {
     if (!fulfillmentOrder) return [];
-    return getBackorderItems(fulfillmentOrderId);
-  }, [fulfillmentOrderId, fulfillmentOrder]);
+    return fulfillmentOrder.lineItems
+      .filter(item => item.backorderQty > 0 && !item.fulfilledByManufacturer)
+      .map(item => ({
+        lineItem: item,
+        backorderQty: item.backorderQty,
+        manufacturerId: item.product?.factory?.id || '',
+        manufacturerName: item.product?.factory?.title || 'Unknown Manufacturer',
+        inventoryOnHand: 0,
+      }));
+  }, [fulfillmentOrder]);
+
+  // Helper function to get pending shipment requests for a manufacturer
+  const getPendingShipmentRequestsForManufacturer = (manufacturerId: string) => {
+    return allShipmentRequests.filter(
+      req => req.factoryId === manufacturerId && (req.status === 'DRAFT' || req.status === 'PENDING')
+    );
+  };
 
   // Get pending shipment requests for manufacturers with backorder items
   const pendingShipmentRequests = useMemo(() => {
-    if (backorderItems.length === 0) return [];
+    if (backorderItems.length === 0 || !allShipmentRequests) return [];
     const manufacturerIds = [...new Set(backorderItems.map(item => item.manufacturerId))];
-    return manufacturerIds.flatMap(id => getPendingShipmentRequestsForManufacturer(id));
-  }, [backorderItems]);
+    const requests = manufacturerIds.flatMap(id => getPendingShipmentRequestsForManufacturer(id));
+
+    // Map API ShipmentRequest to component ShipmentRequest type expected by modal
+    return requests.map(req => ({
+      id: req.id,
+      requestNumber: req.requestNumber,
+      vendorId: req.factoryId || '',
+      vendorName: req.factory?.title || 'Unknown Vendor',
+      warehouseId: req.warehouseId || '',
+      warehouseName: 'Warehouse', // TODO: Fetch warehouse name
+      requestMethod: (req.method || 'EMAIL') as ShipmentRequestMethod,
+      status: req.status as any,
+      priority: (req.priority || 'STANDARD') as ShipmentPriority,
+      requestedDeliveryDate: req.requestDate || new Date().toISOString(),
+      items: req.items.map(item => ({
+        id: item.id,
+        productId: item.productId,
+        productName: 'Product', // TODO: Fetch product details
+        partNumber: '', // TODO: Fetch part number
+        requestedQuantity: item.quantity,
+        currentStock: 0,
+      })),
+      totalQuantity: req.items.reduce((sum, item) => sum + item.quantity, 0),
+      notes: req.notes || undefined,
+      createdBy: 'System',
+      createdAt: req.createdAt,
+      updatedAt: req.updatedAt,
+    }));
+  }, [backorderItems, allShipmentRequests]);
+
+  // Fetch real inventory data for picking - moved here to ensure hooks are called unconditionally
+  const productIds = useMemo(
+    () => fulfillmentOrder?.lineItems.map((li) => li.productId) || [],
+    [fulfillmentOrder?.lineItems]
+  );
+
+  // Determine if we're in picking mode (need to check before early returns for hook consistency)
+  const currentStatus = fulfillmentOrder?.status;
+  const shouldFetchInventory = currentStatus === 'PICKING' && !!fulfillmentOrder?.warehouseId;
+
+  const { data: inventoryList } = useInventoriesByProducts(
+    productIds,
+    fulfillmentOrder?.warehouseId || '',
+    { enabled: shouldFetchInventory }
+  );
+
+  // Fetch shipping carriers from backend
+  const { data: shippingCarriers, isLoading: isLoadingCarriers } = useShippingCarriersQuery(true); // activeOnly = true
+  
+  // Fetch warehouses from backend
+  const { data: warehouses, isLoading: isLoadingWarehouses } = useWarehousesQuery();
+  
+  // Fetch users for activity feed name resolution
+  const { data: users } = useUsersQuery(200); // Fetch up to 200 users
+
+  // Create user lookup map for activity feed
+  const userMap = useMemo(() => {
+    if (!users) return new Map<string, User>();
+    return new Map(users.map(user => [user.id, user]));
+  }, [users]);
+
+  // Map FulfillmentActivity to GenericActivity format with user names
+  const mappedActivities = useMemo((): GenericActivity[] => {
+    return activities.map(activity => {
+      const user = userMap.get(activity.createdById);
+      const createdByName = user 
+        ? user.fullName || `${user.firstName} ${user.lastName}`.trim() || user.username
+        : activity.createdById || 'System';
+      
+      return {
+        id: activity.id,
+        type: activity.activityType,
+        timestamp: activity.createdAt,
+        createdBy: createdByName,
+        content: activity.content || undefined,
+        metadata: activity.metadata || undefined,
+      };
+    });
+  }, [activities, userMap]);
+
+  // Convert inventory list to a Map for efficient lookup by productId
+  const inventoryDataMap = useMemo(() => {
+    if (!inventoryList) return undefined;
+    const map = new Map<string, Inventory>();
+    inventoryList.forEach((inv) => {
+      map.set(inv.productId, inv);
+    });
+    return map;
+  }, [inventoryList]);
+
+  // Track unsaved changes - compare current form state with original fulfillment order data
+  const hasUnsavedChanges = useMemo(() => {
+    if (!fulfillmentOrder) return false;
+
+    const originalWarehouseId = fulfillmentOrder.warehouseId || '';
+    const originalShippingMethod = fulfillmentOrder.fulfillmentMethod || 'SHIP';
+    const originalCarrierId = fulfillmentOrder.carrierId || '';
+    const originalCarrierType = fulfillmentOrder.carrierType?.toLowerCase() || 'parcel';
+    const originalFreightClass = fulfillmentOrder.freightClass || '';
+    const originalNeedByDate = fulfillmentOrder.needByDate || '';
+    const originalShipToName = fulfillmentOrder.shipToAddress?.name || '';
+    const originalShipToLine1 = fulfillmentOrder.shipToAddress?.street || '';
+    const originalShipToLine2 = fulfillmentOrder.shipToAddress?.streetLine2 || '';
+    const originalShipToCity = fulfillmentOrder.shipToAddress?.city || '';
+    const originalShipToState = fulfillmentOrder.shipToAddress?.state || '';
+    const originalShipToPostalCode = fulfillmentOrder.shipToAddress?.postalCode || '';
+    const originalShipToPhone = fulfillmentOrder.shipToAddress?.phone || '';
+
+    return (
+      warehouseId !== originalWarehouseId ||
+      shippingMethod !== originalShippingMethod ||
+      selectedCarrier !== originalCarrierId ||
+      carrierType !== originalCarrierType ||
+      freightClass !== originalFreightClass ||
+      needByDate !== originalNeedByDate ||
+      shipToName !== originalShipToName ||
+      shipToAddressLine1 !== originalShipToLine1 ||
+      shipToAddressLine2 !== originalShipToLine2 ||
+      shipToCity !== originalShipToCity ||
+      shipToState !== originalShipToState ||
+      shipToPostalCode !== originalShipToPostalCode ||
+      shipToPhone !== originalShipToPhone
+    );
+  }, [
+    fulfillmentOrder,
+    warehouseId,
+    shippingMethod,
+    selectedCarrier,
+    carrierType,
+    freightClass,
+    needByDate,
+    shipToName,
+    shipToAddressLine1,
+    shipToAddressLine2,
+    shipToCity,
+    shipToState,
+    shipToPostalCode,
+    shipToPhone,
+  ]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <main className="flex-1 overflow-hidden bg-[var(--background)] flex flex-col items-center justify-center p-6">
+        <div className="text-center">
+          <div className="text-[var(--muted-foreground)]">Loading fulfillment order...</div>
+        </div>
+      </main>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <main className="flex-1 overflow-hidden bg-[var(--background)] flex flex-col items-center justify-center p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-destructive mb-2">Error Loading Order</h1>
+          <p className="text-[var(--muted-foreground)] mb-4">{error.message}</p>
+          <button
+            onClick={() => router.push('/warehouse/fulfillment')}
+            className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+          >
+            Back to Fulfillment
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   if (!fulfillmentOrder) {
     return (
@@ -184,12 +585,35 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const isShipped = displayStatus === 'SHIPPED';
 
   // Picking handlers
-  const handleMarkAsPicked = (lineItemId: string, qty: number) => {
+  const handleMarkAsPicked = async (lineItemId: string, qty: number) => {
+    // Update local state optimistically
     setPickedItems(prev => ({ ...prev, [lineItemId]: qty }));
+    // Send to API
+    try {
+      await updatePickedQuantityMutation.mutateAsync({
+        lineItemId,
+        quantity: qty,
+        notes: pickingNotes[lineItemId] || null,
+      });
+    } catch (error) {
+      console.error('Failed to update picked quantity:', error);
+      // Revert on error - will be refreshed from server
+    }
   };
 
-  const handlePickAll = (lineItemId: string, allocatedQty: number) => {
+  const handlePickAll = async (lineItemId: string, allocatedQty: number) => {
+    // Update local state optimistically
     setPickedItems(prev => ({ ...prev, [lineItemId]: allocatedQty }));
+    // Send to API
+    try {
+      await updatePickedQuantityMutation.mutateAsync({
+        lineItemId,
+        quantity: allocatedQty,
+        notes: pickingNotes[lineItemId] || null,
+      });
+    } catch (error) {
+      console.error('Failed to update picked quantity:', error);
+    }
   };
 
   const handleSimulateQRScan = (lineItemId: string, allocatedQty: number) => {
@@ -201,19 +625,15 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   };
 
   // Activity feed handlers
-  const handleAddActivityNote = (content: string) => {
-    const newActivity: FulfillmentActivity = {
-      id: `act-${Date.now()}`,
-      type: 'NOTE_ADDED',
-      timestamp: new Date().toISOString(),
-      createdBy: 'Current User',
-      content,
-    };
-    setActivities(prev => [...prev, newActivity]);
-    // Also update the fulfillment order
-    updateFulfillmentOrder(fulfillmentOrderId, {
-      activities: [...activities, newActivity],
-    });
+  const handleAddActivityNote = async (content: string) => {
+    try {
+      await addNoteMutation.mutateAsync({
+        fulfillmentOrderId: fulfillmentOrder.id,
+        content,
+      });
+    } catch (error) {
+      console.error('Failed to add note:', error);
+    }
   };
 
   const getActivityIcon = (type: string): React.ReactNode => {
@@ -396,20 +816,41 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       [lineItemId]: note
     }));
   };
+
+  // All packing operations are LOCAL ONLY - changes saved when clicking Save button
   const addNewBox = () => {
     const newBox: PackingBoxType = {
-      id: `box-${packingBoxes.length + 1}`,
-      packagingType: 'small_box',
+      id: `local-box-${localBoxCounter}`,
+      packagingType: 'pallet_48x40x6',
       customWeight: '',
       useCustomWeight: false,
       customDimensions: { length: '', width: '', height: '' },
       lineItemIds: [],
     };
     setPackingBoxes(prev => [...prev, newBox]);
+    setLocalBoxCounter(prev => prev + 1);
   };
 
   const removeBox = (boxId: string) => {
     if (packingBoxes.length <= 1) return;
+
+    // Track server-side boxes for deletion on save
+    if (!boxId.startsWith('local-')) {
+      setBoxesToDelete(prev => [...prev, boxId]);
+    }
+
+    // Update verified items - unverify items that were in this box
+    const boxToRemove = packingBoxes.find(b => b.id === boxId);
+    if (boxToRemove) {
+      const itemsToUnverify = boxToRemove.lineItemIds;
+      setVerifiedItems(prev => {
+        const updated = { ...prev };
+        itemsToUnverify.forEach(id => { updated[id] = false; });
+        return updated;
+      });
+    }
+
+    // Remove from local state
     setPackingBoxes(prev => prev.filter(b => b.id !== boxId));
   };
 
@@ -435,13 +876,17 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   };
 
   const addAllItemsToBox = (boxId: string) => {
-    const unassignedIds = getUnassignedItems().map(li => li.id);
+    const unassignedItems = getUnassignedItems();
+    if (unassignedItems.length === 0) return;
+
+    const unassignedIds = unassignedItems.map(li => li.id);
     setPackingBoxes(prev => prev.map(box => {
       if (box.id === boxId) {
         return { ...box, lineItemIds: [...box.lineItemIds, ...unassignedIds] };
       }
       return box;
     }));
+
     const newVerified: Record<string, boolean> = {};
     unassignedIds.forEach(id => { newVerified[id] = true; });
     setVerifiedItems(prev => ({ ...prev, ...newVerified }));
@@ -487,76 +932,74 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   };
 
   // Status transition handlers
-  const handleReleaseToWarehouse = () => {
+  const handleReleaseToWarehouse = async () => {
     if (fulfillmentOrder.status !== 'PENDING') return;
-    const now = new Date().toISOString();
-    updateFulfillmentOrder(fulfillmentOrder.id, {
-      status: 'RELEASED',
-      releasedAt: now,
-      releasedBy: 'Current User',
-      updatedAt: now,
-    });
-    setForceUpdate(prev => prev + 1);
+    try {
+      await releaseToWarehouseMutation.mutateAsync(fulfillmentOrder.id);
+      fulfillmentToasts.releaseSuccess(fulfillmentOrder.fulfillmentOrderNumber);
+    } catch (error) {
+      console.error('Failed to release to warehouse:', error);
+      fulfillmentToasts.releaseError(error instanceof Error ? error.message : undefined);
+    }
   };
 
-  const handleStartPicking = () => {
+  const handleStartPicking = async () => {
     if (fulfillmentOrder.status !== 'RELEASED') return;
-    const now = new Date().toISOString();
-    updateFulfillmentOrder(fulfillmentOrder.id, {
-      status: 'PICKING',
-      pickStartedAt: now,
-      pickStartedBy: 'Current User',
-      updatedAt: now,
-    });
-    setForceUpdate(prev => prev + 1);
+    try {
+      await startPickingMutation.mutateAsync(fulfillmentOrder.id);
+      fulfillmentToasts.startPickingSuccess(fulfillmentOrder.fulfillmentOrderNumber);
+    } catch (error) {
+      console.error('Failed to start picking:', error);
+      fulfillmentToasts.startPickingError(error instanceof Error ? error.message : undefined);
+    }
   };
 
-  const handleCompletePicking = () => {
+  const handleCompletePicking = async () => {
     if (fulfillmentOrder.status !== 'PICKING') return;
-    const now = new Date().toISOString();
-    updateFulfillmentOrder(fulfillmentOrder.id, {
-      status: 'PACKING',
-      pickCompletedAt: now,
-      pickCompletedBy: 'Current User',
-      updatedAt: now,
-    });
-    setForceUpdate(prev => prev + 1);
+    try {
+      await completePickingMutation.mutateAsync(fulfillmentOrder.id);
+      fulfillmentToasts.completePickingSuccess(fulfillmentOrder.fulfillmentOrderNumber);
+    } catch (error) {
+      console.error('Failed to complete picking:', error);
+      fulfillmentToasts.completePickingError(error instanceof Error ? error.message : undefined);
+    }
   };
 
-  const handleCompletePacking = () => {
+  const handleCompletePacking = async () => {
     if (fulfillmentOrder.status !== 'PACKING') return;
-    const now = new Date().toISOString();
-    updateFulfillmentOrder(fulfillmentOrder.id, {
-      status: 'SHIPPING',
-      updatedAt: now,
-    });
-    setForceUpdate(prev => prev + 1);
+    try {
+      await completePackingMutation.mutateAsync(fulfillmentOrder.id);
+      fulfillmentToasts.completePackingSuccess(fulfillmentOrder.fulfillmentOrderNumber);
+    } catch (error) {
+      console.error('Failed to complete packing:', error);
+      fulfillmentToasts.completePackingError(error instanceof Error ? error.message : undefined);
+    }
   };
 
-  const handleCompleteShipping = () => {
+  const handleCompleteShipping = async () => {
     if (fulfillmentOrder.status !== 'SHIPPING') return;
     const requiresSignature = (shippingMethod === 'SHIP' && carrierType === 'freight') || shippingMethod === 'WILL_CALL';
     if (requiresSignature && !pickupSignature) {
       setShowSignatureModal(true);
       return;
     }
-    const now = new Date().toISOString();
-    updateFulfillmentOrder(fulfillmentOrder.id, {
-      status: 'SHIPPED',
-      shipStatus: 'SHIPPED',
-      carrier: selectedCarrier,
-      trackingNumbers: trackingNumbers.split(',').map(t => t.trim()).filter(t => t),
-      shipConfirmedAt: now,
-      updatedAt: now,
-      ...(pickupSignature && {
-        pickupSignature,
-        pickupTimestamp: pickupTimestamp?.toISOString(),
-        pickupCustomerName: pickupName,
-        pickupDriverName: driverName,
-        pickupNotes,
-      }),
-    });
-    setForceUpdate(prev => prev + 1);
+    try {
+      await completeShippingMutation.mutateAsync({
+        id: fulfillmentOrder.id,
+        input: {
+          trackingNumbers: trackingNumbers.split(',').map(t => t.trim()).filter(t => t),
+          ...(pickupSignature && {
+            signature: pickupSignature,
+            pickupCustomerName: pickupName,
+            driverName: driverName,
+          }),
+        },
+      });
+      fulfillmentToasts.shipmentConfirmed(fulfillmentOrder.fulfillmentOrderNumber);
+    } catch (error) {
+      console.error('Failed to complete shipping:', error);
+      fulfillmentToasts.shipmentError(error instanceof Error ? error.message : undefined);
+    }
   };
 
   const handleReportBackorder = (lineItemId: string, expectedQty: number, actualQty: number, notes: string) => {
@@ -580,39 +1023,29 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     };
 
     // Update the fulfillment order to BACKORDER_REVIEW status
-    updateFulfillmentOrder(fulfillmentOrder.id, {
-      status: 'BACKORDER_REVIEW',
-      holdReason: `Worker reported shortage: ${expectedQty - actualQty} units short on ${lineItem.partNumber}`,
-      backorderReviewData,
-      updatedAt: now,
+    updateOrderMutation.mutate({
+      id: fulfillmentOrder.id,
+      input: {
+        status: 'BACKORDER_REVIEW',
+        holdReason: `Worker reported shortage: ${expectedQty - actualQty} units short on ${lineItem.product?.factoryPartNumber || 'Unknown'}`,
+        backorderReviewData,
+      },
     });
 
     setForceUpdate(prev => prev + 1);
   };
 
-  // Handle inventory discrepancy - automatically notifies inside salesperson
-  const handleInventoryDiscrepancy = (discrepancy: InventoryDiscrepancy) => {
-    // This would typically:
-    // 1. Log the discrepancy to the system (like a cycle count discrepancy)
-    // 2. Notify the inside salesperson assigned to this order
-    // 3. Create a task or alert for inventory review
-
-    console.log('Inventory discrepancy reported:', {
-      orderNumber: fulfillmentOrder.orderNumber,
-      product: discrepancy.partNumber,
-      location: discrepancy.locationName,
-      locationType: discrepancy.locationType,
-      expected: discrepancy.expectedQty,
-      actual: discrepancy.actualQty,
-      shortage: discrepancy.shortage,
-    });
-
-    // TODO: Implement actual notification to inside salesperson
-    // This would create a notification/task similar to cycle count discrepancies
-    // For now, we just log it - the actual implementation would:
-    // - Create a notification for the inside salesperson on this order
-    // - Log to inventory discrepancy history
-    // - Potentially trigger a cycle count for this location
+  // Handle inventory discrepancy - reports to backend and triggers backorder review
+  const handleInventoryDiscrepancy = async (discrepancy: InventoryDiscrepancy) => {
+    try {
+      await reportDiscrepancyMutation.mutateAsync({
+        lineItemId: discrepancy.lineItemId,
+        actualQuantity: discrepancy.actualQty,
+        reason: `Location ${discrepancy.locationName}: Expected ${discrepancy.expectedQty}, found ${discrepancy.actualQty}. Shortage: ${discrepancy.shortage}`,
+      });
+    } catch (error) {
+      console.error('Failed to report inventory discrepancy:', error);
+    }
   };
 
   const handleContinue = () => {
@@ -626,9 +1059,159 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     }
   };
 
-  const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log('Save clicked');
+  const handleSave = async () => {
+    if (!fulfillmentOrder) return;
+
+    try {
+      // 1. Save fulfillment order basic info
+      await updateOrderMutation.mutateAsync({
+        id: fulfillmentOrder.id,
+        input: {
+          warehouseId: warehouseId || null,
+          fulfillmentMethod: shippingMethod,
+          carrierId: selectedCarrier || null,
+          carrierType: shippingMethod === 'SHIP' ? carrierType.toUpperCase() as 'PARCEL' | 'FREIGHT' : null,
+          freightClass: freightClass || null,
+          serviceType: serviceType || null,
+          needByDate: needByDate || null,
+          shipToName: shipToName || null,
+          shipToPhone: shipToPhone || null,
+          shipToAddress: {
+            sourceId: fulfillmentOrder.id,
+            sourceType: 'FULFILLMENT_ORDER',
+            addressTypes: ['SHIPPING'],
+            line1: shipToAddressLine1 || '',
+            line2: shipToAddressLine2 || null,
+            city: shipToCity || '',
+            state: shipToState || null,
+            zipCode: shipToPostalCode || null,
+            country: 'USA',
+          },
+        },
+      });
+
+      // 2. Sync packing boxes if in PACKING status or later
+      const isPacking = fulfillmentOrder.status === 'PACKING' ||
+                        fulfillmentOrder.status === 'SHIPPING' ||
+                        fulfillmentOrder.status === 'SHIPPED';
+
+      if (isPacking) {
+        // Get current server boxes
+        const serverBoxIds = new Set(fulfillmentOrder.packingBoxes?.map(b => b.id) || []);
+
+        // Delete boxes that were removed locally
+        for (const boxId of boxesToDelete) {
+          if (serverBoxIds.has(boxId)) {
+            try {
+              await deletePackingBoxMutation.mutateAsync(boxId);
+            } catch (err) {
+              console.error('Failed to delete box:', boxId, err);
+            }
+          }
+        }
+
+        // Map from local box ID to server box ID for new boxes
+        const boxIdMap = new Map<string, string>();
+
+        // Create new boxes and update existing ones
+        for (const box of packingBoxes) {
+          const packagingOpt = packagingOptions.find((opt) => opt.value === box.packagingType);
+          const dimensions = packagingOpt?.dimensions || { length: '48', width: '40', height: '6' };
+
+          const boxInput = {
+            length: parseFloat(box.customDimensions.length || dimensions.length) || null,
+            width: parseFloat(box.customDimensions.width || dimensions.width) || null,
+            height: parseFloat(box.customDimensions.height || dimensions.height) || null,
+            weight: box.useCustomWeight && box.customWeight ? parseFloat(box.customWeight) : null,
+          };
+
+          if (box.id.startsWith('local-')) {
+            // Create new box on server
+            try {
+              const newBox = await addPackingBoxMutation.mutateAsync({
+                fulfillmentOrderId,
+                input: boxInput,
+              });
+              boxIdMap.set(box.id, newBox.id);
+            } catch (err) {
+              console.error('Failed to create box:', err);
+            }
+          } else {
+            // Update existing box
+            boxIdMap.set(box.id, box.id);
+            // TODO: Could add updatePackingBox call here if dimensions changed
+          }
+        }
+
+        // Get server's current item assignments
+        const serverItemAssignments = new Map<string, string>(); // lineItemId -> boxId
+        fulfillmentOrder.packingBoxes?.forEach(box => {
+          box.items.forEach(item => {
+            serverItemAssignments.set(item.fulfillmentLineItemId, box.id);
+          });
+        });
+
+        // Sync item assignments
+        for (const box of packingBoxes) {
+          const serverBoxId = boxIdMap.get(box.id);
+          if (!serverBoxId) continue;
+
+          for (const lineItemId of box.lineItemIds) {
+            const currentServerBoxId = serverItemAssignments.get(lineItemId);
+
+            if (currentServerBoxId !== serverBoxId) {
+              // Item needs to be moved or assigned
+              if (currentServerBoxId) {
+                // Remove from old box first
+                try {
+                  await removeItemFromBoxMutation.mutateAsync({
+                    boxId: currentServerBoxId,
+                    lineItemId
+                  });
+                } catch (err) {
+                  console.error('Failed to remove item from box:', err);
+                }
+              }
+
+              // Assign to new box
+              const lineItem = fulfillmentOrder.lineItems.find(li => li.id === lineItemId);
+              const quantity = lineItem?.allocatedQty || 1;
+              try {
+                await assignItemToBoxMutation.mutateAsync({
+                  boxId: serverBoxId,
+                  lineItemId,
+                  quantity,
+                });
+              } catch (err) {
+                console.error('Failed to assign item to box:', err);
+              }
+            }
+          }
+        }
+
+        // Remove items that are no longer in any box
+        const localAssignedItems = new Set(packingBoxes.flatMap(b => b.lineItemIds));
+        for (const [lineItemId, boxId] of serverItemAssignments) {
+          if (!localAssignedItems.has(lineItemId)) {
+            try {
+              await removeItemFromBoxMutation.mutateAsync({ boxId, lineItemId });
+            } catch (err) {
+              console.error('Failed to remove unassigned item:', err);
+            }
+          }
+        }
+
+        // Clear the boxes to delete list after successful save
+        setBoxesToDelete([]);
+      }
+
+      fulfillmentToasts.saveSuccess(fulfillmentOrder.fulfillmentOrderNumber);
+      // Refetch to sync state with server
+      refetchOrder();
+    } catch (error) {
+      console.error('Failed to save fulfillment order:', error);
+      fulfillmentToasts.saveError(error instanceof Error ? error.message : undefined);
+    }
   };
 
   const handleStatusClick = (status: FulfillmentOrderStatus) => {
@@ -644,59 +1227,73 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   };
 
   // Backorder handling functions
-  const handleManufacturerDirect = (selectedItems: BackorderItem[]) => {
+  const handleManufacturerDirect = async (selectedItems: BackorderItem[]) => {
     const lineItemIds = selectedItems.map(item => item.lineItem.id);
-    markAsManufacturerFulfilled(fulfillmentOrderId, lineItemIds);
-    setShowManufacturerDirectModal(false);
-    setForceUpdate(prev => prev + 1);
+    try {
+      await markManufacturerFulfilledMutation.mutateAsync({
+        fulfillmentOrderId,
+        lineItemIds,
+      });
+      setShowManufacturerDirectModal(false);
+    } catch (error) {
+      console.error('Failed to mark as manufacturer fulfilled:', error);
+    }
   };
 
-  const handleCreateInventoryRequest = (items: { lineItem: FulfillmentOrderLineItem; requestedQty: number }[]) => {
-    // Group items by manufacturer
-    const byManufacturer = items.reduce((acc, item) => {
-      const inv = backorderItems.find(bi => bi.lineItem.id === item.lineItem.id);
-      if (inv) {
-        const mfrId = inv.manufacturerId;
-        if (!acc[mfrId]) {
-          acc[mfrId] = { name: inv.manufacturerName, items: [] };
-        }
-        acc[mfrId].items.push({
-          id: `REQLI-${Date.now()}-${item.lineItem.id}`,
-          productId: item.lineItem.productId,
-          productName: item.lineItem.productName,
-          partNumber: item.lineItem.partNumber,
-          requestedQuantity: item.requestedQty,
-          currentStock: inv.inventoryOnHand,
-        });
+  const handleCreateInventoryRequest = async (items: { lineItem: FulfillmentOrderLineItem; requestedQty: number }[]) => {
+    try {
+      // Validate warehouse is assigned
+      if (!fulfillmentOrder.warehouseId) {
+        alert('Error: No warehouse assigned to this fulfillment order. Please assign a warehouse before creating a shipment request.');
+        return;
       }
-      return acc;
-    }, {} as Record<string, { name: string; items: any[] }>);
 
-    // Create shipment requests for each manufacturer
-    Object.entries(byManufacturer).forEach(([mfrId, { name, items: reqItems }]) => {
-      addShipmentRequest({
-        vendorId: mfrId,
-        vendorName: name,
-        warehouseId: fulfillmentOrder.warehouseId,
-        warehouseName: fulfillmentOrder.warehouseName,
-        requestMethod: 'EMAIL',
-        status: 'DRAFT',
-        priority: 'STANDARD',
-        requestedDeliveryDate: fulfillmentOrder.needByDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        items: reqItems,
-        totalQuantity: reqItems.reduce((sum, item) => sum + item.requestedQuantity, 0),
-        notes: `Created from fulfillment order ${fulfillmentOrder.fulfillmentOrderNumber}`,
-        createdBy: 'Current User',
-      });
-    });
+      // Group items by manufacturer
+      const byManufacturer = items.reduce((acc, item) => {
+        const inv = backorderItems.find(bi => bi.lineItem.id === item.lineItem.id);
+        if (inv && inv.manufacturerId) {
+          const mfrId = inv.manufacturerId;
+          if (!acc[mfrId]) {
+            acc[mfrId] = { name: inv.manufacturerName, items: [], lineItemIds: [] };
+          }
+          acc[mfrId].items.push({
+            productId: item.lineItem.productId,
+            quantity: item.requestedQty,
+          });
+          acc[mfrId].lineItemIds.push(item.lineItem.id);
+        }
+        return acc;
+      }, {} as Record<string, { name: string; items: Array<{ productId: string; quantity: number }>; lineItemIds: string[] }>);
 
-    // Update the fulfillment order to show it's pending delivery
-    updateFulfillmentOrder(fulfillmentOrderId, {
-      holdReason: 'Pending inventory delivery request',
-    });
+      // Create shipment requests for each manufacturer and link to line items
+      for (const [mfrId, { items: reqItems, lineItemIds }] of Object.entries(byManufacturer)) {
+        // Create shipment request
+        const shipmentRequest = await createShipmentRequestMutation.mutateAsync({
+          factoryId: mfrId,
+          warehouseId: fulfillmentOrder.warehouseId,
+          requestDate: new Date().toISOString(),
+          priority: 'STANDARD',
+          items: reqItems,
+          notes: `Created from fulfillment order ${fulfillmentOrder.fulfillmentOrderNumber}`,
+        });
 
-    setShowRequestInventoryModal(false);
-    setForceUpdate(prev => prev + 1);
+        // Link the shipment request to the line items
+        if (shipmentRequest?.id) {
+          await linkShipmentRequestMutation.mutateAsync({
+            fulfillmentOrderId: fulfillmentOrderId,
+            lineItemIds: lineItemIds,
+            shipmentRequestId: shipmentRequest.id,
+          });
+        }
+      }
+
+      setShowRequestInventoryModal(false);
+      alert('Shipment request created and linked successfully!');
+      setForceUpdate(prev => prev + 1);
+    } catch (error) {
+      console.error('Failed to create shipment request:', error);
+      alert(`Failed to create shipment request: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleAddToExistingRequest = (requestId: string, items: { lineItem: FulfillmentOrderLineItem; requestedQty: number }[]) => {
@@ -706,125 +1303,71 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     setForceUpdate(prev => prev + 1);
   };
 
-  const handleSplitOrder = (allocations: { lineItemId: string; warehouseQty: number; manufacturerQty: number }[]) => {
-    allocations.forEach(alloc => {
-      if (alloc.manufacturerQty > 0) {
-        splitLineItemForManufacturer(fulfillmentOrderId, alloc.lineItemId, alloc.warehouseQty, alloc.manufacturerQty);
-      }
-    });
-    setShowSplitOrderModal(false);
-    setForceUpdate(prev => prev + 1);
-  };
-
-  const handleCancelBackorder = (allocations: { lineItemId: string; originalQty: number; newQty: number; cancelledQty: number }[], cancellationReason: string) => {
-    const now = new Date().toISOString();
-
-    // Update each line item with the new quantity
-    allocations.forEach(alloc => {
-      if (alloc.cancelledQty > 0) {
-        // Find the line item and update its quantities
-        const lineItem = fulfillmentOrder?.lineItems.find(li => li.id === alloc.lineItemId);
-        if (lineItem) {
-          // Update the line item quantities - reduce ordered and allocated to the new qty
-          // In a real app, this would also update the source order
-          updateFulfillmentOrder(fulfillmentOrderId, {
-            lineItems: fulfillmentOrder?.lineItems.map(li =>
-              li.id === alloc.lineItemId
-                ? {
-                    ...li,
-                    orderedQty: alloc.newQty,
-                    allocatedQty: alloc.newQty,
-                    backorderQty: 0,
-                    notes: li.notes
-                      ? `${li.notes}\n[${now}] Cancelled ${alloc.cancelledQty} units: ${cancellationReason}`
-                      : `[${now}] Cancelled ${alloc.cancelledQty} units: ${cancellationReason}`
-                  }
-                : li
-            ),
-            notes: fulfillmentOrder?.notes
-              ? `${fulfillmentOrder.notes}\n[${now}] Backorder cancelled - ${cancellationReason}`
-              : `[${now}] Backorder cancelled - ${cancellationReason}`,
-            updatedAt: now,
+  const handleSplitOrder = async (allocations: { lineItemId: string; warehouseQty: number; manufacturerQty: number }[]) => {
+    try {
+      for (const alloc of allocations) {
+        if (alloc.manufacturerQty > 0) {
+          await splitLineItemMutation.mutateAsync({
+            lineItemId: alloc.lineItemId,
+            warehouseQty: alloc.warehouseQty,
+            manufacturerQty: alloc.manufacturerQty,
           });
         }
       }
-    });
+      setShowSplitOrderModal(false);
+    } catch (error) {
+      console.error('Failed to split line item:', error);
+    }
+  };
 
-    // Log the cancellation (in a real app, this would also update the source order)
-    console.log('Backorder cancelled:', {
-      fulfillmentOrderId,
-      sourceOrderId: fulfillmentOrder?.orderId,
-      sourceOrderNumber: fulfillmentOrder?.orderNumber,
-      allocations,
-      reason: cancellationReason,
-    });
+  const handleCancelBackorder = async (allocations: { lineItemId: string; originalQty: number; newQty: number; cancelledQty: number }[], cancellationReason: string) => {
+    const lineItemIds = allocations
+      .filter(alloc => alloc.cancelledQty > 0)
+      .map(alloc => alloc.lineItemId);
 
-    setShowCancelBackorderModal(false);
-    setForceUpdate(prev => prev + 1);
+    if (lineItemIds.length === 0) {
+      setShowCancelBackorderModal(false);
+      return;
+    }
+
+    try {
+      await cancelBackorderMutation.mutateAsync({
+        fulfillmentOrderId,
+        lineItemIds,
+        reason: cancellationReason,
+      });
+      setShowCancelBackorderModal(false);
+    } catch (error) {
+      console.error('Failed to cancel backorder items:', error);
+    }
   };
 
   // Handle sending shipment confirmation email
-  const handleSendShipmentConfirmation = (emailData: {
+  const handleSendShipmentConfirmation = async (emailData: {
     to: string;
     subject: string;
     body: string;
     attachedDocIds: string[];
   }) => {
-    const now = new Date().toISOString();
-
     // Log the email (in a real app, this would send via email service)
     console.log('Sending shipment confirmation email:', emailData);
 
-    // Update the fulfillment order to COMMUNICATED status
-    updateFulfillmentOrder(fulfillmentOrder.id, {
-      status: 'COMMUNICATED',
-      updatedAt: now,
-    });
+    try {
+      // Mark order as communicated (status transition)
+      await markCommunicatedMutation.mutateAsync(fulfillmentOrder.id);
 
-    // Add activity for email sent
-    const newActivity: FulfillmentActivity = {
-      id: `act-${Date.now()}`,
-      type: 'NOTE_ADDED',
-      timestamp: now,
-      createdBy: 'Current User',
-      content: `Shipment confirmation email sent to ${emailData.to}`,
-      metadata: {
-        emailTo: emailData.to,
-        emailSubject: emailData.subject,
-        attachedDocIds: emailData.attachedDocIds,
-      },
-    };
-    setActivities(prev => [...prev, newActivity]);
-    updateFulfillmentOrder(fulfillmentOrder.id, {
-      activities: [...activities, newActivity],
-    });
+      // Add activity note for email sent
+      await addNoteMutation.mutateAsync({
+        fulfillmentOrderId: fulfillmentOrder.id,
+        content: `Shipment confirmation email sent to ${emailData.to}`,
+      });
+    } catch (error) {
+      console.error('Failed to send shipment confirmation:', error);
+      alert('Failed to send shipment confirmation. Please try again.');
+      return;
+    }
 
     setShowShipmentConfirmationModal(false);
-    setForceUpdate(prev => prev + 1);
-  };
-
-  // Document handlers
-  const handleAddDocument = (document: Omit<AttachedDocument, 'id'>) => {
-    const newDocument: AttachedDocument = {
-      ...document,
-      id: `DOC-${Date.now()}`,
-    };
-    setAttachedDocuments(prev => [...prev, newDocument]);
-    // In a real app, also persist to backend
-    updateFulfillmentOrder(fulfillmentOrder.id, {
-      documents: [...attachedDocuments, newDocument],
-    });
-    setForceUpdate(prev => prev + 1);
-  };
-
-  const handleRemoveDocument = (documentId: string) => {
-    const updatedDocs = attachedDocuments.filter(d => d.id !== documentId);
-    setAttachedDocuments(updatedDocs);
-    // In a real app, also persist to backend
-    updateFulfillmentOrder(fulfillmentOrder.id, {
-      documents: updatedDocs,
-    });
-    setForceUpdate(prev => prev + 1);
   };
 
   // Get continue button props
@@ -859,9 +1402,9 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   // Shipped data for ShippedInterface
   const shippedData = {
     carrierType: (fulfillmentOrder as any)?.carrierType || carrierType,
-    carrier: fulfillmentOrder?.carrier || selectedCarrier,
+    carrier: fulfillmentOrder?.carrier?.name || selectedCarrier,
     trackingNumbers: fulfillmentOrder?.trackingNumbers?.join(', ') || trackingNumbers,
-    shipConfirmedAt: fulfillmentOrder?.shipConfirmedAt,
+    shipConfirmedAt: fulfillmentOrder?.shipConfirmedAt ?? undefined,
     pickupSignature: (fulfillmentOrder as any)?.pickupSignature || pickupSignature,
     pickupTimestamp: (fulfillmentOrder as any)?.pickupTimestamp ? new Date((fulfillmentOrder as any).pickupTimestamp) : pickupTimestamp,
     pickupCustomerName: (fulfillmentOrder as any)?.pickupCustomerName || pickupName,
@@ -884,6 +1427,14 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           continueButtonText={continueButtonText}
           continueButtonColor={continueButtonColor}
           blockedReason={blockedReason}
+          isSaving={updateOrderMutation.isPending}
+          isContinuing={
+            releaseToWarehouseMutation.isPending ||
+            startPickingMutation.isPending ||
+            completePickingMutation.isPending ||
+            completePackingMutation.isPending ||
+            completeShippingMutation.isPending
+          }
         />
 
         {/* Status Progress */}
@@ -894,8 +1445,8 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           onBackToCurrent={() => setViewingStatus(null)}
         />
 
-        {/* Backorder Notice - Show on PENDING status with backorder items */}
-        {(fulfillmentOrder.status === 'PENDING' || fulfillmentOrder.status === 'RELEASED') && backorderItems.length > 0 && (
+        {/* Backorder Notice - Show on PENDING, RELEASED, or BACKORDER_REVIEW status with backorder items */}
+        {(fulfillmentOrder.status === 'PENDING' || fulfillmentOrder.status === 'RELEASED' || fulfillmentOrder.status === 'BACKORDER_REVIEW') && backorderItems.length > 0 && (
           <BackorderNotice
             fulfillmentOrder={fulfillmentOrder}
             backorderItems={backorderItems}
@@ -907,7 +1458,11 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
         )}
 
         {/* Manufacturer Order Notice - Show when items are being fulfilled by manufacturer */}
-        {fulfillmentOrder.manufacturerOrderStatus && fulfillmentOrder.manufacturerOrderStatus !== 'NONE' && (
+        {(() => {
+          const manufacturerItems = fulfillmentOrder.lineItems.filter(li => li.fulfilledByManufacturer);
+          const manufacturerStatus = manufacturerItems.length === 0 ? 'NONE' : manufacturerItems.length === fulfillmentOrder.lineItems.length ? 'FULL' : 'PARTIAL';
+          if (manufacturerStatus === 'NONE') return null;
+          return (
           <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
@@ -927,12 +1482,12 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               </div>
               <div className="flex-1">
                 <h3 className="text-sm font-semibold text-indigo-900">
-                  {fulfillmentOrder.manufacturerOrderStatus === 'FULL'
+                  {manufacturerStatus === 'FULL'
                     ? 'Manufacturer Direct Fulfillment'
                     : 'Split Fulfillment - Warehouse & Manufacturer'}
                 </h3>
                 <p className="text-xs text-indigo-700 mt-0.5">
-                  {fulfillmentOrder.manufacturerOrderStatus === 'FULL'
+                  {manufacturerStatus === 'FULL'
                     ? 'This entire order is being fulfilled directly by the manufacturer.'
                     : 'Some items on this order are being fulfilled directly by the manufacturer.'}
                 </p>
@@ -945,7 +1500,8 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               </a>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Hold Notice - Show when order is on hold */}
         {fulfillmentOrder.holdReason && (
@@ -985,6 +1541,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               onExpandNote={setExpandedNoteId}
               onCompletePicking={handleCompletePicking}
               onReportInventoryDiscrepancy={handleInventoryDiscrepancy}
+              inventoryData={inventoryDataMap}
             />
           </div>
         )}
@@ -1086,11 +1643,16 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               shipToPhone={shipToPhone}
               carrier={selectedCarrier}
               carrierType={carrierType}
+              serviceType={serviceType}
               trackingNumbers={trackingNumbers}
               freightClass={freightClass}
               shipToDifferentFromPO={shipToDifferentFromPO}
               isReleased={isReleased}
               deliveryMethod={shippingMethod}
+              warehouses={warehouses}
+              isLoadingWarehouses={isLoadingWarehouses}
+              shippingCarriers={shippingCarriers}
+              isLoadingCarriers={isLoadingCarriers}
               onDeliveryMethodChange={setShippingMethod}
               onWarehouseIdChange={setWarehouseId}
               onNeedByDateChange={setNeedByDate}
@@ -1103,6 +1665,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               onShipToPhoneChange={setShipToPhone}
               onCarrierChange={setSelectedCarrier}
               onCarrierTypeChange={setCarrierType}
+              onServiceTypeChange={setServiceType}
               onTrackingNumbersChange={setTrackingNumbers}
               onFreightClassChange={setFreightClass}
               onShipToDifferentFromPOChange={setShipToDifferentFromPO}
@@ -1118,18 +1681,29 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               fulfillmentOrder={fulfillmentOrder}
               isReleased={isReleased}
               onReleaseToWarehouse={handleReleaseToWarehouse}
+              userMap={userMap}
             />
             <AssignmentPanel
-              assignedManagers={fulfillmentOrder.assignedManagers || []}
-              assignedWorkers={fulfillmentOrder.assignedWorkers || []}
+              assignedManagers={fulfillmentOrder.assignments?.filter(a => a.role === 'MANAGER').map(a => ({ ...a, role: 'manager' as const })) || []}
+              assignedWorkers={fulfillmentOrder.assignments?.filter(a => a.role === 'WORKER').map(a => ({ ...a, role: 'worker' as const })) || []}
               warehouseId={fulfillmentOrder.warehouseId}
-              onAddAssignment={(userId, role) => {
-                addFulfillmentOrderAssignment(fulfillmentOrderId, userId, role, 'Current User');
-                setForceUpdate(prev => prev + 1);
+              onAddAssignment={async (userId, role) => {
+                try {
+                  await addAssignmentMutation.mutateAsync({
+                    fulfillmentOrderId,
+                    userId,
+                    role: role.toUpperCase() as FulfillmentAssignmentRole,
+                  });
+                } catch (error) {
+                  console.error('Failed to add assignment:', error);
+                }
               }}
-              onRemoveAssignment={(assignmentId, role) => {
-                removeFulfillmentOrderAssignment(fulfillmentOrderId, assignmentId, role);
-                setForceUpdate(prev => prev + 1);
+              onRemoveAssignment={async (assignmentId) => {
+                try {
+                  await removeAssignmentMutation.mutateAsync(assignmentId);
+                } catch (error) {
+                  console.error('Failed to remove assignment:', error);
+                }
               }}
               isEditable={!isShipped}
               showRequiredWarnings={!isReleased}
@@ -1137,15 +1711,15 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
 
             {/* Documents Section */}
             <DocumentsSection
-              documents={attachedDocuments}
-              onAddDocument={handleAddDocument}
-              onRemoveDocument={handleRemoveDocument}
+              fulfillmentOrderId={fulfillmentOrderId}
+              documents={fulfillmentOrder?.documents || []}
+              onDocumentsChange={() => refetchOrder()}
               isEditable={!isShipped}
             />
 
             {/* Activity Feed */}
             <ActivityFeed
-              activities={activities as GenericActivity[]}
+              activities={mappedActivities}
               onAddNote={handleAddActivityNote}
               getActivityIcon={getActivityIcon}
               getActivityTitle={getActivityTitle}
@@ -1234,13 +1808,74 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       <ShipmentConfirmationModal
         isOpen={showShipmentConfirmationModal}
         fulfillmentOrder={fulfillmentOrder}
-        attachedDocuments={attachedDocuments}
+        attachedDocuments={fulfillmentOrder?.documents || []}
         carrierType={carrierType}
         carrier={selectedCarrier}
         trackingNumbers={trackingNumbers}
         onClose={() => setShowShipmentConfirmationModal(false)}
         onSend={handleSendShipmentConfirmation}
       />
+
+      {/* Floating Save Bar - appears when there are unsaved changes */}
+      {hasUnsavedChanges && (
+        <div className="fixed bottom-0 left-0 right-0 bg-amber-50 border-t-2 border-amber-400 shadow-lg z-50 animate-in slide-in-from-bottom duration-300">
+          <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+              <span className="text-amber-800 font-medium text-sm">You have unsaved changes</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  // Reset form to original values
+                  if (fulfillmentOrder) {
+                    setWarehouseId(fulfillmentOrder.warehouseId || '');
+                    setShippingMethod(fulfillmentOrder.fulfillmentMethod || 'SHIP');
+                    setSelectedCarrier(fulfillmentOrder.carrierId || '');
+                    setCarrierType((fulfillmentOrder.carrierType?.toLowerCase() as 'parcel' | 'freight') || 'parcel');
+                    setFreightClass(fulfillmentOrder.freightClass || '');
+                    setNeedByDate(fulfillmentOrder.needByDate || '');
+                    setShipToName(fulfillmentOrder.shipToAddress?.name || '');
+                    setShipToAddressLine1(fulfillmentOrder.shipToAddress?.street || '');
+                    setShipToAddressLine2(fulfillmentOrder.shipToAddress?.streetLine2 || '');
+                    setShipToCity(fulfillmentOrder.shipToAddress?.city || '');
+                    setShipToState(fulfillmentOrder.shipToAddress?.state || '');
+                    setShipToPostalCode(fulfillmentOrder.shipToAddress?.postalCode || '');
+                    setShipToPhone(fulfillmentOrder.shipToAddress?.phone || '');
+                  }
+                }}
+                className="px-4 py-2 text-amber-700 hover:text-amber-900 font-medium text-sm transition-colors"
+              >
+                Discard
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={updateOrderMutation.isPending}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+              >
+                {updateOrderMutation.isPending ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" strokeLinecap="round" strokeLinejoin="round"/>
+                      <polyline points="17 21 17 13 7 13 7 21" strokeLinecap="round" strokeLinejoin="round"/>
+                      <polyline points="7 3 7 8 15 8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Save Changes
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

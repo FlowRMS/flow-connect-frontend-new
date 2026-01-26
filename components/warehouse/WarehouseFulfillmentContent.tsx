@@ -3,14 +3,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  mockFulfillmentOrders,
-  getFulfillmentOrderStats,
-  getWarehouseCustomers,
-} from '@/lib/data/warehouse-mock';
-import {
+  useFulfillmentOrders,
+  useFulfillmentStats,
+  useBulkAssignFulfillmentOrders,
+} from './api/useFulfillmentApi';
+import type {
   FulfillmentOrder,
   FulfillmentOrderStatus,
-} from '@/lib/types/warehouse';
+} from './api/fulfillmentApi';
 import { useWarehouse } from './WarehouseContext';
 
 // Statuses that workers can see (released and beyond, not pending)
@@ -51,7 +51,18 @@ export default function WarehouseFulfillmentContent() {
   const router = useRouter();
   const urlFilter = searchParams.get('filter') as StatFilter | null;
 
-  const [fulfillmentOrders] = useState<FulfillmentOrder[]>(mockFulfillmentOrders);
+  // // Fetch fulfillment orders from API
+  const { data: fulfillmentOrders = [], isLoading, error } = useFulfillmentOrders({
+    warehouseId: selectedWarehouse?.id,
+  });
+
+
+  // Fetch stats from API
+  const { data: stats } = useFulfillmentStats(selectedWarehouse?.id);
+
+  // Bulk assign mutation
+  const bulkAssignMutation = useBulkAssignFulfillmentOrders();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStatFilter, setActiveStatFilter] = useState<StatFilter>(urlFilter || 'all');
 
@@ -80,8 +91,6 @@ export default function WarehouseFulfillmentContent() {
     }
   }, [urlFilter]);
 
-  const stats = useMemo(() => getFulfillmentOrderStats(), []);
-  const customers = useMemo(() => getWarehouseCustomers(), []);
 
   const handleStatCardClick = (filter: StatFilter) => {
     setActiveStatFilter(prev => prev === filter ? 'all' : filter);
@@ -99,7 +108,7 @@ export default function WarehouseFulfillmentContent() {
 
   // Get unique values for filter dropdowns
   const uniqueCustomers = useMemo(() => {
-    return [...new Set(fulfillmentOrders.map(fo => fo.customerName))].sort();
+    return [...new Set(fulfillmentOrders.map(fo => fo.customer?.companyName).filter((name): name is string => !!name))].sort();
   }, [fulfillmentOrders]);
 
   const uniqueStatuses = useMemo(() => {
@@ -119,42 +128,42 @@ export default function WarehouseFulfillmentContent() {
       result = result.filter(fo => WORKER_VISIBLE_STATUSES.includes(fo.status));
     }
 
-    // Apply stat card filter
+    // Apply stat card filter - must match backend get_stats grouping
     if (activeStatFilter === 'pending') {
-      result = result.filter(fo => fo.status === 'PENDING' || fo.status === 'RELEASED');
+      result = result.filter(fo => fo.status === 'PENDING');
     } else if (activeStatFilter === 'in_progress') {
-      result = result.filter(fo => fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING');
+      result = result.filter(fo => fo.status === 'RELEASED' || fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING');
     } else if (activeStatFilter === 'completed') {
-      result = result.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED');
+      result = result.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED' || fo.status === 'COMMUNICATED');
     }
 
     // Apply search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(fo =>
-        fo.orderNumber.toLowerCase().includes(query) ||
+        (fo.order?.orderNumber || '').toLowerCase().includes(query) ||
         fo.fulfillmentOrderNumber.toLowerCase().includes(query) ||
-        fo.customerName.toLowerCase().includes(query) ||
-        fo.lineItems.some(li => li.productName.toLowerCase().includes(query) || li.partNumber.toLowerCase().includes(query))
+        (fo.customer?.companyName || '').toLowerCase().includes(query) ||
+        fo.lineItems.some(li => (li.product?.description || '').toLowerCase().includes(query) || (li.product?.factoryPartNumber || '').toLowerCase().includes(query))
       );
     }
 
     // Apply column filters
     if (columnFilters.orderNumber) {
       const query = columnFilters.orderNumber.toLowerCase();
-      result = result.filter(fo => fo.orderNumber.toLowerCase().includes(query));
+      result = result.filter(fo => (fo.order?.orderNumber || '').toLowerCase().includes(query));
     }
 
     if (columnFilters.customerName.length > 0) {
-      result = result.filter(fo => columnFilters.customerName.includes(fo.customerName));
+      result = result.filter(fo => columnFilters.customerName.includes(fo.customer?.companyName || ''));
     }
 
     if (columnFilters.productName) {
       const query = columnFilters.productName.toLowerCase();
       result = result.filter(fo =>
         fo.lineItems.some(li =>
-          li.productName.toLowerCase().includes(query) ||
-          li.partNumber.toLowerCase().includes(query)
+          (li.product?.description || '').toLowerCase().includes(query) ||
+          (li.product?.factoryPartNumber || '').toLowerCase().includes(query)
         )
       );
     }
@@ -182,14 +191,14 @@ export default function WarehouseFulfillmentContent() {
 
       switch (sortField) {
         case 'orderNumber':
-          comparison = a.orderNumber.localeCompare(b.orderNumber);
+          comparison = (a.order?.orderNumber || '').localeCompare(b.order?.orderNumber || '');
           break;
         case 'customerName':
-          comparison = a.customerName.localeCompare(b.customerName);
+          comparison = (a.customer?.companyName || '').localeCompare(b.customer?.companyName || '');
           break;
         case 'productName':
-          const aProductName = a.lineItems.length > 0 ? a.lineItems[0].productName : '';
-          const bProductName = b.lineItems.length > 0 ? b.lineItems[0].productName : '';
+          const aProductName = a.lineItems.length > 0 ? (a.lineItems[0].product?.description || a.lineItems[0].product?.factoryPartNumber || '') : '';
+          const bProductName = b.lineItems.length > 0 ? (b.lineItems[0].product?.description || b.lineItems[0].product?.factoryPartNumber || '') : '';
           comparison = aProductName.localeCompare(bProductName);
           break;
         case 'qty':
@@ -220,12 +229,18 @@ export default function WarehouseFulfillmentContent() {
     }
   };
 
-  const handleBulkAssignSubmit = (workerId: string, workerName: string, managerId?: string, managerName?: string, dueDate?: string) => {
-    // In a real app, this would update the orders in the backend
-    console.log('Assigning orders:', selectedOrderIds, 'worker:', workerName, 'manager:', managerName, 'due:', dueDate);
-    // For now, just close modal and clear selection
-    setShowBulkAssignModal(false);
-    setSelectedOrderIds([]);
+  const handleBulkAssignSubmit = async (workerId: string, workerName: string, managerId?: string, managerName?: string, dueDate?: string) => {
+    try {
+      await bulkAssignMutation.mutateAsync({
+        fulfillmentOrderIds: selectedOrderIds,
+        workerIds: workerId ? [workerId] : undefined,
+        managerIds: managerId ? [managerId] : undefined,
+      });
+      setShowBulkAssignModal(false);
+      setSelectedOrderIds([]);
+    } catch (error) {
+      console.error('Failed to assign orders:', error);
+    }
   };
 
   const handleClearSelection = () => {
@@ -237,13 +252,36 @@ export default function WarehouseFulfillmentContent() {
     return fulfillmentOrders.filter(fo => selectedOrderIds.includes(fo.id));
   }, [fulfillmentOrders, selectedOrderIds]);
 
-  // Calculate pending/in progress stats from our data (filtered by worker view if applicable)
+  // Calculate stats - prefer API stats if available, otherwise calculate from data
+  // Must match backend get_stats grouping: pending=PENDING, in_progress=RELEASED+PICKING+PACKING+SHIPPING, completed=SHIPPED+DELIVERED+COMMUNICATED
   const baseOrders = isWorkerView
     ? fulfillmentOrders.filter(fo => WORKER_VISIBLE_STATUSES.includes(fo.status))
     : fulfillmentOrders;
-  const pendingCount = baseOrders.filter(fo => fo.status === 'PENDING' || fo.status === 'RELEASED').length;
-  const inProgressCount = baseOrders.filter(fo => fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING').length;
-  const completedCount = baseOrders.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED').length;
+  const pendingCount = stats?.pendingCount ?? baseOrders.filter(fo => fo.status === 'PENDING').length;
+  const inProgressCount = stats?.inProgressCount ?? baseOrders.filter(fo => fo.status === 'RELEASED' || fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING').length;
+  const completedCount = stats?.completedCount ?? baseOrders.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED' || fo.status === 'COMMUNICATED').length;
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <main className="flex-1 bg-[var(--background)] overflow-auto">
+        <div className="p-6 flex items-center justify-center h-64">
+          <div className="text-muted-foreground">Loading fulfillment orders...</div>
+        </div>
+      </main>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <main className="flex-1 bg-[var(--background)] overflow-auto">
+        <div className="p-6 flex items-center justify-center h-64">
+          <div className="text-destructive">Error loading fulfillment orders: {error.message}</div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 bg-[var(--background)] overflow-auto">

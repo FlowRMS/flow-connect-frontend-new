@@ -42,6 +42,7 @@ type PendingDocument = {
   cluster?: {
     id: string;
     clusterName: string;
+    additionalInstructions?: string[];
   } | null;
 };
 
@@ -91,6 +92,7 @@ export type PendingReviewState = {
   // Pages with markdown content
   pages: Array<{ markdownContent?: string }>;
   activeTemplateName: string | null;
+  activeTemplateHasInstructions: boolean;
 };
 
 const EMPTY_PRIMARY: PrimaryField[] = buildPrimary({});
@@ -242,6 +244,7 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
     dataSets: [],
     pages: [],
     activeTemplateName: null,
+    activeTemplateHasInstructions: false,
   });
 
   const [instructionVariables, setInstructionVariables] = useState<{
@@ -567,6 +570,7 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
         dataSets,
         pages: pending.pages ?? [],
         activeTemplateName: pending.cluster?.clusterName ?? null,
+        activeTemplateHasInstructions: (pending.cluster?.additionalInstructions?.length ?? 0) > 0,
       }));
 
       console.log('✅ State updated:', {
@@ -650,6 +654,7 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
           convertedDocumentUrl,
           documentLabel: pending.sourceName ?? null,
           activeTemplateName: pending.cluster?.clusterName ?? null,
+          activeTemplateHasInstructions: (pending.cluster?.additionalInstructions?.length ?? 0) > 0,
           entityType,
           primary,
           other,
@@ -820,6 +825,7 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
           activeDataSetIndex,
           dataSets,
           activeTemplateName: pending.cluster?.clusterName ?? null,
+          activeTemplateHasInstructions: (pending.cluster?.additionalInstructions?.length ?? 0) > 0,
         }));
         
         // Then reload corrections

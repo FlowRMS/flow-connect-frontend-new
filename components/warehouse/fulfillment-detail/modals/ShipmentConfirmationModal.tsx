@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { FulfillmentOrder, AttachedDocument } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '../../api/fulfillmentApi';
+import { FulfillmentDocument } from '../../api/fulfillmentApi';
+import { useShippingCarriersByType } from '@/components/warehouse/settings/api/useShippingCarriersApi';
 
 interface ShipmentConfirmationModalProps {
   isOpen: boolean;
   fulfillmentOrder: FulfillmentOrder;
-  attachedDocuments: AttachedDocument[];
+  attachedDocuments: FulfillmentDocument[];
   carrierType: 'parcel' | 'freight';
   carrier: string;
   trackingNumbers: string;
@@ -110,25 +112,52 @@ export default function ShipmentConfirmationModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Fetch carriers to look up names
+  const carrierTypeForQuery = carrierType === 'parcel' ? 'PARCEL' : 'FREIGHT';
+  const { data: carriers = [] } = useShippingCarriersByType(carrierTypeForQuery, true);
+
+  // Check if string is a UUID
+  const isUUID = (str: string) => {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  };
+
+  // Format carrier name for display
+  const formatCarrier = (carrierValue: string | undefined | null) => {
+    if (!carrierValue) return 'N/A';
+    // If it's a UUID, look up the carrier name
+    if (isUUID(carrierValue)) {
+      const foundCarrier = carriers.find(c => c.id === carrierValue);
+      if (foundCarrier) {
+        return foundCarrier.name + (foundCarrier.code ? ` (${foundCarrier.code})` : '');
+      }
+      return 'Carrier Selected';
+    }
+    return carrierValue.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  // Get formatted carrier name
+  const carrierDisplayName = formatCarrier(carrier);
+
   // Get BOL document if exists
   const bolDocument = attachedDocuments.find(d =>
-    d.type === 'BILL_OF_LADING' || d.name.toLowerCase().includes('bill of lading') || d.name.toLowerCase().includes('bol')
+    d.documentType === 'BILL_OF_LADING' || d.fileName?.toLowerCase().includes('bill of lading') || d.fileName?.toLowerCase().includes('bol')
   );
 
   // Variable definitions for this shipment
+  const shipTo = fulfillmentOrder.shipTo;
   const variables: Record<string, string> = {
-    orderNumber: fulfillmentOrder.orderNumber,
-    customerName: fulfillmentOrder.shipTo.name,
+    orderNumber: fulfillmentOrder.order?.orderNumber || '-',
+    customerName: shipTo?.name || fulfillmentOrder.customer?.companyName || 'N/A',
     trackingInfo: trackingNumbers
-      ? `Tracking Number(s): ${trackingNumbers}\nCarrier: ${carrier ? carrier.toUpperCase().replace('_', ' ') : 'N/A'}`
+      ? `Tracking Number(s): ${trackingNumbers}\nCarrier: ${carrierDisplayName}`
       : 'Tracking information will be provided once available.',
-    shippingAddress: [
-      fulfillmentOrder.shipTo.addressLine1,
-      fulfillmentOrder.shipTo.addressLine2,
-      `${fulfillmentOrder.shipTo.city}, ${fulfillmentOrder.shipTo.state} ${fulfillmentOrder.shipTo.postalCode}`,
-    ].filter(Boolean).join('\n'),
+    shippingAddress: shipTo ? [
+      shipTo.addressLine1,
+      shipTo.addressLine2,
+      `${shipTo.city || ''}, ${shipTo.state || ''} ${shipTo.postalCode || ''}`.trim(),
+    ].filter(Boolean).join('\n') : 'No shipping address provided',
     orderItems: fulfillmentOrder.lineItems.map(item =>
-      `• ${item.productName} (${item.partNumber}) x ${item.allocatedQty}`
+      `• ${item.product?.description || item.product?.factoryPartNumber || '-'} (${item.product?.factoryPartNumber || '-'}) x ${Math.round(Number(item.allocatedQty))}`
     ).join('\n'),
     warehouseAddress: 'Atlanta Distribution Center\n1234 Industrial Parkway\nAtlanta, GA 30301',
   };
@@ -145,7 +174,7 @@ export default function ShipmentConfirmationModal({
   // Initialize form when modal opens
   useEffect(() => {
     if (isOpen) {
-      setToEmail(fulfillmentOrder.shipTo.contactEmail || '');
+      setToEmail(fulfillmentOrder.shipTo?.contactEmail || '');
 
       // Select appropriate default template
       const defaultTemplate = carrierType === 'freight' ? 'freight' : 'standard';
@@ -183,26 +212,25 @@ export default function ShipmentConfirmationModal({
     setIsGenerating(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    const carrierName = carrier ? carrier.toUpperCase().replace('_', ' ') : 'our carrier partner';
     const deliveryEstimate = carrierType === 'freight' ? '3-5 business days' : '2-3 business days';
 
     setBody(
-`Dear ${fulfillmentOrder.shipTo.name},
+`Dear ${fulfillmentOrder.shipTo?.name || fulfillmentOrder.customer?.companyName || 'Valued Customer'},
 
-Great news! Your order ${fulfillmentOrder.orderNumber} has been shipped via ${carrierName} and is currently en route to your location.
+Great news! Your order ${fulfillmentOrder.order?.orderNumber || '-'} has been shipped via ${carrierDisplayName} and is currently en route to your location.
 
 ${trackingNumbers ? `You can track your shipment using the following information:
 Tracking Number(s): ${trackingNumbers}
-Carrier: ${carrierName}
+Carrier: ${carrierDisplayName}
 Estimated Delivery: ${deliveryEstimate}` : `Estimated Delivery: ${deliveryEstimate}`}
 
 Delivery Address:
-${fulfillmentOrder.shipTo.addressLine1}${fulfillmentOrder.shipTo.addressLine2 ? `\n${fulfillmentOrder.shipTo.addressLine2}` : ''}
-${fulfillmentOrder.shipTo.city}, ${fulfillmentOrder.shipTo.state} ${fulfillmentOrder.shipTo.postalCode}
+${fulfillmentOrder.shipTo?.addressLine1 || 'N/A'}${fulfillmentOrder.shipTo?.addressLine2 ? `\n${fulfillmentOrder.shipTo.addressLine2}` : ''}
+${fulfillmentOrder.shipTo?.city || ''}, ${fulfillmentOrder.shipTo?.state || ''} ${fulfillmentOrder.shipTo?.postalCode || ''}
 
 Items Shipped:
 ${fulfillmentOrder.lineItems.map(item =>
-  `• ${item.productName} (Part #${item.partNumber}) - Qty: ${item.allocatedQty}`
+  `• ${item.product?.description || item.product?.factoryPartNumber || '-'} (Part #${item.product?.factoryPartNumber || '-'}) - Qty: ${Math.round(Number(item.allocatedQty))}`
 ).join('\n')}
 
 ${carrierType === 'freight' ? `Please note: This is a freight shipment. You will be contacted by the carrier to schedule a delivery appointment. Please ensure someone is available to receive and sign for the delivery.\n` : ''}${bolDocument ? '\nWe have attached the Bill of Lading for your records.' : ''}
@@ -326,7 +354,7 @@ The Warehouse Team`
             <div>
               <h2 className="text-lg font-semibold text-[var(--foreground)]">Send Shipment Confirmation</h2>
               <p className="text-sm text-[var(--muted-foreground)]">
-                Order {fulfillmentOrder.orderNumber} - {fulfillmentOrder.shipTo.name}
+                Order {fulfillmentOrder.order?.orderNumber || '-'} - {fulfillmentOrder.shipTo?.name || fulfillmentOrder.customer?.companyName || 'Customer'}
               </p>
             </div>
           </div>
@@ -556,7 +584,7 @@ The Warehouse Team`
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-[var(--muted-foreground)]">Carrier:</span>
-                    <span className="font-medium capitalize">{carrier?.replace('_', ' ') || '-'}</span>
+                    <span className="font-medium">{carrierDisplayName}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[var(--muted-foreground)]">Type:</span>
@@ -610,9 +638,9 @@ The Warehouse Team`
                             className="w-4 h-4 rounded border-[var(--border)] text-green-600 focus:ring-green-500"
                           />
                           <div className={`w-7 h-7 rounded flex items-center justify-center flex-shrink-0 ${
-                            doc.type === 'BILL_OF_LADING' ? 'bg-amber-100 text-amber-600' :
-                            doc.type === 'PACKING_SLIP' ? 'bg-blue-100 text-blue-600' :
-                            doc.type === 'SHIPPING_LABEL' ? 'bg-green-100 text-green-600' :
+                            doc.documentType === 'BILL_OF_LADING' ? 'bg-amber-100 text-amber-600' :
+                            doc.documentType === 'PACKING_SLIP' ? 'bg-blue-100 text-blue-600' :
+                            doc.documentType === 'SHIPPING_LABEL' ? 'bg-green-100 text-green-600' :
                             'bg-gray-100 text-gray-600'
                           }`}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -621,8 +649,8 @@ The Warehouse Team`
                             </svg>
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-[var(--foreground)] truncate">{doc.name}</p>
-                            <p className="text-xs text-[var(--muted-foreground)]">{doc.type.replace('_', ' ')}</p>
+                            <p className="text-xs font-medium text-[var(--foreground)] truncate">{doc.fileName}</p>
+                            <p className="text-xs text-[var(--muted-foreground)]">{doc.documentType.replace('_', ' ')}</p>
                           </div>
                         </label>
                       ))}
@@ -699,11 +727,11 @@ The Warehouse Team`
               <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
                 <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">Ship To</h3>
                 <div className="text-sm text-[var(--muted-foreground)]">
-                  <p className="font-medium text-[var(--foreground)]">{fulfillmentOrder.shipTo.name}</p>
-                  <p>{fulfillmentOrder.shipTo.addressLine1}</p>
-                  {fulfillmentOrder.shipTo.addressLine2 && <p>{fulfillmentOrder.shipTo.addressLine2}</p>}
-                  <p>{fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state} {fulfillmentOrder.shipTo.postalCode}</p>
-                  {fulfillmentOrder.shipTo.contactPhone && (
+                  <p className="font-medium text-[var(--foreground)]">{fulfillmentOrder.shipTo?.name || fulfillmentOrder.customer?.companyName || 'N/A'}</p>
+                  <p>{fulfillmentOrder.shipTo?.addressLine1 || 'N/A'}</p>
+                  {fulfillmentOrder.shipTo?.addressLine2 && <p>{fulfillmentOrder.shipTo.addressLine2}</p>}
+                  <p>{fulfillmentOrder.shipTo?.city || ''}, {fulfillmentOrder.shipTo?.state || ''} {fulfillmentOrder.shipTo?.postalCode || ''}</p>
+                  {fulfillmentOrder.shipTo?.contactPhone && (
                     <p className="mt-1">{fulfillmentOrder.shipTo.contactPhone}</p>
                   )}
                 </div>

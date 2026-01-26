@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { FulfillmentOrderStatus, fulfillmentOrderStatusLabels } from '@/lib/types/warehouse';
+import { FulfillmentOrderStatus } from '../api/fulfillmentApi';
+import { fulfillmentOrderStatusLabels } from '@/lib/types/warehouse';
 
 const statusSteps: FulfillmentOrderStatus[] = ['PENDING', 'RELEASED', 'PICKING', 'PACKING', 'SHIPPING', 'SHIPPED', 'COMMUNICATED'];
 

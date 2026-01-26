@@ -5,12 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import WarehouseLayoutModal from '../layout/WarehouseLayoutModal';
 import WarehouseQRCodesModal from '../qr-codes/WarehouseQRCodesModal';
 import { useWarehouseSettings, useShippingCarriers, useContainerTypes } from './hooks';
-import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList, ContainerTypesList } from './components';
-import ManufacturerProfilesContent from '../ManufacturerProfilesContent';
+import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList, ContainerTypesList, SavingOverlay } from './components';
 import { NewWarehouseModal, AddWorkerModal } from './modals';
 import type { SettingsTab } from './types';
 
-const ALL_TAB_IDS: SettingsTab[] = ['warehouses', 'shipping-carriers', 'containers', 'manufacturer-profiles'];
+const ALL_TAB_IDS: SettingsTab[] = ['warehouses', 'shipping-carriers', 'containers'];
 
 export default function WarehouseSettingsContent() {
   const router = useRouter();
@@ -80,7 +79,10 @@ export default function WarehouseSettingsContent() {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6 relative">
+      {/* Saving Overlay */}
+      <SavingOverlay isVisible={isSaving} message="Saving warehouse settings..." />
+
       {/* Header with breadcrumbs, title, and actions */}
       <WarehouseSettingsHeader
         activeTab={activeTab}
@@ -104,10 +106,12 @@ export default function WarehouseSettingsContent() {
           setShowAddWorkerModal={warehouseSettings.setShowAddWorkerModal}
           setShowLayoutModal={warehouseSettings.setShowLayoutModal}
           setShowQRCodesModal={warehouseSettings.setShowQRCodesModal}
+          onDeleteWarehouse={warehouseSettings.handleDeleteWarehouse}
           getWorkerById={warehouseSettings.getWorkerById}
           hasChanges={hasChanges}
           isSaving={isSaving}
           onSave={handleSave}
+          isLoadingDetails={warehouseSettings.isLoadingAddresses}
         />
       )}
 
@@ -149,11 +153,6 @@ export default function WarehouseSettingsContent() {
           onDragOver={containerSettings.handleDragOver}
           onDragEnd={containerSettings.endDrag}
         />
-      )}
-
-      {/* Manufacturer Profiles Tab Content */}
-      {activeTab === 'manufacturer-profiles' && (
-        <ManufacturerProfilesContent />
       )}
 
       {/* Modals */}

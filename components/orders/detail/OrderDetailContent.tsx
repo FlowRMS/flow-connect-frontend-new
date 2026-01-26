@@ -44,6 +44,7 @@ import { useCreditsState } from './hooks/useCreditsState';
 import { useAdjustmentsState } from './hooks/useAdjustmentsState';
 import { useAcknowledgementsState } from './hooks/useAcknowledgementsState';
 import { useInvoicesState } from './hooks/useInvoicesState';
+import { useEntityFilesCount } from '@/components/shared/hooks/useEntityFilesCount';
 import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipStatus } from './utils';
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
 import { orderToasts } from '@/components/lib/toast';
@@ -75,6 +76,13 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   // Invoices state management
   const invoicesState = useInvoicesState({
     orderId: orderId !== 'new' ? orderId : null,
+  });
+
+  // Files count for tab badge
+  const { filesCount } = useEntityFilesCount({
+    entityId: orderId !== 'new' ? orderId : null,
+    entityType: 'ORDER',
+    enabled: !state.isCreateMode, // Only fetch when not in create mode
   });
 
   // Create Invoice from Order modal state
@@ -615,6 +623,21 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     state.openWarehouseConversionModal('selected');
   };
 
+  const handleGenerateFulfillmentRequest = () => {
+    const selectedItems = order.lineItems
+      .filter((li) => state.selectedLineItems.has(li.id))
+      .filter((li) => li.productId)
+      .map((li) => ({
+        id: li.id,
+        partNumber: li.partNumber || '',
+        quantity: li.quantity,
+        hasExistingRequest: !!li.fulfillmentRequestNumber,
+        productId: li.productId!,
+        orderDetailId: li.id,
+      }));
+    state.openFulfillmentRequestModal('selected', selectedItems);
+  };
+
   const handleAddCredit = () => {
     creditsState.openCreateCreditModal();
   };
@@ -759,7 +782,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           <div className="flex gap-1">
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
-              { id: 'files', label: 'Files', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'files', label: 'Files', disabled: isCreateMode, disabledReason: 'Save order first', count: filesCount },
               { id: 'invoices', label: 'Invoices', disabled: isCreateMode, disabledReason: 'Save order first', count: invoicesState.invoices.length },
               { id: 'credits', label: 'Credits', disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'adjustments', label: 'Adjustments', hidden: true }, // Hidden - adjustments now has its own page in sidebar
@@ -876,6 +899,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onSetEndUser={handleSetEndUser}
               onSetOutsideRepSplits={handleSetOutsideRepSplits}
               onConvertToWarehouse={handleConvertToWarehouse}
+              onGenerateFulfillmentRequest={handleGenerateFulfillmentRequest}
               onAddCredit={handleAddCredit}
               onAddAcknowledgement={handleAddAcknowledgement}
               onDeleteLines={handleDeleteLines}
@@ -1100,10 +1124,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onClose={state.closeFulfillmentRequestModal}
         mode={state.fulfillmentRequestMode}
         lineItems={state.lineItemsForFulfillment}
-        onConfirm={() => {
-          alert('Fulfillment request generated');
-          state.closeFulfillmentRequestModal();
-        }}
+        onConfirm={(warehouseId: string) => state.saveFulfillmentRequest(warehouseId)}
+        isSubmitting={state.isCreatingFulfillment}
       />
 
       {/* Additional Details Modal (3-dots menu) */}

@@ -17,6 +17,7 @@ import type {
   RelatedEntityTask,
   RelatedEntityNote,
   RelatedEntityJob,
+  RelatedEntityCustomer,
 } from '../lib/crm-graphql';
 import type { FileResponse } from '../lib/graphql/files';
 import { formatFileSize } from '../lib/graphql/files';
@@ -44,6 +45,7 @@ interface TableEntity {
 interface ConnectedEntitiesTableViewProps {
   contacts: RelatedEntityContact[];
   companies: RelatedEntityCompany[];
+  customers: RelatedEntityCustomer[];
   preOpportunities: RelatedEntityPreOpportunity[];
   quotes: RelatedEntityQuote[];
   orders: RelatedEntityOrder[];
@@ -87,6 +89,7 @@ function getTypeColor(type: EntityCategory): string {
   const colors: Record<EntityCategory, string> = {
     contacts: 'bg-blue-500',
     companies: 'bg-emerald-500',
+    customers: 'bg-violet-500',
     'pre-opportunities': 'bg-sky-500',
     quotes: 'bg-indigo-500',
     orders: 'bg-cyan-500',
@@ -104,6 +107,7 @@ function getTypeLabel(type: EntityCategory): string {
   const labels: Record<EntityCategory, string> = {
     contacts: 'Contact',
     companies: 'Company',
+    customers: 'Customer',
     'pre-opportunities': 'Pre-Opp',
     quotes: 'Quote',
     orders: 'Order',
@@ -131,6 +135,15 @@ function getTypeIcon(type: EntityCategory): React.ReactNode {
       return (
         <svg {...iconProps}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      );
+    case 'customers':
+      return (
+        <svg {...iconProps}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       );
     case 'pre-opportunities':
@@ -208,6 +221,7 @@ function getTypeIcon(type: EntityCategory): React.ReactNode {
 export function ConnectedEntitiesTableView({
   contacts,
   companies,
+  customers,
   preOpportunities,
   quotes,
   orders,
@@ -261,6 +275,23 @@ export function ConnectedEntitiesTableView({
           statusColor: company.companySourceType === 'MANUFACTURER' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700',
           secondaryInfo: company.phone || company.website,
           rawEntity: company,
+        });
+      });
+    }
+
+    // Customers
+    if (visibleCategories.includes('customers')) {
+      customers.forEach(customer => {
+        entities.push({
+          id: customer.id,
+          type: 'customers',
+          linkType: 'CUSTOMER',
+          hoverCardType: 'customer',
+          name: customer.companyName || 'Unnamed Customer',
+          subtext: customer.isParent ? 'Parent' : undefined,
+          status: customer.isParent ? 'Parent' : undefined,
+          statusColor: customer.isParent ? 'bg-violet-100 text-violet-700' : undefined,
+          rawEntity: customer,
         });
       });
     }
