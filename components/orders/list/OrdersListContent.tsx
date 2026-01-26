@@ -7,7 +7,7 @@
 
 'use client';
 
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
@@ -60,6 +60,21 @@ export default function OrdersListContent() {
       direction: orderBy.direction,
     }));
   }, [state.serverOrderBy]);
+
+  // Handler for column sort click - only allows one sort at a time (replaces previous)
+  const handleColumnSort = useCallback((columnName: string) => {
+    // Check if this column is already the active sort
+    const currentSort = activeSorts.find(s => s.columnName === columnName);
+    
+    if (currentSort) {
+      // Column is already sorted - toggle direction (replace with new direction)
+      const newDirection = currentSort.direction === 'ASC' ? 'DESC' : 'ASC';
+      state.handleMultiSortChange([{ columnName, direction: newDirection }]);
+    } else {
+      // Replace all sorts with this new one - default to ASC
+      state.handleMultiSortChange([{ columnName, direction: 'ASC' }]);
+    }
+  }, [activeSorts, state.handleMultiSortChange]);
 
   // Determine if we're loading (only initial load, not when fetching more pages)
   const isLoading = state.isLoading;
@@ -244,6 +259,9 @@ export default function OrdersListContent() {
             isFetchingNextPage={state.isFetchingNextPage}
             fetchNextPage={state.fetchNextPage}
             searchQuery={state.searchQuery}
+            activeSorts={activeSorts}
+            onSortChange={handleColumnSort}
+            isFetching={state.isFetching}
           />
 
           {/* Empty State - shown outside table when no data */}

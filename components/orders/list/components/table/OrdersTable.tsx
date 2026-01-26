@@ -44,6 +44,10 @@ interface OrdersTableProps {
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
   searchQuery?: string;
+  // Sorting props
+  activeSorts?: Array<{ columnName: string; direction: 'ASC' | 'DESC' }>;
+  onSortChange?: (columnName: string) => void;
+  isFetching?: boolean;
 }
 
 export function OrdersTable({
@@ -67,6 +71,9 @@ export function OrdersTable({
   isFetchingNextPage,
   fetchNextPage,
   searchQuery = '',
+  activeSorts = [],
+  onSortChange,
+  isFetching = false,
 }: OrdersTableProps) {
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -112,6 +119,9 @@ export function OrdersTable({
                 onColumnFiltersChange={onColumnFiltersChange}
                 filterOptions={filterOptions}
                 columnFilters={columnFilters}
+                activeSorts={activeSorts}
+                onSortChange={onSortChange}
+                isFetching={isFetching}
               />
               <tbody className="divide-y divide-gray-200">
                 {isLoading ? (
