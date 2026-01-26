@@ -1383,6 +1383,23 @@ function AddUserModalNew({ onClose }: { onClose: () => void }) {
             </label>
             <span className="text-sm text-[var(--foreground)]">Visible</span>
           </div>
+
+          {/* Info box */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
+            <div className="flex gap-2">
+              <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="text-sm text-blue-800">
+                <p className="font-medium mb-1">Field Explanations:</p>
+                <ul className="space-y-1 text-xs">
+                  <li><strong>Role:</strong> Determines system permissions. Outside/Inside Rep are for sales team members.</li>
+                  <li><strong>Active:</strong> User can log in and access the system.</li>
+                  <li><strong>Visible:</strong> User appears in rep dropdowns when assigning to quotes, orders, etc.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3 bg-gray-50">
@@ -1583,6 +1600,23 @@ function EditUserModalNew({ user, onClose }: { user: User; onClose: () => void }
             </label>
             <span className="text-sm text-[var(--foreground)]">Visible</span>
           </div>
+
+          {/* Info box */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
+            <div className="flex gap-2">
+              <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="text-sm text-blue-800">
+                <p className="font-medium mb-1">Field Explanations:</p>
+                <ul className="space-y-1 text-xs">
+                  <li><strong>Role:</strong> Determines system permissions. Outside/Inside Rep are for sales team members.</li>
+                  <li><strong>Active:</strong> User can log in and access the system.</li>
+                  <li><strong>Visible:</strong> User appears in rep dropdowns when assigning to quotes, orders, etc.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3 bg-gray-50">
@@ -1728,7 +1762,7 @@ function PermissionModal({
             value === 'own' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--foreground)]'
           }`}
         >
-          Only Their Own
+          Only Assigned
         </button>
         <button
           onClick={() => onChange('none')}

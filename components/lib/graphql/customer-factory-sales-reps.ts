@@ -62,12 +62,24 @@ export interface CustomerFactorySalesRep {
   user?: CustomerFactorySalesRepUser;
 }
 
+export interface SplitInput {
+  userId: string;
+  rate: string;
+  position: number;
+}
+
 export interface CustomerFactorySalesRepInput {
   customerId: string;
   factoryId: string;
   userId: string;
   rate: string;
   position: number;
+}
+
+export interface CreateCustomerFactorySalesRepsInput {
+  customerId: string;
+  factoryId: string;
+  splits: SplitInput[];
 }
 
 export interface UpdateCustomerFactorySalesRepInput extends CustomerFactorySalesRepInput {
@@ -216,6 +228,60 @@ const CREATE_CUSTOMER_FACTORY_SALES_REP = `
   }
 `;
 
+const CREATE_CUSTOMER_FACTORY_SALES_REPS = `
+  mutation CreateCustomerFactorySalesReps($input: CustomerFactorySalesRepBulkInput!) {
+    createCustomerFactorySalesReps(input: $input) {
+      id
+      customerId
+      factoryId
+      userId
+      rate
+      position
+      customer {
+        id
+        companyName
+        isParent
+        parentId
+        buyingGroupId
+        published
+        territoryId
+      }
+      factory {
+        id
+        title
+        accountNumber
+        additionalInformation
+        baseCommissionRate
+        commissionDiscountRate
+        email
+        externalPaymentTerms
+        freightDiscountType
+        freightTerms
+        leadTime
+        logoId
+        overallDiscountRate
+        paymentTerms
+        phone
+        published
+      }
+      user {
+        id
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        inside
+        lastName
+        outside
+        role
+        username
+        visible
+      }
+    }
+  }
+`;
+
 const UPDATE_CUSTOMER_FACTORY_SALES_REP = `
   mutation UpdateCustomerFactorySalesRep($id: UUID!, $input: CustomerFactorySalesRepInput!) {
     updateCustomerFactorySalesRep(id: $id, input: $input) {
@@ -305,7 +371,8 @@ export async function getCustomerFactorySalesRep(id: string): Promise<CustomerFa
 }
 
 /**
- * Create a new customer factory sales rep
+ * Create a new customer factory sales rep (single)
+ * @deprecated Use createCustomerFactorySalesReps for new code
  */
 export async function createCustomerFactorySalesRep(
   input: CustomerFactorySalesRepInput
@@ -326,6 +393,31 @@ export async function createCustomerFactorySalesRep(
   }
 
   return response.data.createCustomerFactorySalesRep;
+}
+
+/**
+ * Create customer factory sales reps with splits
+ * Supports multiple reps per customer-factory pair
+ */
+export async function createCustomerFactorySalesReps(
+  input: CreateCustomerFactorySalesRepsInput
+): Promise<CustomerFactorySalesRep[]> {
+  const response = await crmGraphQLRequest<{
+    createCustomerFactorySalesReps: CustomerFactorySalesRep[];
+  }>({
+    query: CREATE_CUSTOMER_FACTORY_SALES_REPS,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create customer factory sales reps');
+  }
+
+  if (!response.data?.createCustomerFactorySalesReps) {
+    throw new Error('No data returned from create operation');
+  }
+
+  return response.data.createCustomerFactorySalesReps;
 }
 
 /**

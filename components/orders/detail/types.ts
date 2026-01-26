@@ -108,6 +108,8 @@ export interface LineItemForFulfillment {
   partNumber: string;
   quantity: number;
   hasExistingRequest: boolean;
+  productId: string;
+  orderDetailId: string;
 }
 
 // Invoice tooltip state

@@ -631,13 +631,15 @@ export function getChangeStats(data: CsvRowWithChanges[]): {
  */
 export function generateCsvChanges(
   beforeData: unknown[][] | null,
-  afterData: unknown[][] | null
+  afterData: unknown[][] | null,
+  instruction?: string | null
 ): Array<{
   id: string;
   action: string;
   createdAt: string;
   before: unknown;
   after: unknown;
+  reasoning?: string | null;
 }> {
   if (!beforeData || !afterData || beforeData.length === 0 || afterData.length === 0) {
     return [];
@@ -660,6 +662,7 @@ export function generateCsvChanges(
     createdAt: string;
     before: unknown;
     after: unknown;
+    reasoning?: string | null;
   }> = [];
 
   const now = new Date().toISOString();
@@ -804,6 +807,7 @@ export function generateCsvChanges(
             field: cellChange.field,
             value: cellChange.after,
           },
+          reasoning: instruction || `Value changed from "${cellChange.before}" to "${cellChange.after}" in column "${cellChange.field}"`,
         });
       });
     } else {
@@ -833,6 +837,7 @@ export function generateCsvChanges(
           row: afterIndex + 2,
           data: obj,
         },
+        reasoning: instruction || `New row added to the data`,
       });
     }
   });
@@ -864,6 +869,7 @@ export function generateCsvChanges(
         data: obj,
       },
       after: null,
+      reasoning: instruction || `Row removed from the data`,
     });
   });
 

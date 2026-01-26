@@ -1,13 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { AssignedUser, AssignedUserRole } from '@/lib/types/warehouse';
-import { WarehouseUser, getWarehouseManagers, getWarehouseWorkers } from '@/lib/data/warehouse-mock';
+import { useUsersByIds, useWarehouseMembers } from '@/components/warehouse/api/useWarehouseDeliveriesApi';
+
+type WarehouseUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: AssignedUserRole;
+  warehouseIds: string[];
+  isActive: boolean;
+};
 
 interface AssignmentPanelProps {
   assignedManagers: AssignedUser[];
   assignedWorkers: AssignedUser[];
   warehouseId?: string;
+  availableManagers?: WarehouseUser[];
+  availableWorkers?: WarehouseUser[];
   onAddAssignment: (userId: string, role: AssignedUserRole) => void;
   onRemoveAssignment: (assignmentId: string, role: AssignedUserRole) => void;
   isEditable?: boolean;
@@ -18,6 +29,8 @@ export default function AssignmentPanel({
   assignedManagers,
   assignedWorkers,
   warehouseId,
+  availableManagers,
+  availableWorkers,
   onAddAssignment,
   onRemoveAssignment,
   isEditable = true,
@@ -25,70 +38,226 @@ export default function AssignmentPanel({
 }: AssignmentPanelProps) {
   const [showManagerDropdown, setShowManagerDropdown] = useState(false);
   const [showWorkerDropdown, setShowWorkerDropdown] = useState(false);
+  const managerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const workerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [workerDropdownStyle, setWorkerDropdownStyle] = useState<React.CSSProperties>({});
+  const [managerDropdownStyle, setManagerDropdownStyle] = useState<React.CSSProperties>({});
 
-  const availableManagers = getWarehouseManagers(warehouseId).filter(
-    m => !assignedManagers.some(am => am.userId === m.id)
+  const membersQuery = useWarehouseMembers(warehouseId || null, !availableManagers && !availableWorkers);
+  const memberIds = useMemo(() => {
+    if (!membersQuery.data) return [];
+    const ids = new Set<string>();
+    membersQuery.data.forEach((member) => ids.add(member.userId));
+    return Array.from(ids);
+  }, [membersQuery.data]);
+  const usersQuery = useUsersByIds(memberIds);
+
+  // Track loading state from both queries
+  const isLoading = membersQuery.isLoading || usersQuery.isLoading;
+
+  useEffect(() => {
+    if (!isEditable) {
+      setShowManagerDropdown(false);
+      setShowWorkerDropdown(false);
+    }
+  }, [isEditable]);
+
+  const calculateDropdownPosition = (buttonRef: React.RefObject<HTMLButtonElement | null>) => {
+    if (!buttonRef.current) return {};
+
+    const rect = buttonRef.current.getBoundingClientRect();
+    const dropdownHeight = 224;
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+
+    return {
+      position: 'fixed' as const,
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.min(dropdownHeight, showAbove ? spaceAbove - 8 : spaceBelow - 8),
+      ...(showAbove
+        ? { bottom: viewportHeight - rect.top + 8 }
+        : { top: rect.bottom + 8 }
+      ),
+    };
+  };
+
+  useEffect(() => {
+    if (showWorkerDropdown) {
+      setWorkerDropdownStyle(calculateDropdownPosition(workerButtonRef));
+    }
+  }, [showWorkerDropdown]);
+
+  useEffect(() => {
+    if (showManagerDropdown) {
+      setManagerDropdownStyle(calculateDropdownPosition(managerButtonRef));
+    }
+  }, [showManagerDropdown]);
+
+  const resolvedManagers = useMemo(() => {
+    if (availableManagers) return availableManagers;
+    const members = membersQuery.data || [];
+    const userLookup = new Map(
+      (usersQuery.data || [])
+        .filter((user) => user.enabled)
+        .map((user) => {
+          const name =
+            user.fullName ||
+            [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+            user.email ||
+            user.id;
+          return [user.id, { name, email: user.email || '' }];
+        })
+    );
+    const normalizeRole = (role: string | number) => {
+      if (typeof role === 'number') {
+        if (role === 2) return 'MANAGER';
+        if (role === 3) return 'WORKER';
+        return 'UNKNOWN';
+      }
+      return role.toUpperCase();
+    };
+    return members
+      .filter((member) => normalizeRole(member.role) === 'MANAGER')
+      .map((member) => {
+        const userInfo = userLookup.get(member.userId);
+        if (!userInfo) {
+          return null;
+        }
+        return {
+          id: member.userId,
+          name: userInfo?.name || member.userId,
+          email: userInfo?.email || '',
+          role: 'manager' as AssignedUserRole,
+          warehouseIds: warehouseId ? [warehouseId] : [],
+          isActive: true,
+        };
+      })
+      .filter((member): member is WarehouseUser => Boolean(member));
+  }, [availableManagers, membersQuery.data, usersQuery.data, warehouseId]);
+
+  const resolvedWorkers = useMemo(() => {
+    if (availableWorkers) return availableWorkers;
+    const members = membersQuery.data || [];
+    const userLookup = new Map(
+      (usersQuery.data || [])
+        .filter((user) => user.enabled)
+        .map((user) => {
+          const name =
+            user.fullName ||
+            [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+            user.email ||
+            user.id;
+          return [user.id, { name, email: user.email || '' }];
+        })
+    );
+    const normalizeRole = (role: string | number) => {
+      if (typeof role === 'number') {
+        if (role === 2) return 'MANAGER';
+        if (role === 3) return 'WORKER';
+        return 'UNKNOWN';
+      }
+      return role.toUpperCase();
+    };
+    return members
+      .filter((member) => normalizeRole(member.role) === 'WORKER')
+      .map((member) => {
+        const userInfo = userLookup.get(member.userId);
+        if (!userInfo) {
+          return null;
+        }
+        return {
+          id: member.userId,
+          name: userInfo?.name || member.userId,
+          email: userInfo?.email || '',
+          role: 'worker' as AssignedUserRole,
+          warehouseIds: warehouseId ? [warehouseId] : [],
+          isActive: true,
+        };
+      })
+      .filter((member): member is WarehouseUser => Boolean(member));
+  }, [availableWorkers, membersQuery.data, usersQuery.data, warehouseId]);
+
+  const filteredManagers = resolvedManagers.filter(
+    m => !assignedManagers.some(am => am.user?.id === m.id)
   );
-  const availableWorkers = getWarehouseWorkers(warehouseId).filter(
-    w => !assignedWorkers.some(aw => aw.userId === w.id)
+  const filteredWorkers = resolvedWorkers.filter(
+    w => !assignedWorkers.some(aw => aw.user?.id === w.id)
   );
 
   // Check if required roles are missing
   const missingWorker = showRequiredWarnings && assignedWorkers.length === 0;
 
-  const renderAssignedUser = (user: AssignedUser, role: AssignedUserRole) => (
-    <div
-      key={user.id}
-      className="flex items-center gap-3 p-3 bg-[var(--background)] rounded-lg border border-[var(--border)]"
-    >
-      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/70 flex items-center justify-center flex-shrink-0">
-        <span className="text-sm font-semibold text-white">
-          {user.userName.split(' ').map(n => n[0]).join('')}
-        </span>
+  const renderAssignedUser = (assignment: AssignedUser, role: AssignedUserRole) => {
+    const userName = assignment.user?.fullName || 'Unknown';
+    return (
+      <div
+        key={assignment.id}
+        className="flex items-center gap-3 p-3 bg-[var(--background)] rounded-lg border border-[var(--border)]"
+      >
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/70 flex items-center justify-center flex-shrink-0">
+          <span className="text-sm font-semibold text-white">
+            {userName.split(' ').map(n => n[0]).join('')}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-[var(--foreground)] truncate">{userName}</p>
+          <p className="text-xs text-[var(--muted-foreground)] capitalize">{role === 'worker' ? 'Picker' : role}</p>
+        </div>
+        {isEditable && (
+          <button
+            onClick={() => onRemoveAssignment(assignment.id, role)}
+            className="p-1.5 text-[var(--muted-foreground)] hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+            title="Remove"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[var(--foreground)] truncate">{user.userName}</p>
-        <p className="text-xs text-[var(--muted-foreground)] capitalize">{role === 'worker' ? 'Picker' : role}</p>
-      </div>
-      {isEditable && (
-        <button
-          onClick={() => onRemoveAssignment(user.id, role)}
-          className="p-1.5 text-[var(--muted-foreground)] hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-          title="Remove"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderAddButton = (
     role: AssignedUserRole,
     availableUsers: WarehouseUser[],
     showDropdown: boolean,
     setShowDropdown: (show: boolean) => void,
-    label: string
+    label: string,
+    buttonRef: React.RefObject<HTMLButtonElement | null>,
+    dropdownStyle: React.CSSProperties
   ) => (
     <div className="relative">
       <button
+        ref={buttonRef}
         onClick={() => setShowDropdown(!showDropdown)}
-        disabled={availableUsers.length === 0}
+        disabled={availableUsers.length === 0 && !isLoading}
         className="w-full px-4 py-3 text-sm text-[var(--muted-foreground)] border-2 border-dashed border-[var(--border)] rounded-lg hover:border-[var(--primary)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/5 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[var(--border)] disabled:hover:text-[var(--muted-foreground)] disabled:hover:bg-transparent"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        {label}
+        {isLoading ? (
+          <span className="text-xs">Loading...</span>
+        ) : (
+          <>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            {availableUsers.length === 0 ? `No ${role}s available` : label}
+          </>
+        )}
       </button>
       {showDropdown && availableUsers.length > 0 && (
         <>
           <div
-            className="fixed inset-0 z-10"
+            className="fixed inset-0 z-[100]"
             onClick={() => setShowDropdown(false)}
           />
-          <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-20 max-h-56 overflow-y-auto">
+          <div
+            className="bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-[101] overflow-y-auto"
+            style={dropdownStyle}
+          >
             <div className="p-2">
               {availableUsers.map(user => (
                 <button
@@ -166,10 +335,12 @@ export default function AssignmentPanel({
             {assignedWorkers.map(user => renderAssignedUser(user, 'worker'))}
             {isEditable && renderAddButton(
               'worker',
-              availableWorkers,
+              filteredWorkers,
               showWorkerDropdown,
               setShowWorkerDropdown,
-              assignedWorkers.length > 0 ? 'Add another worker' : 'Assign worker'
+              assignedWorkers.length > 0 ? 'Add another worker' : 'Assign worker',
+              workerButtonRef,
+              workerDropdownStyle
             )}
           </div>
         </div>
@@ -195,10 +366,12 @@ export default function AssignmentPanel({
             )}
             {isEditable && renderAddButton(
               'manager',
-              availableManagers,
+              filteredManagers,
               showManagerDropdown,
               setShowManagerDropdown,
-              assignedManagers.length > 0 ? 'Change manager' : 'Assign manager'
+              assignedManagers.length > 0 ? 'Change manager' : 'Assign manager',
+              managerButtonRef,
+              managerDropdownStyle
             )}
           </div>
         </div>

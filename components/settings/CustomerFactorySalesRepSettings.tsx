@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listCustomerFactorySalesReps,
-  createCustomerFactorySalesRep,
+  createCustomerFactorySalesReps,
   updateCustomerFactorySalesRep,
   deleteCustomerFactorySalesRep,
   type CustomerFactorySalesRep,
-  type CustomerFactorySalesRepInput,
+  type CreateCustomerFactorySalesRepsInput,
+  type SplitInput,
 } from '../lib/graphql/customer-factory-sales-reps';
 import {
   searchCustomers,
@@ -215,28 +216,47 @@ function SearchableDropdown<T>({
 }
 
 // ============================================================================
-// Add/Edit Modal Component
+// Rep Split Item Interface
+// ============================================================================
+
+interface RepSplitItem {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  rate: string;
+  position: number;
+}
+
+// ============================================================================
+// Add/Edit Modal Component with Rep Splits
 // ============================================================================
 
 interface AssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: CustomerFactorySalesRepInput) => Promise<void>;
+  onSave: (data: CreateCustomerFactorySalesRepsInput) => Promise<void>;
   editData?: CustomerFactorySalesRep | null;
+  existingAssignments?: CustomerFactorySalesRep[];
   isSaving: boolean;
 }
 
-function AssignmentModal({ isOpen, onClose, onSave, editData, isSaving }: AssignmentModalProps) {
+function AssignmentModal({ isOpen, onClose, onSave, editData, existingAssignments = [], isSaving }: AssignmentModalProps) {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
   const [selectedFactory, setSelectedFactory] = useState<FactorySearchResult | null>(null);
-  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
-  const [rate, setRate] = useState('');
-  const [position, setPosition] = useState('1');
+  const [repSplits, setRepSplits] = useState<RepSplitItem[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Initialize form with edit data
+  // For adding new reps
+  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
+  const [newRate, setNewRate] = useState('');
+
+  // Initialize form with edit data or existing assignments for customer-factory pair
   useEffect(() => {
+    if (!isOpen) return;
+
     if (editData) {
+      // Single edit mode - populate customer/factory and load all existing splits for this pair
       if (editData.customer) {
         setSelectedCustomer({
           id: editData.customer.id,
@@ -254,37 +274,117 @@ function AssignmentModal({ isOpen, onClose, onSave, editData, isSaving }: Assign
           published: editData.factory.published,
         });
       }
-      if (editData.user) {
-        setSelectedUser({
-          id: editData.user.id,
-          email: editData.user.email,
-          firstName: editData.user.firstName,
-          lastName: editData.user.lastName,
-          fullName: editData.user.fullName,
-          inside: editData.user.inside,
-          outside: editData.user.outside,
-          role: editData.user.role,
-        });
-      }
-      setRate(editData.rate || '');
-      setPosition(String(editData.position || 1));
+
+      // Load all existing splits for this customer-factory pair
+      const pairSplits = existingAssignments
+        .filter(a => a.customerId === editData.customerId && a.factoryId === editData.factoryId)
+        .map((a, idx) => ({
+          id: a.id,
+          userId: a.userId,
+          userName: a.user?.fullName || `${a.user?.firstName || ''} ${a.user?.lastName || ''}`.trim() || 'Unknown',
+          userEmail: a.user?.email || '',
+          rate: a.rate || '',
+          position: a.position || idx + 1,
+        }));
+
+      setRepSplits(pairSplits.length > 0 ? pairSplits : [{
+        id: editData.id,
+        userId: editData.userId,
+        userName: editData.user?.fullName || `${editData.user?.firstName || ''} ${editData.user?.lastName || ''}`.trim() || 'Unknown',
+        userEmail: editData.user?.email || '',
+        rate: editData.rate || '',
+        position: editData.position || 1,
+      }]);
     } else {
       // Reset form for new assignment
       setSelectedCustomer(null);
       setSelectedFactory(null);
-      setSelectedUser(null);
-      setRate('');
-      setPosition('1');
+      setRepSplits([]);
     }
+    setSelectedUser(null);
+    setNewRate('');
     setErrors({});
-  }, [editData, isOpen]);
+  }, [editData, existingAssignments, isOpen]);
+
+  // Helper function to distribute rates evenly to total 100%
+  const distributeRatesEvenly = useCallback((splits: RepSplitItem[]): RepSplitItem[] => {
+    if (splits.length === 0) return splits;
+
+    const count = splits.length;
+    const baseRate = Math.floor(100 / count);
+    const remainder = 100 - (baseRate * count);
+
+    // Distribute base rate to all, give remainder to the last rep
+    return splits.map((s, idx) => ({
+      ...s,
+      rate: String(idx === count - 1 ? baseRate + remainder : baseRate),
+      position: idx + 1,
+    }));
+  }, []);
+
+  const addRepToSplits = useCallback(() => {
+    if (!selectedUser) return;
+
+    // Check if rep already exists in splits
+    if (repSplits.some(s => s.userId === selectedUser.id)) {
+      setErrors(prev => ({ ...prev, user: 'This rep is already added' }));
+      return;
+    }
+
+    const newSplit: RepSplitItem = {
+      id: `new-${crypto.randomUUID()}`,
+      userId: selectedUser.id,
+      userName: selectedUser.fullName || `${selectedUser.firstName || ''} ${selectedUser.lastName || ''}`.trim() || 'Unknown',
+      userEmail: selectedUser.email || '',
+      rate: '0', // Will be set by distributeRatesEvenly
+      position: repSplits.length + 1,
+    };
+
+    // Add new rep and auto-distribute rates evenly
+    const updatedSplits = distributeRatesEvenly([...repSplits, newSplit]);
+    setRepSplits(updatedSplits);
+    setSelectedUser(null);
+    setNewRate('');
+    setErrors(prev => {
+      const { user, ...rest } = prev;
+      return rest;
+    });
+  }, [selectedUser, repSplits, distributeRatesEvenly]);
+
+  const removeRepFromSplits = useCallback((id: string) => {
+    setRepSplits(prev => {
+      const filtered = prev.filter(s => s.id !== id);
+      // Re-distribute rates evenly after removal
+      return distributeRatesEvenly(filtered);
+    });
+  }, [distributeRatesEvenly]);
+
+  const updateSplitRate = useCallback((id: string, rate: string) => {
+    setRepSplits(prev => prev.map(s => s.id === id ? { ...s, rate } : s));
+  }, []);
+
+  const updateSplitPosition = useCallback((id: string, position: number) => {
+    setRepSplits(prev => prev.map(s => s.id === id ? { ...s, position } : s));
+  }, []);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
     if (!selectedCustomer) newErrors.customer = 'Please select a customer';
     if (!selectedFactory) newErrors.factory = 'Please select a factory';
-    if (!selectedUser) newErrors.user = 'Please select a sales rep';
-    if (!rate.trim()) newErrors.rate = 'Please enter a commission rate';
+    if (repSplits.length === 0) newErrors.splits = 'Please add at least one sales rep';
+
+    // Validate each split has a rate
+    repSplits.forEach((split, idx) => {
+      if (!split.rate.trim()) {
+        newErrors[`rate_${idx}`] = 'Rate is required';
+      }
+    });
+
+    // Validate total rate equals 100%
+    if (repSplits.length > 0 && totalRate !== 100) {
+      newErrors.totalRate = `Total commission must equal 100% (currently ${totalRate}%)`;
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -292,22 +392,32 @@ function AssignmentModal({ isOpen, onClose, onSave, editData, isSaving }: Assign
   const handleSubmit = async () => {
     if (!validate()) return;
 
+    const splits: SplitInput[] = repSplits.map(s => ({
+      userId: s.userId,
+      rate: s.rate.trim(),
+      position: s.position,
+    }));
+
     await onSave({
       customerId: selectedCustomer!.id,
       factoryId: selectedFactory!.id,
-      userId: selectedUser!.id,
-      rate: rate.trim(),
-      position: parseInt(position, 10) || 1,
+      splits,
     });
   };
+
+  // Calculate total rate percentage
+  const totalRate = repSplits.reduce((sum, s) => {
+    const rate = parseFloat(s.rate.replace('%', '')) || 0;
+    return sum + rate;
+  }, 0);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-visible">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-visible flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-white rounded-t-xl">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-white rounded-t-xl flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
               <svg className="w-5 h-5 text-[var(--primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -316,10 +426,10 @@ function AssignmentModal({ isOpen, onClose, onSave, editData, isSaving }: Assign
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
-                {editData ? 'Edit Sales Rep Assignment' : 'Add Sales Rep Assignment'}
+                {editData ? 'Edit Rep Splits' : 'Add Rep Splits Assignment'}
               </h2>
               <p className="text-sm text-gray-500">
-                Assign a sales rep to a customer-factory pair
+                Assign multiple outside reps with commission splits to a customer-factory pair
               </p>
             </div>
           </div>
@@ -334,7 +444,7 @@ function AssignmentModal({ isOpen, onClose, onSave, editData, isSaving }: Assign
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1">
           <div className="space-y-6">
             {/* Customer Selection */}
             <SearchableDropdown
@@ -346,6 +456,7 @@ function AssignmentModal({ isOpen, onClose, onSave, editData, isSaving }: Assign
               getDisplayValue={(c) => c.companyName}
               getSecondaryValue={(c) => c.isParent ? 'Parent Company' : ''}
               getId={(c) => c.id}
+              disabled={!!editData}
               error={errors.customer}
             />
 
@@ -359,67 +470,169 @@ function AssignmentModal({ isOpen, onClose, onSave, editData, isSaving }: Assign
               getDisplayValue={(f) => f.title}
               getSecondaryValue={(f) => f.accountNumber ? `Account: ${f.accountNumber}` : ''}
               getId={(f) => f.id}
+              disabled={!!editData}
               error={errors.factory}
             />
 
-            {/* Sales Rep Selection */}
-            <SearchableDropdown
-              label="Sales Rep"
-              placeholder="Select a sales rep..."
-              value={selectedUser}
-              onSelect={setSelectedUser}
-              searchFn={(term) => searchUsers({ searchTerm: term, isInside: true, isOutside: true, enabled: true, limit: 20 })}
-              getDisplayValue={(u) => u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown'}
-              getSecondaryValue={(u) => {
-                const roles: string[] = [];
-                if (u.inside) roles.push('Inside');
-                if (u.outside) roles.push('Outside');
-                return roles.length > 0 ? roles.join(' / ') + ' Rep' : (u.role || '');
-              }}
-              getId={(u) => u.id}
-              error={errors.user}
-            />
-
-            {/* Rate and Position */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Commission Rate
+            {/* Rep Splits Section */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Outside Rep Splits
                 </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={rate}
-                    onChange={(e) => setRate(e.target.value)}
-                    placeholder="e.g., 10%"
-                    className={`w-full px-4 py-2.5 border rounded-lg text-sm transition-all focus:outline-none focus:ring-2 ${
-                      errors.rate
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                        : 'border-gray-300 focus:border-[var(--primary)] focus:ring-[var(--primary)]/20'
-                    }`}
-                  />
-                </div>
-                {errors.rate && <p className="mt-1 text-xs text-red-500">{errors.rate}</p>}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Position / Priority
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={position}
-                  onChange={(e) => setPosition(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
-                />
+              {/* Total Rate Progress Bar */}
+              {repSplits.length > 0 && (
+                <div className="mb-4 p-4 rounded-lg border border-gray-200 bg-white">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Total Commission Split</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-lg font-bold ${
+                        totalRate === 100 ? 'text-green-600' : totalRate > 100 ? 'text-red-600' : 'text-amber-600'
+                      }`}>
+                        {totalRate}%
+                      </span>
+                      {totalRate === 100 ? (
+                        <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  {/* Progress Bar */}
+                  <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`absolute left-0 top-0 h-full rounded-full transition-all duration-300 ${
+                        totalRate === 100 ? 'bg-green-500' : totalRate > 100 ? 'bg-red-500' : 'bg-amber-500'
+                      }`}
+                      style={{ width: `${Math.min(totalRate, 100)}%` }}
+                    />
+                    {/* 100% marker */}
+                    <div className="absolute right-0 top-0 h-full w-0.5 bg-gray-400" />
+                  </div>
+                  {/* Status Message */}
+                  <p className={`mt-2 text-xs ${
+                    totalRate === 100 ? 'text-green-600' : totalRate > 100 ? 'text-red-600' : 'text-amber-600'
+                  }`}>
+                    {totalRate === 100
+                      ? 'Commission splits total 100% - ready to save'
+                      : totalRate > 100
+                        ? `Over by ${totalRate - 100}% - reduce rates to equal 100%`
+                        : `${100 - totalRate}% remaining - add more or adjust rates to equal 100%`
+                    }
+                  </p>
+                </div>
+              )}
+
+              {/* Existing Splits */}
+              {repSplits.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  {repSplits.map((split, idx) => {
+                    const splitRate = parseFloat(split.rate.replace('%', '')) || 0;
+                    return (
+                      <div key={split.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-medium text-green-700">
+                            {split.userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">{split.userName}</div>
+                          <div className="text-xs text-gray-500 truncate">{split.userEmail}</div>
+                          {/* Mini progress bar for individual rep */}
+                          <div className="mt-1 h-1.5 bg-gray-200 rounded-full overflow-hidden w-24">
+                            <div
+                              className="h-full bg-green-500 rounded-full transition-all"
+                              style={{ width: `${Math.min(splitRate, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={split.rate}
+                              onChange={(e) => updateSplitRate(split.id, e.target.value)}
+                              placeholder="Rate"
+                              className={`w-20 px-2 py-1.5 text-sm border rounded-md text-right ${
+                                errors[`rate_${idx}`] ? 'border-red-300' : 'border-gray-300'
+                              }`}
+                            />
+                            <span className="text-sm text-gray-500">%</span>
+                          </div>
+                          <input
+                            type="number"
+                            min="1"
+                            value={split.position}
+                            onChange={(e) => updateSplitPosition(split.id, parseInt(e.target.value) || 1)}
+                            className="w-16 px-2 py-1.5 text-sm border border-gray-300 rounded-md text-center"
+                            title="Position"
+                          />
+                          <button
+                            onClick={() => removeRepFromSplits(split.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            title="Remove rep"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {errors.splits && <p className="mb-2 text-xs text-red-500">{errors.splits}</p>}
+              {errors.totalRate && <p className="mb-2 text-xs text-red-500">{errors.totalRate}</p>}
+
+              {/* Add New Rep */}
+              <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-gray-50/50">
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Add Rep</div>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <SearchableDropdown
+                      label=""
+                      placeholder="Search outside reps..."
+                      value={selectedUser}
+                      onSelect={setSelectedUser}
+                      searchFn={(term) => searchUsers({ searchTerm: term, isInside: false, isOutside: true, enabled: true, limit: 20 })}
+                      getDisplayValue={(u) => u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown'}
+                      getSecondaryValue={(u) => u.email || ''}
+                      getId={(u) => u.id}
+                      error={errors.user}
+                    />
+                  </div>
+                  <div className="w-24">
+                    <input
+                      type="text"
+                      value={newRate}
+                      onChange={(e) => setNewRate(e.target.value)}
+                      placeholder="Rate %"
+                      className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <button
+                    onClick={addRepToSplits}
+                    disabled={!selectedUser}
+                    className="px-4 py-2.5 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50 rounded-b-xl">
+        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50 rounded-b-xl flex-shrink-0">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
@@ -428,13 +641,13 @@ function AssignmentModal({ isOpen, onClose, onSave, editData, isSaving }: Assign
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSaving}
+            disabled={isSaving || repSplits.length === 0 || totalRate !== 100}
             className="px-6 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isSaving && (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             )}
-            {editData ? 'Save Changes' : 'Add Assignment'}
+            {editData ? 'Save Changes' : 'Create Assignment'}
           </button>
         </div>
       </div>
@@ -503,15 +716,225 @@ function DeleteModal({ isOpen, onClose, onConfirm, assignment, isDeleting }: Del
 }
 
 // ============================================================================
+// Bulk Upload Modal Component
+// ============================================================================
+
+interface BulkUploadModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onUpload: (data: CreateCustomerFactorySalesRepsInput[]) => Promise<void>;
+  isUploading: boolean;
+}
+
+function BulkUploadModal({ isOpen, onClose, onUpload, isUploading }: BulkUploadModalProps) {
+  const [csvData, setCsvData] = useState('');
+  const [parsedData, setParsedData] = useState<CreateCustomerFactorySalesRepsInput[]>([]);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      setCsvData(text);
+      parseCSV(text);
+    };
+    reader.readAsText(file);
+  };
+
+  const parseCSV = (text: string) => {
+    try {
+      const lines = text.trim().split('\n');
+      if (lines.length < 2) {
+        setParseError('CSV must have a header row and at least one data row');
+        setParsedData([]);
+        return;
+      }
+
+      const header = lines[0].toLowerCase().split(',').map(h => h.trim());
+      const customerIdIdx = header.indexOf('customerid');
+      const factoryIdIdx = header.indexOf('factoryid');
+      const userIdIdx = header.indexOf('userid');
+      const rateIdx = header.indexOf('rate');
+      const positionIdx = header.indexOf('position');
+
+      if (customerIdIdx === -1 || factoryIdIdx === -1 || userIdIdx === -1 || rateIdx === -1) {
+        setParseError('CSV must have columns: customerId, factoryId, userId, rate (position is optional)');
+        setParsedData([]);
+        return;
+      }
+
+      // Group by customer-factory pair
+      const grouped: Record<string, { customerId: string; factoryId: string; splits: SplitInput[] }> = {};
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        const customerId = values[customerIdIdx];
+        const factoryId = values[factoryIdIdx];
+        const userId = values[userIdIdx];
+        const rate = values[rateIdx];
+        const position = positionIdx !== -1 ? parseInt(values[positionIdx]) || i : i;
+
+        if (!customerId || !factoryId || !userId || !rate) continue;
+
+        const key = `${customerId}-${factoryId}`;
+        if (!grouped[key]) {
+          grouped[key] = { customerId, factoryId, splits: [] };
+        }
+        grouped[key].splits.push({ userId, rate, position });
+      }
+
+      const result = Object.values(grouped);
+      if (result.length === 0) {
+        setParseError('No valid data rows found');
+        setParsedData([]);
+        return;
+      }
+
+      setParseError(null);
+      setParsedData(result);
+    } catch (err) {
+      setParseError('Failed to parse CSV file');
+      setParsedData([]);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (parsedData.length === 0) return;
+    await onUpload(parsedData);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+              <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Bulk Upload Assignments</h2>
+              <p className="text-sm text-gray-500">Upload a CSV file with rep assignments</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+            <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-6">
+          {/* CSV Format Help */}
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+            <h4 className="text-sm font-medium text-blue-800 mb-2">CSV Format Required:</h4>
+            <code className="text-xs text-blue-700 block bg-blue-100 p-2 rounded">
+              customerId,factoryId,userId,rate,position<br/>
+              abc123,def456,user1,50,1<br/>
+              abc123,def456,user2,50,2
+            </code>
+            <p className="text-xs text-blue-600 mt-2">
+              Rows with the same customerId + factoryId will be grouped as splits.
+            </p>
+          </div>
+
+          {/* File Upload */}
+          <div className="mb-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full py-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-[var(--primary)] hover:bg-[var(--primary)]/5 transition-colors flex flex-col items-center gap-2"
+            >
+              <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span className="text-sm font-medium text-gray-600">Click to select a CSV file</span>
+            </button>
+          </div>
+
+          {/* Parse Error */}
+          {parseError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700">{parseError}</p>
+            </div>
+          )}
+
+          {/* Preview */}
+          {parsedData.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Preview ({parsedData.length} customer-factory pairs)</h4>
+              <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Customer ID</th>
+                      <th className="px-3 py-2 text-left">Factory ID</th>
+                      <th className="px-3 py-2 text-center">Reps</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {parsedData.slice(0, 10).map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="px-3 py-2 font-mono">{item.customerId.slice(0, 8)}...</td>
+                        <td className="px-3 py-2 font-mono">{item.factoryId.slice(0, 8)}...</td>
+                        <td className="px-3 py-2 text-center">{item.splits.length}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {parsedData.length > 10 && (
+                  <div className="px-3 py-2 text-center text-gray-500 text-xs bg-gray-50">
+                    ... and {parsedData.length - 10} more
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900">
+            Cancel
+          </button>
+          <button
+            onClick={handleUpload}
+            disabled={isUploading || parsedData.length === 0}
+            className="px-6 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {isUploading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+            Upload {parsedData.length > 0 && `(${parsedData.length})`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // Main Component
 // ============================================================================
 
 export default function CustomerFactorySalesRepSettings() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<CustomerFactorySalesRep | null>(null);
   const [deletingAssignment, setDeletingAssignment] = useState<CustomerFactorySalesRep | null>(null);
   const [filterCustomer, setFilterCustomer] = useState<CustomerSearchResult | null>(null);
@@ -524,18 +947,9 @@ export default function CustomerFactorySalesRepSettings() {
     queryFn: () => listCustomerFactorySalesReps(filterCustomer?.id, filterFactory?.id),
   });
 
-  // Mutations
+  // Mutations - using the new createCustomerFactorySalesReps with splits
   const createMutation = useMutation({
-    mutationFn: createCustomerFactorySalesRep,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customer-factory-sales-reps'] });
-      setIsModalOpen(false);
-      setEditingAssignment(null);
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (input: CustomerFactorySalesRepInput & { id: string }) => updateCustomerFactorySalesRep(input),
+    mutationFn: createCustomerFactorySalesReps,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customer-factory-sales-reps'] });
       setIsModalOpen(false);
@@ -548,6 +962,23 @@ export default function CustomerFactorySalesRepSettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customer-factory-sales-reps'] });
       setDeletingAssignment(null);
+    },
+  });
+
+  // Bulk upload mutation
+  const bulkUploadMutation = useMutation({
+    mutationFn: async (data: CreateCustomerFactorySalesRepsInput[]) => {
+      // Process each customer-factory pair sequentially
+      const results = [];
+      for (const input of data) {
+        const result = await createCustomerFactorySalesReps(input);
+        results.push(result);
+      }
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-factory-sales-reps'] });
+      setIsBulkUploadOpen(false);
     },
   });
 
@@ -564,6 +995,24 @@ export default function CustomerFactorySalesRepSettings() {
     );
   });
 
+  // Group assignments by customer-factory pair for display
+  const groupedAssignments = filteredAssignments.reduce((acc, assignment) => {
+    const key = `${assignment.customerId}-${assignment.factoryId}`;
+    if (!acc[key]) {
+      acc[key] = {
+        customerId: assignment.customerId,
+        factoryId: assignment.factoryId,
+        customer: assignment.customer,
+        factory: assignment.factory,
+        splits: [],
+      };
+    }
+    acc[key].splits.push(assignment);
+    return acc;
+  }, {} as Record<string, { customerId: string; factoryId: string; customer?: CustomerFactorySalesRep['customer']; factory?: CustomerFactorySalesRep['factory']; splits: CustomerFactorySalesRep[] }>);
+
+  const groupedList = Object.values(groupedAssignments);
+
   // Handlers
   const handleAddNew = () => {
     setEditingAssignment(null);
@@ -575,18 +1024,29 @@ export default function CustomerFactorySalesRepSettings() {
     setIsModalOpen(true);
   };
 
-  const handleSave = async (data: CustomerFactorySalesRepInput) => {
+  const handleSave = async (data: CreateCustomerFactorySalesRepsInput) => {
+    // For edit mode, we need to delete existing assignments for this pair first, then create new ones
     if (editingAssignment) {
-      await updateMutation.mutateAsync({ ...data, id: editingAssignment.id });
-    } else {
-      await createMutation.mutateAsync(data);
+      // Delete all existing assignments for this customer-factory pair
+      const existingForPair = assignments.filter(
+        a => a.customerId === data.customerId && a.factoryId === data.factoryId
+      );
+      for (const existing of existingForPair) {
+        await deleteMutation.mutateAsync(existing.id);
+      }
     }
+    // Create new assignments with splits
+    await createMutation.mutateAsync(data);
   };
 
   const handleDelete = async () => {
     if (deletingAssignment) {
       await deleteMutation.mutateAsync(deletingAssignment.id);
     }
+  };
+
+  const handleBulkUpload = async (data: CreateCustomerFactorySalesRepsInput[]) => {
+    await bulkUploadMutation.mutateAsync(data);
   };
 
   const handleClearFilters = () => {
@@ -692,6 +1152,17 @@ export default function CustomerFactorySalesRepSettings() {
                   Clear Filters
                 </button>
               )}
+              <button
+                disabled
+                className="px-4 py-2.5 text-sm font-medium text-gray-400 border border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed flex items-center gap-2"
+                title="Coming Soon"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Bulk Upload
+                <span className="text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Coming Soon</span>
+              </button>
               <button
                 onClick={handleAddNew}
                 className="px-4 py-2.5 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-2"
@@ -898,7 +1369,8 @@ export default function CustomerFactorySalesRepSettings() {
         }}
         onSave={handleSave}
         editData={editingAssignment}
-        isSaving={createMutation.isPending || updateMutation.isPending}
+        existingAssignments={assignments}
+        isSaving={createMutation.isPending || deleteMutation.isPending}
       />
 
       <DeleteModal
@@ -907,6 +1379,13 @@ export default function CustomerFactorySalesRepSettings() {
         onConfirm={handleDelete}
         assignment={deletingAssignment}
         isDeleting={deleteMutation.isPending}
+      />
+
+      <BulkUploadModal
+        isOpen={isBulkUploadOpen}
+        onClose={() => setIsBulkUploadOpen(false)}
+        onUpload={handleBulkUpload}
+        isUploading={bulkUploadMutation.isPending}
       />
     </div>
   );

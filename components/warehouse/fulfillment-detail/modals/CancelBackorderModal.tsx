@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FulfillmentOrder, FulfillmentOrderLineItem } from '@/lib/types/warehouse';
+import { FulfillmentOrder, FulfillmentOrderLineItem } from '../../api/fulfillmentApi';
 
 interface BackorderItem {
   lineItem: FulfillmentOrderLineItem;
@@ -118,7 +118,7 @@ export default function CancelBackorderModal({
                 Cancel Backorder & Adjust Quantities
               </h2>
               <p className="text-sm text-gray-600">
-                Order #{fulfillmentOrder.orderNumber} - {fulfillmentOrder.customerName}
+                Order #{fulfillmentOrder.order?.orderNumber || '-'} - {fulfillmentOrder.customer?.companyName || '-'}
               </p>
             </div>
           </div>
@@ -146,7 +146,7 @@ export default function CancelBackorderModal({
                   This action will update the original sales order
                 </p>
                 <p className="text-xs text-amber-700 mt-1">
-                  The cancelled quantities will be reflected on the source order (#{fulfillmentOrder.orderNumber}).
+                  The cancelled quantities will be reflected on the source order (#{fulfillmentOrder.order?.orderNumber || '-'}).
                   This may affect invoicing and customer communications.
                 </p>
               </div>
@@ -189,9 +189,9 @@ export default function CancelBackorderModal({
                     <tr key={item.lineItem.id} className="hover:bg-gray-50/50">
                       <td className="px-4 py-3">
                         <div className="font-medium text-sm text-gray-900">
-                          {item.lineItem.productName}
+                          {item.lineItem.product?.description || item.lineItem.product?.factoryPartNumber || '-'}
                         </div>
-                        <div className="text-xs text-gray-500">{item.lineItem.partNumber}</div>
+                        <div className="text-xs text-gray-500">{item.lineItem.product?.factoryPartNumber || '-'}</div>
                       </td>
                       <td className="px-4 py-3 text-center text-sm font-medium text-gray-900">
                         {item.lineItem.orderedQty}
@@ -321,7 +321,7 @@ export default function CancelBackorderModal({
               <li className="flex items-start gap-2">
                 <span className="text-blue-500 mt-0.5">2.</span>
                 <span>
-                  The original sales order (#{fulfillmentOrder.orderNumber}) will be updated with cancelled quantities
+                  The original sales order (#{fulfillmentOrder.order?.orderNumber || '-'}) will be updated with cancelled quantities
                 </span>
               </li>
               <li className="flex items-start gap-2">

@@ -8,12 +8,21 @@ import React from 'react';
 import type { PreOpportunity } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 import { useCRMCustomerSearch, useCRMJobSearch } from '../../hooks/useCRMApi';
+import type { EditFormData } from './PreOpportunityDetailsForm';
 
 interface PreOpportunitySummaryProps {
   preOpp: PreOpportunity;
+  isEditing?: boolean;
+  editFormData?: EditFormData;
+  onChange?: (field: keyof EditFormData, value: string) => void;
 }
 
-export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
+export function PreOpportunitySummary({ 
+  preOpp, 
+  isEditing = false, 
+  editFormData, 
+  onChange 
+}: PreOpportunitySummaryProps) {
   const totalSubtotal = preOpp.details.reduce((sum, detail) => sum + (Number(detail.subtotal) || 0), 0);
   const totalDiscount = preOpp.details.reduce((sum, detail) => sum + (Number(detail.discount) || 0), 0);
   const grandTotal = preOpp.balance?.total || totalSubtotal - totalDiscount;
@@ -136,6 +145,22 @@ export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
               {getCustomerName(preOpp.soldToCustomerId)}
             </div>
           </div>
+          <div>
+            <div className="text-sm text-gray-500">Customer Reference</div>
+            {isEditing && editFormData && onChange ? (
+              <input
+                type="text"
+                value={editFormData.customerRef || ''}
+                onChange={(e) => onChange('customerRef', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mt-1"
+                placeholder="Enter customer reference"
+              />
+            ) : (
+              <div className="text-sm font-medium text-gray-900 bg-gray-50 p-2 rounded mt-1">
+                {preOpp.customerRef || '-'}
+              </div>
+            )}
+          </div>
           {preOpp.billToCustomerId && (
             <div>
               <div className="text-sm text-gray-500">Bill To Customer</div>
@@ -217,65 +242,6 @@ export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
           </div>
         </div>
       )}
-
-      {/* Dates Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Timeline</h3>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#3B82F6" strokeWidth="2">
-                <circle cx="10" cy="10" r="7"/>
-                <path d="M10 6v4l2 2"/>
-              </svg>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500">Created</div>
-              <div className="text-sm text-gray-900">{formatDate(preOpp.createdAt)}</div>
-            </div>
-          </div>
-          {preOpp.acceptDate && (
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#10B981" strokeWidth="2">
-                  <path d="M6 10l3 3 5-6"/>
-                </svg>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500">Accepted</div>
-                <div className="text-sm text-gray-900">{formatDate(preOpp.acceptDate)}</div>
-              </div>
-            </div>
-          )}
-          {preOpp.reviseDate && (
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#F59E0B" strokeWidth="2">
-                  <path d="M11 5l4 4M4 16l1-4 9-9 4 4-9 9-4 1z"/>
-                </svg>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500">Revised</div>
-                <div className="text-sm text-gray-900">{formatDate(preOpp.reviseDate)}</div>
-              </div>
-            </div>
-          )}
-          {preOpp.expDate && (
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#EF4444" strokeWidth="2">
-                  <circle cx="10" cy="10" r="7"/>
-                  <path d="M10 6v5M10 13v1"/>
-                </svg>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500">Expires</div>
-                <div className="text-sm text-gray-900">{formatDate(preOpp.expDate)}</div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

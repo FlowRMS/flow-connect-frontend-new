@@ -92,12 +92,25 @@ export const calculateLineItemsSummary = (
 };
 
 /**
- * Calculate total adjustments amount
+ * Calculate total adjustments amount from the adjustments array
+ * @deprecated Use calculateTotalAdjustmentsFromLineItems instead for accurate stated commission values
  */
 export const calculateTotalAdjustments = (
   adjustments: Adjustment[]
 ): number => {
   return adjustments.reduce((sum, adj) => sum + adj.amount, 0);
+};
+
+/**
+ * Calculate total adjustments from line items
+ * This uses the actual stated commission (paidCommission) values from the line items table
+ */
+export const calculateTotalAdjustmentsFromLineItems = (
+  lineItems: LineItem[]
+): number => {
+  return lineItems
+    .filter((item) => item.type === 'adjustment')
+    .reduce((sum, item) => sum + (Number(item.paidCommission) || 0), 0);
 };
 
 /**

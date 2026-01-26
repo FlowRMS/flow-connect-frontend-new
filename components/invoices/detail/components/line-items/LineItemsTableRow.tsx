@@ -336,7 +336,7 @@ export function LineItemsTableRow({
       {/* Commission % (simple view) */}
       {visibleColumns.has('commissionPercent') && viewMode === 'simple' && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {`${((item.commissionRate ?? 0) * 100).toFixed(0)}%`}
+          {`${(Number(item.commissionRate ?? 0) * 100).toFixed(0)}%`}
         </td>
       )}
 
@@ -362,7 +362,7 @@ export function LineItemsTableRow({
       {/* Commission % (overage view) */}
       {visibleColumns.has('commissionPercent') && viewMode === 'overage' && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {`${((item.commissionRate ?? 0) * 100).toFixed(0)}%`}
+          {`${(Number(item.commissionRate ?? 0) * 100).toFixed(0)}%`}
         </td>
       )}
 

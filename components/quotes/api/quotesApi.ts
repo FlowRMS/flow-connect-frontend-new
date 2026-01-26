@@ -1311,12 +1311,12 @@ export async function deleteQuote(id: string): Promise<boolean> {
  * Create a quote from a pre-opportunity
  * @param preOpportunityId - The ID of the pre-opportunity
  * @param quoteNumber - The quote number to assign
- * @param preOpportunityDetailIds - Optional array of detail IDs to include (if not provided, all details are included)
+ * @param preOpportunityDetailIds - Optional array of detail IDs to include (if null or not provided, all details are included)
  */
 export async function createQuoteFromPreOpportunity(
   preOpportunityId: string,
   quoteNumber: string,
-  preOpportunityDetailIds?: string[]
+  preOpportunityDetailIds?: string[] | null
 ): Promise<Quote> {
   const response = await crmGraphQLRequest<{ createQuoteFromPreOpportunity: Quote }>({
     query: CREATE_QUOTE_FROM_PRE_OPPORTUNITY,

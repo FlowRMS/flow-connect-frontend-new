@@ -1,35 +1,59 @@
 /**
  * LineItemsTableRow Component
  * Single table row for a check line item with all columns
+ * Supports smooth tab navigation between editable fields
  */
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { LineItem, ColumnKey, CheckStatus } from '../../types';
 import { ListPreviewHoverCard } from '@/components/shared/ListPreviewHoverCard';
 
 interface LineItemsTableRowProps {
   item: LineItem;
+  rowIndex: number;
   visibleColumns: Set<ColumnKey>;
   status: CheckStatus;
   onTogglePaid: (id: string) => void;
   onRowClick: (item: LineItem) => void;
   onUpdateStatedCommission?: (id: string, amount: number) => void;
   onOrderClick?: (orderId: string) => void;
+  onDelete?: (id: string) => void;
+  // Tab navigation props
+  registerInput?: (rowIndex: number, fieldIndex: number, element: HTMLInputElement | null) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>, rowIndex: number, fieldIndex: number) => void;
+  getTabIndex?: (rowIndex: number, fieldIndex: number) => number;
 }
 
 export function LineItemsTableRow({
   item,
+  rowIndex,
   visibleColumns,
   status,
   onTogglePaid,
   onRowClick,
   onUpdateStatedCommission,
   onOrderClick,
+  onDelete,
+  registerInput,
+  onKeyDown,
+  getTabIndex,
 }: LineItemsTableRowProps) {
   const [statedCommission, setStatedCommission] = useState(item.paidCommission.toString());
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Register input ref with tab navigation system
+  useEffect(() => {
+    if (registerInput && inputRef.current) {
+      registerInput(rowIndex, 0, inputRef.current);
+    }
+    return () => {
+      if (registerInput) {
+        registerInput(rowIndex, 0, null);
+      }
+    };
+  }, [registerInput, rowIndex]);
 
   // Sync local state when prop changes (e.g., updated from modal)
   useEffect(() => {
@@ -52,11 +76,15 @@ export function LineItemsTableRow({
     e.target.select();
   };
 
-  const handleStatedCommissionKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+  const handleStatedCommissionKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Use the tab navigation system if available
+    if (onKeyDown) {
+      onKeyDown(e, rowIndex, 0);
+    } else if (e.key === 'Enter') {
+      // Fallback: just blur on Enter
       inputRef.current?.blur();
     }
-  };
+  }, [onKeyDown, rowIndex]);
 
   const handleStatedCommissionClick = (e: React.MouseEvent) => {
     // Prevent row click when clicking on the input
@@ -164,7 +192,8 @@ export function LineItemsTableRow({
                 onBlur={handleStatedCommissionBlur}
                 onFocus={handleStatedCommissionFocus}
                 onKeyDown={handleStatedCommissionKeyDown}
-                className="w-24 px-2 py-1 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)]"
+                tabIndex={getTabIndex ? getTabIndex(rowIndex, 0) : 0}
+                className="w-24 px-2 py-1 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)] transition-shadow"
               />
             </div>
           )}
@@ -224,6 +253,34 @@ export function LineItemsTableRow({
               className="w-4 h-4 accent-[var(--primary)] cursor-not-allowed"
             />
           )}
+        </td>
+      )}
+      {/* Actions column - Remove button (only when not posted) */}
+      {status !== 'posted' && onDelete && (
+        <td className="px-2 py-3 text-center">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(item.id);
+            }}
+            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+            title="Remove from check"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path
+                d="M6 6l8 8M6 14l8-8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
         </td>
       )}
     </tr>

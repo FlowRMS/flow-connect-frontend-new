@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FulfillmentOrder } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '../../api/fulfillmentApi';
 
 interface BillOfLadingModalProps {
   isOpen: boolean;

@@ -1,7 +1,10 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useCallback } from 'react';
 import type { Warehouse } from '@/lib/types/warehouse';
 import type { WarehouseWithSettings, WarehouseWorker } from '../types';
 import WarehouseAccordionItem from './WarehouseAccordionItem';
+import { DeleteConfirmModal } from '@/components/quotes-v2/modals/DeleteConfirmModal';
 
 interface WarehousesListProps {
   warehouses: WarehouseWithSettings[];
@@ -14,10 +17,12 @@ interface WarehousesListProps {
   setShowAddWorkerModal: (warehouseId: string | null) => void;
   setShowLayoutModal: (warehouseId: string | null) => void;
   setShowQRCodesModal: (warehouseId: string | null) => void;
+  onDeleteWarehouse: (warehouseId: string) => Promise<void>;
   getWorkerById: (workerId: string) => WarehouseWorker | undefined;
   hasChanges: boolean;
   isSaving: boolean;
   onSave: () => Promise<void>;
+  isLoadingDetails?: boolean;
 }
 
 export default function WarehousesList({
@@ -31,11 +36,37 @@ export default function WarehousesList({
   setShowAddWorkerModal,
   setShowLayoutModal,
   setShowQRCodesModal,
+  onDeleteWarehouse,
   getWorkerById,
   hasChanges,
   isSaving,
   onSave,
+  isLoadingDetails = false,
 }: WarehousesListProps) {
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteClick = useCallback((warehouseId: string) => {
+    setDeleteConfirmId(warehouseId);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteConfirmId) return;
+
+    setIsDeleting(true);
+    try {
+      await onDeleteWarehouse(deleteConfirmId);
+      setDeleteConfirmId(null);
+    } catch (error) {
+      console.error('Failed to delete warehouse:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deleteConfirmId, onDeleteWarehouse]);
+
+  const warehouseToDelete = deleteConfirmId
+    ? warehouses.find(w => w.id === deleteConfirmId)
+    : null;
   if (warehouses.length === 0) {
     return (
       <div className="text-center py-12">
@@ -65,6 +96,7 @@ export default function WarehousesList({
 
         return (
           <WarehouseAccordionItem
+
             key={warehouse.id}
             warehouse={warehouse}
             isExpanded={isExpanded}
@@ -78,13 +110,25 @@ export default function WarehousesList({
             onShowAddWorker={() => setShowAddWorkerModal(warehouse.id)}
             onShowLayout={() => setShowLayoutModal(warehouse.id)}
             onShowQRCodes={() => setShowQRCodesModal(warehouse.id)}
+            onDelete={() => handleDeleteClick(warehouse.id)}
             getWorkerById={getWorkerById}
             hasChanges={hasChanges}
             isSaving={isSaving}
             onSave={onSave}
+            isLoadingDetails={isExpanded && isLoadingDetails}
           />
         );
       })}
+
+      <DeleteConfirmModal
+        isOpen={!!deleteConfirmId}
+        title="Delete Warehouse"
+        message="Are you sure you want to delete this warehouse"
+        itemName={warehouseToDelete?.name}
+        isPending={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirmId(null)}
+      />
     </div>
   );
 }
