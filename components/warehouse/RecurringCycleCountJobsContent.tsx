@@ -468,9 +468,10 @@ function RecurringJobDetailModal({
                   type="number"
                   value={itemCount}
                   onChange={(e) => { setItemCount(Math.max(1, parseInt(e.target.value) || 1)); setHasChanges(true); }}
+                  onFocus={(e) => e.target.select()}
                   disabled={!isEditable}
                   min={1}
-                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 disabled:opacity-50"
+                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
               <div>
@@ -479,9 +480,10 @@ function RecurringJobDetailModal({
                   type="number"
                   value={excludeDays}
                   onChange={(e) => { setExcludeDays(Math.max(0, parseInt(e.target.value) || 0)); setHasChanges(true); }}
+                  onFocus={(e) => e.target.select()}
                   disabled={!isEditable}
                   min={0}
-                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 disabled:opacity-50"
+                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
             </div>
@@ -536,8 +538,9 @@ function RecurringJobDetailModal({
                         max="12"
                         value={interval}
                         onChange={(e) => { setInterval(parseInt(e.target.value) || 1); setHasChanges(true); }}
+                        onFocus={(e) => e.target.select()}
                         disabled={!isEditable}
-                        className="w-20 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 disabled:opacity-50"
+                        className="w-20 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <span className="text-sm text-[var(--muted-foreground)]">
                         {frequency === 'DAILY' ? 'day(s)' :
@@ -834,8 +837,9 @@ function CreateRecurringJobModal({ onClose, onCreated }: CreateRecurringJobModal
                   type="number"
                   value={itemCount}
                   onChange={(e) => setItemCount(Math.max(1, parseInt(e.target.value) || 1))}
+                  onFocus={(e) => e.target.select()}
                   min={1}
-                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
               <div>
@@ -844,8 +848,9 @@ function CreateRecurringJobModal({ onClose, onCreated }: CreateRecurringJobModal
                   type="number"
                   value={excludeDays}
                   onChange={(e) => setExcludeDays(Math.max(0, parseInt(e.target.value) || 0))}
+                  onFocus={(e) => e.target.select()}
                   min={0}
-                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
             </div>
@@ -910,7 +915,8 @@ function CreateRecurringJobModal({ onClose, onCreated }: CreateRecurringJobModal
                       max="12"
                       value={interval}
                       onChange={(e) => setInterval(parseInt(e.target.value) || 1)}
-                      className="w-20 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                      onFocus={(e) => e.target.select()}
+                      className="w-20 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <span className="text-sm text-[var(--muted-foreground)]">
                       {frequency === 'DAILY' ? 'day(s)' :

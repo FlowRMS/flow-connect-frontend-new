@@ -224,7 +224,8 @@ export default function CancelBackorderModal({
                               onChange={(e) =>
                                 updateAllocation(item.lineItem.id, parseInt(e.target.value) || 0)
                               }
-                              className="w-14 text-center py-1 border-x border-green-300 focus:outline-none focus:ring-0 text-sm font-medium text-green-700"
+                              onFocus={(e) => e.target.select()}
+                              className="w-14 text-center py-1 border-x border-green-300 focus:outline-none focus:ring-0 text-sm font-medium text-green-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               min={0}
                               max={maxQty}
                             />
