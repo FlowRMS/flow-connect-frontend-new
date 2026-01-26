@@ -1019,17 +1019,17 @@ export function QuoteDetailHeaderV2({
       <div className="flex items-center justify-end gap-6 px-6 py-2 text-sm border-b border-gray-200 bg-gray-50">
         <div>
           <span className="text-gray-500">Base Price:</span>
-          <span className="ml-2 font-semibold">${Number(calculatedTotals.basePrice.toFixed(2)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span className="ml-2 font-semibold">${Number(calculatedTotals.basePrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
         </div>
         <div className="border-l border-gray-300 h-4" />
         <div>
           <span className="text-gray-500">Sell Price:</span>
-          <span className="ml-2 font-semibold">${Number(calculatedTotals.sellPrice.toFixed(2)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span className="ml-2 font-semibold">${Number(calculatedTotals.sellPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
         </div>
         <div className="border-l border-gray-300 h-4" />
         <div>
           <span className="text-gray-500">Commission:</span>
-          <span className="ml-2 font-semibold text-green-600">${Number(calculatedTotals.commission.toFixed(2)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span className="ml-2 font-semibold text-green-600">${Number(calculatedTotals.commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
         </div>
       </div>
 

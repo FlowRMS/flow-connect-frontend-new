@@ -6,6 +6,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useCreateOrderFromQuote } from '../../orders/api';
 import { createLink } from '../../lib/graphql/entity-links';
@@ -243,8 +244,8 @@ export function CreateOrderFromQuoteModal({
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
       <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col">
         {step === 'select-items' ? (
           <>
@@ -645,6 +646,7 @@ export function CreateOrderFromQuoteModal({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

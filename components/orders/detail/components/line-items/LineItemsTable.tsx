@@ -683,8 +683,8 @@ export function LineItemsTable({
         editValue = String(item.unitPrice || 0);
         break;
       case 'commissionPercent':
-        displayValue = `${Number(item.commissionRate || 0).toFixed(1)}%`;
-        editValue = Number(item.commissionRate || 0).toFixed(1);
+        displayValue = `${String(Number(item.commissionRate || 0))}%`;
+        editValue = String(Number(item.commissionRate || 0));
         break;
     }
 
@@ -885,7 +885,7 @@ export function LineItemsTable({
                       <span className="w-2 h-2 rounded-full bg-purple-500"></span>
                       Product
                     </span>
-                    <span className="text-gray-500">${productPrice.toFixed(2)}</span>
+                    <span className="text-gray-500">${productPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                   </button>
                 );
               })()}
@@ -901,7 +901,7 @@ export function LineItemsTable({
                       <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                       CPN
                     </span>
-                    <span className="text-gray-500">${cpnPrice.toFixed(2)}</span>
+                    <span className="text-gray-500">${cpnPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                   </button>
                 );
               })()}
@@ -924,7 +924,7 @@ export function LineItemsTable({
                           <span className="w-2 h-2 rounded-full bg-green-500"></span>
                           Qty {tier.quantityLow}-{tier.quantityHigh}
                         </span>
-                        <span className="text-gray-500">${tierPrice.toFixed(2)}</span>
+                        <span className="text-gray-500">${tierPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                       </button>
                     );
                   })}

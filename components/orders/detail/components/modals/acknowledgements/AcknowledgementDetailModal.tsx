@@ -183,7 +183,7 @@ export function AcknowledgementDetailModal({
                       </div>
                       {detail.orderDetail?.unitPrice && (
                         <div className="text-xs text-[var(--muted-foreground)]">
-                          ${parseFloat(detail.orderDetail.unitPrice).toFixed(2)}/ea
+                          ${parseFloat(detail.orderDetail.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}/ea
                         </div>
                       )}
                     </div>

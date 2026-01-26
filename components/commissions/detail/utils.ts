@@ -6,12 +6,14 @@
 import type { LineItem, Adjustment } from './types';
 
 /**
- * Format number as currency (USD)
+ * Format number as currency (USD) with full precision (up to 4 decimal places)
  */
 export const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(amount);
 };
 
