@@ -17,7 +17,8 @@ export type SettingKey =
   | 'CHECKS_SETTINGS'
   | 'CHAT_SETTINGS'
   | 'SIDEBAR_SETTINGS'
-  | 'FLOW_AI_SETTINGS';
+  | 'FLOW_AI_SETTINGS'
+  | 'PICKLIST_SETTINGS';
 
 // ============================================================================
 // Setting Value Types
@@ -105,13 +106,30 @@ export interface SidebarSettingsValue {
   groups: NavGroupConfig[];
 }
 
+// Structure for a single picklist (orderTypes, lostReasons, etc.)
+export interface PicklistValue {
+  defaultValues: readonly string[];
+  customValues: string[];
+  labelMap?: Record<string, string>;
+}
+
+// All picklists stored under PICKLIST_SETTINGS key
+export interface PicklistSettingsValue {
+  orderTypes?: PicklistValue;
+  lostReasons?: PicklistValue;
+  expenseCategories?: PicklistValue;
+  creditReasons?: PicklistValue;
+  // Future picklists can be added here
+}
+
 export type SettingValue =
   | QuoteSettingsValue
   | OrderSettingsValue
   | InvoiceSettingsValue
   | ChatSettingsValue
   | SidebarSettingsValue
-  | FlowAISettingsValue;
+  | FlowAISettingsValue
+  | PicklistSettingsValue;
 
 // ============================================================================
 // Setting Response Types

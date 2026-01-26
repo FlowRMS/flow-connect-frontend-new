@@ -9,6 +9,7 @@ import { QuoteSettingsTab } from './settings/QuoteSettingsTab';
 import { OrderSettingsTab } from './settings/OrderSettingsTab';
 import { InvoiceSettingsTab } from './settings/InvoiceSettingsTab';
 import { ChatSettingsTab } from './settings/ChatSettingsTab';
+import { PicklistValuesTab } from './settings/PicklistValuesTab';
 import {
   mockTeamMembers,
   mockFlowBotSettings,
@@ -111,9 +112,10 @@ type ActivityRule = {
   tagModifiers: { tag: string; multiplier: number }[];
 };
 
-type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'chat-settings';
 
-const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'chat-settings'];
+type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'chat-settings' | 'picklist-values';
+
+const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'chat-settings', 'picklist-values'];
 
 export default function SettingsContent() {
   const searchParams = useSearchParams();
@@ -262,6 +264,7 @@ export default function SettingsContent() {
         { id: 'default-views' as TabType, label: 'Default Views' },
         { id: 'chat-settings' as TabType, label: 'Chat Settings' },
         { id: 'sidebar' as TabType, label: 'Sidebar' },
+        { id: 'picklist-values' as TabType, label: 'Picklist Values' },
       ],
     },
   ];
@@ -593,6 +596,11 @@ export default function SettingsContent() {
       {/* Chat Settings Tab */}
       {activeTab === 'chat-settings' && (
         <ChatSettingsTab />
+      )}
+
+      {/* Picklist Values Tab */}
+      {activeTab === 'picklist-values' && (
+        <PicklistValuesTab />
       )}
 
       {/* Default Views Tab */}
