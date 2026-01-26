@@ -96,11 +96,18 @@ export function getOrderFilterOptions(
     columnName: 'jobName', 
     available: true 
   },
-  { 
-    id: 'published', 
-    label: 'Published', 
-    type: 'boolean' as const, 
-    columnName: 'published', 
+  {
+    id: 'published',
+    label: 'Published',
+    type: 'boolean' as const,
+    columnName: 'published',
+    available: true
+  },
+  {
+    id: 'created-by',
+    label: 'Created By',
+    type: 'user' as const,
+    columnName: 'createdBy',
     available: true
   },
   // Soon filters
