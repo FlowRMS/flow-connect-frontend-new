@@ -48,6 +48,7 @@ import { attachYtdFields } from "@/lib/analytics/lib/pivot/attachYtdFields";
 import { FullScreenModal, ExpandButton } from "@/components/analytics/ui/FullScreenModal";
 import { DateFormatDropdown, DATE_FORMATS, formatDateByType } from "@/components/analytics/ui/DateFormatDropdown";
 import { RefreshButton } from "@/components/analytics/ui/RefreshButton";
+import { extractYear, extractQuarter, extractMonth } from "@/lib/analytics/utils/dateExtractors";
 import { DataDictionary } from "@/components/analytics/ui/DataDictionary";
 import { sumSkipNulls, percentageDiffAggregator } from "@/lib/analytics/lib/pivot/aggregators";
 import { normalizePivotConfig, pivotConfigsEqual, computePivotValueTotals } from "@/lib/analytics/lib/pivot/pivotUtils";
@@ -405,6 +406,11 @@ export function CheckPivotGrid() {
 
           // Additional fields
           status: record.entityType || "N/A",
+
+          // Date-based grouping fields extracted from entityDate
+          year: extractYear(entityDateValue),
+          quarter: extractQuarter(entityDateValue),
+          month: extractMonth(entityDateValue, true), // Use month names
         };
 
         // attachYtdFields now adds commissionDiffPct and salesDiffPct as objects
@@ -1073,6 +1079,27 @@ export function CheckPivotGrid() {
         {
           prop: "entityDate",
           name: "Entity Date",
+          sortable: true,
+          size: 120,
+          minSize: 100,
+        },
+        {
+          prop: "year",
+          name: "Year",
+          sortable: true,
+          size: 100,
+          minSize: 80,
+        },
+        {
+          prop: "quarter",
+          name: "Quarter",
+          sortable: true,
+          size: 100,
+          minSize: 80,
+        },
+        {
+          prop: "month",
+          name: "Month",
           sortable: true,
           size: 120,
           minSize: 100,
