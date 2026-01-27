@@ -217,8 +217,8 @@ export const M_ROLLBACK_TO_VERSION = gql`
 
 // Clusters / Templates queries and mutations
 export const Q_GET_CLUSTERS = gql`
-  query GetClusters {
-    clusters {
+  query GetClusters($limit: Int, $offset: Int) {
+    clusters(limit: $limit, offset: $offset) {
       additionalInstructions
       clusterMetadata
       clusterName

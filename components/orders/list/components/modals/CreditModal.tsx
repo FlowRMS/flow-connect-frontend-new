@@ -166,7 +166,7 @@ export function CreditModal({
                   />
                   <input
                     type="text"
-                    value={`$${item.unitCredit.toFixed(2)}`}
+                    value={`$${item.unitCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
                     onChange={(e) => {
                       const newItems = [...creditLineItems];
                       newItems[index].unitCredit =
@@ -197,7 +197,7 @@ export function CreditModal({
                   </div>
                   <input
                     type="text"
-                    value={`$${item.commissionAmount.toFixed(2)}`}
+                    value={`$${item.commissionAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
                     readOnly
                     className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--muted)]/30"
                   />

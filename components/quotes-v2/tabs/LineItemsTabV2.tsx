@@ -598,24 +598,24 @@ export function LineItemsTabV2({
         editValue = (item.divisor || 1).toString();
         break;
       case 'unitPrice':
-        displayValue = `$${Number(item.unitPrice || 0).toLocaleString()}`;
+        displayValue = `$${Number(item.unitPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         editValue = String(item.unitPrice || 0);
         break;
       case 'sellTotal':
         // Subtract line discount from sell total
-        displayValue = `$${Number((item.sellTotal || 0) - (item.lineDiscountAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        displayValue = `$${Number((item.sellTotal || 0) - (item.lineDiscountAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         break;
       case 'commissionPercent':
-        displayValue = Number(item.commissionPercent || 0).toFixed(2);
-        editValue = Number(item.commissionPercent || 0).toFixed(2);
+        displayValue = String(Number(item.commissionPercent || 0));
+        editValue = String(Number(item.commissionPercent || 0));
         break;
       case 'commission':
         // Subtract commission discount from commission per unit
-        displayValue = `$${Number((item.commission || 0) - ((item.commissionDiscountAmount || 0) / (item.quantity || 1))).toFixed(2)}`;
+        displayValue = `$${Number((item.commission || 0) - ((item.commissionDiscountAmount || 0) / (item.quantity || 1))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         break;
       case 'commissionTotal':
         // Subtract commission discount from commission total
-        displayValue = `$${Number((item.commissionTotal || 0) - (item.commissionDiscountAmount || 0)).toFixed(2)}`;
+        displayValue = `$${Number((item.commissionTotal || 0) - (item.commissionDiscountAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         break;
       case 'linkedOrder':
         displayValue = item.linkedOrderNumber || '—';
@@ -998,7 +998,7 @@ export function LineItemsTabV2({
                       <span className="w-2 h-2 rounded-full bg-purple-500"></span>
                       Product
                     </span>
-                    <span className="text-gray-500">${productPrice.toFixed(2)}</span>
+                    <span className="text-gray-500">${productPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                   </button>
                 );
               })()}
@@ -1014,7 +1014,7 @@ export function LineItemsTabV2({
                       <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                       CPN
                     </span>
-                    <span className="text-gray-500">${cpnPrice.toFixed(2)}</span>
+                    <span className="text-gray-500">${cpnPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                   </button>
                 );
               })()}
@@ -1037,7 +1037,7 @@ export function LineItemsTabV2({
                           <span className="w-2 h-2 rounded-full bg-green-500"></span>
                           Qty {tier.quantityLow}-{tier.quantityHigh}
                         </span>
-                        <span className="text-gray-500">${tierPrice.toFixed(2)}</span>
+                        <span className="text-gray-500">${tierPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                       </button>
                     );
                   })}

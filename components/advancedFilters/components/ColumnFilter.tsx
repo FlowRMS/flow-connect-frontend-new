@@ -13,6 +13,7 @@ import { FactoryFilter } from './filter-types/FactoryFilter';
 import { CategoryFilter } from './filter-types/CategoryFilter';
 import { CompanyFilter } from './filter-types/CompanyFilter';
 import { CompanyTypeFilter } from './filter-types/CompanyTypeFilter';
+import { UserFilter } from './filter-types/UserFilter';
 import { parseDateString, formatDateToBackend } from '../utils';
 
 export type ColumnFilterType =
@@ -25,7 +26,8 @@ export type ColumnFilterType =
   | 'factory'
   | 'category'
   | 'company'
-  | 'companyType';
+  | 'companyType'
+  | 'user';
 
 // Keep ColumnFilterValue for backward compatibility during migration
 export interface ColumnFilterValue {
@@ -109,6 +111,7 @@ export function ColumnFilter({
 
   const [localTextValue, setLocalTextValue] = useState(getTextValue());
   const [localSelectedValues, setLocalSelectedValues] = useState<string[]>(getSelectedValues());
+  const [dropdownSearchValue, setDropdownSearchValue] = useState('');
   const [localDateStart, setLocalDateStart] = useState<Date | null>(getDateStart());
   const [localDateEnd, setLocalDateEnd] = useState<Date | null>(getDateEnd());
   const [localMonthYear, setLocalMonthYear] = useState<Date | null>(() => {
@@ -206,13 +209,13 @@ export function ColumnFilter({
         if ((filter.operator === 'GTE' || filter.operator === 'LTE') && filter.value) {
           return true;
         }
-      } else if (type === 'factory' || type === 'category' || type === 'company') {
+      } else if (type === 'factory' || type === 'category' || type === 'company' || type === 'user') {
         if (filter.values && Array.isArray(filter.values) && filter.values.length > 0) {
           return true;
         }
       }
     }
-    
+
     return false;
   }, [safeValue, type, columnName]);
 
@@ -235,7 +238,7 @@ export function ColumnFilter({
     if (type === 'date') {
       return localDateStart !== null || localDateEnd !== null;
     }
-    if (type === 'factory' || type === 'category' || type === 'company' || type === 'companyType') {
+    if (type === 'factory' || type === 'category' || type === 'company' || type === 'companyType' || type === 'user') {
       return localSelectedValues.length > 0;
     }
     return false;
@@ -287,6 +290,7 @@ export function ColumnFilter({
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
+    setDropdownSearchValue(''); // Reset search on apply
     if (onToggle) {
       onToggle();
     }
@@ -402,6 +406,7 @@ export function ColumnFilter({
     // Remove all filters for this column
     const otherFilters = safeValue.filter(f => f.columnName !== columnName);
     onChange(otherFilters);
+    setDropdownSearchValue(''); // Reset search on clear
     if (onToggle) {
       onToggle();
     }
@@ -448,7 +453,7 @@ export function ColumnFilter({
           </svg>
           {hasValue && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--primary)] text-white text-[10px] rounded-full flex items-center justify-center">
-              {(type === 'dropdown' || type === 'factory' || type === 'category' || type === 'company' || type === 'companyType')
+              {(type === 'dropdown' || type === 'factory' || type === 'category' || type === 'company' || type === 'companyType' || type === 'user')
                 ? localSelectedValues.length
                 : '•'}
             </span>
@@ -465,13 +470,13 @@ export function ColumnFilter({
             width:
               type === 'date' || type === 'month'
                 ? '300px'
-                : type === 'company' || type === 'companyType'
+                : type === 'company' || type === 'companyType' || type === 'user'
                   ? '280px'
                   : 'var(--radix-popover-trigger-width)',
             minWidth:
               type === 'date'
                 ? '300px'
-                : type === 'company' || type === 'companyType'
+                : type === 'company' || type === 'companyType' || type === 'user'
                   ? '220px'
                   : '200px',
             maxWidth:
@@ -479,7 +484,7 @@ export function ColumnFilter({
                 ? '300px'
                 : type === 'date'
                   ? '300px'
-                  : type === 'company' || type === 'companyType'
+                  : type === 'company' || type === 'companyType' || type === 'user'
                     ? '320px'
                     : '320px',
           }}
@@ -504,9 +509,9 @@ export function ColumnFilter({
           {type === 'dropdown' && (
             <DropdownFilter
               option={filterOption}
-              filterValue=""
+              filterValue={dropdownSearchValue}
               selectedValues={localSelectedValues}
-              onFilterValueChange={() => {}}
+              onFilterValueChange={setDropdownSearchValue}
               onToggleValue={toggleDropdownValue}
               onApply={handleDropdownApply}
               onClear={handleClear}
@@ -595,6 +600,17 @@ export function ColumnFilter({
           
           {type === 'companyType' && (
             <CompanyTypeFilter
+              option={filterOption}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
+            />
+          )}
+
+          {type === 'user' && (
+            <UserFilter
               option={filterOption}
               selectedValues={localSelectedValues}
               onToggleValue={toggleDropdownValue}

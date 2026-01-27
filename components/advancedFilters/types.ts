@@ -27,7 +27,8 @@ export type FilterOption = {
     | 'factory'
     | 'category'
     | 'company'
-    | 'companyType';
+    | 'companyType'
+    | 'user';
   columnName?: string; // API column name for filtering
   available?: boolean; // Whether this filter is available in the API
   options?: string[]; // Available options for dropdown filters
