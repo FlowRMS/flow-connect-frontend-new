@@ -212,7 +212,8 @@ export default function PackingSlipSection({
                                   )
                                 );
                               }}
-                              className="w-20 px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
+                              onFocus={(e) => e.target.select()}
+                              className="w-20 px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               placeholder="0"
                             />
                           </td>

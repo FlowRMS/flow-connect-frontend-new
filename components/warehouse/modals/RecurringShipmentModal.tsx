@@ -173,7 +173,8 @@ export default function RecurringShipmentModal({
                     max="12"
                     value={interval}
                     onChange={(e) => setInterval(parseInt(e.target.value) || 1)}
-                    className="w-20 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                    onFocus={(e) => e.target.select()}
+                    className="w-20 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <span className="text-sm text-[var(--muted-foreground)]">
                     {frequency === 'DAILY' ? 'day(s)' :

@@ -344,7 +344,8 @@ export default function CreateRecurringShipmentModal({
                         max="12"
                         value={interval}
                         onChange={(e) => setInterval(parseInt(e.target.value) || 1)}
-                        className="w-20 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                        onFocus={(e) => e.target.select()}
+                        className="w-20 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <span className="text-sm text-[var(--muted-foreground)]">
                         {frequency === 'DAILY' ? 'day(s)' :
@@ -498,7 +499,8 @@ export default function CreateRecurringShipmentModal({
                               min="1"
                               value={item.expectedQuantity}
                               onChange={(e) => handleUpdateItemQuantity(index, parseInt(e.target.value) || 1)}
-                              className="w-20 px-2 py-1 text-sm text-right border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                              onFocus={(e) => e.target.select()}
+                              className="w-20 px-2 py-1 text-sm text-right border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </td>
                           <td className="px-4 py-3 text-center">

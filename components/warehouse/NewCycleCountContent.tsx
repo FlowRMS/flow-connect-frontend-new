@@ -398,9 +398,10 @@ export default function NewCycleCountContent() {
                   type="number"
                   value={quantityThreshold}
                   onChange={(e) => setQuantityThreshold(e.target.value ? parseInt(e.target.value) : '')}
+                  onFocus={(e) => e.target.select()}
                   placeholder="e.g., 100"
                   min={0}
-                  className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 {quantityThreshold !== '' && quantityThreshold > 0 && (
                   <p className="text-xs text-[var(--muted-foreground)] mt-1">
@@ -701,9 +702,10 @@ export default function NewCycleCountContent() {
                   type="number"
                   value={randomCount}
                   onChange={(e) => setRandomCount(parseInt(e.target.value) || 1)}
+                  onFocus={(e) => e.target.select()}
                   min={1}
                   max={100}
-                  className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <p className="text-xs text-[var(--muted-foreground)] mt-1">
                   How many products to randomly select
@@ -718,8 +720,9 @@ export default function NewCycleCountContent() {
                   type="number"
                   value={daysSinceLastCount}
                   onChange={(e) => setDaysSinceLastCount(parseInt(e.target.value) || 0)}
+                  onFocus={(e) => e.target.select()}
                   min={0}
-                  className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <p className="text-xs text-[var(--muted-foreground)] mt-1">
                   Exclude products counted within the last {daysSinceLastCount} days

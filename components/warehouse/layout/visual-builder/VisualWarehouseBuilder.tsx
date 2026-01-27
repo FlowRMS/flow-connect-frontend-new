@@ -451,7 +451,8 @@ export default function VisualWarehouseBuilder({
                       type="number"
                       value={warehouseDimensions.width}
                       onChange={(e) => onWarehouseDimensionsChange(parseInt(e.target.value) || 100, warehouseDimensions.height)}
-                      className="w-full mt-0.5 px-2 py-1 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                      onFocus={(e) => e.target.select()}
+                      className="w-full mt-0.5 px-2 py-1 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
                   <div>
@@ -460,7 +461,8 @@ export default function VisualWarehouseBuilder({
                       type="number"
                       value={warehouseDimensions.height}
                       onChange={(e) => onWarehouseDimensionsChange(warehouseDimensions.width, parseInt(e.target.value) || 100)}
-                      className="w-full mt-0.5 px-2 py-1 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                      onFocus={(e) => e.target.select()}
+                      className="w-full mt-0.5 px-2 py-1 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
                 </div>
@@ -502,7 +504,8 @@ export default function VisualWarehouseBuilder({
                         type="number"
                         value={pixelsToFeet(selectedElement.x)}
                         onChange={(e) => onElementMove(selectedElement.id, feetToPixels(parseInt(e.target.value) || 0), selectedElement.y ?? 0)}
-                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                        onFocus={(e) => e.target.select()}
+                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                     <div>
@@ -511,7 +514,8 @@ export default function VisualWarehouseBuilder({
                         type="number"
                         value={pixelsToFeet(selectedElement.y)}
                         onChange={(e) => onElementMove(selectedElement.id, selectedElement.x ?? 0, feetToPixels(parseInt(e.target.value) || 0))}
-                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                        onFocus={(e) => e.target.select()}
+                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                     <div>
@@ -520,7 +524,8 @@ export default function VisualWarehouseBuilder({
                         type="number"
                         value={pixelsToFeet(selectedElement.width)}
                         onChange={(e) => onElementResize(selectedElement.id, feetToPixels(parseInt(e.target.value) || 10), selectedElement.height ?? 100)}
-                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                        onFocus={(e) => e.target.select()}
+                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                     <div>
@@ -529,7 +534,8 @@ export default function VisualWarehouseBuilder({
                         type="number"
                         value={pixelsToFeet(selectedElement.height)}
                         onChange={(e) => onElementResize(selectedElement.id, selectedElement.width ?? 100, feetToPixels(parseInt(e.target.value) || 10))}
-                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                        onFocus={(e) => e.target.select()}
+                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   </div>

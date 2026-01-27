@@ -80,7 +80,8 @@ export default function TemplateStructureStep({
                 max="100"
                 value={config.counts[level] || 0}
                 onChange={(e) => handleCountChange(level, e.target.value)}
-                className="w-16 px-2 py-1 text-xs text-center border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onFocus={(e) => e.target.select()}
+                className="w-16 px-2 py-1 text-xs text-center border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
           );

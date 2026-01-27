@@ -534,7 +534,8 @@ export default function ReceivingInterface() {
                           min="0"
                           value={lineItem.receivedQty}
                           onChange={(e) => handleUpdateLineItem(lineItem.id, { receivedQty: parseInt(e.target.value) || 0 })}
-                          className="w-20 px-2 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm text-center focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                          onFocus={(e) => e.target.select()}
+                          className="w-20 px-2 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm text-center focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                       <div className="flex items-center gap-2">
@@ -732,7 +733,8 @@ export default function ReceivingInterface() {
                                 d.id === disc.id ? { ...d, quantity: val } : d
                               ));
                             }}
-                            className="w-16 px-2 py-1 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm text-center focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                            onFocus={(e) => e.target.select()}
+                            className="w-16 px-2 py-1 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm text-center focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
 
                           {/* Notes label and input - boxed style like other inputs */}
@@ -928,7 +930,8 @@ export default function ReceivingInterface() {
                                       );
                                       handleUpdateLineItem(lineItem.id, { binAssignments: updated });
                                     }}
-                                    className="w-20 px-2 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                                    onFocus={(e) => e.target.select()}
+                                    className="w-20 px-2 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                   />
                                 </div>
                                 {/* Remove button (only for non-primary) */}

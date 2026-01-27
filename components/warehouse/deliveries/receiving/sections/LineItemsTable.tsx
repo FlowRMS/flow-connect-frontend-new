@@ -130,7 +130,8 @@ export default function LineItemsTable({
                         min="0"
                         value={lineItem.expectedQty}
                         onChange={(e) => onUpdateExpectedQty(lineItem.id, parseInt(e.target.value) || 0)}
-                        className="w-20 px-2 py-1 text-right border border-[var(--border)] rounded bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                        onFocus={(e) => e.target.select()}
+                        className="w-20 px-2 py-1 text-right border border-[var(--border)] rounded bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     ) : (
                       lineItem.expectedQty
