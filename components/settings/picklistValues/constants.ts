@@ -9,7 +9,7 @@ import type { PicklistConfigs, PicklistKey } from './types';
 // No mapping needed - all use the same key
 
 // Default order types (cannot be deleted by admins)
-export const DEFAULT_ORDER_TYPES = ['NORMAL', 'BLANKET', 'RELEASE', 'TAG', 'HOLD_FOR_RELEASE'] as const;
+export const DEFAULT_ORDER_TYPES = ['NORMAL', 'BLANKET', 'RELEASE', 'TAG', 'HOLD_FOR_RELEASE', 'STORM'] as const;
 
 // Mapping for order type display labels
 export const ORDER_TYPE_LABELS: Record<string, string> = {
@@ -18,6 +18,7 @@ export const ORDER_TYPE_LABELS: Record<string, string> = {
   RELEASE: 'Release',
   TAG: 'Tag',
   HOLD_FOR_RELEASE: 'Hold for Release',
+  STORM: 'Storm',
 };
 
 // Configuration for all picklists

@@ -11,7 +11,7 @@ import { crmGraphQLRequest } from './client';
 
 // Default order types (cannot be deleted by admins)
 // Additional custom order types can be added via Picklist Values settings
-export type OrderType = 'NORMAL' | 'BLANKET' | 'RELEASE' | 'TAG' | 'HOLD_FOR_RELEASE' | string;
+export type OrderType = 'NORMAL' | 'BLANKET' | 'RELEASE' | 'TAG' | 'HOLD_FOR_RELEASE' | 'STORM' | string;
 export type OrderCreationType = 'MANUAL' | 'IMPORT' | 'API' | 'DUPLICATION';
 export type OrderDetailStatus = 'OPEN' | 'ORDERED' | 'SHIPPED' | 'CANCELLED';
 export type OrderHeaderStatus = 'DRAFT' | 'OPEN' | 'PARTIAL_SHIPPED' | 'SHIPPED' | 'CANCELLED' | 'DORMANT';
