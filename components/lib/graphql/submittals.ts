@@ -291,6 +291,7 @@ export interface GenerateSubmittalPdfInput {
   hideNotes?: boolean;
   useCustomerLogo?: boolean;
   printDuplex?: boolean;
+  saveAsAttachment?: boolean;
   capFileSizeMb?: number;
   attachedItems?: string[];
   attachedOther?: string;
@@ -348,6 +349,8 @@ export interface GenerateSubmittalPdfResponse {
   pdfFileName?: string;
   pdfFileSizeBytes?: number;
   revision?: SubmittalRevisionResponse;
+  emailSent?: boolean;
+  emailRecipientsCount?: number;
 }
 
 // ============================================================================
@@ -678,6 +681,8 @@ const GENERATE_SUBMITTAL_PDF = `
       pdfUrl
       pdfFileName
       pdfFileSizeBytes
+      emailSent
+      emailRecipientsCount
       revision {
         ...SubmittalRevisionFields
       }

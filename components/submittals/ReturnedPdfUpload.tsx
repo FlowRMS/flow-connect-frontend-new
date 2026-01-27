@@ -5,6 +5,7 @@ import type {
   Submittal,
   SubmittalRevision,
   SubmittalStakeholder,
+  ReturnedPdf,
 } from '../../lib/types/submittals';
 import { uploadFileWithProgress, getFilePresignedUrl } from '../lib/graphql/files';
 import {
@@ -14,6 +15,7 @@ import {
   type OverallChangeStatusGQL,
   type ItemChangeStatusGQL,
 } from './api/useSubmittalsApi';
+import { mapReturnedPdfResponse } from './types/submittal-transforms';
 
 // Maximum file size in bytes (100MB)
 const MAX_FILE_SIZE_MB = 100;
@@ -23,7 +25,7 @@ interface ReturnedPdfUploadProps {
   submittal: Submittal;
   revision: SubmittalRevision;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (returnedPdf: ReturnedPdf) => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -203,6 +205,7 @@ export default function ReturnedPdfUpload({
       });
 
       // 4. If AI analysis is enabled, add change analysis
+      let analysisResponse = null;
       if (analyzeWithAI) {
         setAnalyzing(true);
 
@@ -211,7 +214,7 @@ export default function ReturnedPdfUpload({
 
         const analysisResult = simulateAIAnalysis(submittal);
 
-        await addChangeAnalysisMutation.mutateAsync({
+        analysisResponse = await addChangeAnalysisMutation.mutateAsync({
           submittalId: submittal.id,
           input: {
             returnedPdfId: returnedPdf.id,
@@ -225,8 +228,15 @@ export default function ReturnedPdfUpload({
         setAnalyzing(false);
       }
 
-      // Success - close modal and notify parent
-      onSuccess?.();
+      // Build the full returned PDF response for the parent
+      const fullResponse = {
+        ...returnedPdf,
+        changeAnalysis: analysisResponse,
+      };
+      const mappedReturnedPdf = mapReturnedPdfResponse(fullResponse, revision.revisionNumber);
+
+      // Success - notify parent with the result, then close
+      onSuccess?.(mappedReturnedPdf);
       onClose();
     } catch (err) {
       console.error('Error uploading returned PDF:', err);

@@ -170,6 +170,7 @@ export function usePrintDialog({
       },
       selectedItemIds: Array.from(selectedItemIds),
       capFileSize,
+      saveAsAttachment,
     };
     onPrint(settings);
   };

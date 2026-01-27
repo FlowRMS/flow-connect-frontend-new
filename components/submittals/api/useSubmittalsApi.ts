@@ -317,6 +317,7 @@ export function useAddReturnedPdf() {
     mutationFn: ({ input }) => addReturnedPdf(input),
     onSuccess: (_, { submittalId }) => {
       queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.all });
     },
   });
 }
@@ -331,6 +332,7 @@ export function useAddChangeAnalysis() {
     mutationFn: ({ input }) => addChangeAnalysis(input),
     onSuccess: (_, { submittalId }) => {
       queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.all });
     },
   });
 }
@@ -349,6 +351,7 @@ export function useUpdateItemChange() {
     mutationFn: ({ id, input }) => updateItemChange(id, input),
     onSuccess: (_, { submittalId }) => {
       queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.all });
     },
   });
 }
@@ -363,6 +366,7 @@ export function useDeleteItemChange() {
     mutationFn: ({ id }) => deleteItemChange(id),
     onSuccess: (_, { submittalId }) => {
       queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.all });
     },
   });
 }
@@ -377,6 +381,7 @@ export function useResolveItemChange() {
     mutationFn: ({ id }) => resolveItemChange(id),
     onSuccess: (_, { submittalId }) => {
       queryClient.invalidateQueries({ queryKey: submittalQueryKeys.detail(submittalId) });
+      queryClient.invalidateQueries({ queryKey: submittalQueryKeys.all });
     },
   });
 }

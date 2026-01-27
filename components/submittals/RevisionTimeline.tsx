@@ -299,7 +299,7 @@ export default function RevisionTimeline({
                           <div className="bg-[var(--muted)]/20 rounded-lg p-3">
                             <div className="flex items-center justify-between mb-2">
                               <p className="text-xs font-medium text-[var(--foreground)]">
-                                Changes Detected ({returnedPdf.changeAnalysis.totalChangesDetected} items)
+                                Changes Detected ({returnedPdf.changeAnalysis.itemChanges.length} items)
                               </p>
                               <button
                                 onClick={() => onViewAnalysis?.(returnedPdf)}

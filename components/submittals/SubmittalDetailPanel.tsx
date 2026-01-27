@@ -363,9 +363,25 @@ export default function SubmittalDetailPanel({
             submittal={submittal}
             revision={uploadDialogRevision}
             onClose={() => setUploadDialogRevision(null)}
-            onSuccess={() => {
+            onSuccess={(returnedPdf) => {
+              // Add the returned PDF to the revision's local state
+              if (onUpdate) {
+                const updatedRevisions = submittal.revisions.map(rev => {
+                  if (rev.revisionNumber === uploadDialogRevision.revisionNumber) {
+                    return {
+                      ...rev,
+                      returnedPdfs: [...rev.returnedPdfs, returnedPdf],
+                    };
+                  }
+                  return rev;
+                });
+                onUpdate({ revisions: updatedRevisions });
+              }
               setUploadDialogRevision(null);
-              // Refresh submittal data
+              // If there's change analysis, open the analysis panel
+              if (returnedPdf.changeAnalysis) {
+                setAnalysisReturnedPdf(returnedPdf);
+              }
             }}
           />
         )}

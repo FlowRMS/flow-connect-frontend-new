@@ -16,4 +16,5 @@ export interface PrintSettings {
   };
   selectedItemIds: string[];
   capFileSize: string;
+  saveAsAttachment: boolean;
 }

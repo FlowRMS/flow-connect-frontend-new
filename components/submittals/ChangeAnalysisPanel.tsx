@@ -68,7 +68,7 @@ export default function ChangeAnalysisPanel({
             <div>
               <h2 className="text-lg font-semibold text-[var(--foreground)]">Change Analysis</h2>
               <p className="text-sm text-[var(--muted-foreground)]">
-                {analysis.totalChangesDetected} items need attention
+                {analysis.itemChanges.length} items need attention
               </p>
             </div>
             <div className="flex items-center gap-3">

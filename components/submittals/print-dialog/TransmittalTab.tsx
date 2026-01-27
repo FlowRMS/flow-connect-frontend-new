@@ -3,7 +3,7 @@
 import React from 'react';
 import type { TransmittalPurpose, TransmittalAttachment } from '../../../lib/types/submittals';
 
-const TRANSMITTAL_ATTACHED: { value: TransmittalAttachment | 'plans' | 'submittals'; label: string }[] = [
+const TRANSMITTAL_ATTACHED: { value: TransmittalAttachment; label: string }[] = [
   { value: 'drawings', label: 'Drawings' },
   { value: 'specifications', label: 'Specifications' },
   { value: 'prints', label: 'Prints' },

@@ -33,6 +33,8 @@ export type TransmittalAttachment =
   | 'specifications'
   | 'prints'
   | 'information'
+  | 'plans'
+  | 'submittals'
   | 'other';
 
 export type ItemApprovalStatus =

@@ -123,6 +123,7 @@ export default function SubmittalsContent() {
         hideNotes: settings.outputOptions.hideNotes,
         useCustomerLogo: settings.outputOptions.useCustomerLogo,
         printDuplex: settings.outputOptions.printDuplex,
+        saveAsAttachment: settings.saveAsAttachment,
         capFileSizeMb: settings.capFileSize !== 'none' ? parseInt(settings.capFileSize) : undefined,
         attachedItems: settings.transmittal.attached as string[],
         attachedOther: settings.transmittal.attachedOther || undefined,
@@ -137,15 +138,28 @@ export default function SubmittalsContent() {
       const result = await generatePdfMutation.mutateAsync(input);
 
       if (result.success && result.pdfUrl) {
-        if (result.pdfUrl.startsWith('data:')) {
-          const newWindow = window.open();
-          if (newWindow) {
-            newWindow.document.write(`<iframe src="${result.pdfUrl}" style="width:100%;height:100%;border:none;"></iframe>`);
+        // Handle output based on type
+        if (settings.outputType === 'email' || settings.outputType === 'email_link') {
+          // Email was sent by the backend
+          if (result.emailSent && result.emailRecipientsCount) {
+            submittalToasts.emailSent(result.emailRecipientsCount);
+          } else {
+            // PDF generated but email failed - open PDF as fallback
+            submittalToasts.emailError('Email could not be sent. Opening PDF instead.');
+            window.open(result.pdfUrl, '_blank');
           }
         } else {
-          window.open(result.pdfUrl, '_blank');
+          // PDF output - open in new tab
+          if (result.pdfUrl.startsWith('data:')) {
+            const newWindow = window.open();
+            if (newWindow) {
+              newWindow.document.write(`<iframe src="${result.pdfUrl}" style="width:100%;height:100%;border:none;"></iframe>`);
+            }
+          } else {
+            window.open(result.pdfUrl, '_blank');
+          }
+          submittalToasts.pdfSuccess();
         }
-        submittalToasts.pdfSuccess();
 
         // Update status based on mode
         if (resubmitMode) {

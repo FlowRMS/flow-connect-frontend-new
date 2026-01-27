@@ -3,8 +3,25 @@
  * Handles conversion between API responses and frontend types
  */
 
-import type { SubmittalResponse, SubmittalStatusGQL } from '../api/useSubmittalsApi';
-import type { Submittal, SubmittalStatus, SpecSheetMatchStatus } from '../../../lib/types/submittals';
+import type {
+  SubmittalResponse,
+  SubmittalStatusGQL,
+  SubmittalReturnedPdfResponse,
+  SubmittalChangeAnalysisResponse,
+  SubmittalItemChangeResponse,
+  ItemChangeStatusGQL,
+  OverallChangeStatusGQL,
+} from '../api/useSubmittalsApi';
+import type {
+  Submittal,
+  SubmittalStatus,
+  SpecSheetMatchStatus,
+  ReturnedPdf,
+  ChangeAnalysis,
+  ItemChange,
+  ItemChangeStatus,
+  OverallChangeStatus,
+} from '../../../lib/types/submittals';
 import { defaultSubmittalConfig } from '../../../lib/types/submittals';
 
 // Simplified type for API data display in list/grid views
@@ -183,10 +200,14 @@ export function transformToFullSubmittal(response: SubmittalResponse): Submittal
         includeCoverPage: true,
         includeTransmittalPage: true,
         includeFixtureSummary: true,
+        includePages: true,
+        includeTypeCoverPage: false,
         showQuantities: true,
         showDescriptions: true,
         showLeadTimes: false,
+        hideNotes: false,
         useCustomerLogo: false,
+        printDuplex: false,
         attachments: [],
         transmittedFor: [],
         addressedTo: [],
@@ -202,7 +223,9 @@ export function transformToFullSubmittal(response: SubmittalResponse): Submittal
         attachmentName: '',
         attachmentSize: 0,
       })) || [],
-      returnedPdfs: [],
+      returnedPdfs: rev.returnedPdfs?.map(pdf =>
+        mapReturnedPdfResponse(pdf, rev.revisionNumber)
+      ) || [],
     })) || [],
     config: response.config ? {
       includeLamps: response.config.includeLamps,
@@ -218,5 +241,78 @@ export function transformToFullSubmittal(response: SubmittalResponse): Submittal
     createdBy: response.createdBy?.fullName || 'Unknown',
     updatedBy: response.createdBy?.fullName || 'Unknown',
     tags: response.tags || [],
+  };
+}
+
+// Map GQL item change status to frontend status
+const itemChangeStatusMap: Record<ItemChangeStatusGQL, ItemChangeStatus> = {
+  'APPROVED': 'approved',
+  'APPROVED_AS_NOTED': 'approved_as_noted',
+  'REVISE': 'revise',
+  'REJECTED': 'rejected',
+};
+
+// Map GQL overall change status to frontend status
+const overallChangeStatusMap: Record<OverallChangeStatusGQL, OverallChangeStatus> = {
+  'APPROVED': 'approved',
+  'APPROVED_AS_NOTED': 'approved_as_noted',
+  'REVISE_AND_RESUBMIT': 'revise_and_resubmit',
+  'REJECTED': 'rejected',
+};
+
+function mapItemChangeResponse(response: SubmittalItemChangeResponse): ItemChange {
+  return {
+    id: response.id,
+    itemId: response.itemId || '',
+    fixtureType: response.fixtureType,
+    catalogNumber: response.catalogNumber,
+    manufacturer: response.manufacturer,
+    status: itemChangeStatusMap[response.status] || 'revise',
+    notes: response.notes || [],
+    pageReferences: response.pageReferences || undefined,
+    resolved: response.resolved,
+  };
+}
+
+function mapChangeAnalysisResponse(response: SubmittalChangeAnalysisResponse): ChangeAnalysis {
+  return {
+    id: response.id,
+    analyzedAt: response.createdAt,
+    analyzedBy: response.analyzedBy === 'AI' ? 'ai' : 'manual',
+    totalChangesDetected: response.totalChangesDetected,
+    itemChanges: response.itemChanges.map(mapItemChangeResponse),
+    overallStatus: overallChangeStatusMap[response.overallStatus] || 'approved',
+    summary: response.summary || undefined,
+  };
+}
+
+export function mapReturnedPdfResponse(
+  response: SubmittalReturnedPdfResponse,
+  revisionNumber: number,
+): ReturnedPdf {
+  return {
+    id: response.id,
+    revisionNumber,
+    fileName: response.fileName,
+    fileUrl: response.fileUrl,
+    fileSize: response.fileSize,
+    uploadedAt: response.createdAt,
+    uploadedBy: response.createdBy?.fullName || 'Unknown',
+    returnedBy: response.returnedByStakeholder ? {
+      contactId: response.returnedByStakeholder.id,
+      contactName: response.returnedByStakeholder.contactName || '',
+      companyName: response.returnedByStakeholder.companyName || undefined,
+      email: response.returnedByStakeholder.contactEmail || undefined,
+      role: (response.returnedByStakeholder.role?.toLowerCase() || 'customer') as 'customer' | 'engineer' | 'architect',
+    } : {
+      contactId: response.returnedByStakeholderId || '',
+      contactName: 'Unknown',
+      role: 'customer' as const,
+    },
+    receivedDate: response.receivedDate || new Date().toISOString().split('T')[0],
+    notes: response.notes || undefined,
+    changeAnalysis: response.changeAnalysis
+      ? mapChangeAnalysisResponse(response.changeAnalysis)
+      : undefined,
   };
 }
