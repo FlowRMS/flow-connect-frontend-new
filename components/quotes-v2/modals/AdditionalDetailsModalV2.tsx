@@ -506,9 +506,9 @@ export function AdditionalDetailsModalV2({
               </div>
             )}
 
-            {/* Commission Discount % */}
+            {/* Commission Discount */}
             <div>
-              <label className="block text-sm text-gray-700 mb-1">Commission Discount %</label>
+              <label className="block text-sm text-gray-700 mb-1">Commission Discount</label>
               <div className="flex items-center gap-2">
                 <input
                   type="text"
@@ -534,29 +534,45 @@ export function AdditionalDetailsModalV2({
                       commissionDiscountAmount: discountAmount,
                     });
                   }}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-20 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-right"
+                  placeholder="0"
                 />
                 <span className="text-sm text-gray-500">%</span>
-              </div>
-            </div>
-
-            {/* Commission Discount $ (Read-only, calculated from %) */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Commission Discount $</label>
-              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-400 mx-1">or</span>
                 <span className="text-sm text-gray-500">$</span>
                 <input
                   type="text"
-                  value={Number(formData.commissionDiscountAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                  readOnly
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
+                  inputMode="decimal"
+                  value={formData.commissionDiscountAmount || ''}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/^0+(?=\d)/, '');
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      e.target.value = value;
+                    }
+                    const dollarAmount = parseFloat(e.target.value) || 0;
+                    // Calculate percentage from dollar amount (max 4 decimal places)
+                    const commissionTotal = lineItem?.commissionTotal || 0;
+                    const percent = commissionTotal > 0 ? Math.round(((dollarAmount / commissionTotal) * 100) * 10000) / 10000 : 0;
+                    setFormData({
+                      ...formData,
+                      commissionDiscountPercent: percent,
+                      commissionDiscountAmount: dollarAmount,
+                    });
+                    // Live update the line item (without closing modal)
+                    onLiveUpdate?.({
+                      commissionDiscountPercent: percent,
+                      commissionDiscountAmount: dollarAmount,
+                    });
+                  }}
+                  className="w-24 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-right"
+                  placeholder="0.00"
                 />
               </div>
             </div>
 
-            {/* Line Discount % */}
+            {/* Line Discount */}
             <div>
-              <label className="block text-sm text-gray-700 mb-1">Line Discount %</label>
+              <label className="block text-sm text-gray-700 mb-1">Line Discount</label>
               <div className="flex items-center gap-2">
                 <input
                   type="text"
@@ -582,22 +598,38 @@ export function AdditionalDetailsModalV2({
                       lineDiscountAmount: discountAmount,
                     });
                   }}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-20 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-right"
+                  placeholder="0"
                 />
                 <span className="text-sm text-gray-500">%</span>
-              </div>
-            </div>
-
-            {/* Line Discount $ (Read-only, calculated from %) */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Line Discount $</label>
-              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-400 mx-1">or</span>
                 <span className="text-sm text-gray-500">$</span>
                 <input
                   type="text"
-                  value={Number(formData.lineDiscountAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                  readOnly
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
+                  inputMode="decimal"
+                  value={formData.lineDiscountAmount || ''}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/^0+(?=\d)/, '');
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      e.target.value = value;
+                    }
+                    const dollarAmount = parseFloat(e.target.value) || 0;
+                    // Calculate percentage from dollar amount (max 4 decimal places)
+                    const sellTotal = lineItem?.sellTotal || 0;
+                    const percent = sellTotal > 0 ? Math.round(((dollarAmount / sellTotal) * 100) * 10000) / 10000 : 0;
+                    setFormData({
+                      ...formData,
+                      lineDiscountPercent: percent,
+                      lineDiscountAmount: dollarAmount,
+                    });
+                    // Live update the line item (without closing modal)
+                    onLiveUpdate?.({
+                      lineDiscountPercent: percent,
+                      lineDiscountAmount: dollarAmount,
+                    });
+                  }}
+                  className="w-24 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-right"
+                  placeholder="0.00"
                 />
               </div>
             </div>

@@ -319,7 +319,7 @@ export default function StatementsListContent() {
 
       {/* Content */}
       <div
-        className={`flex-1 overflow-auto p-6 transition-all duration-300 ${
+        className={`flex-1 overflow-auto p-6 transition-all duration-300 relative z-0 ${
           selectedStatement ? 'mr-[520px]' : ''
         }`}
         onScroll={handleScroll}
