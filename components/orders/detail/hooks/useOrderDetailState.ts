@@ -531,6 +531,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
 
   // Update line items (for both create and edit mode)
   // Automatically recalculates totals when line items change
+  // Commission is calculated based on discounted sell total (extendedPrice - lineDiscountAmount)
   const updateLineItems = (items: OrderLineItem[]) => {
     if (!isCreateMode) setHasLocalEdits(true);
 
@@ -541,7 +542,10 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       const divisor = item.divisor || 1;
       const commissionRate = item.commissionRate || 0; // Stored as whole percentage (e.g., 8 for 8%)
       const extendedPrice = quantity * unitPrice / divisor;
-      const commissionAmount = extendedPrice * (commissionRate / 100); // Convert to decimal for calculation
+      // Commission is based on discounted sell total (if line discount exists)
+      const lineDiscountAmount = (item as any).lineDiscountAmount || 0;
+      const discountedSellTotal = extendedPrice - lineDiscountAmount;
+      const commissionAmount = discountedSellTotal * (commissionRate / 100); // Convert to decimal for calculation
       return {
         ...item,
         extendedPrice,
@@ -639,6 +643,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   };
 
   // Live update additional details for a line item (without closing modal)
+  // When line discount changes, commission is recalculated based on discounted sell total
   const liveUpdateAdditionalDetails = (updates: Partial<OrderLineItem>) => {
     // Update the additionalDetailsLineItem so the modal stays in sync
     setAdditionalDetailsLineItem((prev) => prev ? { ...prev, ...updates } : prev);
@@ -653,11 +658,25 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       const lineItemIdToUpdate = additionalDetailsLineItem?.id;
       if (!lineItemIdToUpdate) return prevOrder;
 
-      const updatedItems = (prevOrder.lineItems || []).map((li) =>
-        li.id === lineItemIdToUpdate ? { ...li, ...updates } : li
-      );
+      const updatedItems = (prevOrder.lineItems || []).map((li) => {
+        if (li.id !== lineItemIdToUpdate) return li;
 
-      // Recalculate totals
+        const updatedItem = { ...li, ...updates };
+
+        // If line discount changed, recalculate commission based on discounted sell total
+        if ('lineDiscountAmount' in updates || 'lineDiscountPercent' in updates) {
+          const extendedPrice = updatedItem.extendedPrice || 0;
+          const lineDiscountAmount = (updatedItem as any).lineDiscountAmount || 0;
+          const discountedSellTotal = extendedPrice - lineDiscountAmount;
+          const commissionRate = updatedItem.commissionRate || 0;
+          // Commission is now based on the discounted sell total
+          updatedItem.commissionAmount = discountedSellTotal * (commissionRate / 100);
+        }
+
+        return updatedItem;
+      });
+
+      // Recalculate totals (header already accounts for discounts separately, but we update base values too)
       const subtotal = updatedItems.reduce((sum, item) => sum + (item.extendedPrice || 0), 0);
       const totalCommission = updatedItems.reduce((sum, item) => sum + (item.commissionAmount || 0), 0);
 

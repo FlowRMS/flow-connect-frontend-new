@@ -1063,9 +1063,29 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   };
 
   // Live update additional details for a line item (without closing modal)
+  // When line discount changes, commission is recalculated based on discounted sell total
   const liveUpdateAdditionalDetails = (updates: Partial<InvoiceLineItem>) => {
     // Update the selected line item so the modal stays in sync
-    setSelectedLineItemForDetails((prev) => prev ? { ...prev, ...updates } : prev);
+    setSelectedLineItemForDetails((prev) => {
+      if (!prev) return prev;
+      const updatedItem = { ...prev, ...updates };
+
+      // If line discount changed, recalculate commission based on discounted sell total
+      if ('discount' in updates || 'discountRate' in updates) {
+        const quantity = updatedItem.quantity || 0;
+        const unitPrice = updatedItem.unitPrice || 0;
+        const divisor = updatedItem.divisor || 1;
+        const sellTotal = quantity * unitPrice / divisor;
+        const lineDiscount = updatedItem.discount || 0;
+        const discountedSellTotal = sellTotal - lineDiscount;
+        const commissionRate = updatedItem.commissionRate || 0;
+        // Commission is now based on the discounted sell total
+        // Note: We update the internal calculated value, not overwriting user's commissionRate
+        (updatedItem as any).commissionAmount = discountedSellTotal * (commissionRate / 100);
+      }
+
+      return updatedItem;
+    });
 
     // Use functional update pattern to avoid stale closure issues
     // This reads from prev instead of the closure-captured selectedLineItemForDetails
@@ -1078,9 +1098,25 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
 
       return {
         ...prevInvoice,
-        lineItems: prevInvoice.lineItems.map((li) =>
-          li.id === lineItemIdToUpdate ? { ...li, ...updates } : li
-        ),
+        lineItems: prevInvoice.lineItems.map((li) => {
+          if (li.id !== lineItemIdToUpdate) return li;
+          const updatedItem = { ...li, ...updates };
+
+          // If line discount changed, recalculate commission based on discounted sell total
+          if ('discount' in updates || 'discountRate' in updates) {
+            const quantity = updatedItem.quantity || 0;
+            const unitPrice = updatedItem.unitPrice || 0;
+            const divisor = updatedItem.divisor || 1;
+            const sellTotal = quantity * unitPrice / divisor;
+            const lineDiscount = updatedItem.discount || 0;
+            const discountedSellTotal = sellTotal - lineDiscount;
+            const commissionRate = updatedItem.commissionRate || 0;
+            // Commission is now based on the discounted sell total
+            (updatedItem as any).commissionAmount = discountedSellTotal * (commissionRate / 100);
+          }
+
+          return updatedItem;
+        }),
       };
     });
 

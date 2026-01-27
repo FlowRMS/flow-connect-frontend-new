@@ -558,6 +558,52 @@ export function LineItemsTabV2({
       readOnlyCells.push('endUser');
     }
     if (readOnlyCells.includes(column.key)) {
+      // Handle sellTotal with line discount display
+      if (column.key === 'sellTotal' && (item.lineDiscountAmount || 0) > 0) {
+        const originalSellTotal = item.sellTotal || 0;
+        const lineDiscount = item.lineDiscountAmount || 0;
+        const discountedSellTotal = originalSellTotal - lineDiscount;
+        return (
+          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
+            <div className="flex flex-col items-center">
+              <span>${Number(discountedSellTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-gray-400 line-through">${Number(originalSellTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded mt-0.5">-${Number(lineDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          </td>
+        );
+      }
+      // Handle commission with commission discount display
+      if (column.key === 'commission' && (item.commissionDiscountAmount || 0) > 0) {
+        const quantity = item.quantity || 1;
+        const originalCommission = item.commission || 0;
+        const commissionDiscount = (item.commissionDiscountAmount || 0) / quantity;
+        const discountedCommission = originalCommission - commissionDiscount;
+        return (
+          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
+            <div className="flex flex-col items-center">
+              <span>${Number(discountedCommission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-gray-400 line-through">${Number(originalCommission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-${Number(commissionDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          </td>
+        );
+      }
+      // Handle commissionTotal with commission discount display
+      if (column.key === 'commissionTotal' && (item.commissionDiscountAmount || 0) > 0) {
+        const originalCommissionTotal = item.commissionTotal || 0;
+        const commissionDiscount = item.commissionDiscountAmount || 0;
+        const discountedCommissionTotal = originalCommissionTotal - commissionDiscount;
+        return (
+          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
+            <div className="flex flex-col items-center">
+              <span className="font-medium text-purple-600">${Number(discountedCommissionTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-gray-400 line-through">${Number(originalCommissionTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-${Number(commissionDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          </td>
+        );
+      }
       return (
         <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
           <span className={column.key === 'commissionTotal' ? 'font-medium text-purple-600' : ''}>

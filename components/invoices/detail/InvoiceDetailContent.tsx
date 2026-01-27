@@ -320,42 +320,45 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
   return (
     <main className="h-full overflow-auto bg-[var(--background)]">
-      {/* Header Top Bar */}
-      <HeaderTopBar
-        invoice={state.invoice}
-        showActionsDropdown={state.showActionsDropdown}
-        setShowActionsDropdown={state.setShowActionsDropdown}
-        showStatusDropdown={state.showStatusDropdown}
-        setShowStatusDropdown={state.setShowStatusDropdown}
-        showVersionDropdown={state.showVersionDropdown}
-        setShowVersionDropdown={state.setShowVersionDropdown}
-        showViewModeDropdown={state.showViewModeDropdown}
-        setShowViewModeDropdown={state.setShowViewModeDropdown}
-        showSaveDropdown={state.showSaveDropdown}
-        setShowSaveDropdown={state.setShowSaveDropdown}
-        currentVersion={state.currentVersion}
-        setCurrentVersion={state.setCurrentVersion}
-        availableVersions={state.availableVersions}
-        viewMode={state.viewMode}
-        setViewMode={state.setViewMode}
-        setVisibleColumns={state.setVisibleColumns}
-        updateInvoiceStatus={state.updateInvoiceStatus}
-        handleMakeWarehouseOrder={handleMakeWarehouseOrder}
-        handleGeneratePDF={handleGeneratePDF}
-        handleSave={handleSave}
-        handleSaveAsNew={handleSaveAsNew}
-        onDelete={handleDelete}
-        isCreateMode={state.isCreateMode}
-        hasChanges={state.hasChanges}
-        isSaving={state.isSaving}
-        onBack={handleBack}
-      />
+      {/* Sticky header section containing top bar and pricing summary */}
+      <div className="sticky top-0 z-30 bg-[var(--background)]">
+        {/* Header Top Bar */}
+        <HeaderTopBar
+          invoice={state.invoice}
+          showActionsDropdown={state.showActionsDropdown}
+          setShowActionsDropdown={state.setShowActionsDropdown}
+          showStatusDropdown={state.showStatusDropdown}
+          setShowStatusDropdown={state.setShowStatusDropdown}
+          showVersionDropdown={state.showVersionDropdown}
+          setShowVersionDropdown={state.setShowVersionDropdown}
+          showViewModeDropdown={state.showViewModeDropdown}
+          setShowViewModeDropdown={state.setShowViewModeDropdown}
+          showSaveDropdown={state.showSaveDropdown}
+          setShowSaveDropdown={state.setShowSaveDropdown}
+          currentVersion={state.currentVersion}
+          setCurrentVersion={state.setCurrentVersion}
+          availableVersions={state.availableVersions}
+          viewMode={state.viewMode}
+          setViewMode={state.setViewMode}
+          setVisibleColumns={state.setVisibleColumns}
+          updateInvoiceStatus={state.updateInvoiceStatus}
+          handleMakeWarehouseOrder={handleMakeWarehouseOrder}
+          handleGeneratePDF={handleGeneratePDF}
+          handleSave={handleSave}
+          handleSaveAsNew={handleSaveAsNew}
+          onDelete={handleDelete}
+          isCreateMode={state.isCreateMode}
+          hasChanges={state.hasChanges}
+          isSaving={state.isSaving}
+          onBack={handleBack}
+        />
 
-      {/* Pricing Summary Bar */}
-      <PricingSummaryBar
-        viewMode={state.viewMode}
-        totals={state.totals}
-      />
+        {/* Pricing Summary Bar */}
+        <PricingSummaryBar
+          viewMode={state.viewMode}
+          totals={state.totals}
+        />
+      </div>
 
       {/* Invoice Details Fields */}
       <InvoiceDetailsFields
@@ -513,10 +516,10 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
                   {tableHook.showColumnsMenu && (
                     <>
                       <div
-                        className="fixed inset-0 z-10"
+                        className="fixed inset-0 z-40"
                         onClick={() => tableHook.setShowColumnsMenu(false)}
                       />
-                      <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 py-1 max-h-80 overflow-y-auto">
+                      <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50 py-1 max-h-80 overflow-y-auto">
                         {(Object.keys(COLUMN_LABELS) as ColumnKey[]).map(
                           (col) => (
                             <label

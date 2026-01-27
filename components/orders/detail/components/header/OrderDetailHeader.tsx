@@ -137,23 +137,26 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
   } = props;
 
   // Calculate totals from line items
+  // Includes line discounts and commission discounts from AdditionalDetailsModal
   const totals = React.useMemo(() => {
     const lineItems = order.lineItems || [];
     const productLines = lineItems.filter(item => item.partNumber !== 'FREIGHT');
 
-    // Calculate subtotal from line items
+    // Calculate subtotal from line items (extended price minus line discounts)
     const subtotal = productLines.reduce((sum, item) => {
       const ext = Number(item.extendedPrice) || 0;
-      return sum + ext;
+      const lineDiscount = Number((item as any).lineDiscountAmount) || 0;
+      return sum + (ext - lineDiscount);
     }, 0);
 
     const freight = Number(order.freight) || 0;
     const total = subtotal + freight;
 
-    // Calculate commission from line items
+    // Calculate commission from line items (commission amount minus commission discounts)
     const commission = productLines.reduce((sum, item) => {
       const comm = Number(item.commissionAmount) || 0;
-      return sum + comm;
+      const commDiscount = Number((item as any).commissionDiscountAmount) || 0;
+      return sum + (comm - commDiscount);
     }, 0);
 
     // Calculate overage
@@ -170,45 +173,48 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
 
   return (
     <>
-      <HeaderTopBar
-        order={order}
-        showActionsDropdown={showActionsDropdown}
-        setShowActionsDropdown={setShowActionsDropdown}
-        showStatusDropdown={showStatusDropdown}
-        setShowStatusDropdown={setShowStatusDropdown}
-        showVersionDropdown={showVersionDropdown}
-        setShowVersionDropdown={setShowVersionDropdown}
-        showViewModeDropdown={showViewModeDropdown}
-        setShowViewModeDropdown={setShowViewModeDropdown}
-        showSaveDropdown={showSaveDropdown}
-        setShowSaveDropdown={setShowSaveDropdown}
-        currentVersion={currentVersion}
-        setCurrentVersion={setCurrentVersion}
-        availableVersions={availableVersions}
-        setAvailableVersions={setAvailableVersions}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        setVisibleColumns={setVisibleColumns}
-        setActiveView={setActiveView}
-        onSave={onSave}
-        isCreateMode={isCreateMode}
-        hasChanges={hasChanges}
-        isSaving={isSaving}
-        updateOrderStatus={updateOrderStatus}
-        setShowQuoteLookupModal={setShowQuoteLookupModal}
-        handleMakeWarehouseOrder={handleMakeWarehouseOrder}
-        handleGenerateFulfillmentRequest={handleGenerateFulfillmentRequest}
-        onCreateInvoice={onCreateInvoice}
-        onDuplicateOrder={onDuplicateOrder}
-        onDelete={onDelete}
-        onBack={onBack}
-      />
+      {/* Sticky header section containing top bar and pricing summary */}
+      <div className="sticky top-0 z-30 bg-[var(--background)]">
+        <HeaderTopBar
+          order={order}
+          showActionsDropdown={showActionsDropdown}
+          setShowActionsDropdown={setShowActionsDropdown}
+          showStatusDropdown={showStatusDropdown}
+          setShowStatusDropdown={setShowStatusDropdown}
+          showVersionDropdown={showVersionDropdown}
+          setShowVersionDropdown={setShowVersionDropdown}
+          showViewModeDropdown={showViewModeDropdown}
+          setShowViewModeDropdown={setShowViewModeDropdown}
+          showSaveDropdown={showSaveDropdown}
+          setShowSaveDropdown={setShowSaveDropdown}
+          currentVersion={currentVersion}
+          setCurrentVersion={setCurrentVersion}
+          availableVersions={availableVersions}
+          setAvailableVersions={setAvailableVersions}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          setVisibleColumns={setVisibleColumns}
+          setActiveView={setActiveView}
+          onSave={onSave}
+          isCreateMode={isCreateMode}
+          hasChanges={hasChanges}
+          isSaving={isSaving}
+          updateOrderStatus={updateOrderStatus}
+          setShowQuoteLookupModal={setShowQuoteLookupModal}
+          handleMakeWarehouseOrder={handleMakeWarehouseOrder}
+          handleGenerateFulfillmentRequest={handleGenerateFulfillmentRequest}
+          onCreateInvoice={onCreateInvoice}
+          onDuplicateOrder={onDuplicateOrder}
+          onDelete={onDelete}
+          onBack={onBack}
+        />
 
-      <PricingSummaryBar
-        order={order}
-        viewMode={viewMode}
-        totals={totals}
-      />
+        <PricingSummaryBar
+          order={order}
+          viewMode={viewMode}
+          totals={totals}
+        />
+      </div>
 
       <OrderDetailsFields
         order={order}

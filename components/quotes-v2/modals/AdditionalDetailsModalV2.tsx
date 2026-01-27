@@ -522,15 +522,16 @@ export function AdditionalDetailsModalV2({
                     const percent = parseFloat(e.target.value) || 0;
                     // Calculate commission discount amount based on line item's commission total
                     const commissionTotal = lineItem?.commissionTotal || 0;
-                    const discountAmount = (commissionTotal * percent) / 100;
+                    // Round to 2 decimal places for dollar amounts
+                    const discountAmount = Math.round((commissionTotal * percent) / 100 * 100) / 100;
                     setFormData({
                       ...formData,
-                      commissionDiscountPercent: percent,
+                      commissionDiscountPercent: Math.round(percent * 100) / 100,
                       commissionDiscountAmount: discountAmount,
                     });
                     // Live update the line item (without closing modal)
                     onLiveUpdate?.({
-                      commissionDiscountPercent: percent,
+                      commissionDiscountPercent: Math.round(percent * 100) / 100,
                       commissionDiscountAmount: discountAmount,
                     });
                   }}
@@ -549,10 +550,11 @@ export function AdditionalDetailsModalV2({
                     if (value === '' || /^\d*\.?\d*$/.test(value)) {
                       e.target.value = value;
                     }
-                    const dollarAmount = parseFloat(e.target.value) || 0;
-                    // Calculate percentage from dollar amount (max 4 decimal places)
+                    // Round dollar amount to 2 decimal places
+                    const dollarAmount = Math.round((parseFloat(e.target.value) || 0) * 100) / 100;
+                    // Calculate percentage from dollar amount (2 decimal places)
                     const commissionTotal = lineItem?.commissionTotal || 0;
-                    const percent = commissionTotal > 0 ? Math.round(((dollarAmount / commissionTotal) * 100) * 10000) / 10000 : 0;
+                    const percent = commissionTotal > 0 ? Math.round(((dollarAmount / commissionTotal) * 100) * 100) / 100 : 0;
                     setFormData({
                       ...formData,
                       commissionDiscountPercent: percent,
@@ -586,15 +588,16 @@ export function AdditionalDetailsModalV2({
                     const percent = parseFloat(e.target.value) || 0;
                     // Calculate line discount amount based on line item's sell total
                     const sellTotal = lineItem?.sellTotal || 0;
-                    const discountAmount = (sellTotal * percent) / 100;
+                    // Round to 2 decimal places for dollar amounts
+                    const discountAmount = Math.round((sellTotal * percent) / 100 * 100) / 100;
                     setFormData({
                       ...formData,
-                      lineDiscountPercent: percent,
+                      lineDiscountPercent: Math.round(percent * 100) / 100,
                       lineDiscountAmount: discountAmount,
                     });
                     // Live update the line item (without closing modal)
                     onLiveUpdate?.({
-                      lineDiscountPercent: percent,
+                      lineDiscountPercent: Math.round(percent * 100) / 100,
                       lineDiscountAmount: discountAmount,
                     });
                   }}
@@ -613,10 +616,11 @@ export function AdditionalDetailsModalV2({
                     if (value === '' || /^\d*\.?\d*$/.test(value)) {
                       e.target.value = value;
                     }
-                    const dollarAmount = parseFloat(e.target.value) || 0;
-                    // Calculate percentage from dollar amount (max 4 decimal places)
+                    // Round dollar amount to 2 decimal places
+                    const dollarAmount = Math.round((parseFloat(e.target.value) || 0) * 100) / 100;
+                    // Calculate percentage from dollar amount (2 decimal places)
                     const sellTotal = lineItem?.sellTotal || 0;
-                    const percent = sellTotal > 0 ? Math.round(((dollarAmount / sellTotal) * 100) * 10000) / 10000 : 0;
+                    const percent = sellTotal > 0 ? Math.round(((dollarAmount / sellTotal) * 100) * 100) / 100 : 0;
                     setFormData({
                       ...formData,
                       lineDiscountPercent: percent,

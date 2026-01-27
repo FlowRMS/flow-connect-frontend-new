@@ -718,7 +718,15 @@ export function LineItemsTable({
                     {/* Sell Total */}
                     {visibleColumns.has('sellTotal') && (
                       <td className="px-3 py-2 text-sm text-right font-medium">
-                        {formatCurrency(item.amount - (item.discount || 0))}
+                        <div className="flex flex-col items-end">
+                          <span>{formatCurrency(item.amount - (item.discount || 0))}</span>
+                          {(item.discount || 0) > 0 && (
+                            <>
+                              <span className="text-xs text-gray-400 line-through">{formatCurrency(item.amount)}</span>
+                              <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded mt-0.5">-{formatCurrency(item.discount || 0)}</span>
+                            </>
+                          )}
+                        </div>
                       </td>
                     )}
 
@@ -732,14 +740,30 @@ export function LineItemsTable({
                     {/* Commission */}
                     {visibleColumns.has('commission') && (
                       <td className="px-3 py-2 text-sm text-right text-purple-600">
-                        {formatCurrency((item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100)) - (item.commissionDiscount || 0))}
+                        <div className="flex flex-col items-end">
+                          <span>{formatCurrency((item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100)) - (item.commissionDiscount || 0))}</span>
+                          {(item.commissionDiscount || 0) > 0 && (
+                            <>
+                              <span className="text-xs text-gray-400 line-through">{formatCurrency(item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100))}</span>
+                              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-{formatCurrency(item.commissionDiscount || 0)}</span>
+                            </>
+                          )}
+                        </div>
                       </td>
                     )}
 
                     {/* Commission Total */}
                     {visibleColumns.has('commissionTotal') && (
                       <td className="px-3 py-2 text-sm text-right text-purple-600 font-medium">
-                        {formatCurrency((item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100)) - (item.commissionDiscount || 0))}
+                        <div className="flex flex-col items-end">
+                          <span>{formatCurrency((item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100)) - (item.commissionDiscount || 0))}</span>
+                          {(item.commissionDiscount || 0) > 0 && (
+                            <>
+                              <span className="text-xs text-gray-400 line-through">{formatCurrency(item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100))}</span>
+                              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-{formatCurrency(item.commissionDiscount || 0)}</span>
+                            </>
+                          )}
+                        </div>
                       </td>
                     )}
 
@@ -758,7 +782,15 @@ export function LineItemsTable({
                     {/* Commission Amount */}
                     {visibleColumns.has('commissionAmount') && (
                       <td className="px-3 py-2 text-sm text-right text-purple-600">
-                        {formatCurrency((item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100)) - (item.commissionDiscount || 0))}
+                        <div className="flex flex-col items-end">
+                          <span>{formatCurrency((item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100)) - (item.commissionDiscount || 0))}</span>
+                          {(item.commissionDiscount || 0) > 0 && (
+                            <>
+                              <span className="text-xs text-gray-400 line-through">{formatCurrency(item.commissionAmount || item.amount * ((item.commissionRate ?? 0) / 100))}</span>
+                              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-{formatCurrency(item.commissionDiscount || 0)}</span>
+                            </>
+                          )}
+                        </div>
                       </td>
                     )}
 

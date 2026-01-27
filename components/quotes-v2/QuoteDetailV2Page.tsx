@@ -349,13 +349,46 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   }, [selectedLineItem]);
 
   // Live update handler - updates both lineItems AND selectedLineItem without closing modal
+  // When line discount changes, commission is recalculated based on discounted sell total
   const handleLiveUpdateAdditionalDetails = useCallback((updates: Partial<LineItemV2>) => {
     if (selectedLineItem) {
       // Update the selected line item so the modal stays in sync
-      setSelectedLineItem((prev) => prev ? { ...prev, ...updates } : prev);
+      setSelectedLineItem((prev) => {
+        if (!prev) return prev;
+        const updatedItem = { ...prev, ...updates };
+
+        // If line discount changed, recalculate commission based on discounted sell total
+        if ('lineDiscountAmount' in updates || 'lineDiscountPercent' in updates) {
+          const sellTotal = updatedItem.sellTotal || 0;
+          const lineDiscountAmount = updatedItem.lineDiscountAmount || 0;
+          const discountedSellTotal = sellTotal - lineDiscountAmount;
+          const commissionPercent = updatedItem.commissionPercent || 0;
+          // Commission is now based on the discounted sell total
+          updatedItem.commissionTotal = discountedSellTotal * (commissionPercent / 100);
+          updatedItem.commission = updatedItem.quantity > 0 ? updatedItem.commissionTotal / updatedItem.quantity : 0;
+        }
+
+        return updatedItem;
+      });
       // Update the line items array
       setLineItems((prev) =>
-        prev.map((li) => (li.id === selectedLineItem.id ? { ...li, ...updates } : li))
+        prev.map((li) => {
+          if (li.id !== selectedLineItem.id) return li;
+          const updatedItem = { ...li, ...updates };
+
+          // If line discount changed, recalculate commission based on discounted sell total
+          if ('lineDiscountAmount' in updates || 'lineDiscountPercent' in updates) {
+            const sellTotal = updatedItem.sellTotal || 0;
+            const lineDiscountAmount = updatedItem.lineDiscountAmount || 0;
+            const discountedSellTotal = sellTotal - lineDiscountAmount;
+            const commissionPercent = updatedItem.commissionPercent || 0;
+            // Commission is now based on the discounted sell total
+            updatedItem.commissionTotal = discountedSellTotal * (commissionPercent / 100);
+            updatedItem.commission = updatedItem.quantity > 0 ? updatedItem.commissionTotal / updatedItem.quantity : 0;
+          }
+
+          return updatedItem;
+        })
       );
       setHasChanges(true);
     }
