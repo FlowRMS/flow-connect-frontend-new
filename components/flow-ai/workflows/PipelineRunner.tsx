@@ -263,6 +263,23 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     return [];
   };
 
+  // Extract S3 output file URL if streaming was used
+  const getOutputFileUrl = (raw: any): string | null => {
+    if (!raw) return null;
+    // Direct output_file
+    if (typeof raw?.output_file === 'string' && raw.output_file.startsWith('http')) {
+      return raw.output_file;
+    }
+    return null;
+  };
+
+  // Get row count from streaming result
+  const getRowCount = (raw: any): number | null => {
+    if (!raw) return null;
+    if (typeof raw?.row_count === 'number') return raw.row_count;
+    return null;
+  };
+
   const jsonToCsv = (rows: Record<string, any>[]): string => {
     if (!rows || !rows.length) return '';
     const headers = Object.keys(rows[0] ?? {});
@@ -480,7 +497,7 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     if (!node2)
       return <p className="text-sm text-muted-foreground">Run Node 2 to see the workflow plan.</p>;
     return (
-      <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-[420px]">
+      <pre className="text-xs bg-muted p-3 rounded whitespace-pre-wrap break-words">
         {JSON.stringify(node2.workflow_plan ?? node2, null, 2)}
       </pre>
     );
@@ -517,7 +534,7 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
                 />
               </TabsContent>
               <TabsContent value="pseudo">
-                <div className="pseudo-code-container p-6 bg-card border rounded-lg overflow-auto max-h-[500px]">
+                <div className="pseudo-code-container p-6 bg-card border rounded-lg">
                   <div className="pseudo-code-content">
                     <div dangerouslySetInnerHTML={{ __html: convertPseudoCodeToHTML(pseudoCode) }} />
                   </div>
@@ -543,7 +560,7 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
             code.
           </div>
           {pseudoCode ? (
-            <div className="pseudo-code-container p-6 bg-card border rounded-lg overflow-auto max-h-[500px]">
+            <div className="pseudo-code-container p-6 bg-card border rounded-lg">
               <div className="pseudo-code-content">
                 <div dangerouslySetInnerHTML={{ __html: convertPseudoCodeToHTML(pseudoCode) }} />
               </div>
@@ -562,17 +579,62 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
   };
 
   const renderNode4 = () => {
+    // Show waiting message when polling for worker completion
+    if (isPolling) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary" />
+          <div className="text-center space-y-2">
+            <h3 className="text-lg font-semibold">Processing your data...</h3>
+            <p className="text-sm text-muted-foreground max-w-md">
+              This process may take several minutes depending on the size of your data.
+              Please do not close this tab or navigate away.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              The page will automatically update when the process is complete.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     if (!node4)
       return <p className="text-sm text-muted-foreground">Run Node 4 to see execution result.</p>;
     const raw = node4.result;
     const data = extractTabularData(raw);
     const hasData = Array.isArray(data) && data.length;
+    const outputFileUrl = getOutputFileUrl(raw);
+    const rowCount = getRowCount(raw);
+    const isStreaming = !!outputFileUrl;
     return (
       <>
+        {/* Show streaming info banner if applicable */}
+        {isStreaming && rowCount !== null && (
+          <div className="mb-3 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-primary">
+                  Streaming Result: {rowCount.toLocaleString()} rows generated
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Showing preview below. Click download for the complete file.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  window.open(outputFileUrl, '_blank');
+                }}
+              >
+                Download Full CSV
+              </Button>
+            </div>
+          </div>
+        )}
         <Tabs defaultValue="table">
           <TabsList className="mb-2">
             <TabsTrigger value="table" className="text-xs">
-              Table
+              {isStreaming ? 'Preview' : 'Table'}
             </TabsTrigger>
             <TabsTrigger value="json" className="text-xs">
               Raw JSON
@@ -622,7 +684,7 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
             </pre>
           </TabsContent>
         </Tabs>
-        {hasData && (
+        {hasData && !isStreaming && (
           <div className="mt-3 flex justify-end">
             <Button
               size="sm"
