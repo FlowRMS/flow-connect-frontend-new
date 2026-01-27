@@ -1010,7 +1010,7 @@ function EntityMatchingContent() {
                           disabled={isEntityLoading}
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleSingleAction(entity.id, 'DOCUMENT_SPECIFIC');
+                            handleSingleAction(entity.id, 'DOCUMENT_SPECIFIC_PRODUCT');
                           }}
                         >
                           {isEntityLoading ? (

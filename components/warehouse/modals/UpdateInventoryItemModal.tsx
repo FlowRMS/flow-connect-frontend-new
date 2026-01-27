@@ -89,7 +89,8 @@ export default function UpdateInventoryItemModal({ item, onClose, onSuccess }: U
                                 step="1"
                                 value={formData.quantity}
                                 onChange={(e) => handleChange('quantity', parseFloat(e.target.value) || 0)}
-                                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                                onFocus={(e) => e.target.select()}
+                                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                         </div>
                         <div>

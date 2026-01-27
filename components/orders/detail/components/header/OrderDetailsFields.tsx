@@ -22,6 +22,8 @@ import {
 import { useCreateCRMJob, useCRMJobStatuses } from '@/components/hooks/useCRMApi';
 import type { JobInput } from '@/components/lib/crm-graphql';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
+import { usePicklistSettings } from '@/contexts/UserSettingsContext';
+import { getAllPicklistOptions, getPicklistLabel } from '@/components/settings/picklistValues';
 
 // ComingSoonBadge component for unsupported features
 function ComingSoonBadge({ inline = false }: { inline?: boolean }) {
@@ -97,6 +99,20 @@ export function OrderDetailsFields({
   // Job creation mutation and statuses
   const createJobMutation = useCreateCRMJob();
   const { data: jobStatuses } = useCRMJobStatuses();
+  
+  // Picklist settings for order types
+  const { settings: orderTypesSettings, isInitialized: isPicklistInitialized } = usePicklistSettings('orderTypes');
+  
+  // Order type options from picklist settings
+  const orderTypeOptions = useMemo(() => {
+    if (!isPicklistInitialized) {
+      return [];
+    }
+    
+    const customValues = orderTypesSettings?.customValues || [];
+    return getAllPicklistOptions('orderTypes', customValues);
+  }, [orderTypesSettings, isPicklistInitialized]);
+  
   // Search states
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
   const [soldToSearchEnabled, setSoldToSearchEnabled] = useState(false);
@@ -504,12 +520,7 @@ export function OrderDetailsFields({
               <CustomSelect
                 value={(order as any).orderType || 'NORMAL'}
                 onChange={(value) => handleFieldUpdate('orderType' as keyof Order, value)}
-                options={[
-                  { value: 'NORMAL', label: 'Normal' },
-                  { value: 'BLANKET', label: 'Blanket' },
-                  { value: 'RELEASE', label: 'Release' },
-                  { value: 'TAG', label: 'Tag' },
-                ]}
+                options={orderTypeOptions}
                 className="!py-2"
               />
             </div>

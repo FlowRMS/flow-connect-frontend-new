@@ -16,13 +16,15 @@ import { useQuotesV2Infinite, useUpdateQuoteStageV2, useQuoteSearchV2, type Quot
 import { fetchAllQuoteIds } from '../quotes/api/quotesApi';
 import { quoteToasts } from '../lib/toast';
 import AdvancedFilters from '../advancedFilters/AdvancedFilters';
-import type { ActiveFilter } from '../advancedFilters/types';
+import type { ActiveFilter, FilterOperator } from '../advancedFilters/types';
 import { getQuoteFilterOptions } from './config/filterConfig';
 import { formatDateToISO, formatDateToBackend, parseDateString } from '../advancedFilters/utils';
 import { useFilterSync } from '../advancedFilters/hooks/useFilterSync';
-import { useBulkSelection } from '../shared';
+import { useBulkSelection, SaveViewButton } from '../shared';
 import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
 import { useSortState } from '@/components/shared/sorting/hooks/useSortState';
+import { useQuoteSettings } from '@/contexts/UserSettingsContext';
+import type { SavedViewState } from '@/components/lib/graphql/settings';
 import { SortMenu } from '@/components/shared/sorting/components/SortMenu';
 import { QUOTE_SORT_CONFIGS, DEFAULT_QUOTE_SORT } from './config/sortConfig';
 
@@ -64,6 +66,11 @@ export function QuotesV2Content() {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Settings for saving view
+  const { settings: quoteSettings, saveSettings: saveQuoteSettings, isLoading: isSettingsLoading, isInitialized: isSettingsInitialized } = useQuoteSettings();
+  const savedView = quoteSettings?.savedView;
+  const hasAppliedSavedView = useRef(false);
 
   // Server-side filters - defined BEFORE API hook so they can be passed to the query
   const [serverFilters, setServerFilters] = useState<QuoteLandingPageFilter[]>([]);
@@ -364,6 +371,65 @@ export function QuotesV2Content() {
     setColumnFiltersToAPIState(columnFiltersToAPI);
   }, [columnFiltersToAPI]);
 
+  // Apply saved view when settings are loaded (only once on mount)
+  useEffect(() => {
+    if (isSettingsInitialized && savedView && !hasAppliedSavedView.current) {
+      hasAppliedSavedView.current = true;
+
+      // Apply saved filters
+      if (savedView.filters && savedView.filters.length > 0) {
+        const restoredFilters: ActiveFilter[] = savedView.filters.map((f) => ({
+          operator: f.operator as FilterOperator,
+          columnName: f.columnName,
+          value: f.value,
+          values: f.values,
+        }));
+        setActiveFilters(restoredFilters);
+        const apiFilters: QuoteLandingPageFilter[] = restoredFilters.map(f => {
+          if (f.values && f.values.length > 0) {
+            return { operator: f.operator, columnName: f.columnName, values: f.values };
+          }
+          return { operator: f.operator, columnName: f.columnName, value: f.value };
+        });
+        setServerFilters(apiFilters);
+      }
+
+      // Apply saved column filters
+      if (savedView.columnFilters && Object.keys(savedView.columnFilters).length > 0) {
+        const restoredColumnFilters: Record<string, ActiveFilter[]> = {};
+        Object.entries(savedView.columnFilters).forEach(([key, filters]) => {
+          restoredColumnFilters[key] = filters.map((f) => ({
+            operator: f.operator as FilterOperator,
+            columnName: f.columnName,
+            value: f.value,
+            values: f.values,
+          }));
+        });
+        setColumnFilters(restoredColumnFilters);
+      }
+
+      // Apply saved sort
+      if (savedView.sortField && savedView.sortDirection) {
+        sortState.setSort(savedView.sortField, savedView.sortDirection.toUpperCase() as 'ASC' | 'DESC');
+      }
+
+      // Apply saved quick date preset
+      if (savedView.quickDatePreset) {
+        setQuickFilter(savedView.quickDatePreset as QuickFilter);
+      }
+
+      // Apply saved quick date field
+      if (savedView.quickDateField) {
+        setQuickDateField(savedView.quickDateField as QuickDateField);
+      }
+
+      // Apply saved view mode
+      if (savedView.viewMode) {
+        setViewMode(savedView.viewMode as ViewMode);
+      }
+    }
+  }, [isSettingsInitialized, savedView, sortState]);
+
 
   // Transform API data to UI format, using search results when searching
   const quotes = useMemo<QuoteV2[]>(() => {
@@ -439,6 +505,68 @@ export function QuotesV2Content() {
     setShowBulkDeleteModal(false);
     refetch();
   }, [bulkSelection, refetch]);
+
+  // Get current view state for saving
+  const getCurrentViewState = useCallback((): SavedViewState => ({
+    filters: activeFilters.map(f => ({
+      operator: f.operator,
+      columnName: f.columnName,
+      value: f.value,
+      values: f.values,
+    })),
+    columnFilters: Object.fromEntries(
+      Object.entries(columnFilters).map(([key, filters]) => [
+        key,
+        filters.map(f => ({
+          operator: f.operator,
+          columnName: f.columnName,
+          value: f.value,
+          values: f.values,
+        })),
+      ])
+    ),
+    sortField: sortState.activeSort?.columnId,
+    sortDirection: sortState.activeSort?.direction?.toLowerCase() as 'asc' | 'desc' | undefined,
+    quickDatePreset: quickFilter,
+    quickDateField: quickDateField,
+    viewMode: viewMode,
+  }), [activeFilters, columnFilters, sortState.activeSort, quickFilter, quickDateField, viewMode]);
+
+  // Save current view state
+  const handleSaveView = useCallback(async (viewState: SavedViewState): Promise<boolean> => {
+    const updatedSettings = {
+      ...quoteSettings,
+      columnConfig: quoteSettings?.columnConfig || [],
+      specifyEndUserPerLine: quoteSettings?.specifyEndUserPerLine ?? false,
+      outsideRepAtLineLevel: quoteSettings?.outsideRepAtLineLevel ?? false,
+      insideRepAtLineLevel: quoteSettings?.insideRepAtLineLevel ?? false,
+      factoryPerLineItem: quoteSettings?.factoryPerLineItem ?? false,
+      customerPartNumberSource: quoteSettings?.customerPartNumberSource ?? 'sold_to' as const,
+      savedView: viewState,
+    };
+    return saveQuoteSettings(updatedSettings, 'my');
+  }, [quoteSettings, saveQuoteSettings]);
+
+  // Clear saved view state
+  const handleClearView = useCallback(async (): Promise<boolean> => {
+    const updatedSettings = {
+      ...quoteSettings,
+      columnConfig: quoteSettings?.columnConfig || [],
+      specifyEndUserPerLine: quoteSettings?.specifyEndUserPerLine ?? false,
+      outsideRepAtLineLevel: quoteSettings?.outsideRepAtLineLevel ?? false,
+      insideRepAtLineLevel: quoteSettings?.insideRepAtLineLevel ?? false,
+      factoryPerLineItem: quoteSettings?.factoryPerLineItem ?? false,
+      customerPartNumberSource: quoteSettings?.customerPartNumberSource ?? 'sold_to' as const,
+      savedView: undefined,
+    };
+    const success = await saveQuoteSettings(updatedSettings, 'my');
+    if (success) {
+      window.location.reload();
+    }
+    return success;
+  }, [quoteSettings, saveQuoteSettings]);
+
+  const hasSavedView = !!quoteSettings?.savedView;
 
   // Computed totals
   const totals = useMemo(() => {
@@ -614,6 +742,15 @@ export function QuotesV2Content() {
               onSortChange={sortState.toggleSort}
               isOpen={showSortMenu}
               onToggle={setShowSortMenu}
+            />
+
+            {/* Save View */}
+            <SaveViewButton
+              onSave={handleSaveView}
+              onClear={handleClearView}
+              getCurrentViewState={getCurrentViewState}
+              hasSavedView={hasSavedView}
+              isSaving={isSettingsLoading}
             />
 
             {/* New Quote */}
