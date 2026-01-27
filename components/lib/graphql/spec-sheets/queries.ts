@@ -218,6 +218,7 @@ export const GET_FOLDERS_BY_FACTORY = `
     foldersByFactory(factoryId: $factoryId) {
       id
       factoryId
+      folderPath
       name
       parentId
       createdAt

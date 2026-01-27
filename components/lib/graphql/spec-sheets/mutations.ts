@@ -200,6 +200,7 @@ export const CREATE_FOLDER = `
     createSpecSheetFolder(input: $input) {
       id
       factoryId
+      folderPath
       name
       parentId
       createdAt
@@ -211,12 +212,16 @@ export const CREATE_FOLDER = `
 export const RENAME_FOLDER = `
   mutation RenameSpecSheetFolder($input: RenameSpecSheetFolderInput!) {
     renameSpecSheetFolder(input: $input) {
-      id
-      factoryId
-      name
-      parentId
-      createdAt
-      specSheetCount
+      folder {
+        id
+        factoryId
+        folderPath
+        name
+        parentId
+        createdAt
+        specSheetCount
+      }
+      specSheetsUpdated
     }
   }
 `;
@@ -232,6 +237,7 @@ export const MOVE_FOLDER = `
     moveSpecSheetFolder(input: $input) {
       id
       factoryId
+      folderPath
       name
       parentId
       createdAt

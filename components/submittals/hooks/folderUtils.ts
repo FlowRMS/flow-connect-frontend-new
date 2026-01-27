@@ -41,6 +41,7 @@ export function convertToSpecSheetFolders(
     createdAt: apiFolder.createdAt || '',
     createdBy: 'System',
     specSheetCount: apiFolder.specSheetCount,
-    folderPath: buildFolderPath(apiFolder, apiFolders),
+    // Use folderPath from backend response directly if available, otherwise build it
+    folderPath: apiFolder.folderPath || buildFolderPath(apiFolder, apiFolders),
   }));
 }

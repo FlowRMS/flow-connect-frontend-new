@@ -35,6 +35,7 @@ export function useSpecSheetsFolders({
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState('');
   const [editingFolderManufacturerId, setEditingFolderManufacturerId] = useState<string | null>(null);
+  const [editingFolderPath, setEditingFolderPath] = useState<string>('');
   const editingStartTimeRef = useRef<number>(0);
   const [showAddFolderModal, setShowAddFolderModal] = useState(false);
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
@@ -126,6 +127,8 @@ export function useSpecSheetsFolders({
   const handleRenameFolder = (folder: SpecSheetFolder) => {
     setEditingFolderId(folder.id);
     setEditingFolderName(folder.name);
+    // Track the folder path for the rename API (uses path-based system)
+    setEditingFolderPath(folder.folderPath || '');
     // Track the manufacturer ID for the folder being edited
     const mfrId = findManufacturerIdByName(folder.manufacturer || '');
     setEditingFolderManufacturerId(mfrId || selectedManufacturerId);
@@ -142,18 +145,19 @@ export function useSpecSheetsFolders({
 
     // Use editingFolderManufacturerId (set when rename started) or fall back to selectedManufacturerId
     const factoryId = editingFolderManufacturerId || selectedManufacturerId;
-    if (!editingFolderId || !editingFolderName.trim() || !factoryId) {
+    if (!editingFolderId || !editingFolderName.trim() || !factoryId || !editingFolderPath) {
       setEditingFolderId(null);
       setEditingFolderName('');
       setEditingFolderManufacturerId(null);
+      setEditingFolderPath('');
       return;
     }
     setFolderError(null);
     try {
-      // New API uses factoryId, folderId and newName
+      // API uses factoryId, folderPath and newName (path-based system)
       await renameFolderMutation.mutateAsync({
         factoryId,
-        folderId: editingFolderId,
+        folderPath: editingFolderPath,
         newName: editingFolderName.trim()
       });
       loadAllManufacturerFolders(true);
@@ -163,6 +167,7 @@ export function useSpecSheetsFolders({
       setEditingFolderId(null);
       setEditingFolderName('');
       setEditingFolderManufacturerId(null);
+      setEditingFolderPath('');
     }
   };
 
@@ -198,8 +203,8 @@ export function useSpecSheetsFolders({
         return;
       }
       try {
-        // New API uses factoryId and folderId
-        await deleteFolderMutation.mutateAsync({ factoryId, folderId: folder.id });
+        // API uses factoryId and folderPath (path-based system)
+        await deleteFolderMutation.mutateAsync({ factoryId, folderPath: folder.folderPath || '' });
         if (selectedFolderId === folder.id) setSelectedFolderId(null);
         loadAllManufacturerFolders(true);
         showSuccessToast('Folder deleted');
@@ -234,10 +239,20 @@ export function useSpecSheetsFolders({
     if (!newFolderName.trim() || !newFolderManufacturerId) return;
     setFolderError(null);
     try {
-      // New API uses factoryId, parentFolderId, and folderName
+      // Get the parent path from the parent folder ID
+      // If newFolderParentId is null, parentPath should be empty string (root level)
+      let parentPath = '';
+      if (newFolderParentId) {
+        // Find the parent folder's folderPath directly from the API response
+        const apiFolders = allManufacturerFolders[newFolderManufacturerId] || [];
+        const parentFolder = apiFolders.find(f => f.id === newFolderParentId);
+        parentPath = parentFolder?.folderPath || '';
+      }
+
+      // API uses factoryId, parentPath, and folderName
       await createFolderMutation.mutateAsync({
         factoryId: newFolderManufacturerId,
-        parentFolderId: newFolderParentId,
+        parentPath,
         folderName: newFolderName.trim()
       });
       setShowAddFolderModal(false);

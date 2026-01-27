@@ -160,9 +160,11 @@ export function useCreateSubmittal({
     if (selectedQuoteDetails?.details && selectedQuoteDetails.details.length > 0) {
       return selectedQuoteDetails.details.map((detail, index) => ({
         id: detail.id || `li-${index}`,
-        catalogNumber: detail.product?.factoryPartNumber || '',
+        // Use factoryPartNumber if available, otherwise fall back to productNameAdhoc
+        catalogNumber: detail.product?.factoryPartNumber || detail.productNameAdhoc || '',
         manufacturer: detail.factory?.title || '',
-        description: detail.product?.description || '',
+        // Use product description if available, otherwise fall back to productDescriptionAdhoc
+        description: detail.product?.description || detail.productDescriptionAdhoc || '',
         quantity: detail.quantity || 0,
       }));
     }

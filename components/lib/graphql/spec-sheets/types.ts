@@ -117,6 +117,7 @@ export interface HighlightRegionInput {
 export interface FolderResponse {
   id: string;
   factoryId: string;
+  folderPath: string;
   name: string;
   parentId: string | null;
   createdAt: string | null;
@@ -125,19 +126,19 @@ export interface FolderResponse {
 
 export interface CreateFolderInput {
   factoryId: string;
-  parentFolderId?: string | null;
+  parentPath: string;  // Parent folder path (empty string for root level)
   folderName: string;
 }
 
 export interface RenameFolderInput {
   factoryId: string;
-  folderId: string;
+  folderPath: string;  // Current full path like "Folder1/Folder2"
   newName: string;
 }
 
 export interface DeleteFolderInput {
   factoryId: string;
-  folderId: string;
+  folderPath: string;  // Full path of the folder to delete
 }
 
 export interface MoveFolderInput {

@@ -432,6 +432,8 @@ const SUBMITTAL_CHANGE_ANALYSIS_FRAGMENT = `
   ${SUBMITTAL_ITEM_CHANGE_FRAGMENT}
 `;
 
+// Note: This fragment does NOT include SUBMITTAL_STAKEHOLDER_FRAGMENT to avoid duplication
+// when used within SUBMITTAL_FRAGMENT. The stakeholder fragment must be included at the query level.
 const SUBMITTAL_RETURNED_PDF_FRAGMENT = `
   fragment SubmittalReturnedPdfFields on SubmittalReturnedPdfResponse {
     id
@@ -455,10 +457,11 @@ const SUBMITTAL_RETURNED_PDF_FRAGMENT = `
       ...SubmittalChangeAnalysisFields
     }
   }
-  ${SUBMITTAL_STAKEHOLDER_FRAGMENT}
   ${SUBMITTAL_CHANGE_ANALYSIS_FRAGMENT}
 `;
 
+// Note: This fragment does NOT include SUBMITTAL_STAKEHOLDER_FRAGMENT to avoid duplication.
+// The stakeholder fragment must be included at the query level when using this fragment directly.
 const SUBMITTAL_REVISION_FRAGMENT = `
   fragment SubmittalRevisionFields on SubmittalRevisionResponse {
     id
@@ -653,6 +656,7 @@ const CREATE_SUBMITTAL_REVISION = `
       ...SubmittalRevisionFields
     }
   }
+  ${SUBMITTAL_STAKEHOLDER_FRAGMENT}
   ${SUBMITTAL_REVISION_FRAGMENT}
 `;
 
@@ -679,6 +683,7 @@ const GENERATE_SUBMITTAL_PDF = `
       }
     }
   }
+  ${SUBMITTAL_STAKEHOLDER_FRAGMENT}
   ${SUBMITTAL_REVISION_FRAGMENT}
 `;
 
@@ -688,6 +693,7 @@ const ADD_RETURNED_PDF = `
       ...SubmittalReturnedPdfFields
     }
   }
+  ${SUBMITTAL_STAKEHOLDER_FRAGMENT}
   ${SUBMITTAL_RETURNED_PDF_FRAGMENT}
 `;
 

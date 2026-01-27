@@ -126,10 +126,17 @@ export function useSpecSheetUpload({ defaultManufacturerId, onSuccess, onClose }
     if (!newFolderName.trim() || !manufacturerId) return;
 
     try {
+      // Get parent path from selected folder (empty string for root level)
+      let parentPath = '';
+      if (selectedFolderId) {
+        const parentFolder = existingFolders.find(f => f.id === selectedFolderId);
+        parentPath = parentFolder?.folderPath || '';
+      }
+
       const newFolder = await createFolderMutation.mutateAsync({
         factoryId: manufacturerId,
         folderName: newFolderName.trim(),
-        parentFolderId: selectedFolderId || null, // Create as child of selected folder, or at root
+        parentPath, // Use path-based system
       });
 
       // Select the newly created folder
