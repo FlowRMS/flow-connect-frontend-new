@@ -19,7 +19,7 @@ export interface SpecSheetResponse {
   pageCount: number;
   categories: string[];
   tags: string[] | null;
-  folderId: string | null; // pyfiles.folders ID (from File.folder_id)
+  folderId: string | null;  // pyfiles.folders ID
   needsReview: boolean;
   published: boolean;
   usageCount: number;
@@ -117,7 +117,6 @@ export interface HighlightRegionInput {
 export interface FolderResponse {
   id: string;
   factoryId: string;
-  folderPath: string;
   name: string;
   parentId: string | null;
   createdAt: string | null;
@@ -126,19 +125,19 @@ export interface FolderResponse {
 
 export interface CreateFolderInput {
   factoryId: string;
-  parentPath: string;  // Parent folder path (empty string for root level)
+  parentFolderId?: string | null;
   folderName: string;
 }
 
 export interface RenameFolderInput {
   factoryId: string;
-  folderPath: string;  // Current full path like "Folder1/Folder2"
+  folderId: string;
   newName: string;
 }
 
 export interface DeleteFolderInput {
   factoryId: string;
-  folderPath: string;  // Full path of the folder to delete
+  folderId: string;
 }
 
 export interface MoveFolderInput {

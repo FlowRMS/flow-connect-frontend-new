@@ -4,7 +4,6 @@ import {
   useCreateFolder,
   useRenameFolder,
   useDeleteFolder,
-  useMoveFolder,
 } from '../api/useSpecSheetsApi';
 import type { SpecSheetFolder } from '../../../lib/types/submittals';
 import { fetchFoldersByFactory as fetchFoldersApi, type FolderResponse } from '../../lib/graphql/spec-sheets';
@@ -34,9 +33,6 @@ export function useSpecSheetsFolders({
   const [contextMenu, setContextMenu] = useState<{ folder: SpecSheetFolder; position: { x: number; y: number } } | null>(null);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState('');
-  const [editingFolderManufacturerId, setEditingFolderManufacturerId] = useState<string | null>(null);
-  const [editingFolderPath, setEditingFolderPath] = useState<string>('');
-  const editingStartTimeRef = useRef<number>(0);
   const [showAddFolderModal, setShowAddFolderModal] = useState(false);
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
   const [newFolderManufacturer, setNewFolderManufacturer] = useState<string>('');
@@ -52,9 +48,8 @@ export function useSpecSheetsFolders({
   const createFolderMutation = useCreateFolder();
   const renameFolderMutation = useRenameFolder();
   const deleteFolderMutation = useDeleteFolder();
-  const moveFolderMutation = useMoveFolder();
 
-  const isSavingFolder = renameFolderMutation.isPending || deleteFolderMutation.isPending || moveFolderMutation.isPending;
+  const isSavingFolder = renameFolderMutation.isPending || deleteFolderMutation.isPending;
   const isCreatingFolder = createFolderMutation.isPending;
 
   // Track manufacturer IDs to prevent refetching on array reference changes
@@ -127,37 +122,20 @@ export function useSpecSheetsFolders({
   const handleRenameFolder = (folder: SpecSheetFolder) => {
     setEditingFolderId(folder.id);
     setEditingFolderName(folder.name);
-    // Track the folder path for the rename API (uses path-based system)
-    setEditingFolderPath(folder.folderPath || '');
-    // Track the manufacturer ID for the folder being edited
-    const mfrId = findManufacturerIdByName(folder.manufacturer || '');
-    setEditingFolderManufacturerId(mfrId || selectedManufacturerId);
-    // Track when editing started to prevent immediate blur from saving
-    editingStartTimeRef.current = Date.now();
   };
 
   const handleSaveRename = async () => {
-    // Ignore blur events that happen within 300ms of starting to edit
-    // This prevents the immediate blur from autoFocus race condition
-    if (Date.now() - editingStartTimeRef.current < 300) {
-      return;
-    }
-
-    // Use editingFolderManufacturerId (set when rename started) or fall back to selectedManufacturerId
-    const factoryId = editingFolderManufacturerId || selectedManufacturerId;
-    if (!editingFolderId || !editingFolderName.trim() || !factoryId || !editingFolderPath) {
+    if (!editingFolderId || !editingFolderName.trim() || !selectedManufacturerId) {
       setEditingFolderId(null);
       setEditingFolderName('');
-      setEditingFolderManufacturerId(null);
-      setEditingFolderPath('');
       return;
     }
     setFolderError(null);
     try {
-      // API uses factoryId, folderPath and newName (path-based system)
+      // New API uses factoryId, folderId and newName
       await renameFolderMutation.mutateAsync({
-        factoryId,
-        folderPath: editingFolderPath,
+        factoryId: selectedManufacturerId,
+        folderId: editingFolderId,
         newName: editingFolderName.trim()
       });
       loadAllManufacturerFolders(true);
@@ -166,8 +144,6 @@ export function useSpecSheetsFolders({
     } finally {
       setEditingFolderId(null);
       setEditingFolderName('');
-      setEditingFolderManufacturerId(null);
-      setEditingFolderPath('');
     }
   };
 
@@ -203,8 +179,8 @@ export function useSpecSheetsFolders({
         return;
       }
       try {
-        // API uses factoryId and folderPath (path-based system)
-        await deleteFolderMutation.mutateAsync({ factoryId, folderPath: folder.folderPath || '' });
+        // New API uses factoryId and folderId
+        await deleteFolderMutation.mutateAsync({ factoryId, folderId: folder.id });
         if (selectedFolderId === folder.id) setSelectedFolderId(null);
         loadAllManufacturerFolders(true);
         showSuccessToast('Folder deleted');
@@ -239,20 +215,10 @@ export function useSpecSheetsFolders({
     if (!newFolderName.trim() || !newFolderManufacturerId) return;
     setFolderError(null);
     try {
-      // Get the parent path from the parent folder ID
-      // If newFolderParentId is null, parentPath should be empty string (root level)
-      let parentPath = '';
-      if (newFolderParentId) {
-        // Find the parent folder's folderPath directly from the API response
-        const apiFolders = allManufacturerFolders[newFolderManufacturerId] || [];
-        const parentFolder = apiFolders.find(f => f.id === newFolderParentId);
-        parentPath = parentFolder?.folderPath || '';
-      }
-
-      // API uses factoryId, parentPath, and folderName
+      // New API uses factoryId, parentFolderId, and folderName
       await createFolderMutation.mutateAsync({
         factoryId: newFolderManufacturerId,
-        parentPath,
+        parentFolderId: newFolderParentId,
         folderName: newFolderName.trim()
       });
       setShowAddFolderModal(false);
@@ -289,71 +255,12 @@ export function useSpecSheetsFolders({
     setDragOverFolderId(null);
   };
 
-  const handleFolderDrop = async (e: React.DragEvent, targetFolderId: string | null, targetManufacturer?: string) => {
+  const handleFolderDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    if (!draggedFolderId) {
-      setDraggedFolderId(null);
-      setDragOverFolderId(null);
-      return;
-    }
-
-    // Prevent dropping on itself
-    if (draggedFolderId === targetFolderId) {
-      setDraggedFolderId(null);
-      setDragOverFolderId(null);
-      return;
-    }
-
-    // Find the factory ID for the dragged folder
-    let factoryId: string | null = null;
-    for (const [mfrId, folders] of Object.entries(allManufacturerFolders)) {
-      if (folders.some(f => f.id === draggedFolderId)) {
-        factoryId = mfrId;
-        break;
-      }
-    }
-
-    // If target manufacturer is different, we can't move across manufacturers
-    if (targetManufacturer) {
-      const targetMfrId = findManufacturerIdByName(targetManufacturer);
-      if (targetMfrId && factoryId && targetMfrId !== factoryId) {
-        setFolderError('Cannot move folders between different manufacturers');
-        setDraggedFolderId(null);
-        setDragOverFolderId(null);
-        return;
-      }
-      // Use target manufacturer's factory ID if we have it
-      if (targetMfrId) {
-        factoryId = targetMfrId;
-      }
-    }
-
-    if (!factoryId) {
-      setFolderError('Could not determine manufacturer for folder');
-      setDraggedFolderId(null);
-      setDragOverFolderId(null);
-      return;
-    }
-
-    setFolderError(null);
-    try {
-      await moveFolderMutation.mutateAsync({
-        factoryId,
-        folderId: draggedFolderId,
-        newParentId: targetFolderId,
-      });
-      loadAllManufacturerFolders(true);
-      showSuccessToast('Folder moved successfully');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to move folder';
-      setFolderError(errorMessage);
-      showErrorToast('Failed to move folder', { description: errorMessage });
-    } finally {
-      setDraggedFolderId(null);
-      setDragOverFolderId(null);
-    }
+    setFolderError('Moving folders is not yet supported');
+    setDraggedFolderId(null);
+    setDragOverFolderId(null);
   };
 
   const handleFolderDragEnd = () => {

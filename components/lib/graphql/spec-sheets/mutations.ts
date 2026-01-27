@@ -21,7 +21,7 @@ export const CREATE_SPEC_SHEET = `
       pageCount
       categories
       tags
-      folderId
+      folderPath
       needsReview
       published
       usageCount
@@ -52,7 +52,7 @@ export const UPDATE_SPEC_SHEET = `
       pageCount
       categories
       tags
-      folderId
+      folderPath
       needsReview
       published
       usageCount
@@ -82,7 +82,7 @@ export const MOVE_SPEC_SHEET_TO_FOLDER = `
       factoryId
       fileName
       displayName
-      folderId
+      folderPath
       createdAt
     }
   }
@@ -200,7 +200,6 @@ export const CREATE_FOLDER = `
     createSpecSheetFolder(input: $input) {
       id
       factoryId
-      folderPath
       name
       parentId
       createdAt
@@ -212,16 +211,12 @@ export const CREATE_FOLDER = `
 export const RENAME_FOLDER = `
   mutation RenameSpecSheetFolder($input: RenameSpecSheetFolderInput!) {
     renameSpecSheetFolder(input: $input) {
-      folder {
-        id
-        factoryId
-        folderPath
-        name
-        parentId
-        createdAt
-        specSheetCount
-      }
-      specSheetsUpdated
+      id
+      factoryId
+      name
+      parentId
+      createdAt
+      specSheetCount
     }
   }
 `;
@@ -237,7 +232,6 @@ export const MOVE_FOLDER = `
     moveSpecSheetFolder(input: $input) {
       id
       factoryId
-      folderPath
       name
       parentId
       createdAt

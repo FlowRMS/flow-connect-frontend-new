@@ -312,7 +312,7 @@ export async function createFolder(input: CreateFolderInput): Promise<FolderResp
 }
 
 export async function renameFolder(input: RenameFolderInput): Promise<FolderResponse> {
-  const response = await crmGraphQLRequest<{ renameSpecSheetFolder: { folder: FolderResponse; specSheetsUpdated: number } }>({
+  const response = await crmGraphQLRequest<{ renameSpecSheetFolder: FolderResponse }>({
     query: RENAME_FOLDER,
     variables: { input },
   });
@@ -321,11 +321,11 @@ export async function renameFolder(input: RenameFolderInput): Promise<FolderResp
     throw new Error(response.errors[0]?.message || 'Failed to rename folder');
   }
 
-  if (!response.data?.renameSpecSheetFolder?.folder) {
+  if (!response.data?.renameSpecSheetFolder) {
     throw new Error('No folder returned from rename mutation');
   }
 
-  return response.data.renameSpecSheetFolder.folder;
+  return response.data.renameSpecSheetFolder;
 }
 
 export async function deleteFolder(input: DeleteFolderInput): Promise<boolean> {
