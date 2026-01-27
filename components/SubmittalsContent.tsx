@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useSubmittalsState } from './submittals/hooks/useSubmittalsState';
 import { SubmittalsHeader } from './submittals/SubmittalsHeader';
@@ -80,6 +80,16 @@ export default function SubmittalsContent() {
   const [resubmitMode, setResubmitMode] = useState(false);
   const [resubmitItemIds, setResubmitItemIds] = useState<string[]>([]);
 
+  // Force detail panel to switch to a specific tab
+  const [forceDetailTab, setForceDetailTab] = useState<'items' | 'stakeholders' | 'revisions' | 'settings' | null>(null);
+
+  const handleAddContactNav = useCallback(() => {
+    setShowPrintDialog(false);
+    setResubmitMode(false);
+    setResubmitItemIds([]);
+    setForceDetailTab('stakeholders');
+  }, []);
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-6">
@@ -105,10 +115,14 @@ export default function SubmittalsContent() {
         includeCoverPage: settings.outputOptions.includeCoverPage,
         includeTransmittalPage: settings.outputOptions.includeTransmittalPage,
         includeFixtureSummary: settings.outputOptions.includeFixtureSummary,
+        includePages: settings.outputOptions.includePages,
+        includeTypeCoverPage: settings.outputOptions.includeTypeCoverPage,
         showQuantities: settings.outputOptions.showQuantities,
         showDescriptions: settings.outputOptions.showDescriptions,
         showLeadTimes: settings.outputOptions.showLeadTimes,
+        hideNotes: settings.outputOptions.hideNotes,
         useCustomerLogo: settings.outputOptions.useCustomerLogo,
+        printDuplex: settings.outputOptions.printDuplex,
         capFileSizeMb: settings.capFileSize !== 'none' ? parseInt(settings.capFileSize) : undefined,
         attachedItems: settings.transmittal.attached as string[],
         attachedOther: settings.transmittal.attachedOther || undefined,
@@ -241,6 +255,8 @@ export default function SubmittalsContent() {
               onRemoveStakeholder={handleRemoveStakeholder}
               isSavingSettings={isSavingSettings}
               isAddingStakeholder={isAddingStakeholder}
+              forceActiveTab={forceDetailTab}
+              onTabChanged={() => setForceDetailTab(null)}
             />
           </div>
         </div>
@@ -264,9 +280,10 @@ export default function SubmittalsContent() {
             setResubmitItemIds([]);
           }}
           onPrint={handlePrint}
-          onAddContact={handleAddContact}
+          onAddContact={handleAddContactNav}
           resubmitMode={resubmitMode}
           resubmitItemIds={resubmitItemIds}
+          isGenerating={generatePdfMutation.isPending}
         />
       )}
     </div>

@@ -21,6 +21,7 @@ interface PrintSubmittalDialogProps {
   resubmitMode?: boolean;
   resubmitItemIds?: string[];
   onAddContact?: () => void;
+  isGenerating?: boolean;
 }
 
 const TABS: { id: TabId; label: string }[] = [
@@ -37,6 +38,7 @@ export default function PrintSubmittalDialog({
   resubmitMode = false,
   resubmitItemIds = [],
   onAddContact,
+  isGenerating = false,
 }: PrintSubmittalDialogProps) {
   const dialog = usePrintDialog({
     submittal,
@@ -48,7 +50,7 @@ export default function PrintSubmittalDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[var(--card)] rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+      <div className="bg-[var(--card)] rounded-xl shadow-2xl w-full max-w-2xl h-[85vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
           <div>
@@ -66,7 +68,10 @@ export default function PrintSubmittalDialog({
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            disabled={isGenerating}
+            className={`p-2 hover:bg-[var(--muted)] rounded-lg transition-colors text-[var(--muted-foreground)] hover:text-[var(--foreground)] ${
+              isGenerating ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
@@ -167,17 +172,31 @@ export default function PrintSubmittalDialog({
         <div className="flex items-center justify-start gap-2 px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/30">
           <button
             onClick={dialog.handlePrint}
-            className={`px-5 py-2 text-sm font-medium text-white rounded transition-colors ${
+            disabled={isGenerating}
+            className={`px-5 py-2 text-sm font-medium text-white rounded transition-colors flex items-center gap-2 ${
+              isGenerating
+                ? 'opacity-70 cursor-not-allowed'
+                : ''
+            } ${
               resubmitMode
                 ? 'bg-amber-600 hover:bg-amber-700'
                 : 'bg-[var(--primary)] hover:bg-[var(--primary-hover)]'
             }`}
           >
-            {resubmitMode ? 'Generate Resubmittal' : 'Print'}
+            {isGenerating && (
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            )}
+            {isGenerating ? 'Printing...' : resubmitMode ? 'Generate Resubmittal' : 'Print'}
           </button>
           <button
             onClick={onClose}
-            className="px-5 py-2 text-sm border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors text-[var(--foreground)]"
+            disabled={isGenerating}
+            className={`px-5 py-2 text-sm border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors text-[var(--foreground)] ${
+              isGenerating ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             Cancel
           </button>

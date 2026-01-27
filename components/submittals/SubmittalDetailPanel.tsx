@@ -48,6 +48,8 @@ interface SubmittalDetailPanelProps {
   onRemoveStakeholder?: (stakeholderId: string) => void;
   isSavingSettings?: boolean;
   isAddingStakeholder?: boolean;
+  forceActiveTab?: TabId | null;
+  onTabChanged?: () => void;
 }
 
 type TabId = 'items' | 'stakeholders' | 'revisions' | 'settings';
@@ -71,8 +73,17 @@ export default function SubmittalDetailPanel({
   onRemoveStakeholder,
   isSavingSettings,
   isAddingStakeholder,
+  forceActiveTab,
+  onTabChanged,
 }: SubmittalDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>('items');
+
+  useEffect(() => {
+    if (forceActiveTab) {
+      setActiveTab(forceActiveTab);
+      onTabChanged?.();
+    }
+  }, [forceActiveTab, onTabChanged]);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [showSpecSheetPicker, setShowSpecSheetPicker] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);

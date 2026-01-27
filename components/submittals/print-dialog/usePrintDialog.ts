@@ -148,10 +148,14 @@ export function usePrintDialog({
         includeCoverPage: includeCoverLetter,
         includeTransmittalPage: includeTransmittal,
         includeFixtureSummary: includeSubmittalLetter,
+        includePages,
+        includeTypeCoverPage,
         showQuantities,
         showDescriptions: !hideDescriptions,
         showLeadTimes,
+        hideNotes,
         useCustomerLogo,
+        printDuplex,
         attachments: Array.from(attachedItems) as TransmittalAttachment[],
         transmittedFor: Array.from(transmittedFor),
         addressedTo: allContacts.filter(c => selectedContactIds.has(c.contactId)),
@@ -168,7 +172,6 @@ export function usePrintDialog({
       capFileSize,
     };
     onPrint(settings);
-    onClose();
   };
 
   return {

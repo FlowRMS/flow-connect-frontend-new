@@ -21,7 +21,7 @@ export const CREATE_SPEC_SHEET = `
       pageCount
       categories
       tags
-      folderPath
+      folderId
       needsReview
       published
       usageCount
@@ -52,7 +52,7 @@ export const UPDATE_SPEC_SHEET = `
       pageCount
       categories
       tags
-      folderPath
+      folderId
       needsReview
       published
       usageCount
@@ -82,7 +82,7 @@ export const MOVE_SPEC_SHEET_TO_FOLDER = `
       factoryId
       fileName
       displayName
-      folderPath
+      folderId
       createdAt
     }
   }

@@ -267,10 +267,14 @@ export interface SubmittalOutputOptions {
   includeCoverPage: boolean;
   includeTransmittalPage: boolean;
   includeFixtureSummary: boolean;
+  includePages: boolean;
+  includeTypeCoverPage: boolean;
   showQuantities: boolean;
   showDescriptions: boolean;
   showLeadTimes: boolean;
+  hideNotes: boolean;
   useCustomerLogo: boolean;
+  printDuplex: boolean;
   // Transmittal options
   attachments: TransmittalAttachment[];
   transmittedFor: TransmittalPurpose[];
