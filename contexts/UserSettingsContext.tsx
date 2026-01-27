@@ -11,6 +11,8 @@ import {
   type ChatSettingsValue,
   type SidebarSettingsValue,
   type FlowAISettingsValue,
+  type PicklistSettingsValue,
+  type PicklistValue,
   getMySettings,
   getTenantSettings,
   saveMySetting,
@@ -163,6 +165,7 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
     (): SidebarSettingsValue | null => getSetting<SidebarSettingsValue>('SIDEBAR_SETTINGS'),
     [getSetting]
   );
+
 
   // Save setting to the appropriate scope
   const saveSettingHandler = useCallback(
@@ -491,6 +494,51 @@ export function useFlowAISettings() {
     settings,
     mySettings: mySettingsValue,
     tenantSettings: tenantSettingsValue,
+    saveSettings: saveSettingsHandler,
+    isLoading,
+    isInitialized,
+  };
+}
+
+/**
+ * Generic hook for picklist settings
+ * All picklists are stored under a single PICKLIST_SETTINGS key
+ * Only tenant scope is supported (no my settings)
+ * 
+ * @param picklistKey - The specific picklist to work with (e.g., 'orderTypes', 'lostReasons')
+ */
+export function usePicklistSettings(picklistKey: string) {
+  const { saveSetting, isLoading, isInitialized, tenantSettings } = useUserSettings();
+  
+  const settingKey: SettingKey = 'PICKLIST_SETTINGS';
+
+  // Get all picklist settings
+  const allPicklistSettings = useMemo(() => {
+    const tenantSetting = tenantSettings.get(settingKey);
+    return tenantSetting ? parseSettingValue<PicklistSettingsValue>(tenantSetting) : null;
+  }, [tenantSettings]);
+
+  // Get specific picklist value
+  const settings = useMemo(() => {
+    if (!allPicklistSettings) return null;
+    return (allPicklistSettings[picklistKey as keyof PicklistSettingsValue] as PicklistValue | undefined) || null;
+  }, [allPicklistSettings, picklistKey]);
+
+  const saveSettingsHandler = useCallback(
+    async (value: PicklistValue): Promise<boolean> => {
+      // Merge with existing picklist settings, updating only the specific picklist
+      const updatedSettings: PicklistSettingsValue = {
+        ...allPicklistSettings,
+        [picklistKey]: value,
+      };
+      // Only save to tenant scope (no my settings for picklists)
+      return saveSetting(settingKey, updatedSettings, 'tenant');
+    },
+    [saveSetting, allPicklistSettings, picklistKey]
+  );
+
+  return {
+    settings,
     saveSettings: saveSettingsHandler,
     isLoading,
     isInitialized,
