@@ -520,7 +520,8 @@ export function usePicklistSettings(picklistKey: string) {
 
   // Get specific picklist value
   const settings = useMemo(() => {
-    return allPicklistSettings?.[picklistKey] || null;
+    if (!allPicklistSettings) return null;
+    return (allPicklistSettings[picklistKey as keyof PicklistSettingsValue] as PicklistValue | undefined) || null;
   }, [allPicklistSettings, picklistKey]);
 
   const saveSettingsHandler = useCallback(
