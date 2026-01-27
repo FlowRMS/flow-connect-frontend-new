@@ -108,7 +108,13 @@ export function useParsing({
     }
 
     setParsedItems(allParsedItems);
-    setParsingState({ isProcessing: false, progress: 100 });
+
+    // Set message if no items were found after parsing
+    const message = allParsedItems.length === 0
+      ? `Parsed ${docsWithUrls.length} document(s) but no product items were found. Product extraction works with Schedule documents (Fixture Schedules, Panel Schedules, Lighting Schedules) that contain structured product tables.`
+      : undefined;
+
+    setParsingState({ isProcessing: false, progress: 100, message });
   }, [documents, selectedTakeoff, setDocuments, setTakeoffsData, setSelectedTakeoff, setParsedItems]);
 
   return {

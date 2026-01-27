@@ -7,12 +7,14 @@ import type { Invoice, InvoiceLineItem as RmsInvoiceLineItem, Order, CommissionC
 import type { EditableInvoice, InvoiceLineItem } from './types';
 
 /**
- * Format number as currency
+ * Format number as currency with full precision (up to 4 decimal places)
  */
 export const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(amount);
 };
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FulfillmentOrder, FulfillmentOrderLineItem } from '@/lib/types/warehouse';
+import { FulfillmentOrder, FulfillmentOrderLineItem } from '../../api/fulfillmentApi';
 
 interface BackorderItem {
   lineItem: FulfillmentOrderLineItem;
@@ -139,7 +139,7 @@ export default function SplitOrderModal({
                 Split Order Between Warehouse & Manufacturer
               </h2>
               <p className="text-sm text-gray-600">
-                Order #{fulfillmentOrder.orderNumber} - {fulfillmentOrder.customerName}
+                Order #{fulfillmentOrder.order?.orderNumber || '-'} - {fulfillmentOrder.customer?.companyName || '-'}
               </p>
             </div>
           </div>
@@ -204,9 +204,9 @@ export default function SplitOrderModal({
                         <tr key={item.lineItem.id} className="hover:bg-gray-50/50">
                           <td className="px-4 py-3">
                             <div className="font-medium text-sm text-gray-900">
-                              {item.lineItem.productName}
+                              {item.lineItem.product?.description || item.lineItem.product?.factoryPartNumber || '-'}
                             </div>
-                            <div className="text-xs text-gray-500">{item.lineItem.partNumber}</div>
+                            <div className="text-xs text-gray-500">{item.lineItem.product?.factoryPartNumber || '-'}</div>
                           </td>
                           <td className="px-4 py-3 text-center text-sm font-medium text-gray-900">
                             {item.lineItem.orderedQty}

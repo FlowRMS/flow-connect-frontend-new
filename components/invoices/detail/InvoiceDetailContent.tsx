@@ -39,6 +39,7 @@ import type { OrderLineItem } from '@/lib/types/rms';
 import { toast } from 'sonner';
 import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
 import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
+import { useEntityFilesCount } from '@/components/shared/hooks/useEntityFilesCount';
 
 interface InvoiceDetailContentProps {
   invoiceId: string;
@@ -49,7 +50,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
   const router = useRouter();
   const state = useInvoiceDetailState({ invoiceId, initialOrderId });
   const { setFullEntityContext } = useFlowChat();
-  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+  const { requestNavigation, hasUnsavedChanges, clearUnsavedChanges } = useUnsavedChangesContext();
 
   // Set full entity context for global chatbot (type, id, and invoice number)
   useEffect(() => {
@@ -69,6 +70,13 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
     lineItemsCount: state?.invoice?.lineItems?.length ?? 0,
     onSelectAll: state?.selectAllLineItems,
     onClearSelection: state?.clearLineItemSelection,
+  });
+
+  // Files count for tab badge
+  const { filesCount } = useEntityFilesCount({
+    entityId: state?.isCreateMode ? null : invoiceId,
+    entityType: 'INVOICE',
+    enabled: !state?.isCreateMode, // Only fetch when not in create mode
   });
 
   // Delete Invoice state - must be before any early returns
@@ -201,6 +209,8 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
     if (success) {
       toast.success('Invoice saved successfully');
       if (state.isCreateMode) {
+        // Clear unsaved changes before navigation to prevent beforeunload alert
+        clearUnsavedChanges();
         router.push('/invoices');
       }
     } else {
@@ -382,7 +392,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
           {/* Tabs */}
           <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] bg-white -mx-6 px-6 pt-4 -mt-6">
             <div className="flex gap-1">
-              {getTabsConfig(state.invoice.lineItems.length, state.isCreateMode).map((tab) => (
+              {getTabsConfig(state.invoice.lineItems.length, state.isCreateMode, filesCount).map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => !tab.disabled && !tab.comingSoon && state.setActiveTab(tab.id)}

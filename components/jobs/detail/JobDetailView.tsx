@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { JobDetailHeader } from './JobDetailHeader';
 import { JobDetailsForm } from './JobDetailsForm';
 import { JobCompanyLinksSection } from './JobCompanyLinksSection';
+import { JobAddressesSection } from './JobAddressesSection';
 import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import { RepTypeModal } from '../modals/RepTypeModal';
 import { DeleteJobConfirmModal } from '../modals/DeleteJobConfirmModal';
@@ -93,10 +94,12 @@ export function JobDetailView({
         } : undefined}
       />
 
+      <JobAddressesSection jobId={job.id} />
+
       <ConnectedEntitiesSection
         entityId={job.id}
         sourceEntityType="JOB"
-        enabledCategories={['contacts', 'companies', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+        enabledCategories={['contacts', 'companies', 'customers', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
         onCompanyClick={onCompanyClick}
         onContactClick={onContactClick}
       />

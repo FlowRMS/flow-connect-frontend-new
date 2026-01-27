@@ -423,37 +423,58 @@ export function LineItemsTable({
         editValue = String(item.unitPrice || 0);
         break;
       case 'commissionPercent':
-        displayValue = `${(item.commissionRate || 0).toFixed(1)}%`;
-        editValue = (item.commissionRate || 0).toFixed(1);
+        displayValue = `${String(Number(item.commissionRate || 0))}%`;
+        editValue = String(Number(item.commissionRate || 0));
         break;
     }
 
     const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
 
     // Read-only display columns (custPartNumber and description)
+    // Text is now selectable for copying
     if (isReadOnlyDisplayColumn) {
       return (
-        <span className={`px-2 py-1 ${alignClass} ${!displayValue || displayValue === '—' ? 'text-gray-400' : ''}`}>
+        <span 
+          className={`py-1 ${alignClass} select-text ${!displayValue || displayValue === '—' ? 'text-gray-400' : ''}`}
+          style={{ userSelect: 'text' }}
+        >
           {displayValue || '—'}
         </span>
       );
     }
 
-    // Dropdown cells
+    // Dropdown cells - All dropdown columns use selectable text + chevron button pattern
     if (isDropdownColumn && isEditable) {
       const isEmpty = !item[column as keyof InvoiceLineItem] || item[column as keyof InvoiceLineItem] === 'Select...';
+
       return (
-        <button
-          onClick={(e) => handleCellClick(item.id, column, e)}
-          className={`w-full ${alignClass} px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center justify-between gap-1`}
-        >
-          <span className={`truncate ${isEmpty ? 'text-gray-400' : ''}`}>
+        <div className={`w-full ${alignClass} flex items-center gap-1`}>
+          <span
+            className="flex-1 py-1 select-text truncate cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
+            style={{ userSelect: 'text' }}
+            onClick={(e) => {
+              // Only open dropdown if no text is selected (user clicked, not dragged to select)
+              const selection = window.getSelection();
+              if (!selection || selection.toString().length === 0) {
+                handleCellClick(item.id, column, e);
+              }
+            }}
+          >
             {displayValue}
           </span>
-          <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400 flex-shrink-0">
-            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-          </svg>
-        </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCellClick(item.id, column, e);
+            }}
+            className="flex-shrink-0 p-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            title="Open dropdown"
+          >
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
+              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
       );
     }
 
@@ -849,6 +870,36 @@ export function LineItemsTable({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab') {
+                      // Close dropdown and move to next editable cell in the table
+                      e.preventDefault();
+                      const currentItemId = dropdownOpen?.itemId;
+                      setDropdownOpen(null);
+                      setSearchQuery('');
+
+                      // Find next editable cell in the table
+                      setTimeout(() => {
+                        if (!currentItemId) return;
+
+                        // Get all editable cell buttons in the table (excluding action buttons)
+                        const table = document.querySelector('.line-items-table table, table');
+                        if (table) {
+                          const editableCells = Array.from(table.querySelectorAll<HTMLButtonElement>(
+                            'td button:not([title="Remove line item"]):not([title="More options"])'
+                          ));
+
+                          // Focus on the next available editable cell
+                          if (editableCells.length > 0) {
+                            editableCells[0]?.focus();
+                          }
+                        }
+                      }, 50);
+                    } else if (e.key === 'Escape') {
+                      setDropdownOpen(null);
+                      setSearchQuery('');
+                    }
+                  }}
                   placeholder={
                     isProductDropdown ? "Type to search..." :
                     isCpnDropdown ? "Customer part numbers..." :

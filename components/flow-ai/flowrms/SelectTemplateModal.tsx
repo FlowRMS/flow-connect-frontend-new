@@ -67,7 +67,6 @@ export function SelectTemplateModal({
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
-  const [showNoInstructionsWarning, setShowNoInstructionsWarning] = useState(false);
   const [entityTypeFilter, setEntityTypeFilter] = useState<EntityType | 'all'>(
     (entityType as EntityType) || 'all'
   );
@@ -77,6 +76,7 @@ export function SelectTemplateModal({
     try {
       const { data } = await apolloClient.query({
         query: Q_GET_CLUSTERS,
+        variables: { limit: 10000, offset: 0 },
         fetchPolicy: 'network-only',
       });
       const payload = data as { clusters?: Cluster[] };
@@ -99,16 +99,11 @@ export function SelectTemplateModal({
     if (!open) {
       setSearchTerm('');
       setSelectedClusterId(null);
-      setShowNoInstructionsWarning(false);
     }
   }, [open, entityType]);
 
   const handleSelectCluster = useCallback((cluster: EnrichedCluster) => {
-    if (cluster.additionalInstructions.length === 0) {
-      setShowNoInstructionsWarning(true);
-    } else {
-      setSelectedClusterId(cluster.id);
-    }
+    setSelectedClusterId(cluster.id);
   }, []);
 
   const enrichedClusters = useMemo<EnrichedCluster[]>(() => {
@@ -367,26 +362,6 @@ export function SelectTemplateModal({
           </div>
         </DialogFooter>
       </DialogContent>
-
-      {/* No Instructions Warning Modal */}
-      <Dialog open={showNoInstructionsWarning} onOpenChange={setShowNoInstructionsWarning}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
-              Template Has No Instructions
-            </DialogTitle>
-            <DialogDescription>
-              This template does not have any saved instructions, so it cannot be applied to your document. Please select a different template that has instructions configured.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => setShowNoInstructionsWarning(false)}>
-              OK
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Dialog>
   );
 }

@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import WarehouseDeliveriesContent from '@/components/warehouse/WarehouseDeliveriesContent';
+import WarehouseDeliveriesContent from '@/components/warehouse/deliveries/list/WarehouseDeliveriesContent';
 
 export default function WarehouseDeliveriesPage() {
   return (

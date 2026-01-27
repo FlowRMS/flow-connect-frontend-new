@@ -19,10 +19,6 @@ interface BasicInfoSectionProps {
   setStatus: (value: PreOpportunityStatus) => void;
   expDate: string;
   setExpDate: (value: string) => void;
-  reviseDate: string;
-  setReviseDate: (value: string) => void;
-  acceptDate: string;
-  setAcceptDate: (value: string) => void;
 }
 
 // Status color mapping
@@ -144,10 +140,6 @@ export function BasicInfoSection({
   setStatus,
   expDate,
   setExpDate,
-  reviseDate,
-  setReviseDate,
-  acceptDate,
-  setAcceptDate,
 }: BasicInfoSectionProps) {
   return (
     <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
@@ -220,36 +212,6 @@ export function BasicInfoSection({
           </div>
         </div>
 
-        {/* Row 3: Accept Date and Revise Date */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-2">
-              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Accept Date
-            </label>
-            <StyledDatePicker
-              selected={acceptDate ? new Date(acceptDate + 'T00:00:00') : null}
-              onChange={(date) => setAcceptDate(formatLocalDate(date))}
-              placeholder="Select accept date..."
-            />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-2">
-              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Revise Date
-            </label>
-            <StyledDatePicker
-              selected={reviseDate ? new Date(reviseDate + 'T00:00:00') : null}
-              onChange={(date) => setReviseDate(formatLocalDate(date))}
-              placeholder="Select revise date..."
-            />
-          </div>
-        </div>
       </div>
     </div>
   );

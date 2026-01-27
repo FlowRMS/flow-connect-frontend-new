@@ -79,7 +79,7 @@ export function PreOpportunityDetailView({
           <ConnectedEntitiesSection
             entityId={preOpp.id}
             sourceEntityType="PRE_OPPORTUNITY"
-            enabledCategories={['contacts', 'companies', 'jobs', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+            enabledCategories={['contacts', 'companies', 'customers', 'jobs', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
             title="Connected Entities"
             showAddLinkButton={true}
           />
@@ -87,7 +87,12 @@ export function PreOpportunityDetailView({
 
         {/* Sidebar - 1 column, appears first on mobile for summary visibility */}
         <div className="order-1 lg:order-2">
-          <PreOpportunitySummary preOpp={preOpp} />
+          <PreOpportunitySummary 
+            preOpp={preOpp}
+            isEditing={isEditing}
+            editFormData={editFormData}
+            onChange={onEditChange}
+          />
         </div>
       </div>
 

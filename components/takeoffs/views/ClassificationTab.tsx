@@ -27,6 +27,9 @@ interface ClassificationTabProps {
   documentAbridgeState?: Record<string, DocumentAbridgeState>;
   classifyingDocIds?: Set<string>;
   isClassifying?: boolean;
+  classificationProgress?: number;
+  classificationError?: string | null;
+  onRetryClassification?: () => void;
   isAbridgementProcessing?: boolean;
   abridgementCurrentItem?: string;
 }
@@ -54,6 +57,9 @@ export function ClassificationTab({
   documentAbridgeState = {},
   classifyingDocIds = new Set(),
   isClassifying = false,
+  classificationProgress = 0,
+  classificationError = null,
+  onRetryClassification,
   isAbridgementProcessing = false,
   abridgementCurrentItem,
 }: ClassificationTabProps) {
@@ -193,7 +199,15 @@ export function ClassificationTab({
           </h2>
           <p className="text-sm text-gray-500 mt-1">
             {classifiedCount} of {documents.length} documents classified
-            {isClassifying && <span className="ml-2 text-blue-600">(Classifying...)</span>}
+            {isClassifying && (
+              <span className="ml-2 text-blue-600 inline-flex items-center gap-1.5">
+                <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                Classifying...
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -216,6 +230,21 @@ export function ClassificationTab({
           </button>
         </div>
       </div>
+
+      {/* Classification Error State */}
+      {classificationError && (
+        <div className="mb-6">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-red-500">{classificationError}</span>
+            <button
+              onClick={onRetryClassification}
+              className="px-3 py-1 text-sm font-medium text-red-600 border border-red-300 rounded hover:bg-red-50 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Category Tabs */}
       <div className="flex items-center gap-6 mb-6 border-b border-gray-200 pb-3">

@@ -18,3 +18,6 @@ export { default as CarrierNotesSection } from './CarrierNotesSection';
 
 // Container components
 export { default as ContainerTypesList } from './ContainerTypesList';
+
+// Common components
+export { default as SavingOverlay } from './SavingOverlay';

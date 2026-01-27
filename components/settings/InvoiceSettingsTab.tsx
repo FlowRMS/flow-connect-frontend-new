@@ -44,6 +44,7 @@ const defaultInvoiceColumnConfig: InvoiceColumnConfig[] = ALL_INVOICE_COLUMNS.ma
 
 const defaultInvoiceSettings: InvoiceSettingsValue = {
   columnConfig: defaultInvoiceColumnConfig,
+  dueDateOffset: 30,
 };
 
 export function InvoiceSettingsTab() {
@@ -59,8 +60,14 @@ export function InvoiceSettingsTab() {
   // Initialize local settings when context loads or scope changes
   useEffect(() => {
     if (isInitialized) {
-      const settingsToUse = activeSettings || defaultInvoiceSettings;
-      setLocalSettings(settingsToUse);
+      if (activeSettings) {
+        setLocalSettings(activeSettings);
+      } else {
+        setLocalSettings({
+          ...defaultInvoiceSettings,
+          dueDateOffset: undefined,
+        });
+      }
       setHasChanges(false);
     }
   }, [isInitialized, activeSettings, scope]);
@@ -69,6 +76,14 @@ export function InvoiceSettingsTab() {
     setLocalSettings((prev) => {
       if (!prev) return prev;
       return { ...prev, columnConfig: columns };
+    });
+    setHasChanges(true);
+  }, []);
+
+  const handleSettingChange = useCallback((key: keyof InvoiceSettingsValue, value: unknown) => {
+    setLocalSettings((prev) => {
+      if (!prev) return prev;
+      return { ...prev, [key]: value };
     });
     setHasChanges(true);
   }, []);
@@ -167,6 +182,33 @@ export function InvoiceSettingsTab() {
               and cannot be changed on invoices. Only column configuration can be customized here.
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Due Date Settings */}
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+        <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">Due Date Settings</h3>
+        <p className="text-xs text-[var(--muted-foreground)] mb-4">
+          Configure default due date calculation when manufacturer payment terms are not available
+        </p>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-[var(--foreground)]">
+            Default Due Date Offset (Days)
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={localSettings.dueDateOffset ?? ''}
+            placeholder="30"
+            onChange={(e) => {
+              const value = e.target.value === '' ? undefined : parseInt(e.target.value) || 0;
+              handleSettingChange('dueDateOffset', value);
+            }}
+            className="w-full max-w-xs px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent placeholder:text-[var(--muted-foreground)]"
+          />
+          <p className="text-xs text-[var(--muted-foreground)]">
+            Number of days to add to invoice date when calculating due date if the manufacturer has no payment terms configured
+          </p>
         </div>
       </div>
 

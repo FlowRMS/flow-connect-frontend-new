@@ -51,6 +51,13 @@ export interface CustomerSplitRateInput {
   position: number;
 }
 
+export interface TerritoryLite {
+  id: string;
+  name: string;
+  code: string;
+  territoryType: 'REGION' | 'SUBREGION' | 'TERRITORY';
+}
+
 export interface Customer {
   id: string;
   companyName: string;
@@ -62,6 +69,8 @@ export interface Customer {
   insideReps?: SplitRate[];
   outsideReps?: SplitRate[];
   createdAt?: string;
+  territoryId?: string;
+  territory?: TerritoryLite;
 }
 
 export interface CustomerLandingPage {
@@ -69,8 +78,8 @@ export interface CustomerLandingPage {
   companyName: string;
   createdAt?: string;
   createdBy?: string;
-  insideReps?: string;
-  outsideReps?: string;
+  insideReps?: string[];
+  outsideReps?: string[];
   isParent: boolean;
   published: boolean;
   buyingGroup?: string;
@@ -85,6 +94,7 @@ export interface CreateCustomerInput {
   published: boolean;
   insideSplitRates?: CustomerSplitRateInput[];
   outsideSplitRates?: CustomerSplitRateInput[];
+  territoryId?: string;
 }
 
 export interface UpdateCustomerInput {
@@ -95,6 +105,7 @@ export interface UpdateCustomerInput {
   published?: boolean;
   insideSplitRates?: CustomerSplitRateInput[];
   outsideSplitRates?: CustomerSplitRateInput[];
+  territoryId?: string;
 }
 
 // User Search Types
@@ -622,6 +633,20 @@ const CUSTOMER_BUYING_GROUP_MEMBERS = `
   }
 `;
 
+const ASSIGN_CHILD_CUSTOMERS = `
+  mutation AssignChildCustomers($parentId: UUID!, $childIds: [UUID!]!) {
+    assignChildCustomers(parentId: $parentId, childIds: $childIds) {
+      id
+      companyName
+      published
+      isParent
+      parentId
+      buyingGroupId
+      territoryId
+    }
+  }
+`;
+
 /**
  * Fetch child customers of a parent customer
  */
@@ -652,4 +677,20 @@ export async function fetchCustomerBuyingGroupMembers(buyingGroupId: string): Pr
   }
 
   return response.data?.customerBuyingGroupMembers || [];
+}
+
+/**
+ * Assign child customers to a parent customer
+ */
+export async function assignChildCustomers(parentId: string, childIds: string[]): Promise<CustomerLiteResponse[]> {
+  const response = await crmGraphQLRequest<{ assignChildCustomers: CustomerLiteResponse[] }>({
+    query: ASSIGN_CHILD_CUSTOMERS,
+    variables: { parentId, childIds },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to assign child customers');
+  }
+
+  return response.data?.assignChildCustomers || [];
 }

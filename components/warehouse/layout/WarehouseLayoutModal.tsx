@@ -6,6 +6,7 @@ import { useLocationManagement, useCanvasInteractions, useVisualElements } from 
 import { LocationTreeView } from './tree-view';
 import { VisualWarehouseBuilder } from './visual-builder';
 import { ModalHeader, ModalFooter } from './shared';
+import { SectionTemplateWizard } from './template-builder';
 import { filterLocations, findLocationById } from './utils';
 import { searchProducts } from '@/components/lib/graphql/pre-opportunities';
 
@@ -20,6 +21,7 @@ export default function WarehouseLayoutModal({
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
   const [draggedItem, setDraggedItem] = useState<any>(null);
+  const [showTemplateWizard, setShowTemplateWizard] = useState(false);
 
   // Canvas ref
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -198,6 +200,7 @@ export default function WarehouseLayoutModal({
             onDelete={locationManagement.deleteLocation}
             onAddChild={locationManagement.addChildLocation}
             onAddSection={locationManagement.addSection}
+            onBulkAdd={() => setShowTemplateWizard(true)}
             isBottomLevel={locationManagement.isBottomLevel}
             getNextLevelType={locationManagement.getNextLevelType}
             onShowProductSearch={locationManagement.setShowProductSearch}
@@ -258,6 +261,16 @@ export default function WarehouseLayoutModal({
           />
         )}
       </div>
+
+      {/* Template Builder Wizard */}
+      <SectionTemplateWizard
+        isOpen={showTemplateWizard}
+        onClose={() => setShowTemplateWizard(false)}
+        onComplete={(newLocations) => {
+          locationManagement.addBulkLocations(newLocations);
+        }}
+        enabledLevels={enabledLevels}
+      />
     </div>
   );
 }

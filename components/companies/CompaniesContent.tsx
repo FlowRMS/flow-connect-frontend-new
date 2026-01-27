@@ -1,0 +1,887 @@
+/**
+ * Companies Content - Main Component
+ * Modular and clean architecture following best practices
+ */
+
+'use client';
+
+import { useMemo, useEffect, useState, useRef, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
+import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
+import { iconMap } from '@/components/Sidebar';
+import type { RefObject } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useFlowChat } from '@/contexts/FlowChatContext';
+import AdvancedFilters, { ActiveFilter, ActiveSort } from '../advancedFilters/AdvancedFilters';
+import SortButton from '../SortButton';
+import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany, useCompanyTypes, type CompanyType } from '../hooks/useCRMApi';
+
+import { companyToasts } from '../lib/toast';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import type { RelatedEntityContact, RelatedEntityJob, LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
+import { useQuery } from '@tanstack/react-query';
+import { searchCompanies, type CompanySearchResult } from '../lib/api/search';
+
+// Modular imports
+import { useCompaniesState } from './hooks/useCompaniesState';
+import { useFilterSync } from '../advancedFilters/hooks/useFilterSync';
+import type { FilterOption } from '../advancedFilters/types';
+import { getCompanyFilterOptions, getCompanySortOptions } from './config/filterConfig';
+import { mapAPICompanyToUICompany } from './types';
+import CompanyDetailView from './detail/CompanyDetailView';
+import GridView from './views/grid/GridView';
+import ListView from './views/list/ListView';
+import { ManageCompanyTypesModal } from './modals/ManageCompanyTypesModal';
+import { useUnsavedChangesGuard } from '../shared/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
+
+export default function CompaniesContent() {
+  // Router for navigation
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { setFullEntityContext } = useFlowChat();
+  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+
+  // Navigation morph hooks
+  const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
+  const headerIconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (headerIconRef.current) {
+      registerHeaderTarget(headerIconRef.current);
+    }
+    return () => {
+      registerHeaderTarget(null);
+    };
+  }, [registerHeaderTarget]);
+
+  const isReceivingAnimation = floatingIcon?.itemId === 'companies';
+
+  // Hydration-safe mounted state (kept for potential future use)
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // API search for companies
+  const { data: searchResults, isLoading: isSearching } = useQuery<CompanySearchResult[], Error>({
+    queryKey: ['companySearch', debouncedSearchQuery],
+    queryFn: () => searchCompanies(debouncedSearchQuery, 50),
+    enabled: debouncedSearchQuery.length >= 2,
+    staleTime: 30 * 1000,
+  });
+
+  // Manage Company Types modal state
+  const [showCompanyTypesModal, setShowCompanyTypesModal] = useState(false);
+
+  // Fetch company types from API for display (used when editing and in Manage Types modal)
+  const { data: companyTypesData } = useCompanyTypes();
+  const companyTypes: CompanyType[] = companyTypesData ?? [];
+
+  // Server-side filters - defined BEFORE API hook so they can be passed to the query
+  // Initial filter excludes manufacturers (they are managed in /manufacturers)
+  const [serverFilters, setServerFilters] = useState<LandingPageFilter[]>([
+    { operator: 'NE', columnName: 'companySourceType', value: 'MANUFACTURER' }
+  ]);
+  const [serverOrderBy, setServerOrderBy] = useState<LandingPageOrderBy[]>([]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Handler for server-side filter changes (from advanced filters)
+  const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    // Only include value OR values, not both - check which one exists
+    const apiFilters: LandingPageFilter[] = filters.map(f => {
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
+    setServerFilters(apiFilters);
+  }, []);
+
+  // Handler for server-side sort changes
+  const handleServerSortChange = useCallback((sorts: ActiveSort[]) => {
+    const apiOrderBy: LandingPageOrderBy[] = sorts.map(s => ({
+      columnName: s.columnName,
+      direction: s.direction,
+    }));
+    setServerOrderBy(apiOrderBy);
+  }, []);
+
+  // CRM API hooks with infinite scroll - now with server-side filters
+  const {
+    data: companiesData,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useCRMCompanyLandingPagesInfinite(serverFilters, serverOrderBy);
+  const deleteCompanyMutation = useDeleteCRMCompany();
+  const updateCompanyMutation = useUpdateCRMCompany();
+
+  // Flatten paginated results with deduplication
+  const landingPageCompanies = useMemo(() => {
+    if (!companiesData?.pages) return undefined;
+    const allRecords = companiesData.pages.flatMap(page => page.records);
+    // Deduplicate by ID
+    const seen = new Set<string>();
+    return allRecords.filter(record => {
+      if (seen.has(record.id)) return false;
+      seen.add(record.id);
+      return true;
+    });
+  }, [companiesData]);
+
+  // Infinite scroll trigger
+  const { loadMoreRef } = useInfiniteScroll({
+    hasNextPage: hasNextPage ?? false,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
+
+  // State management (selectedType removed - now using server-side filtering via selectedTypeFilter)
+  const {
+    viewMode,
+    setViewMode,
+    companies,
+    selectedCompany,
+    setSelectedCompany,
+    isEditing,
+    setIsEditing,
+    editFormData,
+    setEditFormData,
+    deleteConfirmId,
+    setDeleteConfirmId,
+    activeFilters,
+    clientSortColumns,
+    handleFiltersChange: stateHandleFiltersChange,
+    handleMultiSortChange: stateHandleMultiSortChange,
+    handleStartEdit,
+    handleCancelEdit,
+  } = useCompaniesState(landingPageCompanies);
+
+  // Transform search results to UI company format and filter companies
+  const displayedCompanies = useMemo(() => {
+    if (debouncedSearchQuery.length >= 2 && searchResults) {
+      return searchResults.map(sr => ({
+        id: sr.id,
+        name: sr.name,
+        type: sr.companyType ? [sr.companyType.name || ''] : [],
+        companyTypeId: sr.companyType?.id,
+        companyTypeName: sr.companyType?.name,
+        tags: sr.tags ? (typeof sr.tags === 'string' ? sr.tags.split(',').map(t => t.trim()).filter(Boolean) : sr.tags) : [],
+        phone: sr.phone || '',
+        website: sr.website || '',
+        createdBy: sr.createdBy || '',
+        parentCompanyId: sr.parentCompanyId,
+        // Required fields with default values
+        address: '',
+        lists: [],
+        territory: '',
+        contactCount: 0,
+        jobCount: 0,
+        lastActivity: sr.createdAt || '',
+        followers: [],
+      }));
+    }
+    return companies;
+  }, [companies, debouncedSearchQuery, searchResults]);
+
+  // Wrapper handlers that call both state and server-side filter handlers
+  const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    stateHandleFiltersChange(filters);
+    handleServerFiltersChange(filters);
+  }, [stateHandleFiltersChange, handleServerFiltersChange]);
+
+  const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
+    stateHandleMultiSortChange(sorts);
+    handleServerSortChange(sorts);
+  }, [stateHandleMultiSortChange, handleServerSortChange]);
+
+  // Get company ID from URL - this is the source of truth for navigation
+  const companyIdFromUrl = searchParams.get('id');
+
+  // Track intentional clear to prevent re-selecting after back navigation
+  const isIntentionalClearRef = useRef(false);
+
+  // Fetch full company details when navigating via URL
+  const targetCompanyId = (!isIntentionalClearRef.current && companyIdFromUrl) ? companyIdFromUrl : (selectedCompany?.id || '');
+  const { data: fullCompanyData, isLoading: companyDetailLoading, error: companyDetailError } = useCRMCompany(targetCompanyId);
+
+  // Fetch parent company name if the selected company has a parentCompanyId
+  const parentCompanyIdToFetch = fullCompanyData?.parentCompanyId || selectedCompany?.parentCompanyId || '';
+  const { data: parentCompanyData } = useCRMCompany(parentCompanyIdToFetch);
+
+  // When we get company data from API (navigating via URL), set it as selected
+  useEffect(() => {
+    if (fullCompanyData && companyIdFromUrl && !isIntentionalClearRef.current) {
+      const mappedCompany = mapAPICompanyToUICompany(fullCompanyData);
+      // Include parent company name if we have it
+      if (parentCompanyData && fullCompanyData.parentCompanyId) {
+        mappedCompany.parentCompanyName = parentCompanyData.name;
+      }
+      if (!selectedCompany || selectedCompany.id !== mappedCompany.id ||
+          (parentCompanyData && !selectedCompany.parentCompanyName)) {
+        setSelectedCompany(mappedCompany);
+      }
+    }
+  }, [fullCompanyData, companyIdFromUrl, selectedCompany, setSelectedCompany, parentCompanyData]);
+
+  // Reset the intentional clear flag when URL has no ID
+  useEffect(() => {
+    if (!companyIdFromUrl) {
+      isIntentionalClearRef.current = false;
+    }
+  }, [companyIdFromUrl]);
+
+  // Set full entity context for global chatbot (type, id, and company name)
+  useEffect(() => {
+    if (selectedCompany?.name && selectedCompany?.id) {
+      setFullEntityContext('company', selectedCompany.id, selectedCompany.name);
+    } else {
+      setFullEntityContext(null, null, null);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [selectedCompany?.name, selectedCompany?.id, setFullEntityContext]);
+
+  // Update URL when a company is selected (not when cleared - that's handled by handleBack)
+  useEffect(() => {
+    if (!isMounted) return;
+    if (selectedCompany?.id) {
+      const currentId = searchParams.get('id');
+      if (currentId !== selectedCompany.id) {
+        router.replace(`/companies?id=${selectedCompany.id}`, { scroll: false });
+      }
+    }
+  }, [selectedCompany?.id, isMounted, router, searchParams]);
+
+  // Clear editing state when company is deselected (e.g., after discarding changes and navigating back)
+  useEffect(() => {
+    if (!selectedCompany) {
+      setIsEditing(false);
+      setEditFormData({});
+    }
+  }, [selectedCompany, setIsEditing, setEditFormData]);
+
+  // Handle back navigation
+  const handleBack = () => {
+    // Check for unsaved changes before allowing navigation
+    if (hasUnsavedChanges) {
+      const canNavigate = requestNavigation('/companies', 'back');
+      if (!canNavigate) {
+        return; // Navigation blocked, modal will be shown
+      }
+    }
+    isIntentionalClearRef.current = true;
+    setSelectedCompany(null);
+    setIsEditing(false);
+    router.replace('/companies', { scroll: false });
+  };
+
+  // Navigation handlers for related entities
+  const handleContactClick = (contact: RelatedEntityContact) => {
+    // Navigate to contacts page with the contact ID as query param
+    router.push(`/contacts?id=${contact.id}`);
+  };
+
+  const handleJobClick = (job: RelatedEntityJob) => {
+    // Navigate to jobs page with the job ID as query param
+    router.push(`/jobs?id=${job.id}`);
+  };
+
+  // Filter and sort options (backend-driven, no local option hydration)
+  const companyFilterOptions = useMemo(
+    () => getCompanyFilterOptions(),
+    []
+  );
+
+  // Column filters state for table header
+  const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+
+  // Map from UI column keys to filter option IDs (for sync)
+  const columnKeyToFilterId: Record<string, string> = useMemo(() => ({
+    name: 'name',
+    companyTypeName: 'type',
+    phone: 'phone',
+    website: 'website',
+    tags: 'tags',
+    createdBy: 'createdBy',
+    lastActivity: 'last-activity',
+  }), []);
+
+  // Hook for synchronizing filters between AdvancedFilters and ColumnFilters
+  const { syncAdvancedToColumn, syncColumnToAdvanced } = useFilterSync({
+    filterOptions: companyFilterOptions as unknown as FilterOption[],
+    columnKeyToFilterId,
+  });
+
+  // Refs to prevent infinite loops during synchronization
+  const isSyncingFromAdvanced = useRef(false);
+  const isSyncingFromColumn = useRef(false);
+
+  // Handle multi-filter change (from AdvancedFilters) with sync to column filters
+  const handleFiltersChangeWithSync = useCallback((filters: ActiveFilter[]) => {
+    handleFiltersChange(filters);
+
+    if (!isSyncingFromColumn.current) {
+      isSyncingFromAdvanced.current = true;
+      const syncedColumnFilters = syncAdvancedToColumn(filters);
+
+      setColumnFilters((prev) => {
+        if (filters.length === 0) {
+          return {};
+        }
+        return { ...prev, ...syncedColumnFilters };
+      });
+
+      setTimeout(() => {
+        isSyncingFromAdvanced.current = false;
+      }, 0);
+    }
+  }, [handleFiltersChange, syncAdvancedToColumn]);
+
+  // Handler for column filter changes (from ListView ColumnFilters)
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ActiveFilter[]>) => {
+    setColumnFilters(filters);
+
+    if (!isSyncingFromAdvanced.current) {
+      isSyncingFromColumn.current = true;
+      const syncedActiveFilters = syncColumnToAdvanced(filters);
+      handleFiltersChange(syncedActiveFilters);
+
+      setTimeout(() => {
+        isSyncingFromColumn.current = false;
+      }, 0);
+    }
+  }, [handleFiltersChange, syncColumnToAdvanced]);
+
+  // Clear all user-applied filters (advanced + column filters) while keeping the default backend filter
+  const handleClearAllFilters = useCallback(() => {
+    // Clear client-side active filters
+    stateHandleFiltersChange([]);
+
+    // Reset server-side filters to the initial default (exclude manufacturers)
+    setServerFilters([
+      { operator: 'NE', columnName: 'companySourceType', value: 'MANUFACTURER' },
+    ]);
+
+    // Clear column-level filters
+    setColumnFilters({});
+  }, [stateHandleFiltersChange, setServerFilters]);
+
+  const companySortOptions = useMemo(() => getCompanySortOptions(), []);
+
+  // Handle delete company
+  const handleDeleteCompany = async (id: string) => {
+    const company = companies.find(c => c.id === id);
+    try {
+      await deleteCompanyMutation.mutateAsync(id);
+      companyToasts.deleteSuccess(company?.name || 'Company');
+      setDeleteConfirmId(null);
+      
+      // Always navigate back to companies list after deletion
+      isIntentionalClearRef.current = true;
+      setSelectedCompany(null);
+      router.replace('/companies', { scroll: false });
+    } catch (err) {
+      console.error('Failed to delete company:', err);
+      companyToasts.deleteError(err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  // Handle save edit
+  const handleSaveEdit = async (): Promise<boolean> => {
+    if (!selectedCompany) return false;
+
+    // Parse tags - handle both string and array formats
+    let tagsToSend: string | undefined;
+    if (editFormData.tags) {
+      if (typeof editFormData.tags === 'string') {
+        tagsToSend = editFormData.tags;
+      } else if (Array.isArray(editFormData.tags)) {
+        tagsToSend = editFormData.tags.join(',');
+      }
+    }
+
+    // Ensure name is always provided (required by GraphQL schema)
+    const nameToSend = editFormData.name || selectedCompany.name;
+
+    // Get the company type name for display
+    const companyTypeId = editFormData.companyTypeId || selectedCompany.companyTypeId;
+    const companyTypeName = companyTypes.find(t => t.id === companyTypeId)?.name || editFormData.companyTypeName || selectedCompany.companyTypeName;
+
+    try {
+      // Build update input - handle parentCompanyId to allow clearing
+      const updateInput: Record<string, unknown> = {
+        name: nameToSend,
+        phone: editFormData.phone,
+        website: editFormData.website,
+        companyTypeId: companyTypeId,
+        tags: tagsToSend,
+      };
+
+      // Include parentCompanyId - use null to clear, or the value to set
+      if (editFormData.parentCompanyId !== undefined) {
+        updateInput.parentCompanyId = editFormData.parentCompanyId || null;
+      }
+
+      await updateCompanyMutation.mutateAsync({
+        id: selectedCompany.id,
+        input: updateInput as Parameters<typeof updateCompanyMutation.mutateAsync>[0]['input'],
+      });
+
+      // Update local state
+      const updatedName = editFormData.name || selectedCompany.name;
+      const updatedTags = tagsToSend ? tagsToSend.split(',').map(t => t.trim()).filter(Boolean) : selectedCompany.tags;
+
+      companyToasts.updateSuccess(updatedName);
+      setSelectedCompany({
+        ...selectedCompany,
+        name: updatedName,
+        phone: editFormData.phone || selectedCompany.phone,
+        website: editFormData.website || selectedCompany.website,
+        companyTypeId: companyTypeId,
+        companyTypeName: companyTypeName,
+        type: [companyTypeName || 'Unknown Type'],
+        tags: updatedTags,
+        parentCompanyId: editFormData.parentCompanyId ?? selectedCompany.parentCompanyId,
+        parentCompanyName: editFormData.parentCompanyName ?? selectedCompany.parentCompanyName,
+      });
+
+      setIsEditing(false);
+      refetch();
+      return true;
+    } catch (err) {
+      console.error('Failed to update company:', err);
+      companyToasts.updateError(err instanceof Error ? err.message : undefined);
+      return false;
+    }
+  };
+
+  // Unsaved changes guard - tracks company editing and blocks navigation
+  useUnsavedChangesGuard({
+    entityType: 'Company',
+    entityId: selectedCompany?.id || null,
+    entityName: selectedCompany?.name || null,
+    hasChanges: isEditing && Object.keys(editFormData).length > 0,
+    onSave: handleSaveEdit,
+  });
+
+  // Handle field change in edit form
+  const handleFieldChange = (field: string, value: unknown) => {
+    setEditFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Show loading state while fetching company details from URL navigation
+  if (companyIdFromUrl && companyDetailLoading && !selectedCompany) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+        <div className="mb-6">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-4"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 10H5M5 10l4-4M5 10l4 4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Back to Companies
+          </button>
+          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Loading Company Details...</h1>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-3 text-[var(--muted-foreground)]">
+            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            <span>Fetching company details...</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // Show error state if company fetch failed or company not found
+  // Skip if intentional clear (navigating back) to prevent flash of error during URL transition
+  if (companyIdFromUrl && !companyDetailLoading && !selectedCompany && !isIntentionalClearRef.current && (companyDetailError || !fullCompanyData)) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+        <div className="mb-6">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-4"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 10H5M5 10l4-4M5 10l4 4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Back to Companies
+          </button>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <svg className="mx-auto mb-4 w-12 h-12 text-red-500" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h3 className="text-lg font-medium text-red-800 mb-2">Company Not Found</h3>
+          <p className="text-sm text-red-600 mb-4">
+            {companyDetailError instanceof Error ? companyDetailError.message : 'The requested company could not be found or you do not have permission to view it.'}
+          </p>
+          <button
+            onClick={handleBack}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+          >
+            Back to Companies
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  // Company Detail View
+  if (selectedCompany) {
+    return (
+      <CompanyDetailView
+        company={selectedCompany}
+        isEditing={isEditing}
+        editFormData={editFormData}
+        deleteConfirmId={deleteConfirmId}
+        updatePending={updateCompanyMutation.isPending}
+        deletePending={deleteCompanyMutation.isPending}
+        onBack={handleBack}
+        onStartEdit={handleStartEdit}
+        onSaveEdit={handleSaveEdit}
+        onCancelEdit={handleCancelEdit}
+        onDeleteClick={() => setDeleteConfirmId(selectedCompany.id)}
+        onDeleteConfirm={() => handleDeleteCompany(deleteConfirmId!)}
+        onDeleteCancel={() => setDeleteConfirmId(null)}
+        onFieldChange={handleFieldChange}
+        onContactClick={handleContactClick}
+        onJobClick={handleJobClick}
+      />
+    );
+  }
+
+  // Determine table loading state:
+  // When isLoading is true, we show skeleton rows inside the table (not a full-page loader)
+  const tableLoading = isLoading;
+
+  // Detect if there are any user-applied filters (advanced filters or column filters)
+  const hasActiveFilters = activeFilters.length > 0 || Object.keys(columnFilters).length > 0;
+
+  // Detect if there is an active search query (debounced to match displayedCompanies logic)
+  const hasSearchQuery = debouncedSearchQuery.length >= 2;
+
+  // Show error state
+  if (error) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Companies</h1>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-2xl">
+          <div className="flex items-start gap-4">
+            <svg className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <h3 className="text-lg font-medium text-red-800">Failed to Load Companies</h3>
+              <p className="text-sm text-red-700 mt-1">{error.message}</p>
+              <button
+                onClick={() => refetch()}
+                className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 4v5h5M16 16v-5h-5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M5.05 11A7 7 0 0114.95 9M14.95 9L16 4M5.05 11L4 16" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
+      {/* Header */}
+      <div className="mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
+          <div className="flex items-start gap-4">
+            {/* Morphing Icon Target - Building Rise Animation */}
+            <HeaderIconAnimation
+              isReceivingAnimation={isReceivingAnimation}
+              animationStyle="building-rise"
+              headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            >
+              {iconMap['companies']}
+            </HeaderIconAnimation>
+            <div className="overflow-hidden">
+              <motion.h1
+                className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]"
+                initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
+              >
+                Companies
+              </motion.h1>
+              <motion.p
+                className="text-sm text-[var(--muted-foreground)] mt-1"
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
+              >
+                {(() => {
+                  // Prefer showing search result count when searching
+                  if (debouncedSearchQuery.length >= 2 && searchResults) {
+                    return `${displayedCompanies.length} results for "${debouncedSearchQuery}"`;
+                  }
+
+                  // When using landing page data, show loaded vs total
+                  const total = companiesData?.pages?.[0]?.total ?? 0;
+                  const loaded = displayedCompanies.length;
+
+                  if (total > 0) {
+                    return `Showing ${loaded} of ${total} companies`;
+                  }
+
+                  // Fallback when total is not available yet
+                  return `Showing ${loaded} companies`;
+                })()}
+              </motion.p>
+            </div>
+          </div>
+          <motion.div
+            className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
+          >
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 sm:p-2 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                title="Grid View"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
+                  <rect x="3" y="3" width="7" height="7" rx="1"/>
+                  <rect x="14" y="3" width="7" height="7" rx="1"/>
+                  <rect x="14" y="14" width="7" height="7" rx="1"/>
+                  <rect x="3" y="14" width="7" height="7" rx="1"/>
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 sm:p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                title="List View"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
+                  <line x1="8" y1="6" x2="21" y2="6"/>
+                  <line x1="8" y1="12" x2="21" y2="12"/>
+                  <line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/>
+                  <line x1="3" y1="12" x2="3.01" y2="12"/>
+                  <line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            <SortButton
+              sortOptions={companySortOptions}
+              onMultiSortChange={handleMultiSortChange}
+              activeSorts={clientSortColumns}
+            />
+
+            <AdvancedFilters
+              filterOptions={companyFilterOptions}
+              onFiltersChange={handleFiltersChangeWithSync}
+              activeFilters={activeFilters}
+            />
+
+            <button
+              onClick={() => setShowCompanyTypesModal(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+              </svg>
+              <span className="hidden sm:inline">Manage Types</span>
+            </button>
+
+            <button
+              onClick={() => router.push('/companies/new')}
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
+                <circle cx="10" cy="10" r="7"/>
+                <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
+              </svg>
+              <span className="hidden sm:inline">Add Company</span>
+              <span className="sm:hidden">Add</span>
+            </button>
+          </motion.div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative mt-4">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center">
+            {isSearching ? (
+              <svg className="w-full h-full text-[var(--primary)] animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            ) : (
+              <svg className="w-full h-full text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.35-4.35" strokeLinecap="round"/>
+              </svg>
+            )}
+          </div>
+          <input
+            type="text"
+            placeholder="Search companies by name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+          />
+        </div>
+      </div>
+
+      {/* Empty State */}
+      {displayedCompanies.length === 0 && !isLoading ? (
+        hasSearchQuery ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                <path d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4zM8 14v3M12 14v3M16 14v3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">No companies found</h3>
+            <p className="text-[var(--muted-foreground)] text-center max-w-md mb-6">
+              We couldn&apos;t find any companies matching &quot;{debouncedSearchQuery}&quot;. Try a different search term or clear your search.
+            </p>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="inline-flex items-center gap-2 px-6 py-2.5 border border-red-500 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 5l10 10M15 5L5 15" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Clear search
+            </button>
+          </div>
+        ) : hasActiveFilters ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                <path d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4zM8 14v3M12 14v3M16 14v3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">No companies match your filters</h3>
+            <p className="text-[var(--muted-foreground)] text-center max-w-md mb-6">
+              Try adjusting or clearing your filters to see more companies.
+            </p>
+            <button
+              onClick={handleClearAllFilters}
+              className="inline-flex items-center gap-2 px-6 py-2.5 border border-red-500 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 5l10 10M15 5L5 15" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                <path d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4zM8 14v3M12 14v3M16 14v3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">No Companies Yet</h3>
+            <p className="text-[var(--muted-foreground)] text-center max-w-md mb-6">
+              Start by adding your first company. Companies you create will appear here.
+            </p>
+            <button
+              onClick={() => router.push('/companies/new')}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--primary)] text-white font-medium rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="10" cy="10" r="7"/>
+                <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
+              </svg>
+              Add Your First Company
+            </button>
+          </div>
+        )
+      ) : (
+        <>
+          {viewMode === 'grid' ? (
+            <>
+              <GridView 
+                companies={displayedCompanies} 
+                onCompanyClick={setSelectedCompany}
+                isLoading={tableLoading}
+              />
+              {/* Infinite scroll trigger for grid view */}
+              <div ref={loadMoreRef} className="h-4" />
+              {isFetchingNextPage && (
+                <div className="flex items-center justify-center py-4">
+                  <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
+                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                    </svg>
+                    <span>Loading more companies...</span>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <ListView 
+              companies={displayedCompanies} 
+              onCompanyClick={setSelectedCompany}
+              isLoading={tableLoading}
+              columnFilters={columnFilters}
+              onColumnFiltersChange={handleColumnFiltersChange}
+              filterOptions={companyFilterOptions}
+              loadMoreRef={loadMoreRef}
+              isFetchingNextPage={isFetchingNextPage}
+            />
+          )}
+        </>
+      )}
+
+      {/* Manage Company Types Modal */}
+      <ManageCompanyTypesModal
+        isOpen={showCompanyTypesModal}
+        onClose={() => setShowCompanyTypesModal(false)}
+      />
+    </main>
+  );
+}

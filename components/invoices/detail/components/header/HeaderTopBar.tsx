@@ -11,6 +11,8 @@ import { invoiceStatusLabels } from '../../constants';
 import { isOverdue } from '../../utils';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import { ExcelBuilder } from '@/components/shared/excel-builder';
+import { ManufacturerExcelModal } from '@/components/shared/manufacturer-excel';
 
 interface HeaderTopBarProps {
   invoice: EditableInvoice;
@@ -98,6 +100,9 @@ export function HeaderTopBar({
     }
   };
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
+  const [showExcelBuilder, setShowExcelBuilder] = useState(false);
+  const [showManufacturerExcel, setShowManufacturerExcel] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
   // Simple view columns (default)
   const defaultVisibleColumns: ColumnKey[] = [
@@ -132,7 +137,7 @@ export function HeaderTopBar({
   ];
 
   return (
-    <div className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
+    <div className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
@@ -627,9 +632,67 @@ export function HeaderTopBar({
             )}
           </div>
 
-          {/* Generate PDF Button */}
+          {/* Excel Button with Manufacturer Dropdown */}
+          <div className="relative">
+            <div className="flex">
+              <button
+                onClick={() => {
+                  setShowDownloadMenu(false);
+                  setShowExcelBuilder(true);
+                }}
+                disabled={!invoice.id}
+                className={`flex items-center gap-2 px-4 py-2 rounded-l-lg text-sm font-medium transition-colors ${
+                  !invoice.id
+                    ? 'bg-emerald-600 text-white opacity-50 cursor-not-allowed'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                }`}
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Excel
+              </button>
+              <button
+                onClick={() => setShowDownloadMenu((prev) => !prev)}
+                disabled={!invoice.id}
+                className={`px-2 py-2 text-white rounded-r-lg transition-colors border-l border-emerald-500 ${
+                  !invoice.id
+                    ? 'bg-emerald-600 opacity-50 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+                aria-label="Manufacturer options"
+              >
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            {showDownloadMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
+                <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                  <button
+                    onClick={() => {
+                      setShowManufacturerExcel(true);
+                      setShowDownloadMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-lg flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18" />
+                    </svg>
+                    Manufacturer Excel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          {/* PDF Button */}
           <button
-            onClick={() => setShowPDFBuilder(true)}
+            onClick={() => {
+              setShowDownloadMenu(false);
+              setShowPDFBuilder(true);
+            }}
             disabled={!invoice.id}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               !invoice.id
@@ -761,6 +824,21 @@ export function HeaderTopBar({
         entityType="INVOICES"
         isOpen={showPDFBuilder}
         onClose={() => setShowPDFBuilder(false)}
+      />
+
+      {/* Excel Builder */}
+      <ExcelBuilder
+        entityId={invoice.id}
+        entityType="INVOICES"
+        isOpen={showExcelBuilder}
+        onClose={() => setShowExcelBuilder(false)}
+      />
+
+      <ManufacturerExcelModal
+        entityId={invoice.id}
+        entityType="INVOICES"
+        isOpen={showManufacturerExcel}
+        onClose={() => setShowManufacturerExcel(false)}
       />
     </div>
   );

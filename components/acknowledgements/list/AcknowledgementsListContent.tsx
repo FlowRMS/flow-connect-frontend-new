@@ -375,6 +375,7 @@ export default function AcknowledgementsListContent() {
                     Ship Date
                   </th>
                   <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Type</th>
+                  <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Created At</th>
                   <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Created By</th>
                   <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Actions</th>
                 </tr>
@@ -426,6 +427,9 @@ export default function AcknowledgementsListContent() {
                           </span>
                         )}
                       </td>
+                      <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+                        {formatDate(ack.createdAt)}
+                      </td>
                       <td className="px-4 py-3">
                         <AvatarInline name={(ack as any).createdBy} size="sm" />
                       </td>
@@ -461,7 +465,7 @@ export default function AcknowledgementsListContent() {
                   <tr>
                     <td colSpan={5} className="px-4 py-3 text-right font-semibold text-sm">Total:</td>
                     <td className="px-4 py-3 text-right font-bold text-teal-600">{totals.totalQty.toLocaleString()}</td>
-                    <td colSpan={4}></td>
+                    <td colSpan={5}></td>
                   </tr>
                 </tfoot>
               )}

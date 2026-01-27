@@ -15,16 +15,17 @@ interface CreateNoteModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  initialLinks?: SelectedLink[];
 }
 
-export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalProps) {
+export function CreateNoteModal({ isOpen, onClose, onSuccess, initialLinks }: CreateNoteModalProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [tags, setTags] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [contentMentions, setContentMentions] = useState<SelectedContact[]>([]);
   const [fieldMentions, setFieldMentions] = useState<SelectedContact[]>([]);
-  const [selectedLinks, setSelectedLinks] = useState<SelectedLink[]>([]);
+  const [selectedLinks, setSelectedLinks] = useState<SelectedLink[]>(initialLinks || []);
 
   const createMutation = useCreateNote();
   const createLinkMutation = useCreateLink();
@@ -39,6 +40,13 @@ export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalP
       });
     }
   }, [contentMentions]);
+
+  // Reset selectedLinks when modal opens with new initialLinks
+  useEffect(() => {
+    if (isOpen && initialLinks) {
+      setSelectedLinks(initialLinks);
+    }
+  }, [isOpen, initialLinks]);
 
   if (!isOpen) return null;
 
@@ -101,7 +109,7 @@ export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalP
     setIsPublic(false);
     setContentMentions([]);
     setFieldMentions([]);
-    setSelectedLinks([]);
+    setSelectedLinks(initialLinks || []);
   };
 
   const handleClose = () => {

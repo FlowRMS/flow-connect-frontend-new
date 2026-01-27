@@ -9,9 +9,25 @@ import { NumberFilter } from './filter-types/NumberFilter';
 import { DateRangeFilter } from './filter-types/DateRangeFilter';
 import { BooleanFilter } from './filter-types/BooleanFilter';
 import { MonthYearFilter } from './filter-types/MonthYearFilter';
+import { FactoryFilter } from './filter-types/FactoryFilter';
+import { CategoryFilter } from './filter-types/CategoryFilter';
+import { CompanyFilter } from './filter-types/CompanyFilter';
+import { CompanyTypeFilter } from './filter-types/CompanyTypeFilter';
+import { UserFilter } from './filter-types/UserFilter';
 import { parseDateString, formatDateToBackend } from '../utils';
 
-export type ColumnFilterType = 'text' | 'dropdown' | 'number' | 'date' | 'boolean' | 'month';
+export type ColumnFilterType =
+  | 'text'
+  | 'dropdown'
+  | 'number'
+  | 'date'
+  | 'boolean'
+  | 'month'
+  | 'factory'
+  | 'category'
+  | 'company'
+  | 'companyType'
+  | 'user';
 
 // Keep ColumnFilterValue for backward compatibility during migration
 export interface ColumnFilterValue {
@@ -33,9 +49,10 @@ export interface ColumnFilterProps {
   onChange: (filters: ActiveFilter[]) => void; // Changed to ActiveFilter[]
   options?: string[]; // For dropdown filters
   placeholder?: string;
-  isOpen: boolean;
-  onToggle: () => void;
+  isOpen?: boolean;
+  onToggle?: () => void;
   filterOption?: FilterOption; // Optional: full filter option with numberFormat, etc.
+  factoryId?: string; // Optional: factory ID for category filter
 }
 
 /**
@@ -52,6 +69,7 @@ export function ColumnFilter({
   isOpen,
   onToggle,
   filterOption: externalFilterOption,
+  factoryId,
 }: ColumnFilterProps) {
   // Ensure value is always an array
   const safeValue = Array.isArray(value) ? value : [];
@@ -65,6 +83,15 @@ export function ColumnFilter({
   const getSelectedValues = () => {
     const filter = safeValue.find(f => f.columnName === columnName && f.operator === 'IN' && f.values);
     return filter?.values || [];
+  };
+
+  // Get factoryId from active filters (for category filter)
+  const getFactoryIdFromFilters = () => {
+    // Look for factoryTitle filter in the parent filters
+    // This is a bit of a hack - we need to check if there's a factory filter active
+    // Since we don't have direct access to all filters, we'll need to pass this as a prop
+    // For now, return undefined and handle it in the component that uses ColumnFilter
+    return undefined;
   };
 
   const getDateStart = () => {
@@ -84,6 +111,7 @@ export function ColumnFilter({
 
   const [localTextValue, setLocalTextValue] = useState(getTextValue());
   const [localSelectedValues, setLocalSelectedValues] = useState<string[]>(getSelectedValues());
+  const [dropdownSearchValue, setDropdownSearchValue] = useState('');
   const [localDateStart, setLocalDateStart] = useState<Date | null>(getDateStart());
   const [localDateEnd, setLocalDateEnd] = useState<Date | null>(getDateEnd());
   const [localMonthYear, setLocalMonthYear] = useState<Date | null>(() => {
@@ -181,9 +209,13 @@ export function ColumnFilter({
         if ((filter.operator === 'GTE' || filter.operator === 'LTE') && filter.value) {
           return true;
         }
+      } else if (type === 'factory' || type === 'category' || type === 'company' || type === 'user') {
+        if (filter.values && Array.isArray(filter.values) && filter.values.length > 0) {
+          return true;
+        }
       }
     }
-    
+
     return false;
   }, [safeValue, type, columnName]);
 
@@ -205,6 +237,9 @@ export function ColumnFilter({
     }
     if (type === 'date') {
       return localDateStart !== null || localDateEnd !== null;
+    }
+    if (type === 'factory' || type === 'category' || type === 'company' || type === 'companyType' || type === 'user') {
+      return localSelectedValues.length > 0;
     }
     return false;
   }, [hasActiveFilterInValue, type, localTextValue, localSelectedValues, localBooleanValue, localDateStart, localDateEnd]);
@@ -238,7 +273,9 @@ export function ColumnFilter({
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleDropdownApply = () => {
@@ -253,7 +290,10 @@ export function ColumnFilter({
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
-    onToggle();
+    setDropdownSearchValue(''); // Reset search on apply
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleNumberApply = () => {
@@ -269,7 +309,9 @@ export function ColumnFilter({
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleDateApply = () => {
@@ -295,7 +337,9 @@ export function ColumnFilter({
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleMonthYearApply = (option: FilterOption) => {
@@ -303,7 +347,9 @@ export function ColumnFilter({
       // Remove filter if empty
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
-      onToggle();
+      if (onToggle) {
+        onToggle();
+      }
       return;
     }
 
@@ -333,7 +379,9 @@ export function ColumnFilter({
     ];
     
     updateFilters(newFilters);
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleBooleanChange = (val: 'all' | 'true' | 'false') => {
@@ -349,14 +397,19 @@ export function ColumnFilter({
       }]);
     }
     // Auto-apply boolean filters (no need to keep popover open)
-    onToggle();
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const handleClear = () => {
     // Remove all filters for this column
     const otherFilters = safeValue.filter(f => f.columnName !== columnName);
     onChange(otherFilters);
-    onToggle();
+    setDropdownSearchValue(''); // Reset search on clear
+    if (onToggle) {
+      onToggle();
+    }
   };
 
   const toggleDropdownValue = (val: string) => {
@@ -367,13 +420,21 @@ export function ColumnFilter({
     }
   };
 
+  // Props for controlled vs uncontrolled popover
+  const rootProps =
+    typeof isOpen === 'boolean' && onToggle
+      ? { open: isOpen, onOpenChange: onToggle }
+      : {};
+
   return (
-    <PopoverPrimitive.Root open={isOpen} onOpenChange={onToggle}>
+    <PopoverPrimitive.Root {...rootProps}>
       <PopoverPrimitive.Trigger asChild>
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onToggle();
+            if (onToggle) {
+              onToggle();
+            }
           }}
           className={`ml-1.5 p-1 rounded hover:bg-[var(--muted)] transition-colors relative ${
             hasValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'
@@ -392,7 +453,9 @@ export function ColumnFilter({
           </svg>
           {hasValue && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--primary)] text-white text-[10px] rounded-full flex items-center justify-center">
-              {type === 'dropdown' ? localSelectedValues.length : '•'}
+              {(type === 'dropdown' || type === 'factory' || type === 'category' || type === 'company' || type === 'companyType' || type === 'user')
+                ? localSelectedValues.length
+                : '•'}
             </span>
           )}
         </button>
@@ -403,10 +466,27 @@ export function ColumnFilter({
           align="start"
           sideOffset={4}
           className="z-[100] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden"
-          style={{ 
-            width: (type === 'date' || type === 'month') ? '300px' : 'var(--radix-popover-trigger-width)',
-            minWidth: type === 'date' ? '300px' : '200px',
-            maxWidth: type === 'month' ? '300px' : (type === 'date' ? '300px' : '320px')
+          style={{
+            width:
+              type === 'date' || type === 'month'
+                ? '300px'
+                : type === 'company' || type === 'companyType' || type === 'user'
+                  ? '280px'
+                  : 'var(--radix-popover-trigger-width)',
+            minWidth:
+              type === 'date'
+                ? '300px'
+                : type === 'company' || type === 'companyType' || type === 'user'
+                  ? '220px'
+                  : '200px',
+            maxWidth:
+              type === 'month'
+                ? '300px'
+                : type === 'date'
+                  ? '300px'
+                  : type === 'company' || type === 'companyType' || type === 'user'
+                    ? '320px'
+                    : '320px',
           }}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
@@ -429,9 +509,9 @@ export function ColumnFilter({
           {type === 'dropdown' && (
             <DropdownFilter
               option={filterOption}
-              filterValue=""
+              filterValue={dropdownSearchValue}
               selectedValues={localSelectedValues}
-              onFilterValueChange={() => {}}
+              onFilterValueChange={setDropdownSearchValue}
               onToggleValue={toggleDropdownValue}
               onApply={handleDropdownApply}
               onClear={handleClear}
@@ -481,6 +561,62 @@ export function ColumnFilter({
               selectedMonthYear={localMonthYear}
               onMonthYearChange={setLocalMonthYear}
               onApply={handleMonthYearApply}
+            />
+          )}
+
+          {type === 'factory' && (
+            <FactoryFilter
+              option={filterOption}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
+            />
+          )}
+
+          {type === 'category' && (
+            <CategoryFilter
+              option={filterOption}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
+              factoryId={factoryId}
+            />
+          )}
+
+          {type === 'company' && (
+            <CompanyFilter
+              option={filterOption}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
+            />
+          )}
+          
+          {type === 'companyType' && (
+            <CompanyTypeFilter
+              option={filterOption}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
+            />
+          )}
+
+          {type === 'user' && (
+            <UserFilter
+              option={filterOption}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
             />
           )}
         </PopoverPrimitive.Content>

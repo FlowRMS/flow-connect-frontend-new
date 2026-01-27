@@ -44,6 +44,7 @@ import { useCreditsState } from './hooks/useCreditsState';
 import { useAdjustmentsState } from './hooks/useAdjustmentsState';
 import { useAcknowledgementsState } from './hooks/useAcknowledgementsState';
 import { useInvoicesState } from './hooks/useInvoicesState';
+import { useEntityFilesCount } from '@/components/shared/hooks/useEntityFilesCount';
 import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipStatus } from './utils';
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
 import { orderToasts } from '@/components/lib/toast';
@@ -59,7 +60,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const router = useRouter();
   const state = useOrderDetailState({ orderId });
   const { setFullEntityContext } = useFlowChat();
-  const { requestNavigation, hasUnsavedChanges } = useUnsavedChangesContext();
+  const { requestNavigation, hasUnsavedChanges, clearUnsavedChanges } = useUnsavedChangesContext();
 
   // Credits state management
   const creditsState = useCreditsState({ orderId: orderId !== 'new' ? orderId : null });
@@ -75,6 +76,13 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   // Invoices state management
   const invoicesState = useInvoicesState({
     orderId: orderId !== 'new' ? orderId : null,
+  });
+
+  // Files count for tab badge
+  const { filesCount } = useEntityFilesCount({
+    entityId: orderId !== 'new' ? orderId : null,
+    entityType: 'ORDER',
+    enabled: !state.isCreateMode, // Only fetch when not in create mode
   });
 
   // Create Invoice from Order modal state
@@ -504,6 +512,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         const result = await state.createOrderMutation.mutateAsync(createInput);
         console.log('Order created:', result);
         orderToasts.createSuccess(result.orderNumber || createInput.orderNumber);
+        // Clear unsaved changes before navigation to prevent beforeunload alert
+        clearUnsavedChanges();
         // Navigate to the newly created order detail page instead of landing page
         router.push(`/orders/${result.id}`);
       } else {
@@ -536,7 +546,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             jobId: (order as any).jobId || undefined,
           };
 
-          await state.updateOrderMutation.mutateAsync(updateInput);
+          const savedOrder = await state.updateOrderMutation.mutateAsync(updateInput);
+          // Apply the mutation result to local state immediately to prevent stale data
+          state.applyMutationResult(savedOrder);
           state.resetChanges();
           // Refetch order data to get fresh UUIDs for any newly created line items
           await state.refetch();
@@ -609,6 +621,21 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
   const handleConvertToWarehouse = () => {
     state.openWarehouseConversionModal('selected');
+  };
+
+  const handleGenerateFulfillmentRequest = () => {
+    const selectedItems = order.lineItems
+      .filter((li) => state.selectedLineItems.has(li.id))
+      .filter((li) => li.productId)
+      .map((li) => ({
+        id: li.id,
+        partNumber: li.partNumber || '',
+        quantity: li.quantity,
+        hasExistingRequest: !!li.fulfillmentRequestNumber,
+        productId: li.productId!,
+        orderDetailId: li.id,
+      }));
+    state.openFulfillmentRequestModal('selected', selectedItems);
   };
 
   const handleAddCredit = () => {
@@ -755,7 +782,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           <div className="flex gap-1">
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
-              { id: 'files', label: 'Files', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'files', label: 'Files', disabled: isCreateMode, disabledReason: 'Save order first', count: filesCount },
               { id: 'invoices', label: 'Invoices', disabled: isCreateMode, disabledReason: 'Save order first', count: invoicesState.invoices.length },
               { id: 'credits', label: 'Credits', disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'adjustments', label: 'Adjustments', hidden: true }, // Hidden - adjustments now has its own page in sidebar
@@ -872,6 +899,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onSetEndUser={handleSetEndUser}
               onSetOutsideRepSplits={handleSetOutsideRepSplits}
               onConvertToWarehouse={handleConvertToWarehouse}
+              onGenerateFulfillmentRequest={handleGenerateFulfillmentRequest}
               onAddCredit={handleAddCredit}
               onAddAcknowledgement={handleAddAcknowledgement}
               onDeleteLines={handleDeleteLines}
@@ -1096,10 +1124,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onClose={state.closeFulfillmentRequestModal}
         mode={state.fulfillmentRequestMode}
         lineItems={state.lineItemsForFulfillment}
-        onConfirm={() => {
-          alert('Fulfillment request generated');
-          state.closeFulfillmentRequestModal();
-        }}
+        onConfirm={(warehouseId: string) => state.saveFulfillmentRequest(warehouseId)}
+        isSubmitting={state.isCreatingFulfillment}
       />
 
       {/* Additional Details Modal (3-dots menu) */}

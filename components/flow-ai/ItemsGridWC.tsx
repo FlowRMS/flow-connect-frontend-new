@@ -73,7 +73,13 @@ export default function ItemsGridWC({
       const out: Record<string, unknown> = { ...r };
       for (const c of columns) {
         if (c.columnType === 'numeric' && typeof out[c.prop] === 'number') {
-          out[c.prop] = (out[c.prop] as number).toFixed(2);
+          const num = out[c.prop] as number;
+          // If it's a whole number, don't add decimal places
+          if (Number.isInteger(num)) {
+            out[c.prop] = String(num);
+          } else {
+            out[c.prop] = num.toFixed(2);
+          }
         }
       }
       return out;

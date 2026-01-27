@@ -270,6 +270,69 @@ revo-grid .pivot-field.dragging {
   box-shadow: 0 12px 24px rgb(0 0 0 / 0.2);
 }
 
+/* Delete Button (X) Styling for Pivot Fields - ONLY target actual button elements, never inputs */
+revo-grid .pivot-config .panel-card:not(.empty) li > button:not(input):not([type="checkbox"]):not([type="radio"]),
+revo-grid .pivot-config .panel-card:not(.empty) li > .delete-button:not(input),
+revo-grid .pivot-config .panel-card:not(.empty) li > [class*="delete"]:not(input):not([type="checkbox"]),
+revo-grid .pivot-config .panel-card:not(.empty) li > [class*="remove"]:not(input):not([type="checkbox"]),
+revo-grid .pivot-config .panel-card:not(.empty) li > [class*="close"]:not(input):not([type="checkbox"]) {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin-left: auto;
+  padding: 0;
+  background-color: transparent !important;
+  color: #dc2626 !important;
+  border: 1px solid #dc2626 !important;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.7;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+revo-grid .pivot-config .panel-card:not(.empty) li > button:not(input):not([type="checkbox"]):not([type="radio"]):hover,
+revo-grid .pivot-config .panel-card:not(.empty) li > .delete-button:not(input):hover,
+revo-grid .pivot-config .panel-card:not(.empty) li > [class*="delete"]:not(input):not([type="checkbox"]):hover,
+revo-grid .pivot-config .panel-card:not(.empty) li > [class*="remove"]:not(input):not([type="checkbox"]):hover,
+revo-grid .pivot-config .panel-card:not(.empty) li > [class*="close"]:not(input):not([type="checkbox"]):hover {
+  background-color: #dc2626 !important;
+  color: white !important;
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+/* Ensure delete buttons are visible in list items */
+/* Only apply flex to items that are in Rows/Columns/Values sections (not the field list) */
+revo-grid .pivot-config .panel-card:not(.empty) li {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
+/* Show delete button on field hover if it's hidden by default - exclude checkboxes */
+revo-grid .pivot-config .panel-card:not(.empty) li:hover > button:not(input):not([type="checkbox"]):not([type="radio"]),
+revo-grid .pivot-config .panel-card:not(.empty) li:hover > .delete-button:not(input),
+revo-grid .pivot-config .panel-card:not(.empty) li:hover > [class*="delete"]:not(input):not([type="checkbox"]),
+revo-grid .pivot-config .panel-card:not(.empty) li:hover > [class*="remove"]:not(input):not([type="checkbox"]) {
+  display: inline-flex !important;
+}
+
+
+/* Ensure any hidden delete buttons are shown - exclude checkboxes */
+revo-grid .pivot-config .panel-card:not(.empty) li > button:not(input):not([type="checkbox"]):not([type="radio"])[style*="display: none"],
+revo-grid .pivot-config .panel-card:not(.empty) li > button:not(input):not([type="checkbox"]):not([type="radio"])[style*="display:none"] {
+  display: inline-flex !important;
+}
+
 /* Aggregator Dropdown */
 revo-grid .pivot-field .aggregator-selector {
   background: hsl(var(--primary-foreground) / 0.2);
@@ -699,4 +762,65 @@ revo-grid revogr-header .rgHeaderCell * {
 /* Ensure cursor shows text selection is possible */
 revo-grid .rgCell:not([data-editable="true"]) {
   cursor: text !important;
+} 
+
+/* Data Bar Styles (Excel-style visualization) */
+.revo-data-bar-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 8px;
+  z-index: 1;
+  color: rgb(55, 65, 81) !important; /* Force neutral gray text */
+}
+
+.revo-data-bar-container,
+.revo-data-bar-container * {
+  color: rgb(55, 65, 81) !important; /* Force neutral gray text for all children */
+}
+
+.revo-data-bar-container::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 20%;
+  height: 60%;
+  border-radius: 2px;
+  opacity: 0.3;
+  z-index: 0;
+  width: calc(var(--bar-width, 0) * 1%);
+  background: var(--bar-color, #3b82f6);
+}
+
+/* Price Bar Chart Container - Mini vertical bar chart */
+.revo-price-bar-chart-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+}
+
+.revo-price-bar-chart-container svg {
+  display: block;
+}
+
+/* Force neutral text color for ALL price columns and data bar containers */
+.revo-data-bar-container,
+.revo-data-bar-container span,
+.revo-data-bar-container div,
+revo-grid [class*="Price"] .revo-data-bar-container,
+revo-grid .rgCell .revo-data-bar-container {
+  color: #374151 !important; /* Neutral gray-700 */
+}
+
+/* Price trend bar chart hover effect */
+.revo-price-bar-chart-container svg {
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+
+.revo-price-bar-chart-container:hover svg {
+  opacity: 1;
 }

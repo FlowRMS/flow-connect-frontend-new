@@ -24,6 +24,14 @@ export interface Address {
   isPrimary: boolean;
 }
 
+// Helper to normalize API response - ensures addressTypes array exists
+function normalizeCarrierAddress(address: Address & { addressTypes?: string[] }): Address {
+  return {
+    ...address,
+    addressTypes: address.addressTypes || ['BILLING'],
+  };
+}
+
 export interface Contact {
   id: string;
   firstName: string;
@@ -33,9 +41,12 @@ export interface Contact {
   role?: string | null;
 }
 
+export type CarrierType = 'PARCEL' | 'FREIGHT';
+
 export interface ShippingCarrier {
   id: string;
   name: string;
+  carrierType?: CarrierType | null;
   code?: string | null; // SCAC code
   accountNumber?: string | null;
   isActive?: boolean | null;
@@ -69,6 +80,7 @@ export interface ShippingCarrier {
 
 export interface CreateShippingCarrierInput {
   name: string;
+  carrierType?: CarrierType | null;
   code?: string | null;
   accountNumber?: string | null;
   isActive?: boolean;
@@ -99,6 +111,7 @@ const GET_SHIPPING_CARRIERS = `
     shippingCarriers(activeOnly: $activeOnly) {
       id
       name
+      carrierType
       code
       accountNumber
       isActive
@@ -126,6 +139,7 @@ const GET_SHIPPING_CARRIER = `
     shippingCarrier(id: $id) {
       id
       name
+      carrierType
       code
       accountNumber
       isActive
@@ -190,9 +204,25 @@ const SEARCH_SHIPPING_CARRIERS = `
     shippingCarrierSearch(searchTerm: $searchTerm, limit: $limit) {
       id
       name
+      carrierType
       code
       accountNumber
       isActive
+    }
+  }
+`;
+
+const GET_SHIPPING_CARRIERS_BY_TYPE = `
+  query GetShippingCarriersByType($carrierType: CarrierType!, $activeOnly: Boolean) {
+    shippingCarriersByType(carrierType: $carrierType, activeOnly: $activeOnly) {
+      id
+      name
+      carrierType
+      code
+      accountNumber
+      isActive
+      trackingUrlTemplate
+      defaultServiceType
     }
   }
 `;
@@ -202,6 +232,7 @@ const CREATE_SHIPPING_CARRIER = `
     createShippingCarrier(input: $input) {
       id
       name
+      carrierType
       code
       accountNumber
       isActive
@@ -229,6 +260,7 @@ const UPDATE_SHIPPING_CARRIER = `
     updateShippingCarrier(id: $id, input: $input) {
       id
       name
+      carrierType
       code
       accountNumber
       isActive
@@ -371,6 +403,25 @@ export async function searchShippingCarriers(
 }
 
 /**
+ * Fetch shipping carriers by type (PARCEL or FREIGHT)
+ */
+export async function fetchShippingCarriersByType(
+  carrierType: CarrierType,
+  activeOnly = true
+): Promise<ShippingCarrier[]> {
+  const response = await crmGraphQLRequest<{ shippingCarriersByType: ShippingCarrier[] }>({
+    query: GET_SHIPPING_CARRIERS_BY_TYPE,
+    variables: { carrierType, activeOnly },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch shipping carriers by type');
+  }
+
+  return response.data?.shippingCarriersByType || [];
+}
+
+/**
  * Create a new shipping carrier
  */
 export async function createShippingCarrier(
@@ -436,7 +487,7 @@ export async function deleteShippingCarrier(id: string): Promise<boolean> {
 // ============================================================================
 
 // Import shared address types from warehousesApi
-import type { AddressSourceType, AddressType, AddressInput } from './warehousesApi';
+import type { AddressInput } from './warehousesApi';
 
 const GET_ADDRESSES_BY_SOURCE = `
   query GetAddressesBySource($sourceType: AddressSourceTypeEnum!, $sourceId: UUID!) {
@@ -511,7 +562,7 @@ export async function fetchCarrierAddresses(carrierId: string): Promise<Address[
     throw new Error(response.errors[0]?.message || 'Failed to fetch carrier addresses');
   }
 
-  return response.data?.addressesBySource || [];
+  return (response.data?.addressesBySource || []).map(normalizeCarrierAddress);
 }
 
 /**
@@ -521,7 +572,7 @@ export async function createCarrierAddress(
   carrierId: string,
   address: Omit<AddressInput, 'sourceId' | 'sourceType'>
 ): Promise<Address> {
-  const input: AddressInput = {
+  const input = {
     ...address,
     sourceId: carrierId,
     sourceType: 'SHIPPING_CARRIER',
@@ -541,7 +592,7 @@ export async function createCarrierAddress(
     throw new Error('No address returned from create mutation');
   }
 
-  return response.data.createAddress;
+  return normalizeCarrierAddress(response.data.createAddress);
 }
 
 /**
@@ -552,7 +603,7 @@ export async function updateCarrierAddress(
   carrierId: string,
   address: Omit<AddressInput, 'sourceId' | 'sourceType'>
 ): Promise<Address> {
-  const input: AddressInput = {
+  const input = {
     ...address,
     sourceId: carrierId,
     sourceType: 'SHIPPING_CARRIER',
@@ -572,7 +623,7 @@ export async function updateCarrierAddress(
     throw new Error('No address returned from update mutation');
   }
 
-  return response.data.updateAddress;
+  return normalizeCarrierAddress(response.data.updateAddress);
 }
 
 // ============================================================================

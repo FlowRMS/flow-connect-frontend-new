@@ -28,6 +28,7 @@ import {
   ArrowRight,
   Info,
   GripVertical,
+  LifeBuoy,
 } from 'lucide-react';
 import { useFlowChat, getEntityDisplayName, QuickAction } from '@/contexts/FlowChatContext';
 import { useChatSettings } from '@/contexts/UserSettingsContext';
@@ -53,6 +54,7 @@ import {
 } from '@/components/flow-ai/types/chat';
 import { toast } from 'sonner';
 import { useVoiceRecording } from '@/components/flow-ai/hooks/useVoiceRecording';
+import { SupportTicketForm } from './SupportTicketForm';
 import Link from 'next/link';
 
 // Icon mapping for quick actions
@@ -159,6 +161,7 @@ export function FlowChatPanel() {
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
   const [hasManuallyReset, setHasManuallyReset] = useState(false); // Prevent session restore after manual reset
   const [isBackdropBlurred, setIsBackdropBlurred] = useState(true); // Toggle backdrop blur
+  const [isSupportTicketOpen, setIsSupportTicketOpen] = useState(false);
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -516,7 +519,18 @@ export function FlowChatPanel() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2.5 gap-1.5 text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200 hover:border-amber-300 shadow-sm"
+                    onClick={() => setIsSupportTicketOpen(true)}
+                    title="Submit support ticket"
+                  >
+                    <LifeBuoy className="w-3.5 h-3.5" />
+                    <span className="text-xs font-medium">Support</span>
+                  </Button>
+                  <div className="w-px h-5 bg-border mx-1" />
                   <Button
                     variant="ghost"
                     size="icon"
@@ -750,6 +764,12 @@ export function FlowChatPanel() {
               </p>
             </div>
           </motion.div>
+
+          {/* Support Ticket Form */}
+          <SupportTicketForm
+            isOpen={isSupportTicketOpen}
+            onClose={() => setIsSupportTicketOpen(false)}
+          />
         </>
       )}
     </AnimatePresence>

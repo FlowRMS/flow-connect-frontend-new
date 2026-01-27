@@ -41,6 +41,7 @@ interface LineItemsTableProps {
   onToggleAllSelection: () => void;
   onClearSelection: () => void;
   onUpdateLineItem: (tempId: string, updates: Partial<LocalLineItem>) => void;
+  onUpdateLineItemSilent?: (tempId: string, updates: Partial<LocalLineItem>) => void;
   onRemoveLineItem: (tempId: string) => void;
   onAddLineItem: () => void;
   onOpenAdditionalDetails?: (item: LocalLineItem) => void;
@@ -65,6 +66,7 @@ export function LineItemsTable({
   onToggleAllSelection,
   onClearSelection,
   onUpdateLineItem,
+  onUpdateLineItemSilent,
   onRemoveLineItem,
   onAddLineItem,
   onOpenAdditionalDetails,
@@ -169,8 +171,10 @@ export function LineItemsTable({
       setProductPricingOptions(prev => ({ ...prev, [productId]: options }));
 
       // Update the CPN field on the line item if we found one
+      // Use silent update to avoid marking as changed (this is initial data population)
       if (shouldUpdateCpnField && cpnResult?.customerPartNumber) {
-        onUpdateLineItem(tempId, { custPartNumber: cpnResult.customerPartNumber });
+        const silentUpdate = onUpdateLineItemSilent || onUpdateLineItem;
+        silentUpdate(tempId, { custPartNumber: cpnResult.customerPartNumber });
       }
 
       // Determine pricing source from current unit price (like quotes does)
@@ -667,7 +671,7 @@ export function LineItemsTable({
                     <span className="w-2 h-2 rounded-full bg-purple-500"></span>
                     Product
                   </span>
-                  <span className="text-gray-500">${options!.productPrice!.toFixed(2)}</span>
+                  <span className="text-gray-500">${options!.productPrice!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                 </button>
               )}
               {options?.cpnPrice !== null && (
@@ -679,7 +683,7 @@ export function LineItemsTable({
                     <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                     CPN
                   </span>
-                  <span className="text-gray-500">${options!.cpnPrice!.toFixed(2)}</span>
+                  <span className="text-gray-500">${options!.cpnPrice!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                 </button>
               )}
               {options?.tiers && options.tiers.length > 0 && (
@@ -699,7 +703,7 @@ export function LineItemsTable({
                           <span className="w-2 h-2 rounded-full bg-green-500"></span>
                           Qty {tier.quantityLow}-{tier.quantityHigh}
                         </span>
-                        <span className="text-gray-500">${tierPrice.toFixed(2)}</span>
+                        <span className="text-gray-500">${tierPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                       </button>
                     );
                   })}

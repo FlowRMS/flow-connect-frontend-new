@@ -53,6 +53,7 @@ export function OrdersTableHeader({
     entryDate: 'created-date',
     jobName: 'job-name',
     visible: 'published', // Column is 'visible' but filter ID is 'published'
+    createdBy: 'created-by',
   };
   
   // Handle column filter change - now receives ActiveFilter[]
@@ -187,7 +188,12 @@ export function OrdersTableHeader({
         
         {/* Created By */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
-          <span className="whitespace-nowrap">Created By</span>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Created By</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('createdBy')}
+            </div>
+          </div>
         </th>
         
         {/* Ship Date */}

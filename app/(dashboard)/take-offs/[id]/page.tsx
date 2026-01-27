@@ -435,7 +435,7 @@ export default function TakeoffDetailPage() {
 
     // Set message if no items were found after parsing
     if (allParsedItems.length === 0) {
-      setParsingMessage(`Parsed ${scheduleDocs.length} document(s) but no product items were found.`);
+      setParsingMessage(`Parsed ${scheduleDocs.length} document(s) but no product items were found. Product extraction works with Schedule documents (Fixture Schedules, Panel Schedules, Lighting Schedules) that contain structured product tables.`);
     }
   };
 

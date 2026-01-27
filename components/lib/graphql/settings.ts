@@ -53,6 +53,7 @@ export interface InvoiceColumnConfig {
 
 export interface InvoiceSettingsValue {
   columnConfig: InvoiceColumnConfig[];
+  dueDateOffset?: number;
 }
 
 export type ProcessingMode = 'automatic' | 'manual';

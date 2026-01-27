@@ -254,6 +254,7 @@ function EntityMatchingContent() {
     handleBulkReject,
     handleBulkSkip,
     handleBulkSetForCreation,
+    handleBulkDocSpecific,
     handleSingleAction,
     handleSearchEntities,
     handleSearchUsers,
@@ -366,6 +367,8 @@ function EntityMatchingContent() {
         return <Badge variant="secondary" className="bg-gray-50 text-gray-700">SKIPPED</Badge>;
       case 'SET_FOR_CREATION':
         return <Badge variant="secondary" className="bg-indigo-50 text-indigo-700">SET FOR CREATION</Badge>;
+      case 'DOCUMENT_SPECIFIC':
+        return <Badge variant="secondary" className="bg-teal-50 text-teal-700">DOC SPECIFIC</Badge>;
       case 'EMPTY_NAME':
         return <Badge variant="secondary" className="bg-yellow-50 text-yellow-700">EMPTY NAME</Badge>;
       default:
@@ -492,9 +495,28 @@ function EntityMatchingContent() {
     setInsideRepName(null);
     setOutsideRepId(null);
     setOutsideRepName(null);
-    // Reset factory selection
-    setFactoryId(null);
-    setFactoryName(null);
+    
+    // Auto-populate factory if we're creating a product and a factory is already matched
+    const entityType = getCurrentEntityType();
+    if (entityType === 'PRODUCTS') {
+      // Find a confirmed or auto-matched factory
+      const confirmedFactory = factories.find(
+        f => f.confirmationStatus === 'CONFIRMED' || f.confirmationStatus === 'AUTO_MATCHED'
+      );
+      
+      if (confirmedFactory && confirmedFactory.bestMatchId) {
+        setFactoryId(confirmedFactory.bestMatchId);
+        setFactoryName(confirmedFactory.bestMatchName || confirmedFactory.matchCandidates.find(m => m.entityId === confirmedFactory.bestMatchId)?.name || null);
+      } else {
+        // Reset factory selection if no confirmed factory found
+        setFactoryId(null);
+        setFactoryName(null);
+      }
+    } else {
+      // Reset factory selection for non-product entities
+      setFactoryId(null);
+      setFactoryName(null);
+    }
   };
 
   const updateFormField = (key: string, value: string) => {
@@ -727,9 +749,10 @@ function EntityMatchingContent() {
       && entity.confirmationStatus !== 'CREATED_NEW'
       && entity.confirmationStatus !== 'CONFIRMED'
       && entity.confirmationStatus !== 'SKIPPED'
-      && entity.confirmationStatus !== 'SET_FOR_CREATION';
-    // Check if entity is locked (confirmed, rejected, skipped, or set for creation - cannot be changed)
-    const isLocked = entity.confirmationStatus === 'CONFIRMED' || entity.confirmationStatus === 'REJECTED' || entity.confirmationStatus === 'CREATED_NEW' || entity.confirmationStatus === 'SKIPPED' || entity.confirmationStatus === 'SET_FOR_CREATION';
+      && entity.confirmationStatus !== 'SET_FOR_CREATION'
+      && entity.confirmationStatus !== 'DOCUMENT_SPECIFIC';
+    // Check if entity is locked (confirmed, rejected, skipped, set for creation, or doc specific - cannot be changed)
+    const isLocked = entity.confirmationStatus === 'CONFIRMED' || entity.confirmationStatus === 'REJECTED' || entity.confirmationStatus === 'CREATED_NEW' || entity.confirmationStatus === 'SKIPPED' || entity.confirmationStatus === 'SET_FOR_CREATION' || entity.confirmationStatus === 'DOCUMENT_SPECIFIC';
     // Get confirmation count from metadata if available
     const confirmationCount = topMatch?.metadata ? (() => {
       try {
@@ -960,25 +983,44 @@ function EntityMatchingContent() {
                       )}
                       Approve
                     </Button>
-                    {/* Products: Add Skip button */}
+                    {/* Products: Add Skip and Document Specific Product buttons */}
                     {getCurrentEntityType() === 'PRODUCTS' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-xs"
-                        disabled={isEntityLoading}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSingleAction(entity.id, 'SKIP');
-                        }}
-                      >
-                        {isEntityLoading ? (
-                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                        ) : (
-                          <SkipForward className="w-3 h-3 mr-1" />
-                        )}
-                        Skip
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs"
+                          disabled={isEntityLoading}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSingleAction(entity.id, 'SKIP');
+                          }}
+                        >
+                          {isEntityLoading ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <SkipForward className="w-3 h-3 mr-1" />
+                          )}
+                          Skip
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs"
+                          disabled={isEntityLoading}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSingleAction(entity.id, 'DOCUMENT_SPECIFIC');
+                          }}
+                        >
+                          {isEntityLoading ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <FileText className="w-3 h-3 mr-1" />
+                          )}
+                          Doc Specific
+                        </Button>
+                      </>
                     )}
                   </>
                 )}
@@ -1277,6 +1319,7 @@ function EntityMatchingContent() {
           onBulkCreateNew={() => setShowBulkCreatePane(true)}
           onBulkSkip={handleBulkSkip}
           onBulkSetForCreation={handleBulkSetForCreation}
+          onBulkDocSpecific={handleBulkDocSpecific}
           isLoading={bulkConfirmLoading}
           currentEntityType={getCurrentEntityType()}
         />
