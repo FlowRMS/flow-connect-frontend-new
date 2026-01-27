@@ -31,6 +31,7 @@ export interface QuoteSettingsValue {
   insideRepAtLineLevel: boolean;
   factoryPerLineItem: boolean;
   customerPartNumberSource: 'sold_to' | 'end_user';
+  savedView?: SavedViewState;
 }
 
 export interface OrderColumnConfig {
@@ -39,11 +40,33 @@ export interface OrderColumnConfig {
   visible: boolean;
 }
 
+// View state that can be saved for landing pages
+export interface SavedViewState {
+  filters?: Array<{
+    operator: string;
+    columnName: string;
+    value?: string;
+    values?: string[];
+  }>;
+  columnFilters?: Record<string, Array<{
+    operator: string;
+    columnName: string;
+    value?: string;
+    values?: string[];
+  }>>;
+  sortField?: string;
+  sortDirection?: 'asc' | 'desc';
+  quickDatePreset?: string;
+  quickDateField?: string;
+  viewMode?: 'list' | 'kanban'; // For quotes
+}
+
 export interface OrderSettingsValue {
   columnConfig: OrderColumnConfig[];
   showEndUserPerLine: boolean;
   showOutsideRepPerLine: boolean;
   showInsideRepPerLine: boolean;
+  savedView?: SavedViewState;
 }
 
 export interface InvoiceColumnConfig {
@@ -55,6 +78,7 @@ export interface InvoiceColumnConfig {
 export interface InvoiceSettingsValue {
   columnConfig: InvoiceColumnConfig[];
   dueDateOffset?: number;
+  savedView?: SavedViewState;
 }
 
 export type ProcessingMode = 'automatic' | 'manual';

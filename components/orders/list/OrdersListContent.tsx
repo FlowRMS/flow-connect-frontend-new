@@ -27,11 +27,73 @@ import {
   AcknowledgementModal,
 } from './components/modals';
 import { BulkDeleteModal } from '@/components/shared/modals/BulkDeleteModal';
+import { SaveViewButton } from '@/components/shared';
 import { orderQueryKeys } from '../api/useOrdersApi';
+import { useOrderSettings } from '@/contexts/UserSettingsContext';
+import type { SavedViewState } from '@/components/lib/graphql/settings';
 
 export default function OrdersListContent() {
   const router = useRouter();
   const state = useOrdersListState();
+  const { settings: orderSettings, saveSettings: saveOrderSettings, isLoading: isSettingsLoading } = useOrderSettings();
+
+  // Get current view state for saving
+  const getCurrentViewState = (): SavedViewState => ({
+    filters: state.activeFilters.map(f => ({
+      operator: f.operator,
+      columnName: f.columnName,
+      value: f.value,
+      values: f.values,
+    })),
+    columnFilters: Object.fromEntries(
+      Object.entries(state.columnFilters || {}).map(([key, filters]) => [
+        key,
+        filters.map(f => ({
+          operator: f.operator,
+          columnName: f.columnName,
+          value: f.value,
+          values: f.values,
+        })),
+      ])
+    ),
+    sortField: state.sortField,
+    sortDirection: state.sortDirection,
+    quickDatePreset: state.quickDatePreset,
+    quickDateField: state.quickDateField,
+  });
+
+  // Save current view state
+  const handleSaveView = async (viewState: SavedViewState): Promise<boolean> => {
+    const updatedSettings = {
+      ...orderSettings,
+      columnConfig: orderSettings?.columnConfig || [],
+      showEndUserPerLine: orderSettings?.showEndUserPerLine ?? false,
+      showOutsideRepPerLine: orderSettings?.showOutsideRepPerLine ?? false,
+      showInsideRepPerLine: orderSettings?.showInsideRepPerLine ?? false,
+      savedView: viewState,
+    };
+    return saveOrderSettings(updatedSettings, 'my');
+  };
+
+  // Clear saved view state
+  const handleClearView = async (): Promise<boolean> => {
+    const updatedSettings = {
+      ...orderSettings,
+      columnConfig: orderSettings?.columnConfig || [],
+      showEndUserPerLine: orderSettings?.showEndUserPerLine ?? false,
+      showOutsideRepPerLine: orderSettings?.showOutsideRepPerLine ?? false,
+      showInsideRepPerLine: orderSettings?.showInsideRepPerLine ?? false,
+      savedView: undefined,
+    };
+    const success = await saveOrderSettings(updatedSettings, 'my');
+    if (success) {
+      // Reset to defaults
+      window.location.reload();
+    }
+    return success;
+  };
+
+  const hasSavedView = !!orderSettings?.savedView;
 
   // Navigation morph hooks
   const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
@@ -198,7 +260,15 @@ export default function OrdersListContent() {
                 onSortChange={state.handleSortChange}
                 activeSort={activeSort}
               />
-              
+
+              <SaveViewButton
+                onSave={handleSaveView}
+                onClear={handleClearView}
+                getCurrentViewState={getCurrentViewState}
+                hasSavedView={hasSavedView}
+                isSaving={isSettingsLoading}
+              />
+
               <button
                 onClick={() => router.push('/orders/new')}
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
