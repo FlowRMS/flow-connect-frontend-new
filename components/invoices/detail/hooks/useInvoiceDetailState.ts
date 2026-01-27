@@ -331,6 +331,9 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   // Track if we've applied column settings to avoid re-applying on every render
   const hasAppliedColumnSettings = useRef(false);
 
+  // Track previous invoice date to detect user changes (for dynamic due date recalculation)
+  const previousInvoiceDateRef = useRef<string | null>(null);
+
   // Fetch invoice from API
   const {
     data: apiInvoice,
@@ -590,31 +593,45 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   }, [linkedFactory, localInvoice]);
 
   useEffect(() => {
-    if (isCreateMode && localInvoice?.invoiceDate && localInvoice.manufacturerId) {
-      let daysToAdd: number | null = null;
+    if (localInvoice?.invoiceDate && localInvoice.manufacturerId) {
+      // Detect if invoice date actually changed (user edit) vs initial load
+      const invoiceDateChanged = previousInvoiceDateRef.current !== null &&
+                                  previousInvoiceDateRef.current !== localInvoice.invoiceDate;
 
-      // Priority 1: Use factory paymentTerms if available
-      if (linkedFactory?.paymentTerms) {
-        daysToAdd = linkedFactory.paymentTerms;
-      }
-      // Priority 2: Use settings offset if no paymentTerms from factory
-      else if (savedInvoiceSettings?.dueDateOffset !== undefined && savedInvoiceSettings.dueDateOffset !== null) {
-        daysToAdd = savedInvoiceSettings.dueDateOffset;
-      }
+      // Recalculate due date if:
+      // 1. In create mode (always recalculate), OR
+      // 2. Invoice date was changed by user (edit mode)
+      const shouldRecalculate = isCreateMode || invoiceDateChanged;
 
-      // Calculate dueDate if we have days to add
-      if (daysToAdd !== null && daysToAdd > 0) {
-        const calculatedDueDate = addDaysToDate(localInvoice.invoiceDate, daysToAdd);
-        if (calculatedDueDate && calculatedDueDate !== localInvoice.dueDate) {
-          setLocalInvoice(prev => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              dueDate: calculatedDueDate,
-            };
-          });
+      if (shouldRecalculate) {
+        let daysToAdd: number | null = null;
+
+        // Priority 1: Use factory paymentTerms if available
+        if (linkedFactory?.paymentTerms) {
+          daysToAdd = linkedFactory.paymentTerms;
+        }
+        // Priority 2: Use settings offset if no paymentTerms from factory
+        else if (savedInvoiceSettings?.dueDateOffset !== undefined && savedInvoiceSettings.dueDateOffset !== null) {
+          daysToAdd = savedInvoiceSettings.dueDateOffset;
+        }
+
+        // Calculate dueDate if we have days to add
+        if (daysToAdd !== null && daysToAdd > 0) {
+          const calculatedDueDate = addDaysToDate(localInvoice.invoiceDate, daysToAdd);
+          if (calculatedDueDate && calculatedDueDate !== localInvoice.dueDate) {
+            setLocalInvoice(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                dueDate: calculatedDueDate,
+              };
+            });
+          }
         }
       }
+
+      // Update the ref to track current invoice date for next change detection
+      previousInvoiceDateRef.current = localInvoice.invoiceDate;
     }
   }, [isCreateMode, localInvoice?.invoiceDate, localInvoice?.manufacturerId, linkedFactory, savedInvoiceSettings?.dueDateOffset, localInvoice?.dueDate]);
 

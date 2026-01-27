@@ -637,7 +637,22 @@ function isLineItemMetadataKey(key: string) {
   return key === LINE_ITEM_SOURCE_MAP_KEY || key.startsWith('_') || key === 'internal_uuid';
 }
 
+// Fields that should not be treated as numeric even if they contain only digits
+const NON_NUMERIC_FIELDS = new Set([
+  'end_user_address_zip_code',
+  'factory_address_zip_code',
+  'customer_address_zip_code',
+  'zip_code',
+  'zip',
+  'postal_code',
+]);
+
 function isLikelyNumeric(rows: Record<string, unknown>[], key: string) {
+  // ZIP codes and postal codes should never be treated as numeric
+  if (NON_NUMERIC_FIELDS.has(key) || key.toLowerCase().includes('zip')) {
+    return false;
+  }
+
   for (const row of rows) {
     const value = row[key];
     if (value === null || value === undefined) continue;

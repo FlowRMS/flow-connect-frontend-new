@@ -170,6 +170,7 @@ export function useOrdersListState() {
     published: 'published',
     factoryName: 'factory-name',
     customerName: 'customer-name',
+    createdBy: 'created-by',
   }), []);
 
   // We initialize with empty arrays to avoid dependency issues
@@ -436,10 +437,9 @@ export function useOrdersListState() {
 
   // Get filter options with unique values (for column filters)
   const orderFilterOptionsWithValues = useMemo(() => {
-    // Extract unique values from orders if needed in the future
-    // For now, use empty arrays
+    // Extract unique values from orders for filter dropdowns
     return getOrderFilterOptions([], []);
-  }, [orders]);
+  }, []);
 
   // Scroll handler for infinite scroll
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {

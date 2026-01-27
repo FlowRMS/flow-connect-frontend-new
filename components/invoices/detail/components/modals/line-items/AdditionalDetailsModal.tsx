@@ -515,7 +515,7 @@ export function AdditionalDetailsModal({
                 <span className="text-sm text-gray-500">$</span>
                 <input
                   type="text"
-                  value={(Number(formData.commissionDiscountAmount) || 0).toFixed(2)}
+                  value={Number(formData.commissionDiscountAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                   readOnly
                   className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
                 />
@@ -563,7 +563,7 @@ export function AdditionalDetailsModal({
                 <span className="text-sm text-gray-500">$</span>
                 <input
                   type="text"
-                  value={(Number(formData.discountAmount) || 0).toFixed(2)}
+                  value={Number(formData.discountAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                   readOnly
                   className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
                 />

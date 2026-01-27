@@ -65,8 +65,10 @@ function TemplatesPageContent() {
   const fetchClusters = useCallback(async () => {
     setLoading(true);
     try {
+      // Fetch all clusters by using a high limit (no server-side pagination needed for search)
       const { data } = await apolloClient.query({
         query: Q_GET_CLUSTERS,
+        variables: { limit: 10000, offset: 0 },
         fetchPolicy: 'network-only',
       });
       setClusters((data as { clusters: Cluster[] }).clusters || []);

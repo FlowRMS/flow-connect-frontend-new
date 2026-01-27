@@ -76,6 +76,7 @@ export function SelectTemplateModal({
     try {
       const { data } = await apolloClient.query({
         query: Q_GET_CLUSTERS,
+        variables: { limit: 10000, offset: 0 },
         fetchPolicy: 'network-only',
       });
       const payload = data as { clusters?: Cluster[] };

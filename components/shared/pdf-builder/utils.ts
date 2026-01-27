@@ -18,14 +18,14 @@ import type {
 } from '@/components/lib/graphql/pdf-entities';
 import type { PDFFieldConfig, PDFLineItemConfig } from './types';
 
-// Format currency
+// Format currency with full precision (up to 4 decimal places)
 export function formatCurrency(value: number | null | undefined): string {
   if (value == null) return '$0.00';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(value);
 }
 

@@ -423,8 +423,8 @@ export function LineItemsTable({
         editValue = String(item.unitPrice || 0);
         break;
       case 'commissionPercent':
-        displayValue = `${Number(item.commissionRate || 0).toFixed(1)}%`;
-        editValue = Number(item.commissionRate || 0).toFixed(1);
+        displayValue = `${String(Number(item.commissionRate || 0))}%`;
+        editValue = String(Number(item.commissionRate || 0));
         break;
     }
 
