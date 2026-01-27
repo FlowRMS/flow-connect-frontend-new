@@ -5,6 +5,7 @@ import type {
   ReturnedPdf,
   ItemChange,
   SubmittalItem,
+  SubmittalStatus,
 } from '../../lib/types/submittals';
 import {
   getStatusColor,
@@ -19,6 +20,7 @@ interface ChangeAnalysisPanelProps {
   submittalItems: SubmittalItem[];
   onClose: () => void;
   onResubmit: () => void;
+  onApplyStatus: (status: SubmittalStatus) => void | Promise<void>;
   onUpdateChange: (changeId: string, updates: Partial<ItemChange>) => void;
   onAddChange: (change: Omit<ItemChange, 'id'>) => void;
   onDeleteChange: (changeId: string) => void;
@@ -29,6 +31,7 @@ export default function ChangeAnalysisPanel({
   submittalItems,
   onClose,
   onResubmit,
+  onApplyStatus,
   onUpdateChange,
   onAddChange,
   onDeleteChange,
@@ -55,6 +58,20 @@ export default function ChangeAnalysisPanel({
   const needsResubmit = analysis.itemChanges.some(c => c.status === 'revise' || c.status === 'rejected');
   const unresolvedCount = analysis.itemChanges.filter(c => !c.resolved && (c.status === 'revise' || c.status === 'rejected')).length;
 
+  // Derive approval status from current item statuses (not the static overallStatus)
+  // This ensures the button updates when users change individual item statuses
+  let approvalStatus: SubmittalStatus | null = null;
+  if (!needsResubmit && analysis.itemChanges.length > 0) {
+    const hasApprovedAsNoted = analysis.itemChanges.some(c => c.status === 'approved_as_noted');
+    approvalStatus = hasApprovedAsNoted ? 'approved_as_noted' : 'approved';
+  }
+
+  const approvalButtonConfig: Record<string, { label: string; bgClass: string; hoverClass: string; icon: string }> = {
+    approved: { label: 'Mark as Approved', bgClass: 'bg-green-600', hoverClass: 'hover:bg-green-700', icon: 'M20 6L9 17l-5-5' },
+    approved_as_noted: { label: 'Approved as Noted', bgClass: 'bg-blue-600', hoverClass: 'hover:bg-blue-700', icon: 'M20 6L9 17l-5-5' },
+    rejected: { label: 'Mark as Rejected', bgClass: 'bg-red-600', hoverClass: 'hover:bg-red-700', icon: 'M18 6L6 18M6 6l12 12' },
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -72,6 +89,17 @@ export default function ChangeAnalysisPanel({
               </p>
             </div>
             <div className="flex items-center gap-3">
+              {!needsResubmit && approvalStatus && approvalButtonConfig[approvalStatus] && (
+                <button
+                  onClick={() => onApplyStatus(approvalStatus)}
+                  className={`px-4 py-2 text-sm font-medium text-white ${approvalButtonConfig[approvalStatus].bgClass} rounded-lg ${approvalButtonConfig[approvalStatus].hoverClass} transition-colors flex items-center gap-2`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={approvalButtonConfig[approvalStatus].icon} />
+                  </svg>
+                  {approvalButtonConfig[approvalStatus].label}
+                </button>
+              )}
               {needsResubmit && (
                 <button
                   onClick={onResubmit}

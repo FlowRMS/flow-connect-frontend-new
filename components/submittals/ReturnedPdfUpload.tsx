@@ -401,7 +401,7 @@ export default function ReturnedPdfUpload({
             />
           </div>
 
-          {/* AI Analysis Toggle */}
+          {/* AI Analysis Toggle - Coming Soon */}
           <div className="bg-[var(--muted)]/30 rounded-lg p-4">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
@@ -413,6 +413,9 @@ export default function ReturnedPdfUpload({
               <div>
                 <span className="text-sm font-medium text-[var(--foreground)]">
                   Analyze PDF for changes (AI-assisted)
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
+                    Coming soon
+                  </span>
                 </span>
                 <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
                   Automatically detect markups, stamps, and comments that need attention

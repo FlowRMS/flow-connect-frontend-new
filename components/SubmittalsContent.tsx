@@ -256,6 +256,17 @@ export default function SubmittalsContent() {
                 setResubmitItemIds(itemIds);
                 setShowPrintDialog(true);
               }}
+              onApplyStatus={async (status) => {
+                try {
+                  await handleSubmittalUpdate({ status });
+                  refetch();
+                  const label = status.replace(/_/g, ' ');
+                  submittalToasts.statusUpdated(label);
+                } catch (err) {
+                  console.error('Error applying status:', err);
+                  submittalToasts.statusUpdateError(err instanceof Error ? err.message : 'Unknown error');
+                }
+              }}
               onAddItem={handleAddItem}
               onDeleteItem={handleDeleteItem}
               onEditItem={handleEditItem}

@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type {
   Submittal,
+  SubmittalStatus,
   SpecSheetMatchStatus,
   SubmittalConfig,
   SpecSheet,
@@ -43,6 +44,7 @@ interface SubmittalDetailPanelProps {
   onUpdateArchitect?: (name: string) => void;
   onUpdateEngineer?: (name: string) => void;
   onUpdateBidDate?: (date: string) => void;
+  onApplyStatus?: (status: SubmittalStatus) => void | Promise<void>;
   onDeleteSubmittal?: () => void;
   onAddStakeholder?: (role: 'customer' | 'engineer' | 'architect', data: { contactName: string; companyName: string; email: string }) => Promise<void>;
   onRemoveStakeholder?: (stakeholderId: string) => void;
@@ -68,6 +70,7 @@ export default function SubmittalDetailPanel({
   onUpdateArchitect,
   onUpdateEngineer,
   onUpdateBidDate,
+  onApplyStatus,
   onDeleteSubmittal,
   onAddStakeholder,
   onRemoveStakeholder,
@@ -398,6 +401,10 @@ export default function SubmittalDetailPanel({
               if (revision) {
                 handleResubmit(revision, analysisReturnedPdf);
               }
+              setAnalysisReturnedPdf(null);
+            }}
+            onApplyStatus={async (status) => {
+              await onApplyStatus?.(status);
               setAnalysisReturnedPdf(null);
             }}
             onUpdateChange={handleUpdateChange}

@@ -157,6 +157,7 @@ export function useSubmittalHandlers({
         });
       } catch (err) {
         console.error('Error updating submittal:', err);
+        throw err;
       }
     }
 

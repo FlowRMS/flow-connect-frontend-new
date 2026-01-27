@@ -947,4 +947,14 @@ export const submittalToasts = {
     showErrorToast('Failed to Resolve Change', {
       description: error || 'Please try again or contact support',
     }),
+
+  statusUpdated: (status: string) =>
+    showSuccessToast('Status Updated', {
+      description: `Submittal marked as ${status}`,
+    }),
+
+  statusUpdateError: (error?: string) =>
+    showErrorToast('Failed to Update Status', {
+      description: error || 'Please try again or contact support',
+    }),
 };
