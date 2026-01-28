@@ -5,6 +5,7 @@
  */
 
 import type { FilterOption } from '../../../advancedFilters/types';
+import { ColumnFilterTypeEnum } from '../../../advancedFilters/types';
 import { OrderStatus } from '../constants';
 
 // Order status options matching OrderStatus enum
@@ -47,14 +48,14 @@ export function getOrderFilterOptions(
   { 
     id: 'order-number', 
     label: 'Order Number', 
-    type: 'text' as const, 
+    type: ColumnFilterTypeEnum.text, 
     columnName: 'orderNumber', 
     available: true 
   },
   { 
     id: 'status', 
     label: 'Status', 
-    type: 'dropdown' as const, 
+    type: ColumnFilterTypeEnum.dropdown, 
     columnName: 'status', 
     available: true, 
     options: ORDER_STATUSES 
@@ -62,7 +63,7 @@ export function getOrderFilterOptions(
   { 
     id: 'total', 
     label: 'Total', 
-    type: 'number' as const, 
+    type: ColumnFilterTypeEnum.number, 
     columnName: 'total', 
     available: true,
     numberFormat: 'currency' as const
@@ -70,7 +71,7 @@ export function getOrderFilterOptions(
   { 
     id: 'commission', 
     label: 'Commission', 
-    type: 'number' as const, 
+    type: ColumnFilterTypeEnum.number, 
     columnName: 'commission', 
     available: true,
     numberFormat: 'currency' as const
@@ -78,35 +79,35 @@ export function getOrderFilterOptions(
   { 
     id: 'order-date', 
     label: 'Order Date', 
-    type: 'date' as const, 
+    type: ColumnFilterTypeEnum.date, 
     columnName: 'entityDate', 
     available: true 
   },
   { 
     id: 'created-date', 
     label: 'Entry Date', 
-    type: 'date' as const, 
+    type: ColumnFilterTypeEnum.date, 
     columnName: 'createdAt', 
     available: true 
   },
   { 
     id: 'job-name', 
     label: 'Job Name', 
-    type: 'text' as const, 
+    type: ColumnFilterTypeEnum.text, 
     columnName: 'jobName', 
     available: true 
   },
   {
     id: 'published',
     label: 'Published',
-    type: 'boolean' as const,
+    type: ColumnFilterTypeEnum.boolean,
     columnName: 'published',
     available: true
   },
   {
     id: 'created-by',
     label: 'Created By',
-    type: 'user' as const,
+    type: ColumnFilterTypeEnum.user,
     columnName: 'createdBy',
     available: true
   },
@@ -114,14 +115,14 @@ export function getOrderFilterOptions(
   { 
     id: 'factory-name', 
     label: 'Factory Name', 
-    type: 'factory' as const, 
+    type: ColumnFilterTypeEnum.factory, 
     columnName: 'factoryName', 
     available: true 
   },
   { 
     id: 'customer-name', 
     label: 'Customer Name', 
-    type: 'text' as const, 
+    type: ColumnFilterTypeEnum.text, 
     columnName: 'soldToCustomerName', 
     available: false 
   },

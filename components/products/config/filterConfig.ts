@@ -5,6 +5,7 @@
  */
 
 import type { FilterOption } from '@/components/advancedFilters/types';
+import { ColumnFilterTypeEnum } from '@/components/advancedFilters/types';
 
 export interface SortOption {
   columnName: string;
@@ -24,14 +25,14 @@ export function getProductFilterOptions(
     { 
       id: 'part-number', 
       label: 'Part Number', 
-      type: 'text' as const, 
+    type: ColumnFilterTypeEnum.text, 
       columnName: 'factoryPartNumber', 
       available: true 
     },
     { 
       id: 'factory', 
       label: 'Factory', 
-      type: 'factory' as const, 
+    type: ColumnFilterTypeEnum.factory, 
       columnName: 'factoryTitle', 
       available: true
       // No options needed - uses dynamic search via FactoryFilter
@@ -39,7 +40,7 @@ export function getProductFilterOptions(
     { 
       id: 'category', 
       label: 'Category', 
-      type: 'category' as const, 
+    type: ColumnFilterTypeEnum.category, 
       columnName: 'categoryTitle', 
       available: true
       // No options needed - uses dynamic search via CategoryFilter
@@ -47,7 +48,7 @@ export function getProductFilterOptions(
     { 
       id: 'uom', 
       label: 'UOM', 
-      type: 'dropdown' as const, 
+    type: ColumnFilterTypeEnum.dropdown, 
       columnName: 'uomTitle', 
       available: true, 
       options: uniqueUoms 
@@ -55,7 +56,7 @@ export function getProductFilterOptions(
     { 
       id: 'unit-price', 
       label: 'Unit Price', 
-      type: 'number' as const, 
+    type: ColumnFilterTypeEnum.number, 
       columnName: 'unitPrice', 
       available: true,
       numberFormat: 'currency' as const
@@ -63,7 +64,7 @@ export function getProductFilterOptions(
     { 
       id: 'commission-rate', 
       label: 'Commission Rate', 
-      type: 'number' as const, 
+    type: ColumnFilterTypeEnum.number, 
       columnName: 'defaultCommissionRate', 
       available: true,
       numberFormat: 'percentage' as const
@@ -71,28 +72,28 @@ export function getProductFilterOptions(
     { 
       id: 'published', 
       label: 'Published', 
-      type: 'boolean' as const, 
+    type: ColumnFilterTypeEnum.boolean, 
       columnName: 'published', 
       available: true 
     },
     { 
       id: 'approval-needed', 
       label: 'Approval Needed', 
-      type: 'boolean' as const, 
+    type: ColumnFilterTypeEnum.boolean, 
       columnName: 'approvalNeeded', 
       available: true 
     },
     { 
       id: 'created-date', 
       label: 'Created Date', 
-      type: 'date' as const, 
+    type: ColumnFilterTypeEnum.date, 
       columnName: 'createdAt', 
       available: true 
     },
     { 
       id: 'tags', 
       label: 'Tags', 
-      type: 'text' as const, 
+    type: ColumnFilterTypeEnum.text, 
       columnName: 'tags', 
       available: true 
     },

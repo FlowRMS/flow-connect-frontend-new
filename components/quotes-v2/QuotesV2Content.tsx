@@ -96,6 +96,7 @@ export function QuotesV2Content() {
     quoteDate: 'quote-date',
     expirationDate: 'expiration-date',
     published: 'published',
+    endUsers: 'end-users',
   }), []);
 
   // We initialize with empty arrays to avoid dependency issues

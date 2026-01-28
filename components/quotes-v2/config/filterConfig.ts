@@ -4,6 +4,7 @@
  */
 
 import type { QuoteV2Status, QuotePipelineStage } from '../types';
+import { ColumnFilterTypeEnum } from '@/components/advancedFilters/types';
 
 export const QUOTE_STATUSES: QuoteV2Status[] = ['OPEN', 'ORDERED', 'EXPIRED', 'LOST'];
 
@@ -26,14 +27,14 @@ export function getQuoteFilterOptions(
     { 
       id: 'quote-number', 
       label: 'Quote Number', 
-      type: 'text' as const, 
+      type: ColumnFilterTypeEnum.text, 
       columnName: 'quoteNumber', 
       available: true 
     },
     { 
       id: 'status', 
       label: 'Status', 
-      type: 'dropdown' as const, 
+      type: ColumnFilterTypeEnum.dropdown, 
       columnName: 'status', 
       available: true, 
       options: QUOTE_STATUSES 
@@ -41,7 +42,7 @@ export function getQuoteFilterOptions(
     { 
       id: 'pipeline-stage', 
       label: 'Pipeline Stage', 
-      type: 'dropdown' as const, 
+      type: ColumnFilterTypeEnum.dropdown, 
       columnName: 'pipelineStage', 
       available: true, 
       options: QUOTE_PIPELINE_STAGES 
@@ -49,7 +50,7 @@ export function getQuoteFilterOptions(
     { 
       id: 'total-amount', 
       label: 'Total Amount', 
-      type: 'number' as const, 
+      type: ColumnFilterTypeEnum.number, 
       columnName: 'total', 
       available: true,
       numberFormat: 'currency' as const
@@ -57,7 +58,7 @@ export function getQuoteFilterOptions(
     { 
       id: 'commission', 
       label: 'Commission', 
-      type: 'number' as const, 
+      type: ColumnFilterTypeEnum.number, 
       columnName: 'commission', 
       available: true,
       numberFormat: 'currency' as const
@@ -65,36 +66,43 @@ export function getQuoteFilterOptions(
     { 
       id: 'created-date', 
       label: 'Created Date', 
-      type: 'date' as const, 
+      type: ColumnFilterTypeEnum.date, 
       columnName: 'createdAt', 
       available: true 
     },
     { 
       id: 'published', 
       label: 'Published', 
-      type: 'boolean' as const, 
+      type: ColumnFilterTypeEnum.boolean, 
       columnName: 'published', 
       available: true
     },
     { 
       id: 'quote-date', 
       label: 'Quote Date', 
-      type: 'date' as const, 
+      type: ColumnFilterTypeEnum.date, 
       columnName: 'entityDate', 
       available: true
+    },
+    {
+      id: 'end-users',
+      label: 'End Users',
+      type: ColumnFilterTypeEnum.customer,
+      columnName: 'endUsers',
+      available: true,
     },
     // Soon filters
     { 
       id: 'expiration-date', 
       label: 'Expiration Date', 
-      type: 'date' as const, 
+      type: ColumnFilterTypeEnum.date, 
       columnName: 'expDate', 
       available: false 
     },
     { 
       id: 'created-by', 
       label: 'Created By', 
-      type: 'dropdown' as const, 
+      type: ColumnFilterTypeEnum.dropdown, 
       columnName: 'createdBy', 
       available: false,
       options: uniqueCreators 
