@@ -350,6 +350,10 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   // Live update handler - updates both lineItems AND selectedLineItem without closing modal
   // When line discount changes, commission is recalculated based on discounted sell total
+  // The modal sends the calculated commission value - use it directly
+  // Field naming:
+  //   - commission: total commission on (discounted) sell total, BEFORE commission discount
+  //   - commissionTotal: commission AFTER commission discount (= commission - commissionDiscountAmount)
   const handleLiveUpdateAdditionalDetails = useCallback((updates: Partial<LineItemV2>) => {
     if (selectedLineItem) {
       // Update the selected line item so the modal stays in sync
@@ -357,15 +361,14 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         if (!prev) return prev;
         const updatedItem = { ...prev, ...updates };
 
-        // If line discount changed, recalculate commission based on discounted sell total
-        if ('lineDiscountAmount' in updates || 'lineDiscountPercent' in updates) {
-          const sellTotal = updatedItem.sellTotal || 0;
-          const lineDiscountAmount = updatedItem.lineDiscountAmount || 0;
-          const discountedSellTotal = sellTotal - lineDiscountAmount;
-          const commissionPercent = updatedItem.commissionPercent || 0;
-          // Commission is now based on the discounted sell total
-          updatedItem.commissionTotal = discountedSellTotal * (commissionPercent / 100);
-          updatedItem.commission = updatedItem.quantity > 0 ? updatedItem.commissionTotal / updatedItem.quantity : 0;
+        // If commission was sent from modal (which calculates it on discounted total), use it
+        // The modal sends total commission before commission discount as 'commission'
+        if ('commission' in updates && updates.commission !== undefined) {
+          // commission field = total commission before commission discount
+          updatedItem.commission = updates.commission;
+          // commissionTotal = commission after commission discount
+          const commDiscountAmt = updatedItem.commissionDiscountAmount || 0;
+          updatedItem.commissionTotal = updates.commission - commDiscountAmt;
         }
 
         return updatedItem;
@@ -376,15 +379,14 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
           if (li.id !== selectedLineItem.id) return li;
           const updatedItem = { ...li, ...updates };
 
-          // If line discount changed, recalculate commission based on discounted sell total
-          if ('lineDiscountAmount' in updates || 'lineDiscountPercent' in updates) {
-            const sellTotal = updatedItem.sellTotal || 0;
-            const lineDiscountAmount = updatedItem.lineDiscountAmount || 0;
-            const discountedSellTotal = sellTotal - lineDiscountAmount;
-            const commissionPercent = updatedItem.commissionPercent || 0;
-            // Commission is now based on the discounted sell total
-            updatedItem.commissionTotal = discountedSellTotal * (commissionPercent / 100);
-            updatedItem.commission = updatedItem.quantity > 0 ? updatedItem.commissionTotal / updatedItem.quantity : 0;
+          // If commission was sent from modal (which calculates it on discounted total), use it
+          // The modal sends total commission before commission discount as 'commission'
+          if ('commission' in updates && updates.commission !== undefined) {
+            // commission field = total commission before commission discount
+            updatedItem.commission = updates.commission;
+            // commissionTotal = commission after commission discount
+            const commDiscountAmt = updatedItem.commissionDiscountAmount || 0;
+            updatedItem.commissionTotal = updates.commission - commDiscountAmt;
           }
 
           return updatedItem;

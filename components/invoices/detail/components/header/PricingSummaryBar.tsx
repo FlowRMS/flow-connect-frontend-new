@@ -18,6 +18,10 @@ interface PricingSummaryBarProps {
     balance: number;
     totalOvg: number;
     totalEarn: number;
+    originalSubtotal?: number;
+    totalLineDiscount?: number;
+    originalCommission?: number;
+    totalCommissionDiscount?: number;
   };
 }
 
@@ -28,6 +32,12 @@ export function PricingSummaryBar({ viewMode, totals }: PricingSummaryBarProps) 
         <div className="flex flex-col items-end">
           <span className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">Subtotal</span>
           <span className="font-semibold text-[var(--foreground)]">{formatCurrency(totals.subtotal)}</span>
+          {(totals.totalLineDiscount || 0) > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-400 line-through">{formatCurrency(totals.originalSubtotal || 0)}</span>
+              <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded">-{formatCurrency(totals.totalLineDiscount || 0)}</span>
+            </div>
+          )}
         </div>
         <div className="h-8 w-px bg-gray-200" />
         <div className="flex flex-col items-end">
@@ -38,6 +48,12 @@ export function PricingSummaryBar({ viewMode, totals }: PricingSummaryBarProps) 
         <div className="flex flex-col items-end">
           <span className="text-[10px] uppercase tracking-wider text-purple-500">Commission</span>
           <span className="font-bold text-lg text-purple-600">{formatCurrency(totals.commission)}</span>
+          {(totals.totalCommissionDiscount || 0) > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-400 line-through">{formatCurrency(totals.originalCommission || 0)}</span>
+              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded">-{formatCurrency(totals.totalCommissionDiscount || 0)}</span>
+            </div>
+          )}
         </div>
         {viewMode === 'overage' && (
           <>

@@ -379,6 +379,10 @@ export function QuoteDetailHeaderV2({
         basePrice: Number(quote.basePrice) || 0,
         sellPrice: Number(quote.sellPrice) || 0,
         commission: Number(quote.commission) || 0,
+        originalSellPrice: Number(quote.sellPrice) || 0,
+        originalCommission: Number(quote.commission) || 0,
+        totalLineDiscount: 0,
+        totalCommissionDiscount: 0,
       };
     }
 
@@ -389,21 +393,38 @@ export function QuoteDetailHeaderV2({
       return sum + (qty * price / div);
     }, 0);
 
-    // sellPrice accounts for line discounts
-    const sellPrice = lineItems.reduce((sum, item) => {
-      const sellTotal = Number(item.sellTotal) || 0;
-      const lineDiscount = Number(item.lineDiscountAmount) || 0;
-      return sum + (sellTotal - lineDiscount);
+    // Calculate original values (before discounts) and total discounts
+    const originalSellPrice = lineItems.reduce((sum, item) => {
+      return sum + (Number(item.sellTotal) || 0);
     }, 0);
+
+    // originalCommission is commission BEFORE commission discount
+    // Use item.commission which is the total commission calculated on (discounted) sell total
+    // item.commissionTotal is commission AFTER commission discount (from API's totalLineCommission)
+    const originalCommission = lineItems.reduce((sum, item) => {
+      // If commission is set, use it (this is total commission before comm discount)
+      // Otherwise fall back to commissionTotal + commissionDiscountAmount to reconstruct it
+      const commBeforeDiscount = (Number(item.commission) || 0) > 0
+        ? Number(item.commission)
+        : (Number(item.commissionTotal) || 0) + (Number(item.commissionDiscountAmount) || 0);
+      return sum + commBeforeDiscount;
+    }, 0);
+
+    const totalLineDiscount = lineItems.reduce((sum, item) => {
+      return sum + (Number(item.lineDiscountAmount) || 0);
+    }, 0);
+
+    const totalCommissionDiscount = lineItems.reduce((sum, item) => {
+      return sum + (Number(item.commissionDiscountAmount) || 0);
+    }, 0);
+
+    // sellPrice accounts for line discounts
+    const sellPrice = originalSellPrice - totalLineDiscount;
 
     // commission accounts for commission discounts
-    const commission = lineItems.reduce((sum, item) => {
-      const commTotal = Number(item.commissionTotal) || 0;
-      const commDiscount = Number(item.commissionDiscountAmount) || 0;
-      return sum + (commTotal - commDiscount);
-    }, 0);
+    const commission = originalCommission - totalCommissionDiscount;
 
-    return { basePrice, sellPrice, commission };
+    return { basePrice, sellPrice, commission, originalSellPrice, originalCommission, totalLineDiscount, totalCommissionDiscount };
   }, [lineItems, quote.basePrice, quote.sellPrice, quote.commission]);
 
   // API hooks for search
@@ -1034,11 +1055,23 @@ export function QuoteDetailHeaderV2({
         <div className="flex flex-col items-end">
           <span className="text-[10px] uppercase tracking-wider text-gray-400">Sell Price</span>
           <span className="font-bold text-lg text-gray-900">${Number(calculatedTotals.sellPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+          {calculatedTotals.totalLineDiscount > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-400 line-through">${Number(calculatedTotals.originalSellPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded">-${Number(calculatedTotals.totalLineDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          )}
         </div>
         <div className="h-8 w-px bg-gray-200" />
         <div className="flex flex-col items-end">
           <span className="text-[10px] uppercase tracking-wider text-purple-500">Commission</span>
           <span className="font-bold text-lg text-purple-600">${Number(calculatedTotals.commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+          {calculatedTotals.totalCommissionDiscount > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-400 line-through">${Number(calculatedTotals.originalCommission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded">-${Number(calculatedTotals.totalCommissionDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          )}
         </div>
       </div>
       </div>

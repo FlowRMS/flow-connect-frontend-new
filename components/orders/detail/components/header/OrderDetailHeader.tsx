@@ -142,22 +142,32 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
     const lineItems = order.lineItems || [];
     const productLines = lineItems.filter(item => item.partNumber !== 'FREIGHT');
 
-    // Calculate subtotal from line items (extended price minus line discounts)
-    const subtotal = productLines.reduce((sum, item) => {
-      const ext = Number(item.extendedPrice) || 0;
-      const lineDiscount = Number((item as any).lineDiscountAmount) || 0;
-      return sum + (ext - lineDiscount);
+    // Calculate original subtotal and line discounts
+    const originalSubtotal = productLines.reduce((sum, item) => {
+      return sum + (Number(item.extendedPrice) || 0);
     }, 0);
+
+    const totalLineDiscount = productLines.reduce((sum, item) => {
+      return sum + (Number((item as any).lineDiscountAmount) || 0);
+    }, 0);
+
+    // Calculate subtotal from line items (extended price minus line discounts)
+    const subtotal = originalSubtotal - totalLineDiscount;
 
     const freight = Number(order.freight) || 0;
     const total = subtotal + freight;
 
-    // Calculate commission from line items (commission amount minus commission discounts)
-    const commission = productLines.reduce((sum, item) => {
-      const comm = Number(item.commissionAmount) || 0;
-      const commDiscount = Number((item as any).commissionDiscountAmount) || 0;
-      return sum + (comm - commDiscount);
+    // Calculate original commission and commission discounts
+    const originalCommission = productLines.reduce((sum, item) => {
+      return sum + (Number(item.commissionAmount) || 0);
     }, 0);
+
+    const totalCommissionDiscount = productLines.reduce((sum, item) => {
+      return sum + (Number((item as any).commissionDiscountAmount) || 0);
+    }, 0);
+
+    // Calculate commission from line items (commission amount minus commission discounts)
+    const commission = originalCommission - totalCommissionDiscount;
 
     // Calculate overage
     const totalOvg = productLines.reduce((sum, item) => {
@@ -168,7 +178,7 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
 
     const totalEarn = commission + totalOvg;
 
-    return { subtotal, freight, total, commission, totalOvg, totalEarn };
+    return { subtotal, freight, total, commission, totalOvg, totalEarn, originalSubtotal, totalLineDiscount, originalCommission, totalCommissionDiscount };
   }, [order]);
 
   return (

@@ -82,10 +82,11 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
     const commissionRate = parseFloat(detail.commissionRate || '0');
 
-    // Always calculate derived values from base fields (like quotes does)
-    // Don't rely on API total/commission as they may not be populated
-    const sellTotal = quantity * unitPrice / divisor;
-    const commissionAmount = sellTotal * (commissionRate / 100);
+    // Use API values if available, otherwise calculate
+    const calculatedSellTotal = quantity * unitPrice / divisor;
+    const sellTotal = detail.subtotal ? parseFloat(String(detail.subtotal)) : calculatedSellTotal;
+    // Use API commission if available, otherwise calculate
+    const commissionAmount = detail.commission ? parseFloat(String(detail.commission)) : (sellTotal * (commissionRate / 100));
 
     return {
     id: detail.id,
@@ -107,9 +108,9 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     commission: commissionAmount,
     commissionAmount: commissionAmount,
     discountPercent: parseFloat(detail.discountRate || '0'),
-    discount: detail.discount || 0,
+    discount: parseFloat(String(detail.discount || '0')),
     commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
-    commissionDiscount: detail.commissionDiscount || 0,
+    commissionDiscount: parseFloat(String(detail.commissionDiscount || '0')),
     status: detail.status || 'open',
     leadTime: detail.leadTime || '',
     note: detail.note || '',
@@ -242,10 +243,11 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
   const divisor = parseFloat(detail.divisionFactor || '1');
   const commissionRate = parseFloat(detail.commissionRate || '0');
 
-  // Always calculate derived values from base fields (like quotes does)
-  // Don't rely on API total/commission as they may not be populated
-  const total = quantity * unitPrice / divisor;
-  const commissionAmount = total * (commissionRate / 100);
+  // Use API values if available, otherwise calculate
+  const calculatedTotal = quantity * unitPrice / divisor;
+  const total = detail.subtotal ? parseFloat(String(detail.subtotal)) : calculatedTotal;
+  // Use API commission if available, otherwise calculate
+  const commissionAmount = detail.commission ? parseFloat(String(detail.commission)) : (total * (commissionRate / 100));
 
   return {
     id: detail.id,
@@ -269,9 +271,9 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
     commissionPercent: commissionRate,
     commission: commissionAmount,
     discountPercent: parseFloat(detail.discountRate || '0'),
-    discount: detail.discount || 0,
+    discount: parseFloat(String(detail.discount || '0')),
     commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
-    commissionDiscount: detail.commissionDiscount || 0,
+    commissionDiscount: parseFloat(String(detail.commissionDiscount || '0')),
     status: detail.status || 'open',
     leadTime: detail.leadTime || '',
     note: detail.note || '',

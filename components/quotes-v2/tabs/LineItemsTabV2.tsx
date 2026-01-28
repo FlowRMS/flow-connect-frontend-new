@@ -168,8 +168,12 @@ export function LineItemsTabV2({
     const divisor = item.divisor || 1;
     const newCommissionPercent = commissionRate ?? item.commissionPercent;
     const sellTotal = qty * price / divisor;
-    const commissionTotal = sellTotal * (newCommissionPercent / 100);
-    const commission = qty > 0 ? commissionTotal / qty : 0;
+    // Commission is calculated on DISCOUNTED sell total (after line discount)
+    const lineDiscountPct = item.lineDiscountPercent || 0;
+    const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+    const discountedSellTotal = sellTotal - lineDiscountAmount;
+    const commissionBeforeDiscount = discountedSellTotal * (newCommissionPercent / 100);
+    const commissionDiscountAmt = commissionBeforeDiscount * ((item.commissionDiscountPercent || 0) / 100);
 
     onLineItemsChange(
       lineItems.map(li => li.id === itemId ? {
@@ -177,8 +181,10 @@ export function LineItemsTabV2({
         unitPrice: price,
         commissionPercent: newCommissionPercent,
         sellTotal,
-        commission,
-        commissionTotal,
+        lineDiscountAmount,
+        commission: commissionBeforeDiscount,
+        commissionTotal: commissionBeforeDiscount - commissionDiscountAmt,
+        commissionDiscountAmount: commissionDiscountAmt,
         isManualPrice: source === 'manual',
         pricingSource: source,
       } : li)
@@ -360,12 +366,18 @@ export function LineItemsTabV2({
       // User can change pricing source via dropdown if they want tier pricing
       const unitPrice = item.unitPrice;
       const sellTotal = qty * unitPrice / item.divisor;
-      const commissionTotal = sellTotal * (item.commissionPercent / 100);
-      const commission = qty > 0 ? commissionTotal / qty : 0;
+      // Commission is calculated on DISCOUNTED sell total (after line discount)
+      const lineDiscountPct = item.lineDiscountPercent || 0;
+      const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+      const discountedSellTotal = sellTotal - lineDiscountAmount;
+      const commissionBeforeDiscount = discountedSellTotal * (item.commissionPercent / 100);
+      const commissionDiscountAmt = commissionBeforeDiscount * ((item.commissionDiscountPercent || 0) / 100);
       updates.quantity = qty;
       updates.sellTotal = sellTotal;
-      updates.commission = commission;
-      updates.commissionTotal = commissionTotal;
+      updates.lineDiscountAmount = lineDiscountAmount;
+      updates.commission = commissionBeforeDiscount; // commission before commission discount
+      updates.commissionTotal = commissionBeforeDiscount - commissionDiscountAmt; // commission after commission discount
+      updates.commissionDiscountAmount = commissionDiscountAmt;
     } else if (column === 'divisor') {
       const divisor = parseFloat(value) || 1;
       // Skip if value hasn't changed
@@ -374,12 +386,18 @@ export function LineItemsTabV2({
         return;
       }
       const sellTotal = item.quantity * item.unitPrice / divisor;
-      const commissionTotal = sellTotal * (item.commissionPercent / 100);
-      const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
+      // Commission is calculated on DISCOUNTED sell total (after line discount)
+      const lineDiscountPct = item.lineDiscountPercent || 0;
+      const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+      const discountedSellTotal = sellTotal - lineDiscountAmount;
+      const commissionBeforeDiscount = discountedSellTotal * (item.commissionPercent / 100);
+      const commissionDiscountAmt = commissionBeforeDiscount * ((item.commissionDiscountPercent || 0) / 100);
       updates.divisor = divisor;
       updates.sellTotal = sellTotal;
-      updates.commission = commission;
-      updates.commissionTotal = commissionTotal;
+      updates.lineDiscountAmount = lineDiscountAmount;
+      updates.commission = commissionBeforeDiscount;
+      updates.commissionTotal = commissionBeforeDiscount - commissionDiscountAmt;
+      updates.commissionDiscountAmount = commissionDiscountAmt;
     } else if (column === 'unitPrice') {
       const price = parseFloat(value.replace(/[$,]/g, '')) || 0;
       // Skip if value hasn't changed
@@ -388,12 +406,18 @@ export function LineItemsTabV2({
         return;
       }
       const sellTotal = item.quantity * price / item.divisor;
-      const commissionTotal = sellTotal * (item.commissionPercent / 100);
-      const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
+      // Commission is calculated on DISCOUNTED sell total (after line discount)
+      const lineDiscountPct = item.lineDiscountPercent || 0;
+      const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+      const discountedSellTotal = sellTotal - lineDiscountAmount;
+      const commissionBeforeDiscount = discountedSellTotal * (item.commissionPercent / 100);
+      const commissionDiscountAmt = commissionBeforeDiscount * ((item.commissionDiscountPercent || 0) / 100);
       updates.unitPrice = price;
       updates.sellTotal = sellTotal;
-      updates.commission = commission;
-      updates.commissionTotal = commissionTotal;
+      updates.lineDiscountAmount = lineDiscountAmount;
+      updates.commission = commissionBeforeDiscount;
+      updates.commissionTotal = commissionBeforeDiscount - commissionDiscountAmt;
+      updates.commissionDiscountAmount = commissionDiscountAmt;
       // Mark as manual override - user typed their own price
       updates.isManualPrice = true;
       updates.pricingSource = 'manual';
@@ -410,13 +434,18 @@ export function LineItemsTabV2({
       }
       // Recalculate sellTotal to ensure consistency
       const sellTotal = item.quantity * item.unitPrice / item.divisor;
-      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
-      const commissionTotal = sellTotal * (pct / 100);
-      const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
+      // Commission is calculated on DISCOUNTED sell total (after line discount)
+      const lineDiscountPct = item.lineDiscountPercent || 0;
+      const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+      const discountedSellTotal = sellTotal - lineDiscountAmount;
+      const commissionBeforeDiscount = discountedSellTotal * (pct / 100);
+      const commissionDiscountAmt = commissionBeforeDiscount * ((item.commissionDiscountPercent || 0) / 100);
       updates.commissionPercent = pct;
       updates.sellTotal = sellTotal; // Ensure sellTotal is up to date
-      updates.commission = commission;
-      updates.commissionTotal = commissionTotal;
+      updates.lineDiscountAmount = lineDiscountAmount;
+      updates.commission = commissionBeforeDiscount;
+      updates.commissionTotal = commissionBeforeDiscount - commissionDiscountAmt;
+      updates.commissionDiscountAmount = commissionDiscountAmt;
     }
     updateLineItem(itemId, updates);
     setEditingCell(null);
@@ -539,8 +568,10 @@ export function LineItemsTabV2({
         displayValue = `$${Number((item.commission || 0) - ((item.commissionDiscountAmount || 0) / (item.quantity || 1))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         break;
       case 'commissionTotal':
-        // Subtract commission discount from commission total
-        displayValue = `$${Number((item.commissionTotal || 0) - (item.commissionDiscountAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+        // Display commission after commission discount
+        // item.commission = commission BEFORE discount, item.commissionTotal = commission AFTER discount
+        // If commissionTotal is available from API, use it. Otherwise calculate from commission - discount.
+        displayValue = `$${Number((item.commission || 0) - (item.commissionDiscountAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         break;
       case 'linkedOrder':
         displayValue = item.linkedOrderNumber || '—';
@@ -590,8 +621,11 @@ export function LineItemsTabV2({
         );
       }
       // Handle commissionTotal with commission discount display
+      // item.commission = commission BEFORE commission discount (calculated on discounted sell total)
+      // item.commissionTotal = commission AFTER commission discount (from API's totalLineCommission)
       if (column.key === 'commissionTotal' && (item.commissionDiscountAmount || 0) > 0) {
-        const originalCommissionTotal = item.commissionTotal || 0;
+        // Use item.commission (before discount) as the original, NOT item.commissionTotal
+        const originalCommissionTotal = item.commission || 0;
         const commissionDiscount = item.commissionDiscountAmount || 0;
         const discountedCommissionTotal = originalCommissionTotal - commissionDiscount;
         return (
@@ -1538,17 +1572,22 @@ export function LineItemsTabV2({
                               const unitPrice = item?.unitPrice || 0;
                               const commissionPercent = item?.commissionPercent || 0;
                               const sellTotal = quantity * unitPrice / divisor;
-                              // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
-                              const commissionTotal = sellTotal * (commissionPercent / 100);
-                              const commission = quantity > 0 ? commissionTotal / quantity : 0;
+                              // Commission is calculated on DISCOUNTED sell total (after line discount)
+                              const lineDiscountPct = item?.lineDiscountPercent || 0;
+                              const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+                              const discountedSellTotal = sellTotal - lineDiscountAmount;
+                              const commissionBeforeDiscount = discountedSellTotal * (commissionPercent / 100);
+                              const commissionDiscountAmt = commissionBeforeDiscount * ((item?.commissionDiscountPercent || 0) / 100);
 
                               updateLineItem(dropdownOpen.itemId, {
                                 uomId: uom.id,
                                 uom: uom.title,
                                 divisor: divisor,
                                 sellTotal: sellTotal,
-                                commission: commission,
-                                commissionTotal: commissionTotal,
+                                lineDiscountAmount: lineDiscountAmount,
+                                commission: commissionBeforeDiscount,
+                                commissionTotal: commissionBeforeDiscount - commissionDiscountAmt,
+                                commissionDiscountAmount: commissionDiscountAmt,
                               });
                               setDropdownOpen(null);
                               setSearchQuery('');

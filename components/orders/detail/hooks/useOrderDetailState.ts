@@ -97,12 +97,12 @@ export function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
     const commissionRate = parseFloat(detail.commissionRate || '0');
 
-    // Calculate extended price - always calculate from inputs to ensure correctness
-    // The API subtotal/commission fields can be stale or incorrect, so we recalculate
-    const extendedPrice = quantity * unitPrice / divisor;
+    // Use API subtotal if available, otherwise calculate from inputs
+    const extendedPrice = detail.subtotal ? parseFloat(String(detail.subtotal)) : (quantity * unitPrice / divisor);
 
-    // Calculate commission amount based on extended price and commission rate
-    const commissionAmount = extendedPrice * (commissionRate / 100);
+    // Use API commission value if available, otherwise calculate
+    // API sends: commission (before discount), totalLineCommission (after discount)
+    const commissionAmount = detail.commission ? parseFloat(String(detail.commission)) : (extendedPrice * (commissionRate / 100));
 
     return {
     id: detail.id,
@@ -132,9 +132,9 @@ export function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     outsideSplitRates: detail.outsideSplitRates, // Store outside rep split rates from line item
     // Additional details fields (from AdditionalDetailsModal)
     commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
-    commissionDiscountAmount: detail.commissionDiscount || 0,
+    commissionDiscountAmount: parseFloat(String(detail.commissionDiscount || '0')),
     lineDiscountPercent: parseFloat(detail.discountRate || '0'),
-    lineDiscountAmount: detail.discount || 0,
+    lineDiscountAmount: parseFloat(String(detail.discount || '0')),
     leadTime: detail.leadTime || '',
     note: detail.note || '',
     // Invoice linked to this line item
