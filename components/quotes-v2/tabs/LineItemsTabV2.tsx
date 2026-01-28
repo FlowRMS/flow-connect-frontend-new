@@ -564,8 +564,8 @@ export function LineItemsTabV2({
         editValue = String(Number(item.commissionPercent || 0));
         break;
       case 'commission':
-        // Subtract commission discount from commission per unit
-        displayValue = `$${Number((item.commission || 0) - ((item.commissionDiscountAmount || 0) / (item.quantity || 1))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+        // Show base commission before commission discount (per unit)
+        displayValue = `$${Number(item.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         break;
       case 'commissionTotal':
         // Display commission after commission discount
@@ -604,22 +604,8 @@ export function LineItemsTabV2({
           </td>
         );
       }
-      // Handle commission with commission discount display
-      if (column.key === 'commission' && (item.commissionDiscountAmount || 0) > 0) {
-        const quantity = item.quantity || 1;
-        const originalCommission = item.commission || 0;
-        const commissionDiscount = (item.commissionDiscountAmount || 0) / quantity;
-        const discountedCommission = originalCommission - commissionDiscount;
-        return (
-          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
-            <div className="flex flex-col items-center">
-              <span>${Number(discountedCommission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
-              <span className="text-xs text-gray-400 line-through">${Number(originalCommission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
-              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-${Number(commissionDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-          </td>
-        );
-      }
+      // Commission column shows base commission without discount
+      // (discount breakdown is shown in commissionTotal column only)
       // Handle commissionTotal with commission discount display
       // item.commission = commission BEFORE commission discount (calculated on discounted sell total)
       // item.commissionTotal = commission AFTER commission discount (from API's totalLineCommission)

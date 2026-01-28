@@ -348,27 +348,27 @@ export function LineItemsTableRow({
         </td>
       )}
 
-      {/* Commission */}
+      {/* Commission - base commission before commission discount */}
       {visibleColumns.has('commission') && (
         <td className={`px-3 py-2 text-sm text-right ${item.isCredit ? 'text-red-600' : 'text-purple-600'}`}>
+          {item.partNumber === 'FREIGHT' && !item.isCredit ? '' : formatCurrency((item.extendedPrice - ((item as any).lineDiscountAmount || 0)) * ((item.commissionRate ?? 0) / 100))}
+        </td>
+      )}
+
+      {/* Commission Total - commission after commission discount */}
+      {visibleColumns.has('commissionTotal') && (
+        <td className={`px-3 py-2 text-sm text-right font-medium ${item.isCredit ? 'text-red-600' : 'text-purple-600'}`}>
           {item.partNumber === 'FREIGHT' && !item.isCredit ? '' : (
             <div className="flex flex-col items-end">
-              <span>{formatCurrency((item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}</span>
+              <span>{formatCurrency(((item.extendedPrice - ((item as any).lineDiscountAmount || 0)) * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}</span>
               {(item as any).commissionDiscountAmount > 0 && (
                 <>
-                  <span className="text-xs text-gray-400 line-through">{formatCurrency(item.extendedPrice * ((item.commissionRate ?? 0) / 100))}</span>
+                  <span className="text-xs text-gray-400 line-through">{formatCurrency((item.extendedPrice - ((item as any).lineDiscountAmount || 0)) * ((item.commissionRate ?? 0) / 100))}</span>
                   <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-{formatCurrency((item as any).commissionDiscountAmount)}</span>
                 </>
               )}
             </div>
           )}
-        </td>
-      )}
-
-      {/* Commission Total */}
-      {visibleColumns.has('commissionTotal') && (
-        <td className={`px-3 py-2 text-sm text-right font-medium ${item.isCredit ? 'text-red-600' : 'text-purple-600'}`}>
-          {item.partNumber === 'FREIGHT' && !item.isCredit ? '' : formatCurrency((item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}
         </td>
       )}
 
@@ -513,10 +513,10 @@ export function LineItemsTableRow({
         </td>
       )}
 
-      {/* Commission Amount */}
+      {/* Commission Amount - base commission before commission discount */}
       {visibleColumns.has('commissionAmount') && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {item.partNumber === 'FREIGHT' ? '' : formatCurrency((item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}
+          {item.partNumber === 'FREIGHT' ? '' : formatCurrency((item.extendedPrice - ((item as any).lineDiscountAmount || 0)) * ((item.commissionRate ?? 0) / 100))}
         </td>
       )}
 
@@ -544,7 +544,7 @@ export function LineItemsTableRow({
       {/* Earn $ */}
       {visibleColumns.has('earnAmount') && (
         <td className="px-3 py-2 text-sm text-right text-green-600 font-medium">
-          {item.partNumber === 'FREIGHT' ? '' : formatCurrency(((item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0)) + (item.unitPrice * 0.15 * item.quantity * 0.85))}
+          {item.partNumber === 'FREIGHT' ? '' : formatCurrency((((item.extendedPrice - ((item as any).lineDiscountAmount || 0)) * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0)) + (item.unitPrice * 0.15 * item.quantity * 0.85))}
         </td>
       )}
 
