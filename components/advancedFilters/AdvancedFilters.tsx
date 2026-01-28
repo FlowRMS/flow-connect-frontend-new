@@ -610,7 +610,7 @@ export default function AdvancedFilters({
                           side="bottom"
                           align="start"
                           sideOffset={4}
-                          className="z-[100] bg-white rounded-lg shadow-xl overflow-hidden"
+                          className="z-[10000] bg-white rounded-lg shadow-xl overflow-hidden"
                           style={{ 
                             width: option.type === 'date' ? '320px' : option.type === 'month' ? '240px' : 'var(--radix-popover-trigger-width)' 
                           }}
