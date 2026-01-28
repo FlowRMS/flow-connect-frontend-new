@@ -205,7 +205,7 @@ export function StatementsTable({
       className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
     >
       <table className="w-full">
-        <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 sticky top-0 z-10">
+        <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 sticky top-0">
           <tr>
             <th className="w-12 px-4 py-4">
               <div className="flex items-center justify-center">

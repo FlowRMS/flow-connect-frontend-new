@@ -76,6 +76,7 @@ export const getLinkedChecksForInvoice = (
  * Calculate totals for an invoice
  * Accepts EditableInvoice (local type) or Invoice (RMS type)
  * Always calculates from line items to ensure accuracy (like quotes does)
+ * Includes line discounts and commission discounts from AdditionalDetailsModal
  */
 export const calculateInvoiceTotals = (invoice: EditableInvoice | Invoice): {
   subtotal: number;
@@ -86,28 +87,48 @@ export const calculateInvoiceTotals = (invoice: EditableInvoice | Invoice): {
   balance: number;
   totalOvg: number;
   totalEarn: number;
+  originalSubtotal?: number;
+  totalLineDiscount?: number;
+  originalCommission?: number;
+  totalCommissionDiscount?: number;
 } => {
-  // Always calculate subtotal from line items (sum of sellTotal/amount)
-  const subtotal = invoice.lineItems.reduce((sum, item) => {
+  // Calculate original subtotal (before discounts)
+  const originalSubtotal = invoice.lineItems.reduce((sum, item) => {
     const lineItem = item as InvoiceLineItem;
     const quantity = lineItem.quantity || 0;
     const unitPrice = lineItem.unitPrice || 0;
     const divisor = lineItem.divisor || 1;
-    const sellTotal = quantity * unitPrice / divisor;
-    return sum + sellTotal;
+    return sum + (quantity * unitPrice / divisor);
   }, 0);
 
-  // Always calculate commission from line items
-  const totalCommission = invoice.lineItems.reduce((sum, item) => {
+  // Calculate total line discounts
+  const totalLineDiscount = invoice.lineItems.reduce((sum, item) => {
+    const lineItem = item as InvoiceLineItem;
+    return sum + (lineItem.discount || 0);
+  }, 0);
+
+  // Subtotal minus line discounts
+  const subtotal = originalSubtotal - totalLineDiscount;
+
+  // Calculate original commission (before commission discounts)
+  const originalCommission = invoice.lineItems.reduce((sum, item) => {
     const lineItem = item as InvoiceLineItem;
     const quantity = lineItem.quantity || 0;
     const unitPrice = lineItem.unitPrice || 0;
     const divisor = lineItem.divisor || 1;
     const commissionRate = lineItem.commissionRate ?? 0;
     const sellTotal = quantity * unitPrice / divisor;
-    const commission = sellTotal * (commissionRate / 100);
-    return sum + commission;
+    return sum + (sellTotal * (commissionRate / 100));
   }, 0);
+
+  // Calculate total commission discounts
+  const totalCommissionDiscount = invoice.lineItems.reduce((sum, item) => {
+    const lineItem = item as InvoiceLineItem;
+    return sum + (lineItem.commissionDiscount || 0);
+  }, 0);
+
+  // Commission minus commission discounts
+  const totalCommission = originalCommission - totalCommissionDiscount;
 
   // Calculate overage totals from line items
   const totalOvg = invoice.lineItems.reduce(
@@ -125,6 +146,10 @@ export const calculateInvoiceTotals = (invoice: EditableInvoice | Invoice): {
     balance: 0,
     totalOvg,
     totalEarn,
+    originalSubtotal,
+    totalLineDiscount,
+    originalCommission,
+    totalCommissionDiscount,
   };
 };
 

@@ -3,3 +3,4 @@
  */
 
 export { AdditionalDetailsModal } from './AdditionalDetailsModal';
+export { ColumnsModal } from './ColumnsModal';

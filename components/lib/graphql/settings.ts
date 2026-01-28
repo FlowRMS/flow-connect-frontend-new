@@ -38,6 +38,7 @@ export interface OrderColumnConfig {
   key: string;
   label: string;
   visible: boolean;
+  pinned?: boolean;
 }
 
 // View state that can be saved for landing pages
@@ -73,12 +74,24 @@ export interface InvoiceColumnConfig {
   key: string;
   label: string;
   visible: boolean;
+  pinned?: boolean;
 }
 
 export interface InvoiceSettingsValue {
   columnConfig: InvoiceColumnConfig[];
   dueDateOffset?: number;
   savedView?: SavedViewState;
+}
+
+export interface CommissionColumnConfig {
+  key: string;
+  label: string;
+  visible: boolean;
+  pinned?: boolean;
+}
+
+export interface CommissionSettingsValue {
+  columnConfig: CommissionColumnConfig[];
 }
 
 export type ProcessingMode = 'automatic' | 'manual';
@@ -128,6 +141,7 @@ export interface NavGroupConfig {
 
 export interface SidebarSettingsValue {
   groups: NavGroupConfig[];
+  darkMode?: boolean;
 }
 
 // Structure for a single picklist (orderTypes, lostReasons, etc.)
@@ -150,6 +164,7 @@ export type SettingValue =
   | QuoteSettingsValue
   | OrderSettingsValue
   | InvoiceSettingsValue
+  | CommissionSettingsValue
   | ChatSettingsValue
   | SidebarSettingsValue
   | FlowAISettingsValue
