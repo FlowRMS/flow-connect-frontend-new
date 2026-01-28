@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { useFlowChat } from '@/contexts/FlowChatContext';
@@ -62,10 +62,26 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
     };
   }, [state?.invoice?.invoiceNumber, invoiceId, setFullEntityContext]);
 
+  // Bridge setVisibleColumns to columnConfig-based state
+  const setVisibleColumns = useCallback(
+    (updater: Set<ColumnKey> | ((prev: Set<ColumnKey>) => Set<ColumnKey>)) => {
+      if (!state?.setColumnConfig || !state?.columnConfig) return;
+      const currentVisible = state.visibleColumns ?? new Set(DEFAULT_VISIBLE_COLUMNS);
+      const newVisible = typeof updater === 'function' ? updater(currentVisible) : updater;
+      state.setColumnConfig(
+        state.columnConfig.map(col => ({
+          ...col,
+          visible: newVisible.has(col.key as ColumnKey),
+        }))
+      );
+    },
+    [state?.setColumnConfig, state?.columnConfig, state?.visibleColumns]
+  );
+
   // Line items table hook - must be called before any early returns to respect Rules of Hooks
   const tableHook = useInvoiceLineItemsTable({
     visibleColumns: state?.visibleColumns ?? new Set(DEFAULT_VISIBLE_COLUMNS),
-    setVisibleColumns: state?.setVisibleColumns ?? (() => {}),
+    setVisibleColumns,
     selectedLineItems: state?.selectedLineItems ?? new Set(),
     lineItemsCount: state?.invoice?.lineItems?.length ?? 0,
     onSelectAll: state?.selectAllLineItems,
@@ -340,7 +356,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
           availableVersions={state.availableVersions}
           viewMode={state.viewMode}
           setViewMode={state.setViewMode}
-          setVisibleColumns={state.setVisibleColumns}
+          setVisibleColumns={setVisibleColumns}
           updateInvoiceStatus={state.updateInvoiceStatus}
           handleMakeWarehouseOrder={handleMakeWarehouseOrder}
           handleGeneratePDF={handleGeneratePDF}
