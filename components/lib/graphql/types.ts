@@ -161,6 +161,9 @@ export interface JobSearchResult {
   jobName: string;
   jobType: string;
   description: string;
+  additionalInformation: string;
+  structuralInformation: string;
+  structuralDetails: string;
   startDate: string;
   endDate: string;
   requesterId: string;
@@ -418,6 +421,9 @@ export interface PreOpportunityJob {
   jobName: string;
   jobType: string;
   description: string;
+  additionalInformation: string;
+  structuralInformation: string;
+  structuralDetails: string;
   startDate: string;
   endDate: string;
   requesterId: string;
