@@ -84,13 +84,15 @@ export function getQuoteFilterOptions(
       columnName: 'entityDate', 
       available: true
     },
-    {
-      id: 'end-users',
-      label: 'End Users',
-      type: ColumnFilterTypeEnum.customer,
-      columnName: 'endUsers',
-      available: true,
-    },
+    // TODO: Backend does not yet support filtering by end users on QuoteLandingPages.
+    // When API supports an 'endUsers' filter, re-enable this filter option.
+    // {
+    //   id: 'end-users',
+    //   label: 'End Users',
+    //   type: ColumnFilterTypeEnum.customer,
+    //   columnName: 'endUsers',
+    //   available: true,
+    // },
     // Soon filters
     { 
       id: 'expiration-date', 
