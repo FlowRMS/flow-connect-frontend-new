@@ -277,6 +277,84 @@ export function LineItemsTabV2({
     [columnConfig]
   );
 
+  // Helper function to check if a column is pinned
+  const isPinned = useCallback((colKey: LineItemColumnKey) => {
+    const col = columnConfig.find((c) => c.key === colKey);
+    return col?.pinned === true && col?.visible === true;
+  }, [columnConfig]);
+
+  // Get pinned column styles (for sticky positioning)
+  // isHeader: true for header cells (uses gray-50), false for body cells (uses white)
+  const getPinnedColumnStyle = useCallback((colKey: LineItemColumnKey, isHeader: boolean = false): React.CSSProperties => {
+    if (!isPinned(colKey)) return {};
+
+    // Calculate left offset based on which columns are pinned before this one
+    // Fixed columns: checkbox (40px)
+    const fixedLeftOffset = 40; // checkbox width
+
+    // Get ordered list of visible pinned columns (in display order)
+    const allColumns: LineItemColumnKey[] = [
+      'partNumber',
+      'customerPartNumber',
+      'description',
+      'manufacturer',
+      'quantity',
+      'uom',
+      'divisor',
+      'unitPrice',
+      'endUser',
+      'sellTotal',
+      'commissionPercent',
+      'commission',
+      'commissionTotal',
+      'linkedOrder',
+    ];
+    
+    const visiblePinnedColumns = allColumns.filter(
+      (key) => {
+        const col = columnConfig.find((c) => c.key === key);
+        return col?.visible && col?.pinned;
+      }
+    );
+
+    // Calculate offset
+    const indexInPinned = visiblePinnedColumns.indexOf(colKey);
+    if (indexInPinned === -1) return {};
+
+    // Width for each column type (approximate widths)
+    const columnWidths: Record<LineItemColumnKey, number> = {
+      partNumber: 150,
+      customerPartNumber: 150,
+      description: 300,
+      manufacturer: 150,
+      quantity: 100,
+      uom: 80,
+      divisor: 80,
+      unitPrice: 120,
+      endUser: 150,
+      sellTotal: 120,
+      commissionPercent: 120,
+      commission: 120,
+      commissionTotal: 140,
+      linkedOrder: 120,
+    };
+
+    let leftOffset = 0; //fixedLeftOffset;
+    for (let i = 0; i < indexInPinned; i++) {
+      const prevCol = visiblePinnedColumns[i];
+      const colWidth = columnWidths[prevCol] || 120;
+      const adjustmentPerColumn = 20;
+      leftOffset += colWidth - adjustmentPerColumn;
+    }
+
+    return {
+      position: 'sticky',
+      left: `${leftOffset}px`,
+      zIndex: 10,
+      backgroundColor: isHeader ? '#f9fafb' : 'white', // gray-50 for header, white for body
+    };
+  }, [columnConfig, isPinned]);
+
   const toggleSelectAll = () => {
     if (selectedItems.size === lineItems.length) {
       setSelectedItems(new Set());
@@ -625,7 +703,12 @@ export function LineItemsTabV2({
         );
       }
       return (
-        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
+        <td 
+          key={column.key} 
+          data-column={column.key} 
+          className={`px-3 py-2 text-sm text-center ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+          style={getPinnedColumnStyle(column.key)}
+        >
           <span className={column.key === 'commissionTotal' ? 'font-medium text-purple-600' : ''}>
             {displayValue}
           </span>
@@ -638,7 +721,12 @@ export function LineItemsTabV2({
     // Text is now selectable for copying
     if (isReadOnlyDisplayColumn) {
       return (
-        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm">
+        <td 
+          key={column.key} 
+          data-column={column.key} 
+          className={`px-3 py-2 text-sm ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+          style={getPinnedColumnStyle(column.key)}
+        >
           <span 
             className={`truncate select-text ${!displayValue || displayValue === '—' ? 'text-gray-400' : ''}`}
             style={{ userSelect: 'text' }}
@@ -664,7 +752,12 @@ export function LineItemsTabV2({
       // Render disabled state for manufacturer when factoryPerLineItem is false
       if (isManufacturerDisabled) {
         return (
-          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm relative">
+          <td 
+            key={column.key} 
+            data-column={column.key} 
+            className={`px-3 py-2 text-sm relative ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+            style={getPinnedColumnStyle(column.key)}
+          >
             <div className="w-full text-left px-2 py-1 rounded bg-gray-100 text-gray-400 cursor-not-allowed">
               <span className="truncate">
                 {displayValue}
@@ -676,7 +769,12 @@ export function LineItemsTabV2({
 
       // All dropdown columns use selectable text + chevron button pattern
       return (
-        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm relative">
+        <td 
+          key={column.key} 
+          data-column={column.key} 
+          className={`px-3 py-2 text-sm relative ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+          style={getPinnedColumnStyle(column.key)}
+        >
           <div className="w-full flex items-center gap-1">
             <span
               className="flex-1 py-1 select-text truncate cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
@@ -721,7 +819,12 @@ export function LineItemsTabV2({
     // Editable cells
     if (isEditing) {
       return (
-        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm">
+        <td 
+          key={column.key} 
+          data-column={column.key} 
+          className={`px-3 py-2 text-sm ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+          style={getPinnedColumnStyle(column.key)}
+        >
           <input
             type="text"
             defaultValue={editValue}
@@ -806,7 +909,12 @@ export function LineItemsTabV2({
 
       if (isEditing) {
         return (
-          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm">
+          <td 
+            key={column.key} 
+            data-column={column.key} 
+            className={`px-3 py-2 text-sm ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+            style={getPinnedColumnStyle(column.key)}
+          >
             <input
               type="text"
               defaultValue={editValue}
@@ -861,7 +969,12 @@ export function LineItemsTabV2({
       }
 
       return (
-        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center relative">
+        <td 
+          key={column.key} 
+          data-column={column.key} 
+          className={`px-3 py-2 text-sm text-center relative ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+          style={getPinnedColumnStyle(column.key)}
+        >
           <div className="flex items-center justify-center gap-1.5">
             {/* Price value - clickable to edit */}
             <button
@@ -975,7 +1088,12 @@ export function LineItemsTabV2({
     }
 
     return (
-      <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
+      <td 
+        key={column.key} 
+        data-column={column.key} 
+        className={`px-3 py-2 text-sm text-center ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+        style={getPinnedColumnStyle(column.key)}
+      >
         <button
           onClick={(e) => handleCellClick(item.id, column.key, e)}
           onFocus={() => {
@@ -1095,12 +1213,24 @@ export function LineItemsTabV2({
                 {visibleColumns.map((col) => (
                   <th
                     key={col.key}
-                    className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center whitespace-nowrap bg-gray-50"
+                    className={`px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center whitespace-nowrap bg-gray-50 ${
+                      isPinned(col.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''
+                    }`}
+                    style={getPinnedColumnStyle(col.key, true)}
                   >
-                    {col.label}
-                    <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="inline ml-1 text-gray-400">
-                      <path d="M3 4h14M5 8h10M7 12h6M9 16h2" strokeLinecap="round" />
-                    </svg>
+                    <div className="flex items-center justify-center gap-1">
+                      {col.label}
+                      {isPinned(col.key) && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                          <path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6a1 1 0 00-1-1h-4a1 1 0 00-1 1v4.76z" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                      {!isPinned(col.key) && (
+                        <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                          <path d="M3 4h14M5 8h10M7 12h6M9 16h2" strokeLinecap="round" />
+                        </svg>
+                      )}
+                    </div>
                   </th>
                 ))}
                 <th className="w-10 px-3 py-2 bg-gray-50"></th>

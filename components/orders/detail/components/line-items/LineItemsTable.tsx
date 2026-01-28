@@ -74,6 +74,9 @@ interface LineItemsTableProps {
   currentInsideReps?: RepSplitRateInfo[];
   // Invoice modal callback
   onViewInvoice?: (invoice: { id: string; invoiceNumber?: string; status?: string; entityDate?: string; dueDate?: string; creationType?: string; locked?: boolean }) => void;
+  // Modals callbacks
+  onOpenSectionsModal?: () => void;
+  onOpenColumnsModal?: () => void;
 }
 
 export function LineItemsTable({
@@ -112,6 +115,8 @@ export function LineItemsTable({
   currentOutsideReps,
   currentInsideReps,
   onViewInvoice,
+  onOpenSectionsModal,
+  onOpenColumnsModal,
 }: LineItemsTableProps) {
   // Editable state
   const [editingCell, setEditingCell] = useState<{ itemId: string; column: EditableColumnKey } | null>(null);
@@ -991,8 +996,50 @@ export function LineItemsTable({
         />
       )}
 
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-6 py-3 flex-shrink-0 bg-[var(--card)] rounded-t-lg border border-[var(--border)] border-b-0">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-[var(--foreground)]">Line Items</span>
+          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+            {(order.lineItems || []).length}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Sections Button */}
+          <div className="relative">
+            <button
+              disabled
+              className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg transition-colors opacity-50 cursor-not-allowed"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 6h12M4 10h12M4 14h12" strokeLinecap="round" />
+              </svg>
+              Sections
+              <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
+            </button>
+          </div>
+
+          {/* Columns Button */}
+          <button
+            onClick={onOpenColumnsModal}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="4" height="14" rx="1" />
+              <rect x="8" y="3" width="4" height="14" rx="1" />
+              <rect x="13" y="3" width="4" height="14" rx="1" />
+            </svg>
+            Columns
+            <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+              {visibleColumns.size}
+            </span>
+          </button>
+        </div>
+      </div>
+
       {/* Line Items Table */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full">
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full rounded-t-none">
         {/* Add Line Button - at top */}
         <div className="border-b border-[var(--border)] flex-shrink-0">
           <button

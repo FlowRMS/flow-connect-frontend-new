@@ -11,6 +11,7 @@ import { useFlowChat } from '@/contexts/FlowChatContext';
 import { useCheckDetailState } from './hooks';
 import { usePostedStatement } from '@/components/orders/api/checksApi';
 import type { PostedStatement } from '@/components/orders/api/checksApi';
+import type { ColumnKey } from './types';
 import { HeaderTopBar, PricingSummaryBar, CheckDetailsFields } from './components/header';
 import { LineItemsTable } from './components/line-items';
 import {
@@ -320,118 +321,6 @@ export default function CheckDetailContent({
               )}
             </div>
 
-            {/* View Controls */}
-            {state.activeTab === 'line-items' && (
-              <div className="flex items-center gap-3 pb-2">
-                {/* Views Dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => state.setShowViewsMenu(!state.showViewsMenu)}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <rect x="3" y="3" width="14" height="14" rx="2" />
-                      <path d="M3 8h14M8 8v9" />
-                    </svg>
-                    {SAVED_VIEWS.find((v) => v.id === state.activeView)?.name ||
-                      getDefaultView().name}
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path
-                        d="M6 8l4 4 4-4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  {state.showViewsMenu && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => state.setShowViewsMenu(false)}
-                      />
-                      <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
-                        <div className="p-2 border-b border-[var(--border)]">
-                          <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase px-2">
-                            Saved Views
-                          </p>
-                        </div>
-                        {SAVED_VIEWS.map((view) => (
-                          <button
-                            key={view.id}
-                            onClick={() => {
-                              state.setVisibleColumns(new Set(view.columns));
-                              state.setActiveView(view.id);
-                              state.setShowViewsMenu(false);
-                            }}
-                            className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center justify-between ${
-                              state.activeView === view.id
-                                ? 'text-[var(--primary)] font-medium'
-                                : ''
-                            }`}
-                          >
-                            {view.name}
-                            {state.activeView === view.id && (
-                              <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 20 20"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                              >
-                                <path
-                                  d="M5 10l3 3 7-7"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Columns Button */}
-                <button
-                  onClick={() => state.setShowColumnsModal(true)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path
-                      d="M4 6h12M4 10h12M4 14h12"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  Columns
-                  <span className="px-1.5 py-0.5 bg-[var(--muted)] rounded text-xs">
-                    {state.visibleColumns.size}
-                  </span>
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Tab Content */}
@@ -447,6 +336,24 @@ export default function CheckDetailContent({
                 onRowClick={state.openLineItemDetail}
                 onUpdateStatedCommission={state.updateLineItemAmount}
                 onOrderClick={state.openOrderDetail}
+                isPinned={state.isPinned}
+                getPinnedColumnStyle={state.getPinnedColumnStyle}
+                activeView={state.activeView}
+                showViewsMenu={state.showViewsMenu}
+                onToggleViewsMenu={() => state.setShowViewsMenu(!state.showViewsMenu)}
+                onSelectView={(viewId) => {
+                  const view = SAVED_VIEWS.find((v) => v.id === viewId);
+                  if (view) {
+                    const newConfig = state.columnConfig.map(col => ({
+                      ...col,
+                      visible: view.columns.includes(col.key as ColumnKey),
+                    }));
+                    state.setColumnConfig(newConfig);
+                    state.setActiveView(viewId);
+                    state.setShowViewsMenu(false);
+                  }
+                }}
+                onOpenColumnsModal={() => state.setShowColumnsModal(true)}
                 onDelete={state.deleteLineItem}
               />
             </div>
@@ -515,23 +422,12 @@ export default function CheckDetailContent({
         />
       )}
 
-      {state.showColumnsModal && (
-        <ColumnsModal
-          visibleColumns={state.visibleColumns}
-          onToggleColumn={(column) => {
-            state.setVisibleColumns((prev) => {
-              const newSet = new Set(prev);
-              if (newSet.has(column)) {
-                newSet.delete(column);
-              } else {
-                newSet.add(column);
-              }
-              return newSet;
-            });
-          }}
-          onClose={() => state.setShowColumnsModal(false)}
-        />
-      )}
+      <ColumnsModal
+        isOpen={state.showColumnsModal}
+        onClose={() => state.setShowColumnsModal(false)}
+        columnConfig={state.columnConfig}
+        onColumnConfigChange={state.setColumnConfig}
+      />
 
       {/* Line Item Detail Modal */}
       {state.showLineItemDetailModal && state.selectedLineItem && (
