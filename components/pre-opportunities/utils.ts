@@ -72,7 +72,7 @@ export function getStageColor(status: PreOpportunityStatus): string {
 }
 
 /**
- * Format currency value - handles NaN and invalid values
+ * Format currency value - handles NaN and invalid values (up to 4 decimal places)
  */
 export function formatCurrency(value: number): string {
   const numValue = Number(value);
@@ -83,7 +83,7 @@ export function formatCurrency(value: number): string {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 4,
   }).format(numValue);
 }
 

@@ -84,10 +84,11 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
     const commissionRate = parseFloat(detail.commissionRate || '0');
 
-    // Always calculate derived values from base fields (like quotes does)
-    // Don't rely on API total/commission as they may not be populated
-    const sellTotal = quantity * unitPrice / divisor;
-    const commissionAmount = sellTotal * (commissionRate / 100);
+    // Use API values if available, otherwise calculate
+    const calculatedSellTotal = quantity * unitPrice / divisor;
+    const sellTotal = detail.subtotal ? parseFloat(String(detail.subtotal)) : calculatedSellTotal;
+    // Use API commission if available, otherwise calculate
+    const commissionAmount = detail.commission ? parseFloat(String(detail.commission)) : (sellTotal * (commissionRate / 100));
 
     return {
     id: detail.id,
@@ -109,9 +110,9 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     commission: commissionAmount,
     commissionAmount: commissionAmount,
     discountPercent: parseFloat(detail.discountRate || '0'),
-    discount: detail.discount || 0,
+    discount: parseFloat(String(detail.discount || '0')),
     commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
-    commissionDiscount: detail.commissionDiscount || 0,
+    commissionDiscount: parseFloat(String(detail.commissionDiscount || '0')),
     status: detail.status || 'open',
     leadTime: detail.leadTime || '',
     note: detail.note || '',
@@ -244,10 +245,11 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
   const divisor = parseFloat(detail.divisionFactor || '1');
   const commissionRate = parseFloat(detail.commissionRate || '0');
 
-  // Always calculate derived values from base fields (like quotes does)
-  // Don't rely on API total/commission as they may not be populated
-  const total = quantity * unitPrice / divisor;
-  const commissionAmount = total * (commissionRate / 100);
+  // Use API values if available, otherwise calculate
+  const calculatedTotal = quantity * unitPrice / divisor;
+  const total = detail.subtotal ? parseFloat(String(detail.subtotal)) : calculatedTotal;
+  // Use API commission if available, otherwise calculate
+  const commissionAmount = detail.commission ? parseFloat(String(detail.commission)) : (total * (commissionRate / 100));
 
   return {
     id: detail.id,
@@ -271,9 +273,9 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
     commissionPercent: commissionRate,
     commission: commissionAmount,
     discountPercent: parseFloat(detail.discountRate || '0'),
-    discount: detail.discount || 0,
+    discount: parseFloat(String(detail.discount || '0')),
     commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
-    commissionDiscount: detail.commissionDiscount || 0,
+    commissionDiscount: parseFloat(String(detail.commissionDiscount || '0')),
     status: detail.status || 'open',
     leadTime: detail.leadTime || '',
     note: detail.note || '',
@@ -332,6 +334,9 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
 
   // Track if we've applied column settings to avoid re-applying on every render
   const hasAppliedColumnSettings = useRef(false);
+
+  // Track previous invoice date to detect user changes (for dynamic due date recalculation)
+  const previousInvoiceDateRef = useRef<string | null>(null);
 
   // Fetch invoice from API
   const {
@@ -592,31 +597,45 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   }, [linkedFactory, localInvoice]);
 
   useEffect(() => {
-    if (isCreateMode && localInvoice?.invoiceDate && localInvoice.manufacturerId) {
-      let daysToAdd: number | null = null;
+    if (localInvoice?.invoiceDate && localInvoice.manufacturerId) {
+      // Detect if invoice date actually changed (user edit) vs initial load
+      const invoiceDateChanged = previousInvoiceDateRef.current !== null &&
+                                  previousInvoiceDateRef.current !== localInvoice.invoiceDate;
 
-      // Priority 1: Use factory paymentTerms if available
-      if (linkedFactory?.paymentTerms) {
-        daysToAdd = linkedFactory.paymentTerms;
-      }
-      // Priority 2: Use settings offset if no paymentTerms from factory
-      else if (savedInvoiceSettings?.dueDateOffset !== undefined && savedInvoiceSettings.dueDateOffset !== null) {
-        daysToAdd = savedInvoiceSettings.dueDateOffset;
-      }
+      // Recalculate due date if:
+      // 1. In create mode (always recalculate), OR
+      // 2. Invoice date was changed by user (edit mode)
+      const shouldRecalculate = isCreateMode || invoiceDateChanged;
 
-      // Calculate dueDate if we have days to add
-      if (daysToAdd !== null && daysToAdd > 0) {
-        const calculatedDueDate = addDaysToDate(localInvoice.invoiceDate, daysToAdd);
-        if (calculatedDueDate && calculatedDueDate !== localInvoice.dueDate) {
-          setLocalInvoice(prev => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              dueDate: calculatedDueDate,
-            };
-          });
+      if (shouldRecalculate) {
+        let daysToAdd: number | null = null;
+
+        // Priority 1: Use factory paymentTerms if available
+        if (linkedFactory?.paymentTerms) {
+          daysToAdd = linkedFactory.paymentTerms;
+        }
+        // Priority 2: Use settings offset if no paymentTerms from factory
+        else if (savedInvoiceSettings?.dueDateOffset !== undefined && savedInvoiceSettings.dueDateOffset !== null) {
+          daysToAdd = savedInvoiceSettings.dueDateOffset;
+        }
+
+        // Calculate dueDate if we have days to add
+        if (daysToAdd !== null && daysToAdd > 0) {
+          const calculatedDueDate = addDaysToDate(localInvoice.invoiceDate, daysToAdd);
+          if (calculatedDueDate && calculatedDueDate !== localInvoice.dueDate) {
+            setLocalInvoice(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                dueDate: calculatedDueDate,
+              };
+            });
+          }
         }
       }
+
+      // Update the ref to track current invoice date for next change detection
+      previousInvoiceDateRef.current = localInvoice.invoiceDate;
     }
   }, [isCreateMode, localInvoice?.invoiceDate, localInvoice?.manufacturerId, linkedFactory, savedInvoiceSettings?.dueDateOffset, localInvoice?.dueDate]);
 
@@ -1054,9 +1073,29 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   };
 
   // Live update additional details for a line item (without closing modal)
+  // When line discount changes, commission is recalculated based on discounted sell total
   const liveUpdateAdditionalDetails = (updates: Partial<InvoiceLineItem>) => {
     // Update the selected line item so the modal stays in sync
-    setSelectedLineItemForDetails((prev) => prev ? { ...prev, ...updates } : prev);
+    setSelectedLineItemForDetails((prev) => {
+      if (!prev) return prev;
+      const updatedItem = { ...prev, ...updates };
+
+      // If line discount changed, recalculate commission based on discounted sell total
+      if ('discount' in updates || 'discountRate' in updates) {
+        const quantity = updatedItem.quantity || 0;
+        const unitPrice = updatedItem.unitPrice || 0;
+        const divisor = updatedItem.divisor || 1;
+        const sellTotal = quantity * unitPrice / divisor;
+        const lineDiscount = updatedItem.discount || 0;
+        const discountedSellTotal = sellTotal - lineDiscount;
+        const commissionRate = updatedItem.commissionRate || 0;
+        // Commission is now based on the discounted sell total
+        // Note: We update the internal calculated value, not overwriting user's commissionRate
+        (updatedItem as any).commissionAmount = discountedSellTotal * (commissionRate / 100);
+      }
+
+      return updatedItem;
+    });
 
     // Use functional update pattern to avoid stale closure issues
     // This reads from prev instead of the closure-captured selectedLineItemForDetails
@@ -1069,9 +1108,25 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
 
       return {
         ...prevInvoice,
-        lineItems: prevInvoice.lineItems.map((li) =>
-          li.id === lineItemIdToUpdate ? { ...li, ...updates } : li
-        ),
+        lineItems: prevInvoice.lineItems.map((li) => {
+          if (li.id !== lineItemIdToUpdate) return li;
+          const updatedItem = { ...li, ...updates };
+
+          // If line discount changed, recalculate commission based on discounted sell total
+          if ('discount' in updates || 'discountRate' in updates) {
+            const quantity = updatedItem.quantity || 0;
+            const unitPrice = updatedItem.unitPrice || 0;
+            const divisor = updatedItem.divisor || 1;
+            const sellTotal = quantity * unitPrice / divisor;
+            const lineDiscount = updatedItem.discount || 0;
+            const discountedSellTotal = sellTotal - lineDiscount;
+            const commissionRate = updatedItem.commissionRate || 0;
+            // Commission is now based on the discounted sell total
+            (updatedItem as any).commissionAmount = discountedSellTotal * (commissionRate / 100);
+          }
+
+          return updatedItem;
+        }),
       };
     });
 

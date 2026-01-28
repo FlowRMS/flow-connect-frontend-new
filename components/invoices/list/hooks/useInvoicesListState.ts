@@ -16,9 +16,10 @@ import { isInvoiceLinked } from '../utils';
 import type { QuickDatePreset, QuickDateField, SortField, SortDirection } from '../types';
 import { getQuickDateRange } from '../utils';
 import { formatDateToISO, formatDateToBackend } from '../../../advancedFilters/utils';
-import type { ActiveFilter } from '../../../advancedFilters/types';
+import type { ActiveFilter, FilterOperator } from '../../../advancedFilters/types';
 import { useFilterSync } from '../../../advancedFilters/hooks/useFilterSync';
 import { getInvoiceFilterOptions } from '../config/filterConfig';
+import { useInvoiceSettings } from '@/contexts/UserSettingsContext';
 
 /**
  * Map UI SortField to API columnName
@@ -99,6 +100,11 @@ function transformLandingPageToInvoice(landing: InvoiceLandingPage): Invoice {
 }
 
 export function useInvoicesListState() {
+  // Get saved view settings
+  const { settings: invoiceSettings, isInitialized: isSettingsInitialized } = useInvoiceSettings();
+  const savedView = invoiceSettings?.savedView;
+  const hasAppliedSavedView = useRef(false);
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -307,6 +313,72 @@ export function useInvoicesListState() {
   useEffect(() => {
     setColumnFiltersToAPIState(columnFiltersToAPI);
   }, [columnFiltersToAPI]);
+
+  // Apply saved view when settings are loaded (only once on mount)
+  useEffect(() => {
+    if (isSettingsInitialized && savedView && !hasAppliedSavedView.current) {
+      hasAppliedSavedView.current = true;
+
+      // Apply saved filters
+      if (savedView.filters && savedView.filters.length > 0) {
+        const restoredFilters: ActiveFilter[] = savedView.filters.map((f) => ({
+          operator: f.operator as FilterOperator,
+          columnName: f.columnName,
+          value: f.value,
+          values: f.values,
+        }));
+        setActiveFilters(restoredFilters);
+        const apiFilters: InvoiceLandingPageFilter[] = restoredFilters.map(f => {
+          if (f.values && f.values.length > 0) {
+            return { operator: f.operator, columnName: f.columnName, values: f.values };
+          }
+          return { operator: f.operator, columnName: f.columnName, value: f.value };
+        });
+        setServerFilters(apiFilters);
+      }
+
+      // Apply saved column filters
+      if (savedView.columnFilters && Object.keys(savedView.columnFilters).length > 0) {
+        const restoredColumnFilters: Record<string, ActiveFilter[]> = {};
+        Object.entries(savedView.columnFilters).forEach(([key, filters]) => {
+          restoredColumnFilters[key] = filters.map((f) => ({
+            operator: f.operator as FilterOperator,
+            columnName: f.columnName,
+            value: f.value,
+            values: f.values,
+          }));
+        });
+        setColumnFilters(restoredColumnFilters);
+      }
+
+      // Apply saved sort
+      if (savedView.sortField) {
+        const fieldMap: Record<string, SortField> = {
+          invoiceNumber: 'invoiceNumber',
+          status: 'status',
+          entityDate: 'invoiceDate',
+          dueDate: 'dueDate',
+          total: 'total',
+          balance: 'balance',
+        };
+        const mappedField = fieldMap[savedView.sortField] || (savedView.sortField as SortField);
+        setServerOrderBy([{
+          columnName: mapSortFieldToColumnName(mappedField),
+          direction: (savedView.sortDirection?.toUpperCase() || 'DESC') as 'ASC' | 'DESC',
+        }]);
+      }
+
+      // Apply saved quick date preset
+      if (savedView.quickDatePreset) {
+        setQuickDatePreset(savedView.quickDatePreset as QuickDatePreset);
+      }
+
+      // Apply saved quick date field
+      if (savedView.quickDateField) {
+        setQuickDateField(savedView.quickDateField as QuickDateField);
+      }
+    }
+  }, [isSettingsInitialized, savedView]);
 
   // Combine quick filters with advanced filters and column filters
   const filters = useMemo<InvoiceLandingPageFilter[]>(() => {

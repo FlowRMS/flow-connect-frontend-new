@@ -11,14 +11,14 @@ export function formatCurrency(value: number): string {
 }
 
 /**
- * Format a number as currency with decimal places when needed
+ * Format a number as currency with full precision (up to 4 decimal places)
  */
 export function formatCurrencyPrecise(value: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(value);
 }
 

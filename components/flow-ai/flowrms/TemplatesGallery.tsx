@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Search, Filter, Eye, Building2, FileText, Clock, Hash, File } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { Search, Filter, Eye, Building2, FileText, Clock, Hash, File, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/flow-ai/cn';
+
+const ITEMS_PER_PAGE = 12;
 
 interface Cluster {
   id: string;
@@ -47,6 +49,11 @@ export function TemplatesGallery({ clusters, onPreviewCluster, className }: Temp
   const [filterEntityType, setFilterEntityType] = useState<string>('all');
   const [filterDocCount, setFilterDocCount] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('newest');
+
+  // Scroll-based pagination state
+  const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Parse metadata from clusterMetadata field directly (no need to fetch documents)
   const clusterMetadata = useMemo(() => {
@@ -93,13 +100,18 @@ export function TemplatesGallery({ clusters, onPreviewCluster, className }: Temp
     return clusters.filter((cluster) => {
       const metadata = clusterMetadata.get(cluster.id);
       
-      // Search filter
+      // Search filter - searches all clusters including non-displayed ones
+      const searchLower = searchTerm.toLowerCase();
       const matchesSearch =
-        cluster.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        !searchTerm ||
+        cluster.id.toLowerCase().includes(searchLower) ||
+        (cluster.clusterName?.toLowerCase().includes(searchLower) ?? false) ||
         cluster.additionalInstructions.some((inst) =>
-          inst.toLowerCase().includes(searchTerm.toLowerCase())
+          inst.toLowerCase().includes(searchLower)
         ) ||
-        (metadata?.sourceName?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
+        (metadata?.sourceName?.toLowerCase().includes(searchLower) ?? false) ||
+        (metadata?.sourceType?.toLowerCase().includes(searchLower) ?? false) ||
+        (metadata?.entityType?.toLowerCase().includes(searchLower) ?? false);
 
       // Instructions filter
       const matchesInstructions =
@@ -161,6 +173,53 @@ export function TemplatesGallery({ clusters, onPreviewCluster, className }: Temp
     
     return sorted;
   }, [filteredClusters, sortBy, clusterMetadata]);
+
+  // Clusters to actually display (paginated slice)
+  const displayedClusters = useMemo(() => {
+    return sortedClusters.slice(0, displayedCount);
+  }, [sortedClusters, displayedCount]);
+
+  const hasMore = displayedCount < sortedClusters.length;
+
+  // Reset displayed count when filters/search/sort changes
+  useEffect(() => {
+    setDisplayedCount(ITEMS_PER_PAGE);
+  }, [searchTerm, filterInstructions, filterSourceType, filterEntityType, filterDocCount, sortBy]);
+
+  // Load more function
+  const loadMore = useCallback(() => {
+    if (hasMore && !isLoadingMore) {
+      setIsLoadingMore(true);
+      // Small delay to show loading state
+      setTimeout(() => {
+        setDisplayedCount(prev => Math.min(prev + ITEMS_PER_PAGE, sortedClusters.length));
+        setIsLoadingMore(false);
+      }, 200);
+    }
+  }, [hasMore, isLoadingMore, sortedClusters.length]);
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMore, isLoadingMore, loadMore]);
 
   return (
     <div className={cn('space-y-6', className)}>
@@ -277,7 +336,8 @@ export function TemplatesGallery({ clusters, onPreviewCluster, className }: Temp
         {/* Results Count and Active Filters */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
-            Showing {sortedClusters.length} of {clusters.length} cluster{clusters.length !== 1 ? 's' : ''}
+            Showing {displayedClusters.length} of {sortedClusters.length} matching cluster{sortedClusters.length !== 1 ? 's' : ''}{' '}
+            {sortedClusters.length !== clusters.length && `(${clusters.length} total)`}
           </p>
           
           {/* Clear Filters Button */}
@@ -301,7 +361,7 @@ export function TemplatesGallery({ clusters, onPreviewCluster, className }: Temp
       {/* Clusters Grid */}
       {sortedClusters.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sortedClusters.map((cluster) => {
+          {displayedClusters.map((cluster) => {
             const clusterColor = '#5048E6'; // Default primary color
             const metadata = clusterMetadata.get(cluster.id);
             const clusterName = cluster.clusterName || `Template ${cluster.id.slice(0, 8)}`;
@@ -408,7 +468,31 @@ export function TemplatesGallery({ clusters, onPreviewCluster, className }: Temp
             );
           })}
         </div>
-      ) : (
+      ) : null}
+
+      {/* Load More Indicator */}
+      {sortedClusters.length > 0 && (
+        <div ref={loadMoreRef} className="flex justify-center py-6">
+          {isLoadingMore ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span className="text-sm">Loading more...</span>
+            </div>
+          ) : hasMore ? (
+            <button
+              onClick={loadMore}
+              className="text-sm text-primary hover:underline"
+            >
+              Load more ({sortedClusters.length - displayedCount} remaining)
+            </button>
+          ) : displayedClusters.length > ITEMS_PER_PAGE ? (
+            <p className="text-sm text-muted-foreground">All {sortedClusters.length} clusters loaded</p>
+          ) : null}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {sortedClusters.length === 0 && (
         <div className="text-center py-12">
           <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4">
             <Search className="w-8 h-8 text-muted-foreground" />

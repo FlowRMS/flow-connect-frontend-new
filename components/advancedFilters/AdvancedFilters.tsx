@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import './AdvancedFilters.css';
 import type { FilterOperator, ActiveFilter, ActiveSort, FilterOption, AdvancedFiltersProps } from './types';
@@ -494,13 +495,23 @@ export default function AdvancedFilters({
         )}
       </button>
 
-      {/* Expanded Filter Panel - Fixed positioning with full height */}
-      {isExpanded && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 sm:pt-10 px-2 sm:px-4 pointer-events-none">
+      {/* Expanded Filter Panel - Rendered via Portal to escape stacking context */}
+      {isExpanded && typeof document !== 'undefined' && createPortal(
+        <div>
+          {/* Backdrop */}
           <div
-            className="w-full max-w-4xl bg-white rounded-xl shadow-2xl pointer-events-auto border border-gray-200 max-h-[90vh] flex flex-col overflow-hidden"
-          >
-            {/* Header - Fixed */}
+            className="fixed inset-0 z-[9998] bg-black/30"
+            onClick={() => {
+              setIsExpanded(false);
+              setExpandedFilterId(null);
+            }}
+          />
+          {/* Modal */}
+          <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-4 sm:pt-10 px-2 sm:px-4 pointer-events-none">
+            <div
+              className="w-full max-w-4xl bg-white rounded-xl shadow-2xl pointer-events-auto border border-gray-200 max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              {/* Header - Fixed */}
             <div className="flex-shrink-0 flex items-start justify-between p-3 sm:p-6 pb-3 sm:pb-4 border-b border-gray-100">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="p-2 sm:p-2.5 bg-indigo-50 rounded-lg">
@@ -736,13 +747,10 @@ export default function AdvancedFilters({
                 </button>
               </div>
             )}
+            </div>
           </div>
-          
-          {/* Backdrop - blocks interaction with content behind modal */}
-          <div 
-            className="fixed inset-0 bg-black/30 -z-10 pointer-events-auto"
-          />
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

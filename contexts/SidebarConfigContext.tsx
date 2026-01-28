@@ -70,6 +70,43 @@ const defaultConfig: SidebarConfig = {
       ],
     },
     {
+      id: "flow-ai",
+      label: "Flow AI",
+      collapsed: false,
+      items: [
+        {
+          id: "flow-ai-upload",
+          name: "Upload",
+          href: "/flow-ai/upload",
+          enabled: true,
+        },
+        {
+          id: "flow-ai-queue",
+          name: "Queue",
+          href: "/flow-ai/queue",
+          enabled: true,
+        },
+        {
+          id: "flow-ai-templates",
+          name: "Upload Templates",
+          href: "/flow-ai/templates",
+          enabled: true,
+        },
+        {
+          id: "flow-ai-workflows",
+          name: "Data Workflows",
+          href: "/flow-ai/workflows",
+          enabled: true,
+        },
+        {
+          id: "flow-ai-chat",
+          name: "Flow Chat",
+          href: "/flow-ai/ai-chat",
+          enabled: true,
+        },
+      ],
+    },
+    {
       id: "email",
       label: "Email",
       collapsed: false,
@@ -196,6 +233,12 @@ const defaultConfig: SidebarConfig = {
           enabled: true,
         },
         {
+          id: "analytics-product-pricing",
+          name: "Product Pricing",
+          href: "/analytics/product-pricing",
+          enabled: true,
+        },
+        {
           id: "analytics-commission-gap",
           name: "Commission Gap Reports",
           href: "/analytics/commission-gap-reports",
@@ -276,6 +319,7 @@ const defaultConfig: SidebarConfig = {
           href: "/manufacturers",
           enabled: true,
         },
+        { id: "files", name: "Files", href: "/files", enabled: true },
         // { id: 'spec-sheets', name: 'Spec Sheets', href: '/spec-sheets', enabled: true },
       ],
     },
@@ -313,7 +357,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = "sidebar-config";
-const CONFIG_VERSION = 36; // Increment this to force a reset of cached sidebar config
+const CONFIG_VERSION = 39; // Increment this to force a reset of cached sidebar config (added Files to sidebar)
 
 const SidebarConfigContext = createContext<
   SidebarConfigContextType | undefined

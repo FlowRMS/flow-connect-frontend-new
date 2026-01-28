@@ -443,7 +443,8 @@ export default function NewCampaignView({
               <label className="block text-sm font-medium text-[var(--foreground)]">
                 Recipient List Type
               </label>
-              {!isReadOnly && (
+              {/* TODO: Re-enable "Create Campaign with AI" button when AI campaign generation feature is ready */}
+              {/* {!isReadOnly && (
                 <button
                   onClick={() => {
                     campaignState.setAIContext('campaign');
@@ -456,7 +457,7 @@ export default function NewCampaignView({
                   </svg>
                   Generate with AI
                 </button>
-              )}
+              )} */}
             </div>
             <div className="grid grid-cols-3 gap-3 mb-4">
               <button

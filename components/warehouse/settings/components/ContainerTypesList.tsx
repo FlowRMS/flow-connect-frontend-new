@@ -141,21 +141,24 @@ export default function ContainerTypesList({
                     type="number"
                     value={container.length}
                     onChange={(e) => onUpdate(container.id, { length: parseFloat(e.target.value) || 0 })}
-                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                    onFocus={(e) => e.target.select()}
+                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     placeholder="L"
                   />
                   <input
                     type="number"
                     value={container.width}
                     onChange={(e) => onUpdate(container.id, { width: parseFloat(e.target.value) || 0 })}
-                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                    onFocus={(e) => e.target.select()}
+                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     placeholder="W"
                   />
                   <input
                     type="number"
                     value={container.height}
                     onChange={(e) => onUpdate(container.id, { height: parseFloat(e.target.value) || 0 })}
-                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                    onFocus={(e) => e.target.select()}
+                    className="px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     placeholder="H"
                   />
                 </div>
@@ -166,8 +169,9 @@ export default function ContainerTypesList({
                     type="number"
                     value={container.weight}
                     onChange={(e) => onUpdate(container.id, { weight: parseFloat(e.target.value) || 0 })}
+                    onFocus={(e) => e.target.select()}
                     step="0.1"
-                    className="w-full px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                    className="w-full px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
 

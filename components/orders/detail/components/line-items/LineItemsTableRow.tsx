@@ -329,7 +329,15 @@ export function LineItemsTableRow({
       {/* Sell Total */}
       {visibleColumns.has('sellTotal') && (
         <td className={`px-3 py-2 text-sm text-right font-medium ${item.isCredit ? 'text-red-600' : ''}`}>
-          {formatCurrency(item.extendedPrice - ((item as any).lineDiscountAmount || 0))}
+          <div className="flex flex-col items-end">
+            <span>{formatCurrency(item.extendedPrice - ((item as any).lineDiscountAmount || 0))}</span>
+            {(item as any).lineDiscountAmount > 0 && (
+              <>
+                <span className="text-xs text-gray-400 line-through">{formatCurrency(item.extendedPrice)}</span>
+                <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded mt-0.5">-{formatCurrency((item as any).lineDiscountAmount)}</span>
+              </>
+            )}
+          </div>
         </td>
       )}
 
@@ -343,7 +351,17 @@ export function LineItemsTableRow({
       {/* Commission */}
       {visibleColumns.has('commission') && (
         <td className={`px-3 py-2 text-sm text-right ${item.isCredit ? 'text-red-600' : 'text-purple-600'}`}>
-          {item.partNumber === 'FREIGHT' && !item.isCredit ? '' : formatCurrency((item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}
+          {item.partNumber === 'FREIGHT' && !item.isCredit ? '' : (
+            <div className="flex flex-col items-end">
+              <span>{formatCurrency((item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}</span>
+              {(item as any).commissionDiscountAmount > 0 && (
+                <>
+                  <span className="text-xs text-gray-400 line-through">{formatCurrency(item.extendedPrice * ((item.commissionRate ?? 0) / 100))}</span>
+                  <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-{formatCurrency((item as any).commissionDiscountAmount)}</span>
+                </>
+              )}
+            </div>
+          )}
         </td>
       )}
 

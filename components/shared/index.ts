@@ -14,3 +14,6 @@ export { BulkActionsToolbar } from './BulkActionsToolbar';
 // Hover Cards
 export { RelatedEntityHoverCard } from './RelatedEntityHoverCard';
 export { ListPreviewHoverCard, type ListItemType, type SalesRepItem, type ListPreviewHoverCardProps } from './ListPreviewHoverCard';
+
+// View Management
+export { SaveViewButton } from './SaveViewButton';

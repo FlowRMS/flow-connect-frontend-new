@@ -320,42 +320,45 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
   return (
     <main className="h-full overflow-auto bg-[var(--background)]">
-      {/* Header Top Bar */}
-      <HeaderTopBar
-        invoice={state.invoice}
-        showActionsDropdown={state.showActionsDropdown}
-        setShowActionsDropdown={state.setShowActionsDropdown}
-        showStatusDropdown={state.showStatusDropdown}
-        setShowStatusDropdown={state.setShowStatusDropdown}
-        showVersionDropdown={state.showVersionDropdown}
-        setShowVersionDropdown={state.setShowVersionDropdown}
-        showViewModeDropdown={state.showViewModeDropdown}
-        setShowViewModeDropdown={state.setShowViewModeDropdown}
-        showSaveDropdown={state.showSaveDropdown}
-        setShowSaveDropdown={state.setShowSaveDropdown}
-        currentVersion={state.currentVersion}
-        setCurrentVersion={state.setCurrentVersion}
-        availableVersions={state.availableVersions}
-        viewMode={state.viewMode}
-        setViewMode={state.setViewMode}
-        setVisibleColumns={state.setVisibleColumns}
-        updateInvoiceStatus={state.updateInvoiceStatus}
-        handleMakeWarehouseOrder={handleMakeWarehouseOrder}
-        handleGeneratePDF={handleGeneratePDF}
-        handleSave={handleSave}
-        handleSaveAsNew={handleSaveAsNew}
-        onDelete={handleDelete}
-        isCreateMode={state.isCreateMode}
-        hasChanges={state.hasChanges}
-        isSaving={state.isSaving}
-        onBack={handleBack}
-      />
+      {/* Sticky header section containing top bar and pricing summary */}
+      <div className="sticky top-0 z-30 bg-[var(--background)]">
+        {/* Header Top Bar */}
+        <HeaderTopBar
+          invoice={state.invoice}
+          showActionsDropdown={state.showActionsDropdown}
+          setShowActionsDropdown={state.setShowActionsDropdown}
+          showStatusDropdown={state.showStatusDropdown}
+          setShowStatusDropdown={state.setShowStatusDropdown}
+          showVersionDropdown={state.showVersionDropdown}
+          setShowVersionDropdown={state.setShowVersionDropdown}
+          showViewModeDropdown={state.showViewModeDropdown}
+          setShowViewModeDropdown={state.setShowViewModeDropdown}
+          showSaveDropdown={state.showSaveDropdown}
+          setShowSaveDropdown={state.setShowSaveDropdown}
+          currentVersion={state.currentVersion}
+          setCurrentVersion={state.setCurrentVersion}
+          availableVersions={state.availableVersions}
+          viewMode={state.viewMode}
+          setViewMode={state.setViewMode}
+          setVisibleColumns={state.setVisibleColumns}
+          updateInvoiceStatus={state.updateInvoiceStatus}
+          handleMakeWarehouseOrder={handleMakeWarehouseOrder}
+          handleGeneratePDF={handleGeneratePDF}
+          handleSave={handleSave}
+          handleSaveAsNew={handleSaveAsNew}
+          onDelete={handleDelete}
+          isCreateMode={state.isCreateMode}
+          hasChanges={state.hasChanges}
+          isSaving={state.isSaving}
+          onBack={handleBack}
+        />
 
-      {/* Pricing Summary Bar */}
-      <PricingSummaryBar
-        viewMode={state.viewMode}
-        totals={state.totals}
-      />
+        {/* Pricing Summary Bar */}
+        <PricingSummaryBar
+          viewMode={state.viewMode}
+          totals={state.totals}
+        />
+      </div>
 
       {/* Invoice Details Fields */}
       <InvoiceDetailsFields

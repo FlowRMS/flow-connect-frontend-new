@@ -8,12 +8,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateInvoiceFromOrder } from '@/components/invoices/api/useInvoicesApi';
+import { createLink } from '@/components/lib/graphql/entity-links';
 import type { Invoice, OrderDetailInputForInvoice } from '@/components/invoices/api/invoicesApi';
 import type { OrderLineItem } from '@/lib/types/rms';
 
 interface LineItemOverride {
   quantity: string;
   unitPrice: string;
+  lineDiscountAmount: number;
+  commissionDiscountAmount: number;
 }
 
 interface CreateInvoiceFromOrderModalProps {
@@ -72,13 +75,15 @@ export function CreateInvoiceFromOrderModal({
     return new Set(invoiceableItems.map(item => item.id));
   });
 
-  // State for quantity and unit price overrides per line item
+  // State for quantity and unit price overrides per line item (including discounts)
   const [lineItemOverrides, setLineItemOverrides] = useState<Record<string, LineItemOverride>>(() => {
     const overrides: Record<string, LineItemOverride> = {};
     invoiceableItems.forEach(item => {
       overrides[item.id] = {
         quantity: String(item.quantity || '0'),
         unitPrice: String(item.unitPrice || '0'),
+        lineDiscountAmount: (item as any).lineDiscountAmount || 0,
+        commissionDiscountAmount: (item as any).commissionDiscountAmount || 0,
       };
     });
     return overrides;
@@ -101,19 +106,21 @@ export function CreateInvoiceFromOrderModal({
       } else {
         setSelectedItemIds(new Set(invoiceableItems.map(item => item.id)));
       }
-      // Initialize overrides with original values
+      // Initialize overrides with original values (including discounts)
       const overrides: Record<string, LineItemOverride> = {};
       invoiceableItems.forEach(item => {
         overrides[item.id] = {
           quantity: String(item.quantity || '0'),
           unitPrice: String(item.unitPrice || '0'),
+          lineDiscountAmount: (item as any).lineDiscountAmount || 0,
+          commissionDiscountAmount: (item as any).commissionDiscountAmount || 0,
         };
       });
       setLineItemOverrides(overrides);
     }
   }, [isOpen, initialSelectedItemIds, invoiceableItems]);
 
-  // Calculate totals for selected items using overridden values
+  // Calculate totals for selected items using overridden values (minus line discounts)
   const selectedTotal = useMemo(() => {
     return invoiceableItems
       .filter(item => selectedItemIds.has(item.id))
@@ -122,9 +129,12 @@ export function CreateInvoiceFromOrderModal({
         if (override) {
           const qty = Number(override.quantity) || 0;
           const price = Number(override.unitPrice) || 0;
-          return sum + (qty * price);
+          const lineDiscount = override.lineDiscountAmount || 0;
+          return sum + (qty * price) - lineDiscount;
         }
-        return sum + (Number(item.extendedPrice) || 0);
+        const baseTotal = Number(item.extendedPrice) || 0;
+        const lineDiscount = (item as any).lineDiscountAmount || 0;
+        return sum + baseTotal - lineDiscount;
       }, 0);
   }, [invoiceableItems, selectedItemIds, lineItemOverrides]);
 
@@ -206,6 +216,19 @@ export function CreateInvoiceFromOrderModal({
         orderDetailsInputs,
       });
 
+      // Auto-link the order to the newly created invoice
+      try {
+        await createLink({
+          sourceEntityType: 'ORDER',
+          sourceEntityId: orderId,
+          targetEntityType: 'INVOICE',
+          targetEntityId: invoice.id,
+        });
+      } catch (linkError) {
+        // Log but don't fail the whole operation if linking fails
+        console.warn('Failed to auto-link order to invoice:', linkError);
+      }
+
       setCreatedInvoice(invoice);
       setStep('success');
       onSuccess?.(invoice);
@@ -244,12 +267,14 @@ export function CreateInvoiceFromOrderModal({
     } else {
       setSelectedItemIds(new Set(invoiceableItems.map(item => item.id)));
     }
-    // Reset line item overrides to original values
+    // Reset line item overrides to original values (including discounts)
     const overrides: Record<string, LineItemOverride> = {};
     invoiceableItems.forEach(item => {
       overrides[item.id] = {
         quantity: String(item.quantity || '0'),
         unitPrice: String(item.unitPrice || '0'),
+        lineDiscountAmount: (item as any).lineDiscountAmount || 0,
+        commissionDiscountAmount: (item as any).commissionDiscountAmount || 0,
       };
     });
     setLineItemOverrides(overrides);
@@ -319,7 +344,9 @@ export function CreateInvoiceFromOrderModal({
                     const override = lineItemOverrides[item.id];
                     const currentQty = Number(override?.quantity) || 0;
                     const currentPrice = Number(override?.unitPrice) || 0;
-                    const lineTotal = currentQty * currentPrice;
+                    const lineDiscount = override?.lineDiscountAmount || 0;
+                    const commDiscount = override?.commissionDiscountAmount || 0;
+                    const lineTotal = (currentQty * currentPrice) - lineDiscount;
                     return (
                       <div
                         key={item.id}
@@ -405,6 +432,21 @@ export function CreateInvoiceFromOrderModal({
                                 <span className="text-xs text-gray-400">(orig: {formatCurrency(Number(item.unitPrice) || 0)})</span>
                               </div>
                             </div>
+                            {/* Show discounts if any */}
+                            {(lineDiscount > 0 || commDiscount > 0) && (
+                              <div className="flex flex-wrap items-center gap-4 mt-2">
+                                {lineDiscount > 0 && (
+                                  <span className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                                    Line Discount: -{formatCurrency(lineDiscount)}
+                                  </span>
+                                )}
+                                {commDiscount > 0 && (
+                                  <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
+                                    Comm. Discount: -{formatCurrency(commDiscount)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           {/* Item Total */}
@@ -412,6 +454,11 @@ export function CreateInvoiceFromOrderModal({
                             <span className={`text-sm font-bold ${isSelected ? 'text-indigo-600' : 'text-gray-900'}`}>
                               {formatCurrency(lineTotal)}
                             </span>
+                            {lineDiscount > 0 && (
+                              <div className="text-xs text-gray-400 line-through">
+                                {formatCurrency(currentQty * currentPrice)}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

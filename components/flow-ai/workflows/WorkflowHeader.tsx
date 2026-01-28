@@ -28,7 +28,7 @@ export function WorkflowHeader() {
   const { isAdmin, setRole, role } = useWorkflowTenant();
 
   return (
-    <header className="border-b bg-gradient-to-r from-card via-card to-primary/5 sticky top-0 z-50 backdrop-blur-sm">
+    <header className="border-b bg-gradient-to-r from-card via-card to-primary/5 sticky top-0 z-30 backdrop-blur-sm">
       <div className="container mx-auto px-4 py-4 max-w-[90vw]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
