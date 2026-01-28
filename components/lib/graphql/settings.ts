@@ -128,6 +128,7 @@ export interface NavGroupConfig {
 
 export interface SidebarSettingsValue {
   groups: NavGroupConfig[];
+  darkMode?: boolean;
 }
 
 // Structure for a single picklist (orderTypes, lostReasons, etc.)
