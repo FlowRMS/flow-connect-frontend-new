@@ -826,50 +826,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             )}
           </div>
 
-          {/* View Controls - only show when Line Items tab is active */}
-          {state.activeTab === 'line-items' && (
-            <div className="flex items-center gap-3 pb-2">
-              {/* Views Dropdown */}
-              <div className="relative">
-                <button
-                  disabled
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg transition-colors opacity-50 cursor-not-allowed"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="14" height="14" rx="2"/>
-                    <path d="M3 8h14M8 8v9"/>
-                  </svg>
-                  Default
-                  <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
-                </button>
-              </div>
-
-              {/* Sections Button */}
-              <button
-                disabled
-                className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg transition-colors opacity-50 cursor-not-allowed"
-              >
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="14" height="4" rx="1"/>
-                  <rect x="3" y="10" width="14" height="7" rx="1"/>
-                </svg>
-                Sections
-                <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
-              </button>
-
-              {/* Columns Button */}
-              <button
-                onClick={() => state.openColumnsModal()}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-              >
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M4 6h12M4 10h12M4 14h12" strokeLinecap="round"/>
-                </svg>
-                Columns
-                <span className="px-1.5 py-0.5 bg-[var(--muted)] rounded text-xs">{state.visibleColumns.size}</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Tab Content */}
@@ -919,6 +875,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                 creationType: invoice.creationType,
                 locked: invoice.locked,
               })}
+              onOpenSectionsModal={() => state.setShowSectionsModal(true)}
+              onOpenColumnsModal={() => state.openColumnsModal()}
             />
           )}
 
@@ -1063,10 +1021,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       <ColumnsModal
         isOpen={state.showColumnsModal}
         onClose={state.closeColumnsModal}
-        visibleColumns={state.visibleColumns}
-        pinnedColumns={state.pinnedColumns}
-        toggleColumn={state.toggleColumn}
-        togglePinColumn={state.togglePinColumn}
+        columnConfig={state.columnConfig}
+        onColumnConfigChange={state.setColumnConfig}
       />
 
       <QuoteLookupModal

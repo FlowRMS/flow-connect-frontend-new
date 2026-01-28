@@ -8,6 +8,7 @@ import SidebarSettings from './SidebarSettings';
 import { QuoteSettingsTab } from './settings/QuoteSettingsTab';
 import { OrderSettingsTab } from './settings/OrderSettingsTab';
 import { InvoiceSettingsTab } from './settings/InvoiceSettingsTab';
+import { CommissionSettingsTab } from './settings/CommissionSettingsTab';
 import { ChatSettingsTab } from './settings/ChatSettingsTab';
 import { PicklistValuesTab } from './settings/PicklistValuesTab';
 import {
@@ -606,6 +607,11 @@ export default function SettingsContent() {
       {/* Invoice Settings Tab */}
       {activeTab === 'invoice-settings' && (
         <InvoiceSettingsTab />
+      )}
+
+      {/* Commission Settings Tab */}
+      {activeTab === 'commission-settings' && (
+        <CommissionSettingsTab />
       )}
 
       {/* Chat Settings Tab */}

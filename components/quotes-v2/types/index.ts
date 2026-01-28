@@ -308,6 +308,7 @@ export interface ColumnConfig {
   label: string;
   group: 'Basic' | 'Pricing' | 'Commission';
   visible: boolean;
+  pinned?: boolean;
 }
 
 // ============================================================================
