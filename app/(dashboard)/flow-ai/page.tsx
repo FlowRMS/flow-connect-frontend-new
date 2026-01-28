@@ -1640,21 +1640,28 @@ function FlowRMSPageContent() {
             {isCsv ? (
               // CSV Layout - Show before/after panes in full width
               <div className="h-[75vh] min-h-[650px] max-h-[800px]">
-                <CsvBeforeAfterPane 
+                <CsvBeforeAfterPane
                   originalCsvData={originalCsvData}
                   processedCsvData={processedCsvData}
                   fileName={documentLabel ?? undefined}
                   onSelectionChange={(selection, closeDialog) =>
                     handleLineItemSelectionChange(selection, closeDialog, undefined, activeDataSetIndex, 'csv')
                   }
+                  fullscreenPrompt={{
+                    onSubmit: handlePromptSubmit,
+                    value: chatValue,
+                    onChange: setChatValue,
+                    isLoading: isInstructionRunning,
+                    statusMessage: isInstructionRunning ? loadingAction : null,
+                  }}
                 />
               </div>
             ) : (
               // PDF Layout - Show PDF and extracted fields side by side
               <div className="grid grid-cols-1 lg:grid-cols-[1.2fr,1fr] gap-3 h-[75vh] min-h-[650px] max-h-[800px]">
                 <div className="h-full overflow-hidden">
-                  <PdfPreviewPane 
-                    fileUrl={presignedPdfUrl || convertedDocumentUrl || undefined} 
+                  <PdfPreviewPane
+                    fileUrl={presignedPdfUrl || convertedDocumentUrl || undefined}
                     fileName={documentLabel ?? undefined}
                     pages={pages}
                     onMarkdownTextSelect={handleMarkdownTextSelect}
