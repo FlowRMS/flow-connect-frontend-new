@@ -9,6 +9,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOrderDetailState } from './hooks/useOrderDetailState';
+import { useLineItemsTable } from './hooks/useLineItemsTable';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import { OrderDetailHeader } from './components/header';
 import { LineItemsTable } from './components/line-items';
@@ -61,6 +62,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const state = useOrderDetailState({ orderId });
   const { setFullEntityContext } = useFlowChat();
   const { requestNavigation, hasUnsavedChanges, clearUnsavedChanges } = useUnsavedChangesContext();
+  const tableHook = useLineItemsTable();
 
   // Credits state management
   const creditsState = useCreditsState({ orderId: orderId !== 'new' ? orderId : null });
@@ -837,10 +839,10 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onToggleLineItemSelection={state.toggleLineItemSelection}
               onToggleAllLineItems={state.selectAllLineItems}
               onClearSelection={clearSelection}
-              visibleColumns={state.visibleColumns}
+              visibleColumns={tableHook.visibleColumns}
               viewMode={state.viewMode}
-              isPinned={state.isPinned}
-              getPinnedColumnStyle={state.getPinnedColumnStyle}
+              isPinned={tableHook.isPinned}
+              getPinnedColumnStyle={tableHook.getPinnedColumnStyle}
               lineItemAcknowledgements={state.lineItemAcknowledgements}
               lineItemCredits={state.lineItemCredits}
               getLinkedInvoicesForLineItem={getLinkedInvoicesForLineItem}
@@ -876,7 +878,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                 locked: invoice.locked,
               })}
               onOpenSectionsModal={() => state.setShowSectionsModal(true)}
-              onOpenColumnsModal={() => state.openColumnsModal()}
+              onOpenColumnsModal={() => tableHook.openColumnsModal()}
             />
           )}
 
@@ -1019,10 +1021,10 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       />
 
       <ColumnsModal
-        isOpen={state.showColumnsModal}
-        onClose={state.closeColumnsModal}
-        columnConfig={state.columnConfig}
-        onColumnConfigChange={state.setColumnConfig}
+        isOpen={tableHook.showColumnsModal}
+        onClose={tableHook.closeColumnsModal}
+        columnConfig={tableHook.columnConfig}
+        onColumnConfigChange={tableHook.setColumnConfig}
       />
 
       <QuoteLookupModal
