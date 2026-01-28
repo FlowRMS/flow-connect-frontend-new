@@ -415,12 +415,14 @@ class WorkflowAPI {
   // Execute pipeline (4-node)
   // For Node 1: pass files to upload
   // For Nodes 2-4: pass fileIds from previous Node 1 run
+  // For templates: use startFromNode=4 to skip to execution with saved code
   async executePipeline(
     prompt: string,
     files: File[] | undefined,
     existingFileIds: string[] | undefined,
     stopAfter: number = 4,
-    overrideCode?: string
+    overrideCode?: string,
+    startFromNode: number = 1
   ): Promise<PipelineExecuteResponse> {
     const client = apolloClient;
 
@@ -458,6 +460,7 @@ class WorkflowAPI {
         fileIds,
         overrideCode,
         stopAfter,
+        startFromNode,
       },
     });
 

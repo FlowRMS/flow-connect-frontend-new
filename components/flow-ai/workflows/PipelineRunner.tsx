@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Upload,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/flow-ai/ui/card';
@@ -40,10 +41,17 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
   const { isAdmin } = useWorkflowTenant();
   const [prompt, setPrompt] = useState(workflow?.instruction || '');
   const [files, setFiles] = useState<File[]>([]);
-  const [editedCode, setEditedCode] = useState<string>('');
+  // Pre-populate editedCode from saved workflow if available
+  const [editedCode, setEditedCode] = useState<string>(workflow?.generated_code || '');
 
   // Store fileIds after first upload (Node 1) to reuse for subsequent nodes
   const [uploadedFileIds, setUploadedFileIds] = useState<string[]>([]);
+
+  // Check if workflow has saved code (for template mode)
+  const hasSavedCode = useMemo(
+    () => Boolean(workflow?.generated_code && workflow.generated_code.trim().length > 0),
+    [workflow]
+  );
 
   const [currentStep, setCurrentStep] = useState<StepIndex>(1);
   const [maxCompletedStep, setMaxCompletedStep] = useState<StepIndex | 0>(0);
@@ -69,6 +77,55 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     setFiles((prev) => prev.filter((_, i) => i !== index));
     // Clear fileIds when files change - will need to re-upload on next Node 1 run
     setUploadedFileIds([]);
+  };
+
+  // Run with saved code: upload files, then execute Node 4 with saved code
+  const runWithSavedCode = async () => {
+    if (!canRun) {
+      toast.error('Please provide a prompt and at least one file.');
+      return;
+    }
+
+    if (!editedCode || editedCode.trim().length === 0) {
+      toast.error('No saved code available. Run the full pipeline first.');
+      return;
+    }
+
+    setLoadingStep(4);
+    try {
+      // Execute pipeline with startFromNode=4 and the saved code
+      // This uploads files and runs only Node 4
+      const res = await workflowAPI.executePipeline(
+        prompt.trim(),
+        files,               // Upload new files
+        undefined,           // No existing fileIds
+        4,                   // stopAfter Node 4
+        editedCode,          // Use saved code
+        4                    // startFromNode = 4 (skip nodes 1-3)
+      );
+      setPipelineResult(res);
+
+      if (res.fileIds) {
+        setUploadedFileIds(res.fileIds);
+      }
+
+      if (!res.success) {
+        toast.error(res.error || 'Pipeline failed at Node 4');
+        return;
+      }
+
+      setMaxCompletedStep(4);
+      setCurrentStep(4);
+      toast.success('Execution completed with saved code!');
+
+      if (onSave) {
+        onSave(res);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to run with saved code');
+    } finally {
+      setLoadingStep(null);
+    }
   };
 
   const runStep = async (step: StepIndex) => {
@@ -160,6 +217,65 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const downloadJson = (filename: string, data: any) => {
+    if (!data) return;
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Check if result is a product import JSON structure
+  // Can be either: { products: [...] } or { output_file: "...", preview_products: [...] }
+  const isProductImportJson = (data: any): boolean => {
+    if (!data) return false;
+    // Check for direct products array
+    if (data.products && Array.isArray(data.products)) {
+      const firstProduct = data.products[0];
+      if (firstProduct && 'factoryPartNumber' in firstProduct) {
+        return true;
+      }
+    }
+    // Check for output_file + preview_products structure (from streaming code)
+    if (data.output_file && data.preview_products && Array.isArray(data.preview_products)) {
+      const firstProduct = data.preview_products[0];
+      if (firstProduct && 'factoryPartNumber' in firstProduct) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Download JSON file from URL (for streaming output) or direct data
+  const downloadProductImportJson = async (data: any) => {
+    try {
+      if (data.output_file) {
+        // Fetch the full JSON from the output_file URL
+        toast.info('Downloading full product data...');
+        const response = await fetch(data.output_file);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch: ${response.statusText}`);
+        }
+        const jsonData = await response.json();
+        downloadJson('products-import.json', jsonData);
+        toast.success('Product import JSON downloaded. Go to Products > Import to upload it.');
+      } else {
+        // Direct download of the data object
+        downloadJson('products-import.json', data);
+        toast.success('Product import JSON downloaded. Go to Products > Import to upload it.');
+      }
+    } catch (error) {
+      console.error('Failed to download product JSON:', error);
+      toast.error('Failed to download JSON. Try copying from Raw JSON tab.');
+    }
   };
 
   useEffect(() => {
@@ -397,10 +513,24 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
             </pre>
           </TabsContent>
         </Tabs>
-        {hasData && (
-          <div className="mt-3 flex justify-end">
+        {/* Download buttons */}
+        <div className="mt-3 flex justify-end gap-2">
+          {/* Product Import JSON download button */}
+          {isProductImportJson(raw) && (
             <Button
               size="sm"
+              variant="default"
+              onClick={() => downloadProductImportJson(raw)}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download JSON for Import
+            </Button>
+          )}
+          {/* CSV download button (for tabular data) */}
+          {hasData && (
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => {
                 const csv = jsonToCsv(data);
                 if (!csv) {
@@ -410,10 +540,10 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
                 downloadCsv('workflow-result.csv', csv);
               }}
             >
-              Download Result CSV
+              Download CSV
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </>
     );
   };
@@ -537,6 +667,29 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
                   </>
                 )}
               </Button>
+
+              {/* Run with saved code button - only show if workflow has saved code */}
+              {hasSavedCode && (
+                <Button
+                  type="button"
+                  variant="default"
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  disabled={!canRun || loadingStep !== null}
+                  onClick={runWithSavedCode}
+                >
+                  {loadingStep === 4 ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Executing...
+                    </>
+                  ) : (
+                    <>
+                      <PlayCircle className="w-4 h-4 mr-2" />
+                      Run with Saved Code
+                    </>
+                  )}
+                </Button>
+              )}
 
               <Button
                 type="button"

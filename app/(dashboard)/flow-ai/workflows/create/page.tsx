@@ -13,6 +13,7 @@ import {
   FileText,
   ChevronRight,
   CheckCircle2,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import {
@@ -218,6 +219,65 @@ export default function CreateWorkflowPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const downloadJson = (filename: string, data: any) => {
+    if (!data) return;
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Check if result is a product import JSON structure
+  // Can be either: { products: [...] } or { output_file: "...", preview_products: [...] }
+  const isProductImportJson = (data: any): boolean => {
+    if (!data) return false;
+    // Check for direct products array
+    if (data.products && Array.isArray(data.products)) {
+      const firstProduct = data.products[0];
+      if (firstProduct && 'factoryPartNumber' in firstProduct) {
+        return true;
+      }
+    }
+    // Check for output_file + preview_products structure (from streaming code)
+    if (data.output_file && data.preview_products && Array.isArray(data.preview_products)) {
+      const firstProduct = data.preview_products[0];
+      if (firstProduct && 'factoryPartNumber' in firstProduct) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Download JSON file from URL (for streaming output) or direct data
+  const downloadProductImportJson = async (data: any) => {
+    try {
+      if (data.output_file) {
+        // Fetch the full JSON from the output_file URL
+        toast.info('Downloading full product data...');
+        const response = await fetch(data.output_file);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch: ${response.statusText}`);
+        }
+        const jsonData = await response.json();
+        downloadJson('products-import.json', jsonData);
+        toast.success('Product import JSON downloaded. Go to Products > Import to upload it.');
+      } else {
+        // Direct download of the data object
+        downloadJson('products-import.json', data);
+        toast.success('Product import JSON downloaded. Go to Products > Import to upload it.');
+      }
+    } catch (error) {
+      console.error('Failed to download product JSON:', error);
+      toast.error('Failed to download JSON. Try copying from Raw JSON tab.');
+    }
   };
 
   useEffect(() => {
@@ -475,10 +535,24 @@ export default function CreateWorkflowPage() {
             </pre>
           </TabsContent>
         </Tabs>
-        {hasData && (
-          <div className="mt-3 flex justify-end">
+        {/* Download buttons */}
+        <div className="mt-3 flex justify-end gap-2">
+          {/* Product Import JSON download button */}
+          {isProductImportJson(raw) && (
             <Button
               size="sm"
+              variant="default"
+              onClick={() => downloadProductImportJson(raw)}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download JSON for Import
+            </Button>
+          )}
+          {/* CSV download button (for tabular data) */}
+          {hasData && (
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => {
                 const csv = jsonToCsv(data);
                 if (!csv) {
@@ -488,10 +562,10 @@ export default function CreateWorkflowPage() {
                 downloadCsv('workflow-result.csv', csv);
               }}
             >
-              Download Result CSV
+              Download CSV
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </>
     );
   };

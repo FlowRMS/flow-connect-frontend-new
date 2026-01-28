@@ -588,3 +588,12 @@ export type {
   ProductQuantityPricing,
   ProductQuantityPricingInput,
 };
+
+// Re-export import types
+export type {
+  QuantityPricingImportInput,
+  ProductImportItemInput,
+  ProductImportInput,
+  ProductImportError,
+  ProductImportResult,
+} from './productsApi';

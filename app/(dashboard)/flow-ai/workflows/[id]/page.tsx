@@ -277,7 +277,30 @@ export default function WorkflowDetailPage() {
               </TabsContent>
 
               <TabsContent value="pipeline">
-                {workflow && <PipelineRunner workflow={workflow} />}
+                {workflow && (
+                  <PipelineRunner
+                    workflow={workflow}
+                    onSave={(result) => {
+                      // Update local state with generated code and workflow plan
+                      const node2 = result.nodes?.node2;
+                      const node3 = result.nodes?.node3;
+
+                      if (node2?.workflow_plan) {
+                        setWorkflowJson(node2.workflow_plan);
+                      }
+
+                      if (node3?.code) {
+                        setGeneratedCode(node3.code);
+                      }
+
+                      if (node3?.pseudo_code) {
+                        setPseudoCode(node3.pseudo_code);
+                      }
+
+                      toast.success('Workflow data updated. Click "Save" to persist changes.');
+                    }}
+                  />
+                )}
               </TabsContent>
             </Tabs>
           </div>

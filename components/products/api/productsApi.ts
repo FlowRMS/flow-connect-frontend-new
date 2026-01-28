@@ -1362,3 +1362,81 @@ export async function fetchAllProductIds(
 
   return allIds;
 }
+
+// ============================================================================
+// Product Import Types and API
+// ============================================================================
+
+export interface QuantityPricingImportInput {
+  quantityLow: string;
+  quantityHigh: string | null;
+  unitPrice: string;
+}
+
+export interface ProductImportItemInput {
+  factoryPartNumber: string;
+  unitPrice: string;
+  description?: string;
+  upc?: string;
+  category?: string;
+  defaultCommissionRate?: string;
+  quantityPricing?: QuantityPricingImportInput[];
+}
+
+export interface ProductImportInput {
+  factoryId: string;
+  products: ProductImportItemInput[];
+}
+
+export interface ProductImportError {
+  factoryPartNumber: string;
+  error: string;
+}
+
+export interface ProductImportResult {
+  success: boolean;
+  productsCreated: number;
+  productsUpdated: number;
+  quantityPricingCreated: number;
+  errors: ProductImportError[];
+  message: string;
+}
+
+const IMPORT_PRODUCTS = `
+  mutation ImportProducts($input: ProductImportInput!, $defaultUomId: UUID!) {
+    importProducts(input: $input, defaultUomId: $defaultUomId) {
+      success
+      productsCreated
+      productsUpdated
+      quantityPricingCreated
+      errors {
+        factoryPartNumber
+        error
+      }
+      message
+    }
+  }
+`;
+
+/**
+ * Import products from normalized CSV data
+ */
+export async function importProducts(
+  input: ProductImportInput,
+  defaultUomId: string
+): Promise<ProductImportResult> {
+  const response = await crmGraphQLRequest<{ importProducts: ProductImportResult }>({
+    query: IMPORT_PRODUCTS,
+    variables: { input, defaultUomId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to import products');
+  }
+
+  if (!response.data?.importProducts) {
+    throw new Error('No result returned from import mutation');
+  }
+
+  return response.data.importProducts;
+}

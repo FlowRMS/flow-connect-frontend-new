@@ -229,6 +229,18 @@ export default function ProductsContent() {
                 <span className="sm:hidden">Categories</span>
               </button>
               <button
+                onClick={() => router.push('/products/import')}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-[var(--border)] rounded-lg text-xs sm:text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors whitespace-nowrap"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span className="hidden sm:inline">Import Products</span>
+                <span className="sm:hidden">Import</span>
+              </button>
+              <button
                 onClick={() => router.push('/products/new')}
                 className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors whitespace-nowrap"
               >
