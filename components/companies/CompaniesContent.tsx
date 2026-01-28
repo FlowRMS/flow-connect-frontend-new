@@ -472,7 +472,7 @@ export default function CompaniesContent() {
         parentCompanyName: editFormData.parentCompanyName ?? selectedCompany.parentCompanyName,
       });
 
-      setIsEditing(false);
+      // Stay in editing mode after save
       refetch();
       return true;
     } catch (err) {
