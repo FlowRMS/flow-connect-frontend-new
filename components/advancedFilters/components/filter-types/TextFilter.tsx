@@ -78,7 +78,7 @@ export function TextFilter({
               side="bottom"
               align="start"
               sideOffset={4}
-              className="z-[101] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
+              className="z-[10001] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
               style={{ width: 'var(--radix-popover-trigger-width)' }}
               onOpenAutoFocus={(e) => e.preventDefault()}
             >
