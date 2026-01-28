@@ -1053,7 +1053,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     // Apply mutation result to local state (prevents stale data after save)
     applyMutationResult: (savedOrder: ApiOrder) => {
       const transformed = transformApiOrderToUiOrder(savedOrder);
-      // Preserve any display names we already have (factory, customer, rep names)
+      // Preserve any display names we already have (factory, customer, rep names, job name)
       // Also preserve custPartNumber and uom for each line item since mutation response may not include them
       setLocalOrder(prev => {
         // Create a map of previous line items by ID to preserve custPartNumber and uom
@@ -1065,6 +1065,8 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
           ...transformed,
           manufacturerName: prev.manufacturerName || transformed.manufacturerName,
           customerName: prev.customerName || transformed.customerName,
+          // Preserve job name if API didn't return it but we have it locally
+          jobName: transformed.jobName || prev.jobName,
           // Preserve custPartNumber and uom from previous line items if not in response
           lineItems: (transformed.lineItems || []).map(li => {
             const prevItem = prevLineItemsMap.get(li.id);

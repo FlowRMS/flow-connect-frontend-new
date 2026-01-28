@@ -553,13 +553,43 @@ export function AdditionalDetailsModalV2({
                 <span className="text-sm text-gray-500">%</span>
                 <span className="text-sm text-gray-400 mx-2">=</span>
                 <span className="text-sm text-gray-500">$</span>
-                <span className="w-24 px-3 py-2 text-sm bg-gray-100 border border-gray-200 rounded-md text-right text-gray-600">
-                  {(() => {
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.lineDiscountAmount || ''}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/^0+(?=\d)/, '');
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      e.target.value = value;
+                    }
+                    const dollarAmount = parseFloat(e.target.value) || 0;
                     const sellTotal = lineItem?.sellTotal || 0;
-                    const calculatedAmount = Math.round((sellTotal * (formData.lineDiscountPercent || 0)) / 100 * 10000) / 10000;
-                    return calculatedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-                  })()}
-                </span>
+                    // Calculate percentage from dollar amount
+                    const lineDiscountPct = sellTotal > 0 ? (dollarAmount / sellTotal) * 100 : 0;
+                    // Calculate commission on discounted total
+                    const discountedTotal = sellTotal - dollarAmount;
+                    const commissionRate = lineItem?.commissionPercent || 0;
+                    const newCommission = discountedTotal * (commissionRate / 100);
+                    // Recalculate commission discount
+                    const commDiscountPct = formData.commissionDiscountPercent || 0;
+                    const newCommissionDiscountAmount = Math.round((newCommission * commDiscountPct) / 100 * 10000) / 10000;
+
+                    setFormData({
+                      ...formData,
+                      lineDiscountPercent: Math.round(lineDiscountPct * 10000) / 10000,
+                      lineDiscountAmount: dollarAmount,
+                      commissionDiscountAmount: newCommissionDiscountAmount,
+                    });
+                    onLiveUpdate?.({
+                      lineDiscountPercent: Math.round(lineDiscountPct * 10000) / 10000,
+                      lineDiscountAmount: dollarAmount,
+                      commission: newCommission,
+                      commissionDiscountAmount: newCommissionDiscountAmount,
+                    });
+                  }}
+                  className="w-24 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-right"
+                  placeholder="0"
+                />
               </div>
             </div>
 
@@ -604,19 +634,39 @@ export function AdditionalDetailsModalV2({
                 <span className="text-sm text-gray-500">%</span>
                 <span className="text-sm text-gray-400 mx-2">=</span>
                 <span className="text-sm text-gray-500">$</span>
-                <span className="w-24 px-3 py-2 text-sm bg-gray-100 border border-gray-200 rounded-md text-right text-gray-600">
-                  {(() => {
-                    // Calculate commission on DISCOUNTED total like API does
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.commissionDiscountAmount || ''}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/^0+(?=\d)/, '');
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      e.target.value = value;
+                    }
+                    const dollarAmount = parseFloat(e.target.value) || 0;
+                    // Calculate commission on DISCOUNTED total
                     const sellTotal = lineItem?.sellTotal || 0;
                     const lineDiscountPct = formData.lineDiscountPercent || 0;
                     const lineDiscountAmount = Math.round((sellTotal * lineDiscountPct) / 100 * 10000) / 10000;
                     const discountedTotal = sellTotal - lineDiscountAmount;
                     const commissionRate = lineItem?.commissionPercent || 0;
                     const commission = discountedTotal * (commissionRate / 100);
-                    const calculatedAmount = Math.round((commission * (formData.commissionDiscountPercent || 0)) / 100 * 10000) / 10000;
-                    return calculatedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-                  })()}
-                </span>
+                    // Calculate percentage from dollar amount
+                    const commDiscountPct = commission > 0 ? (dollarAmount / commission) * 100 : 0;
+
+                    setFormData({
+                      ...formData,
+                      commissionDiscountPercent: Math.round(commDiscountPct * 10000) / 10000,
+                      commissionDiscountAmount: dollarAmount,
+                    });
+                    onLiveUpdate?.({
+                      commissionDiscountPercent: Math.round(commDiscountPct * 10000) / 10000,
+                      commissionDiscountAmount: dollarAmount,
+                    });
+                  }}
+                  className="w-24 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-right"
+                  placeholder="0"
+                />
               </div>
             </div>
 
