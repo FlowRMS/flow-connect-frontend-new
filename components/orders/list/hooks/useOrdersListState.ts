@@ -268,17 +268,16 @@ export function useOrdersListState() {
     }
   }, [syncColumnToAdvanced]);
 
-  // Handler for server-side sort changes (from SortButton - ActiveSort format)
-  const handleSortChange = useCallback((sort: { columnName: string; direction: 'ASC' | 'DESC' } | undefined) => {
-    if (sort) {
-      // Update server-side sort
-      setServerOrderBy([{
+  // Handler for multiple sorts (from SortButton - ActiveSort[] format)
+  const handleMultiSortChange = useCallback((sorts: { columnName: string; direction: 'ASC' | 'DESC' }[]) => {
+    if (sorts.length > 0) {
+      // Update server-side sort with all sorts
+      setServerOrderBy(sorts.map(sort => ({
         columnName: sort.columnName,
         direction: sort.direction,
-      }]);
+      })));
       
-      // Also update local sort state for backwards compatibility
-      // Map API columnName back to SortField if possible
+      // Also update local sort state for backwards compatibility (use first sort)
       const fieldMap: Record<string, SortField> = {
         'orderNumber': 'orderNumber',
         'soldToCustomerName': 'customerName',
@@ -289,13 +288,14 @@ export function useOrdersListState() {
         'status': 'status',
       };
       
-      const mappedField = fieldMap[sort.columnName];
+      const firstSort = sorts[0];
+      const mappedField = fieldMap[firstSort.columnName];
       if (mappedField) {
         setSortField(mappedField);
-        setSortDirection(sort.direction.toLowerCase() as SortDirection);
+        setSortDirection(firstSort.direction.toLowerCase() as SortDirection);
       }
     } else {
-      // Clear sort
+      // Clear sort - use default
       setServerOrderBy([{
         columnName: mapSortFieldToColumnName('orderDate'),
         direction: 'DESC',
@@ -714,7 +714,8 @@ export function useOrdersListState() {
     // Sorting
     sortField,
     sortDirection,
-    handleSortChange,
+    handleMultiSortChange,
+    serverOrderBy, // Expose for creating activeSorts
     // Selected order
     selectedOrder,
     setSelectedOrder,
