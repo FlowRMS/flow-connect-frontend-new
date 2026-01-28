@@ -103,6 +103,9 @@ export interface QuoteV2 {
   // Customer reference
   customerRef?: string;
 
+  // Quote name (optional)
+  name?: string;
+
   // End User (customer)
   endUserId?: string;
   endUserName?: string;
@@ -498,6 +501,9 @@ export function transformQuoteToQuoteV2(quote: Quote): QuoteV2 {
     // Customer reference
     customerRef: quote.customerRef,
 
+    // Quote name
+    name: quote.name || '',
+
     // Inside and outside reps are now extracted from line item split rates
     // They will be populated by QuoteDetailV2Page from the details' insideSplitRates/outsideSplitRates
 
@@ -746,6 +752,7 @@ export function createEmptyQuoteV2(): QuoteV2 {
 
     paymentTerms: '',
     freightTerms: '',
+    name: '',
 
     version: 1,
     tags: [],
