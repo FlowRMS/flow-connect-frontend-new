@@ -180,6 +180,8 @@ export interface Order {
   jobName?: string;
   quoteId?: string;
   quoteNumber?: string;
+  // Type
+  orderType?: string;
   // Status
   status: OrderStatus;
   fulfillmentStatus: FulfillmentStatus;

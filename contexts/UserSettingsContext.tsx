@@ -467,41 +467,6 @@ export function useCommissionSettings() {
   };
 }
 
-export function useCommissionSettings() {
-  const { getMySettingValue, getTenantSettingValue, saveSetting, isLoading, isInitialized, mySettings, tenantSettings } =
-    useUserSettings();
-
-  const settings = useMemo(() => {
-    const mySetting = mySettings.get('CHECKS_SETTINGS');
-    const tenantSetting = tenantSettings.get('CHECKS_SETTINGS');
-    return getEffectiveSetting<CommissionSettingsValue>(mySetting || null, tenantSetting || null);
-  }, [mySettings, tenantSettings]);
-
-  const mySettingsValue = useMemo(
-    () => getMySettingValue<CommissionSettingsValue>('CHECKS_SETTINGS'),
-    [getMySettingValue]
-  );
-
-  const tenantSettingsValue = useMemo(
-    () => getTenantSettingValue<CommissionSettingsValue>('CHECKS_SETTINGS'),
-    [getTenantSettingValue]
-  );
-
-  const saveSettingsHandler = useCallback(
-    (value: CommissionSettingsValue, scope: SettingScope) => saveSetting('CHECKS_SETTINGS', value, scope),
-    [saveSetting]
-  );
-
-  return {
-    settings,
-    mySettings: mySettingsValue,
-    tenantSettings: tenantSettingsValue,
-    saveSettings: saveSettingsHandler,
-    isLoading,
-    isInitialized,
-  };
-}
-
 export function useChatSettings() {
   const { getMySettingValue, getTenantSettingValue, saveSetting, isLoading, isInitialized, mySettings, tenantSettings } =
     useUserSettings();

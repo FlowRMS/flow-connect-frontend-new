@@ -34,6 +34,7 @@ function transformLandingPageToOrder(landing: OrderLandingPage): Order {
     customerId: '',
     customerName: landing.soldToCustomerName || '-',
     jobName: landing.jobName || '',
+    orderType: landing.orderType,
     status: mapApiStatusToOrderStatus(landing.status),
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',

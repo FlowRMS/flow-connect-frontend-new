@@ -43,6 +43,7 @@ export type FilterOption = {
   options?: string[]; // Available options for dropdown filters
   numberFormat?: NumberFormat; // Format for number filters: 'currency' | 'percentage' | 'number' (default)
   picklistKey?: string; // Key for picklist filters (e.g., 'orderTypes')
+  multiSelect?: boolean; // For picklist/dropdown: true = IN with array, false = EQ with single value (default: true)
 };
 
 export type AdvancedFiltersProps = {

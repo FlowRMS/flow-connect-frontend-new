@@ -8,18 +8,22 @@ interface PicklistFilterProps {
   picklistKey: PicklistKey;
   selectedValues: string[];
   onToggleValue: (value: string) => void;
+  onSelectValue?: (value: string) => void; // For single-select mode
   onApply: () => void;
   onClear?: () => void;
   hasActiveFilter?: boolean;
+  multiSelect?: boolean; // true = checkboxes (multi), false = radio (single)
 }
 
 export function PicklistFilter({
   picklistKey,
   selectedValues,
   onToggleValue,
+  onSelectValue,
   onApply,
   onClear,
   hasActiveFilter,
+  multiSelect = true,
 }: PicklistFilterProps) {
   const { enabledItems } = usePicklist(picklistKey);
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,6 +31,14 @@ export function PicklistFilter({
   const filteredItems = enabledItems.filter((item) =>
     item.label.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleValueChange = (value: string) => {
+    if (multiSelect) {
+      onToggleValue(value);
+    } else if (onSelectValue) {
+      onSelectValue(value);
+    }
+  };
 
   return (
     <div className="flex flex-col">
@@ -47,10 +59,14 @@ export function PicklistFilter({
             className="flex items-center gap-2 px-2 py-2 hover:bg-gray-50 rounded cursor-pointer"
           >
             <input
-              type="checkbox"
+              type={multiSelect ? 'checkbox' : 'radio'}
+              name={multiSelect ? undefined : `picklist-${picklistKey}`}
               checked={selectedValues.includes(item.key)}
-              onChange={() => onToggleValue(item.key)}
-              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              onChange={() => handleValueChange(item.key)}
+              className={multiSelect 
+                ? "rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                : "border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              }
             />
             {item.color && (
               <span

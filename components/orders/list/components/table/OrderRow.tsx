@@ -114,7 +114,7 @@ export function OrderRow({
       <td className="px-3 py-3">
         <PicklistValue 
           picklistKey={PicklistKey.ORDER_TYPES}
-          value={(order as any).orderType || 'NORMAL'}
+          value={order.orderType || 'NORMAL'}
           variant="badge"
           showColor={true}
         />

@@ -61,6 +61,15 @@ export function getOrderFilterOptions(
     options: ORDER_STATUSES 
   },
   { 
+    id: 'order-type', 
+    label: 'Order Type', 
+    type: ColumnFilterTypeEnum.picklist, 
+    columnName: 'orderType', 
+    available: true,
+    picklistKey: 'orderTypes',
+    multiSelect: false
+  },
+  { 
     id: 'total', 
     label: 'Total', 
     type: ColumnFilterTypeEnum.number, 

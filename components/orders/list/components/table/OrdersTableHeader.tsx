@@ -8,7 +8,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import type { Order } from '@/lib/types/rms';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
-import type { ActiveFilter } from '@/components/advancedFilters/types';
+import type { ActiveFilter, ColumnFilterType } from '@/components/advancedFilters/types';
 import { getOrderFilterOptions } from '../../config/filterConfig';
 import { SortIndicator } from '@/components/shared/sorting/components/SortIndicator';
 import type { ActiveSort } from '@/components/shared/sorting/types';
@@ -66,6 +66,7 @@ export function OrdersTableHeader({
   const columnKeyToFilterId: Record<string, string> = {
     orderNumber: 'order-number',
     status: 'status',
+    orderType: 'order-type',
     total: 'total',
     commission: 'commission',
     orderDate: 'order-date',
@@ -107,8 +108,7 @@ export function OrdersTableHeader({
       return null;
     }
     
-    // Ensure type is preserved correctly
-    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean' | 'factory';
+    const filterType = filterOption.type as ColumnFilterType;
     
     // Get filters for this column (ActiveFilter[])
     const columnFiltersForThisColumn = columnFilters[columnKey] || [];
@@ -126,6 +126,8 @@ export function OrdersTableHeader({
         isOpen={openFilter === columnKey}
         onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
         filterOption={filterOption}
+        picklistKey={filterOption.picklistKey}
+        multiSelect={filterOption.multiSelect}
       />
     );
   };
@@ -223,7 +225,12 @@ export function OrdersTableHeader({
         
         {/* Order Type */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
-          <span className="whitespace-nowrap">Order Type</span>
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Order Type</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('orderType')}
+            </div>
+          </div>
         </th>
         
         {/* Amount */}

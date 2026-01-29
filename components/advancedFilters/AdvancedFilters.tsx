@@ -268,12 +268,23 @@ export default function AdvancedFilters({
     let newFilters = localFilters.filter(f => f.columnName !== option.columnName);
     
     if (selectedValues.length > 0) {
-      newFilters.push({
-        columnName: option.columnName,
-        operator: 'IN',
-        values: selectedValues,
-        // Note: Don't set value for IN operator - API expects only values array
-      });
+      // Check if multiSelect is false (defaults to true if not specified)
+      if (option.multiSelect === false) {
+        // Single-select: use EQ operator with single value
+        newFilters.push({
+          columnName: option.columnName,
+          operator: 'EQ',
+          value: selectedValues[0],
+        });
+      } else {
+        // Multi-select: use IN operator with array
+        newFilters.push({
+          columnName: option.columnName,
+          operator: 'IN',
+          values: selectedValues,
+          // Note: Don't set value for IN operator - API expects only values array
+        });
+      }
     }
     
     setLocalFilters(newFilters);
@@ -295,6 +306,11 @@ export default function AdvancedFilters({
     } else {
       setSelectedValues([...selectedValues, value]);
     }
+  };
+
+  // For single-select mode: replace the selected value instead of toggling
+  const selectSingleValue = (value: string) => {
+    setSelectedValues([value]);
   };
 
   const handleApplyNumberFilter = (option: FilterOption, value: string) => {
@@ -747,12 +763,14 @@ export default function AdvancedFilters({
                             picklistKey={option.picklistKey as PicklistKey}
                             selectedValues={selectedValues}
                             onToggleValue={toggleValue}
+                            onSelectValue={selectSingleValue}
                             onApply={() => handleApplyMultiSelect(option)}
                             onClear={() => {
                               setSelectedValues([]);
                               handleClearFilter(option.columnName);
                             }}
                             hasActiveFilter={selectedValues.length > 0}
+                            multiSelect={option.multiSelect !== false}
                           />
                         ) : (
                           <TextFilter
