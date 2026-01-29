@@ -592,6 +592,7 @@ export type {
 // Re-export import types
 export type {
   QuantityPricingImportInput,
+  CustomerPricingImportInput,
   ProductImportItemInput,
   ProductImportInput,
   ProductImportError,

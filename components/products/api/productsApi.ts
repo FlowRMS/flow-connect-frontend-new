@@ -1373,6 +1373,13 @@ export interface QuantityPricingImportInput {
   unitPrice: string;
 }
 
+export interface CustomerPricingImportInput {
+  customerName: string;
+  customerPartNumber?: string;
+  unitPrice: string;
+  commissionRate: string;
+}
+
 export interface ProductImportItemInput {
   factoryPartNumber: string;
   unitPrice: string;
@@ -1381,6 +1388,7 @@ export interface ProductImportItemInput {
   category?: string;
   defaultCommissionRate?: string;
   quantityPricing?: QuantityPricingImportInput[];
+  customerPricing?: CustomerPricingImportInput[];
 }
 
 export interface ProductImportInput {
@@ -1398,8 +1406,11 @@ export interface ProductImportResult {
   productsCreated: number;
   productsUpdated: number;
   quantityPricingCreated: number;
+  customerPricingCreated: number;
+  customerPricingUpdated: number;
   errors: ProductImportError[];
   message: string;
+  customersNotFound: string[];
 }
 
 const IMPORT_PRODUCTS = `
@@ -1409,11 +1420,14 @@ const IMPORT_PRODUCTS = `
       productsCreated
       productsUpdated
       quantityPricingCreated
+      customerPricingCreated
+      customerPricingUpdated
       errors {
         factoryPartNumber
         error
       }
       message
+      customersNotFound
     }
   }
 `;

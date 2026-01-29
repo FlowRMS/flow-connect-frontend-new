@@ -10,19 +10,175 @@ import {
   type ProductUom,
   type ProductImportItemInput,
   type QuantityPricingImportInput,
+  type CustomerPricingImportInput,
 } from '../../../../components/products/api/useProductsApi';
 import { importProducts } from '../../../../components/products/api/productsApi';
+
+interface ParsedQuantityPricing {
+  quantityLow: number;
+  quantityHigh: number | null;
+  unitPrice: number;
+}
+
+interface ParsedCustomerPricing {
+  customerName: string;
+  customerPartNumber?: string;
+  unitPrice: number;
+  commissionRate: number;
+}
 
 interface ParsedProduct {
   factoryPartNumber: string;
   description: string;
   unitPrice: number;
   upc: string;
-  quantityPricing: Array<{
-    quantityLow: number;
-    quantityHigh: number | null;
-    unitPrice: number;
-  }>;
+  category?: string;
+  defaultCommissionRate?: number;
+  quantityPricing: ParsedQuantityPricing[];
+  customerPricing: ParsedCustomerPricing[];
+}
+
+// Expandable product row component
+function ProductRow({ product, index, formatPrice }: {
+  product: ParsedProduct;
+  index: number;
+  formatPrice: (price: number) => string;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const hasDetails = product.quantityPricing.length > 0 || product.customerPricing.length > 0;
+
+  return (
+    <>
+      <tr
+        className={`border-b border-gray-100 hover:bg-gray-50 ${hasDetails ? 'cursor-pointer' : ''}`}
+        onClick={() => hasDetails && setIsExpanded(!isExpanded)}
+      >
+        <td className="py-3 px-3">
+          {hasDetails && (
+            <svg
+              className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          )}
+        </td>
+        <td className="py-3 px-3 font-mono text-xs">{product.factoryPartNumber}</td>
+        <td className="py-3 px-3 text-gray-600 max-w-xs">
+          <div className="truncate" title={product.description}>
+            {product.description || '-'}
+          </div>
+        </td>
+        <td className="py-3 px-3 text-right font-medium">{formatPrice(product.unitPrice)}</td>
+        <td className="py-3 px-3 text-center">
+          {product.quantityPricing.length > 0 && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+              {product.quantityPricing.length} bands
+            </span>
+          )}
+        </td>
+        <td className="py-3 px-3 text-center">
+          {product.customerPricing.length > 0 && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+              {product.customerPricing.length} customers
+            </span>
+          )}
+        </td>
+      </tr>
+
+      {/* Expanded details */}
+      {isExpanded && hasDetails && (
+        <tr className="bg-gray-50">
+          <td colSpan={6} className="px-6 py-4">
+            <div className="grid grid-cols-2 gap-6">
+              {/* Quantity Pricing */}
+              {product.quantityPricing.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    Quantity Pricing
+                  </h4>
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="px-3 py-2 text-left font-medium text-gray-600">Quantity Range</th>
+                          <th className="px-3 py-2 text-right font-medium text-gray-600">Unit Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {product.quantityPricing.map((qp, idx) => (
+                          <tr key={idx} className="border-t border-gray-100">
+                            <td className="px-3 py-2 text-gray-700">
+                              {qp.quantityHigh
+                                ? `${qp.quantityLow} - ${qp.quantityHigh}`
+                                : `${qp.quantityLow}+`}
+                            </td>
+                            <td className="px-3 py-2 text-right font-medium text-gray-900">
+                              {formatPrice(qp.unitPrice)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Customer Pricing */}
+              {product.customerPricing.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    Customer Pricing ({product.customerPricing.length})
+                  </h4>
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden max-h-48 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-gray-100">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-gray-600">Customer</th>
+                          <th className="px-3 py-2 text-right font-medium text-gray-600">Price</th>
+                          <th className="px-3 py-2 text-right font-medium text-gray-600">Comm.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {product.customerPricing.slice(0, 20).map((cp, idx) => (
+                          <tr key={idx} className="border-t border-gray-100">
+                            <td className="px-3 py-2 text-gray-700 truncate max-w-[200px]" title={cp.customerName}>
+                              {cp.customerName}
+                            </td>
+                            <td className="px-3 py-2 text-right font-medium text-gray-900">
+                              {formatPrice(cp.unitPrice)}
+                            </td>
+                            <td className="px-3 py-2 text-right text-gray-600">
+                              {(cp.commissionRate * 100).toFixed(0)}%
+                            </td>
+                          </tr>
+                        ))}
+                        {product.customerPricing.length > 20 && (
+                          <tr className="border-t border-gray-100 bg-gray-50">
+                            <td colSpan={3} className="px-3 py-2 text-center text-gray-500 text-xs">
+                              ... and {product.customerPricing.length - 20} more customers
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
 }
 
 export default function ImportProductsPage() {
@@ -50,6 +206,10 @@ export default function ImportProductsPage() {
     message: string;
     created: number;
     updated: number;
+    quantityPricing: number;
+    customerPricingCreated: number;
+    customerPricingUpdated: number;
+    customersNotFound: string[];
     errors: Array<{ factoryPartNumber: string; error: string }>;
   } | null>(null);
 
@@ -81,8 +241,15 @@ export default function ImportProductsPage() {
           ? parseFloat(item.unitPrice) || 0
           : item.unitPrice || 0;
 
+        // Parse defaultCommissionRate
+        const defaultCommissionRate = item.defaultCommissionRate
+          ? (typeof item.defaultCommissionRate === 'string'
+              ? parseFloat(item.defaultCommissionRate)
+              : item.defaultCommissionRate)
+          : undefined;
+
         // Parse quantity pricing
-        const quantityPricing: ParsedProduct['quantityPricing'] = [];
+        const quantityPricing: ParsedQuantityPricing[] = [];
         if (item.quantityPricing && Array.isArray(item.quantityPricing)) {
           for (const qp of item.quantityPricing) {
             const qpLow = typeof qp.quantityLow === 'string'
@@ -103,12 +270,37 @@ export default function ImportProductsPage() {
           }
         }
 
+        // Parse customer pricing
+        const customerPricing: ParsedCustomerPricing[] = [];
+        if (item.customerPricing && Array.isArray(item.customerPricing)) {
+          for (const cp of item.customerPricing) {
+            if (!cp.customerName) continue;
+
+            const cpPrice = typeof cp.unitPrice === 'string'
+              ? parseFloat(cp.unitPrice) || 0
+              : cp.unitPrice || 0;
+            const cpCommission = typeof cp.commissionRate === 'string'
+              ? parseFloat(cp.commissionRate) || 0
+              : cp.commissionRate || 0;
+
+            customerPricing.push({
+              customerName: cp.customerName,
+              customerPartNumber: cp.customerPartNumber,
+              unitPrice: cpPrice,
+              commissionRate: cpCommission,
+            });
+          }
+        }
+
         products.push({
           factoryPartNumber: item.factoryPartNumber,
           description: item.description || '',
           unitPrice,
           upc: item.upc || '',
+          category: item.category,
+          defaultCommissionRate,
           quantityPricing,
+          customerPricing,
         });
       }
 
@@ -180,12 +372,22 @@ export default function ImportProductsPage() {
         unitPrice: p.unitPrice.toString(),
         description: p.description || undefined,
         upc: p.upc || undefined,
+        category: p.category,
+        defaultCommissionRate: p.defaultCommissionRate?.toString(),
         quantityPricing: p.quantityPricing.length > 0
           ? p.quantityPricing.map(qp => ({
               quantityLow: qp.quantityLow.toString(),
               quantityHigh: qp.quantityHigh?.toString() ?? null,
               unitPrice: qp.unitPrice.toString(),
             } as QuantityPricingImportInput))
+          : undefined,
+        customerPricing: p.customerPricing.length > 0
+          ? p.customerPricing.map(cp => ({
+              customerName: cp.customerName,
+              customerPartNumber: cp.customerPartNumber,
+              unitPrice: cp.unitPrice.toString(),
+              commissionRate: cp.commissionRate.toString(),
+            } as CustomerPricingImportInput))
           : undefined,
       }));
 
@@ -202,6 +404,10 @@ export default function ImportProductsPage() {
         message: result.message,
         created: result.productsCreated,
         updated: result.productsUpdated,
+        quantityPricing: result.quantityPricingCreated,
+        customerPricingCreated: result.customerPricingCreated,
+        customerPricingUpdated: result.customerPricingUpdated,
+        customersNotFound: result.customersNotFound || [],
         errors: result.errors,
       });
 
@@ -218,6 +424,10 @@ export default function ImportProductsPage() {
         message: error instanceof Error ? error.message : 'Import failed',
         created: 0,
         updated: 0,
+        quantityPricing: 0,
+        customerPricingCreated: 0,
+        customerPricingUpdated: 0,
+        customersNotFound: [],
         errors: [],
       });
     } finally {
@@ -231,6 +441,11 @@ export default function ImportProductsPage() {
       currency: 'USD',
     }).format(price);
   };
+
+  // Calculate summary stats
+  const totalQuantityPricingBands = parsedProducts.reduce((sum, p) => sum + p.quantityPricing.length, 0);
+  const totalCustomerPricing = parsedProducts.reduce((sum, p) => sum + p.customerPricing.length, 0);
+  const uniqueCustomers = new Set(parsedProducts.flatMap(p => p.customerPricing.map(cp => cp.customerName))).size;
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1.5";
@@ -298,7 +513,7 @@ export default function ImportProductsPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-5xl mx-auto space-y-6">
           {/* Configuration Section */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Configuration</h2>
@@ -439,13 +654,41 @@ export default function ImportProductsPage() {
               <p className={`text-sm ${importResult.success ? 'text-green-700' : 'text-yellow-700'}`}>
                 {importResult.message}
               </p>
-              <div className="mt-3 flex gap-4 text-sm">
-                <span className="text-green-700">Created: {importResult.created}</span>
-                <span className="text-blue-700">Updated: {importResult.updated}</span>
+              <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                <span className="text-green-700">Products created: {importResult.created}</span>
+                <span className="text-blue-700">Products updated: {importResult.updated}</span>
+                {importResult.quantityPricing > 0 && (
+                  <span className="text-indigo-700">Qty pricing: {importResult.quantityPricing}</span>
+                )}
+                {importResult.customerPricingCreated > 0 && (
+                  <span className="text-purple-700">Customer prices created: {importResult.customerPricingCreated}</span>
+                )}
+                {importResult.customerPricingUpdated > 0 && (
+                  <span className="text-purple-600">Customer prices updated: {importResult.customerPricingUpdated}</span>
+                )}
                 {importResult.errors.length > 0 && (
                   <span className="text-red-700">Errors: {importResult.errors.length}</span>
                 )}
               </div>
+
+              {importResult.customersNotFound.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-orange-800 mb-2">
+                    Customers not found in CRM ({importResult.customersNotFound.length}):
+                  </p>
+                  <div className="max-h-24 overflow-y-auto space-y-1 bg-orange-100 p-2 rounded">
+                    {importResult.customersNotFound.slice(0, 10).map((name, idx) => (
+                      <p key={idx} className="text-xs text-orange-700">{name}</p>
+                    ))}
+                    {importResult.customersNotFound.length > 10 && (
+                      <p className="text-xs text-orange-600 font-medium">
+                        ... and {importResult.customersNotFound.length - 10} more
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {importResult.errors.length > 0 && (
                 <div className="mt-4">
                   <p className="text-sm font-medium text-red-800 mb-2">Errors:</p>
@@ -468,49 +711,54 @@ export default function ImportProductsPage() {
                 <h2 className="text-lg font-semibold text-gray-900">
                   Preview ({parsedProducts.length} products)
                 </h2>
-                <span className="text-sm text-gray-500">
-                  Showing first 10 products
-                </span>
+                <div className="flex items-center gap-4 text-sm text-gray-500">
+                  {totalQuantityPricingBands > 0 && (
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                      {totalQuantityPricingBands} qty bands
+                    </span>
+                  )}
+                  {totalCustomerPricing > 0 && (
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                      {totalCustomerPricing} customer prices ({uniqueCustomers} customers)
+                    </span>
+                  )}
+                </div>
               </div>
+
+              <p className="text-xs text-gray-500 mb-3">
+                Click on a row to expand and see quantity pricing and customer pricing details
+              </p>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-200">
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="w-8 py-2 px-3"></th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700">Part Number</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700">Description</th>
                       <th className="text-right py-2 px-3 font-medium text-gray-700">Base Price</th>
-                      <th className="text-right py-2 px-3 font-medium text-gray-700">5+ Price</th>
-                      <th className="text-right py-2 px-3 font-medium text-gray-700">10+ Price</th>
+                      <th className="text-center py-2 px-3 font-medium text-gray-700">Qty Pricing</th>
+                      <th className="text-center py-2 px-3 font-medium text-gray-700">Customer Pricing</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {parsedProducts.slice(0, 10).map((product, idx) => (
-                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-2 px-3 font-mono text-xs">{product.factoryPartNumber}</td>
-                        <td className="py-2 px-3 text-gray-600 truncate max-w-xs">
-                          {product.description || '-'}
-                        </td>
-                        <td className="py-2 px-3 text-right">{formatPrice(product.unitPrice)}</td>
-                        <td className="py-2 px-3 text-right">
-                          {product.quantityPricing.find(p => p.quantityLow === 5)
-                            ? formatPrice(product.quantityPricing.find(p => p.quantityLow === 5)!.unitPrice)
-                            : '-'}
-                        </td>
-                        <td className="py-2 px-3 text-right">
-                          {product.quantityPricing.find(p => p.quantityLow === 10)
-                            ? formatPrice(product.quantityPricing.find(p => p.quantityLow === 10)!.unitPrice)
-                            : '-'}
-                        </td>
-                      </tr>
+                    {parsedProducts.slice(0, 15).map((product, idx) => (
+                      <ProductRow
+                        key={idx}
+                        product={product}
+                        index={idx}
+                        formatPrice={formatPrice}
+                      />
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              {parsedProducts.length > 10 && (
+              {parsedProducts.length > 15 && (
                 <p className="mt-3 text-sm text-gray-500 text-center">
-                  ... and {parsedProducts.length - 10} more products
+                  ... and {parsedProducts.length - 15} more products
                 </p>
               )}
             </div>
