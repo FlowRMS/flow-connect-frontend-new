@@ -6,13 +6,13 @@ import { toast } from 'sonner';
 import {
   useFactorySearch,
   useProductUoms,
+  importProducts,
   type FactorySearchResult,
   type ProductUom,
   type ProductImportItemInput,
   type QuantityPricingImportInput,
   type CustomerPricingImportInput,
-} from '../../../../components/products/api/useProductsApi';
-import { importProducts } from '../../../../components/products/api/productsApi';
+} from '../../../../components/products/api';
 
 interface ParsedQuantityPricing {
   quantityLow: number;

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } from '../types';
 import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer, listProductPricingTiers } from '../../quotes/api/useQuotesApi';
 import type { ProductPricingTierResult } from '../../quotes/api/quotesApi';
-import { fetchProductById } from '../../products/api/productsApi';
+import { fetchProductById } from '../../products/api';
 import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
 
 // Type for rep split rates passed from parent

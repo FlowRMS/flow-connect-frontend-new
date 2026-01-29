@@ -13,7 +13,7 @@ import {
   type ProductUom,
   type ProductCategory,
   type FactorySearchResult,
-} from '../../../../components/products/api/useProductsApi';
+} from '../../../../components/products/api';
 
 // ============================================================================
 // Types

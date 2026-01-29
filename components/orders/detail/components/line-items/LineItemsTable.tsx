@@ -14,7 +14,7 @@ import { BulkActionsBar } from './BulkActionsBar';
 import { LineItemsTableHeader } from './LineItemsTableHeader';
 import { useProductSearch, useFactorySearch, useCustomerSearch, useProductCpns, useProductUoms, getProductCpnByCustomer, listProductPricingTiers } from '../../../api';
 import type { ProductPricingTierResult } from '@/components/quotes/api/quotesApi';
-import { fetchProductById } from '@/components/products/api/productsApi';
+import { fetchProductById } from '@/components/products/api';
 import { formatCurrency } from '../../utils';
 
 // Type for available pricing options for a product

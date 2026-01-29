@@ -17,7 +17,7 @@ import {
   getProductCpnByCustomer,
   listProductPricingTiers,
 } from '../../../api/useStatementsApi';
-import { fetchProductById } from '@/components/products/api/productsApi';
+import { fetchProductById } from '@/components/products/api';
 import { BulkActionsBar } from './BulkActionsBar';
 
 // Types

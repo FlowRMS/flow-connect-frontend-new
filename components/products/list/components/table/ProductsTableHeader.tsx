@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import type { ProductLandingPage } from '../../../api/useProductsApi';
+import type { ProductLandingPage } from '../../../api';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { getProductFilterOptions } from '../../../config/filterConfig';
