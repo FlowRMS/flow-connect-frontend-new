@@ -56,7 +56,6 @@ const GET_JOB_STATUSES = `
 const GET_JOB = `
   query GetJob($id: UUID!) {
     job(id: $id) {
-      additionalInformation
       createdAt
       createdBy {
         email
@@ -76,8 +75,6 @@ const GET_JOB = `
         id
         name
       }
-      structuralDetails
-      structuralInformation
       tags
     }
   }
@@ -86,8 +83,6 @@ const GET_JOB = `
 const CREATE_JOB = `
   mutation CreateJob($input: JobInput!) {
     createJob(input: $input) {
-      structuralInformation
-      structuralDetails
       status {
         name
         id
@@ -107,7 +102,6 @@ const CREATE_JOB = `
         lastName
       }
       createdAt
-      additionalInformation
       tags
     }
   }
@@ -120,9 +114,6 @@ const UPDATE_JOB = `
       jobName
       jobType
       description
-      additionalInformation
-      structuralInformation
-      structuralDetails
       startDate
       endDate
       requesterId
@@ -191,9 +182,6 @@ const SEARCH_JOBS = `
       jobName
       jobType
       description
-      additionalInformation
-      structuralInformation
-      structuralDetails
       startDate
       endDate
       requesterId
