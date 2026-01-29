@@ -640,7 +640,7 @@ export default function ProductEditPage() {
   };
 
   const formatPercent = (rate: number) => {
-    return `${(rate * 100).toFixed(1)}%`;
+    return `${Number(rate).toFixed(1)}%`;
   };
 
   const tabs = [
