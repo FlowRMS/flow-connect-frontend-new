@@ -155,6 +155,11 @@ export function OrdersTableHeader({
           </div>
         </th>
         
+        {/* Order Type */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+          <span className="whitespace-nowrap">Order Type</span>
+        </th>
+        
         {/* Amount */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
           <div className="flex items-center justify-end gap-1.5">
