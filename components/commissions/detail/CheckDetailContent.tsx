@@ -355,6 +355,7 @@ export default function CheckDetailContent({
                 }}
                 onOpenColumnsModal={() => state.setShowColumnsModal(true)}
                 onDelete={state.deleteLineItem}
+                onZeroAllStatedCommissions={state.zeroAllStatedCommissions}
               />
             </div>
           )}

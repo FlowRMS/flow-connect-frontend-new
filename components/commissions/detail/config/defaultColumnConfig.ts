@@ -17,7 +17,6 @@ const ALL_COLUMNS: ColumnKey[] = [
   'expectedCommission',
   'paidCommission',
   'balance',
-  'paid',
 ];
 
 export const defaultCommissionColumnConfig: CommissionColumnConfig[] = ALL_COLUMNS.map(key => ({

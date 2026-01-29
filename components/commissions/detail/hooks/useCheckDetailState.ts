@@ -189,7 +189,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
     const allColumns: ColumnKey[] = [
       'number', 'orderNumber', 'customer', 'salesRep', 'commissionRate',
-      'expectedCommission', 'paidCommission', 'balance', 'paid',
+      'expectedCommission', 'paidCommission', 'balance',
     ];
 
     const visiblePinnedColumns = allColumns.filter(
@@ -205,7 +205,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     const columnWidths: Record<ColumnKey, number> = {
       number: 150, orderNumber: 150, customer: 200, salesRep: 150,
       commissionRate: 150, expectedCommission: 180, paidCommission: 180,
-      balance: 150, paid: 100,
+      balance: 150,
     };
 
     let leftOffset = 0; //fixedLeftOffset;
@@ -718,6 +718,29 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     );
   };
 
+  // Zero out all stated commissions (toggle: if all are 0, restore expected values)
+  const zeroAllStatedCommissions = () => {
+    if (!isCreateMode) setHasLocalEdits(true);
+    const allZero = lineItems.every(item => item.paidCommission === 0);
+    if (allZero) {
+      // Restore to expected commission values
+      setLineItems((prev) =>
+        prev.map((item) => ({
+          ...item,
+          paidCommission: item.expectedCommission,
+        }))
+      );
+    } else {
+      // Set all to 0
+      setLineItems((prev) =>
+        prev.map((item) => ({
+          ...item,
+          paidCommission: 0,
+        }))
+      );
+    }
+  };
+
   const deleteLineItem = (id: string) => {
     if (!isCreateMode) setHasLocalEdits(true);
     setLineItems((prev) => prev.filter((item) => item.id !== id));
@@ -1220,6 +1243,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     openLineItemDetail,
     closeLineItemDetail,
     updateLineItemAmount,
+    zeroAllStatedCommissions,
 
     // Order detail modal
     showOrderDetailModal,

@@ -229,36 +229,6 @@ export function LineItemsTableRow({
           </div>
         </td>
       )}
-      {visibleColumns.has('paid') && (
-        <td className={`px-4 py-3 text-center ${isPinned('paid') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`} style={getPinnedColumnStyle('paid')}>
-          {status === 'posted' ? (
-            item.paid ? (
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="mx-auto text-gray-400"
-              >
-                <path
-                  d="M5 10l3 3 7-7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            ) : null
-          ) : (
-            <input
-              type="checkbox"
-              checked={item.paid}
-              disabled
-              className="w-4 h-4 accent-[var(--primary)] cursor-not-allowed"
-            />
-          )}
-        </td>
-      )}
       {/* Actions column - Remove button (only when not posted) */}
       {status !== 'posted' && onDelete && (
         <td className="px-2 py-3 text-center">
