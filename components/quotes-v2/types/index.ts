@@ -308,6 +308,7 @@ export interface ColumnConfig {
   label: string;
   group: 'Basic' | 'Pricing' | 'Commission';
   visible: boolean;
+  pinned?: boolean;
 }
 
 // ============================================================================
@@ -552,15 +553,15 @@ export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: s
     uomId: detail.uom?.id || '',
     divisor,
 
-    // Pricing
+    // Pricing - use API values, parsing strings to numbers
     unitPrice,
-    sellTotal: detail.subtotal || 0,
-    total: detail.total || 0,
+    sellTotal: parseFloat(String(detail.subtotal || '0')),
+    total: parseFloat(String(detail.total || '0')),
 
-    // Commission
+    // Commission - use API values directly (commission before discount, totalLineCommission after discount)
     commissionPercent: commissionRate,
-    commission: detail.commission || 0,
-    commissionTotal: detail.totalLineCommission || 0,
+    commission: parseFloat(String(detail.commission || '0')),
+    commissionTotal: parseFloat(String(detail.totalLineCommission || '0')),
 
     // Discount
     discountRate: detail.discountRate,
@@ -570,11 +571,11 @@ export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: s
     endUserId: detail.endUserId,
     endUserName: detail.endUser?.companyName || '',
 
-    // Additional details
+    // Additional details - parse string values from API
     commissionDiscountPercent: commissionDiscountRate,
-    commissionDiscountAmount: detail.commissionDiscount || 0,
+    commissionDiscountAmount: parseFloat(String(detail.commissionDiscount || '0')),
     lineDiscountPercent: discountRate,
-    lineDiscountAmount: detail.discount || 0,
+    lineDiscountAmount: parseFloat(String(detail.discount || '0')),
     leadTime: detail.leadTime,
 
     // Notes

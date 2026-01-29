@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import './AdvancedFilters.css';
 import type { FilterOperator, ActiveFilter, ActiveSort, FilterOption, AdvancedFiltersProps } from './types';
+import { ColumnFilterTypeEnum } from './types';
 import { parseDateString, formatDateToISO, formatDateToBackend } from './utils';
 import { ActiveFilters } from './components/ActiveFilters';
 import { TextFilter } from './components/filter-types/TextFilter';
@@ -17,6 +19,7 @@ import { CategoryFilter } from './components/filter-types/CategoryFilter';
 import { CompanyFilter } from './components/filter-types/CompanyFilter';
 import { CompanyTypeFilter } from './components/filter-types/CompanyTypeFilter';
 import { PicklistFilter, PicklistKey } from '@/lib/picklists';
+import { CustomerFilter } from './components/filter-types/CustomerFilter';
 
 // Re-export types for backward compatibility
 export type { FilterOperator, ActiveFilter, ActiveSort, FilterOption };
@@ -93,7 +96,7 @@ export default function AdvancedFilters({
         // Find existing filters for this column (date filters use two: GTE and LTE)
         const existingFilters = localFilters.filter(f => f.columnName === option.columnName);
         
-        if (option.type === 'boolean') {
+        if (option.type === ColumnFilterTypeEnum.boolean) {
           // For boolean filters, check if there's an active filter
           const booleanFilter = existingFilters.find(f => f.operator === 'EQ');
           if (booleanFilter && booleanFilter.value) {
@@ -101,7 +104,7 @@ export default function AdvancedFilters({
           } else {
             setBooleanValue('all');
           }
-        } else if (option.type === 'date') {
+        } else if (option.type === ColumnFilterTypeEnum.date) {
           // For date filters, look for GTE (start) and LTE (end) filters
           const startFilter = existingFilters.find(f => f.operator === 'GTE');
           const endFilter = existingFilters.find(f => f.operator === 'LTE');
@@ -120,7 +123,7 @@ export default function AdvancedFilters({
           
           setFilterValue('');
           setSelectedValues([]);
-        } else if (option.type === 'month') {
+        } else if (option.type === ColumnFilterTypeEnum.month) {
           // For month filters, look for GTE filter (start of month)
           // We use the GTE filter value to determine the selected month/year
           const startFilter = existingFilters.find(f => f.operator === 'GTE');
@@ -139,8 +142,14 @@ export default function AdvancedFilters({
           
           setFilterValue('');
           setSelectedValues([]);
-        } else if (option.type === 'factory' || option.type === 'category' || option.type === 'company' || option.type === 'companyType' || option.type === 'picklist') {
-          // For factory/category/company/companyType/picklist filters, look for IN operator with values
+        } else if (
+          option.type === ColumnFilterTypeEnum.factory ||
+          option.type === ColumnFilterTypeEnum.category ||
+          option.type === ColumnFilterTypeEnum.company ||
+          option.type === ColumnFilterTypeEnum.companyType ||
+          option.type === ColumnFilterTypeEnum.picklist
+        ) {
+          // For factory/category/company/companyType filters, look for IN operator with values
           const existingFilter = existingFilters.find(f => f.operator === 'IN' && f.values);
           if (existingFilter && existingFilter.values) {
             setSelectedValues(existingFilter.values);
@@ -156,7 +165,7 @@ export default function AdvancedFilters({
             setFilterValue('');
           } else if (existingFilter.value) {
             // For dropdown filters, set selectedValues
-            if (option.type === 'dropdown') {
+            if (option.type === ColumnFilterTypeEnum.dropdown) {
               setSelectedValues([existingFilter.value]);
             } else {
               // For text and number filters, set filterValue
@@ -164,7 +173,7 @@ export default function AdvancedFilters({
               setSelectedValues([]);
             }
             // If it's a number filter, also set the operator
-            if (option.type === 'number' && ['EQ', 'GT', 'GTE', 'LT', 'LTE'].includes(existingFilter.operator)) {
+            if (option.type === ColumnFilterTypeEnum.number && ['EQ', 'GT', 'GTE', 'LT', 'LTE'].includes(existingFilter.operator)) {
               setNumberOperator(existingFilter.operator);
             }
           } else {
@@ -177,7 +186,7 @@ export default function AdvancedFilters({
           setDateRangeStart(null);
           setDateRangeEnd(null);
           // Reset to default operator for number filters
-          if (option.type === 'number') {
+          if (option.type === ColumnFilterTypeEnum.number) {
             setNumberOperator('EQ');
           }
         }
@@ -205,16 +214,16 @@ export default function AdvancedFilters({
       setExpandedFilterId(option.id);
       setFilterValue('');
       // Reset number operator to default when opening a number filter
-      if (option.type === 'number') {
+      if (option.type === ColumnFilterTypeEnum.number) {
         setNumberOperator('EQ');
       }
       // Reset date range when opening a date filter
-      if (option.type === 'date') {
+      if (option.type === ColumnFilterTypeEnum.date) {
         setDateRangeStart(null);
         setDateRangeEnd(null);
       }
       // Reset month/year when opening a month filter
-      if (option.type === 'month') {
+      if (option.type === ColumnFilterTypeEnum.month) {
         // Don't reset if there's already a filter for this column
         const existingFilters = localFilters.filter(f => f.columnName === option.columnName);
         if (existingFilters.length === 0) {
@@ -437,7 +446,8 @@ export default function AdvancedFilters({
     if (columnName) {
       // Clear specific filter (for date and month filters, this removes both GTE and LTE)
       const option = filterOptions.find(o => o.columnName === columnName);
-      const isDateOrMonthFilter = option?.type === 'date' || option?.type === 'month';
+      const isDateOrMonthFilter =
+        option?.type === ColumnFilterTypeEnum.date || option?.type === ColumnFilterTypeEnum.month;
       
       const newFilters = localFilters.filter(f => {
         if (f.columnName !== columnName) return true;
@@ -495,13 +505,23 @@ export default function AdvancedFilters({
         )}
       </button>
 
-      {/* Expanded Filter Panel - Fixed positioning with full height */}
-      {isExpanded && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 sm:pt-10 px-2 sm:px-4 pointer-events-none">
+      {/* Expanded Filter Panel - Rendered via Portal to escape stacking context */}
+      {isExpanded && typeof document !== 'undefined' && createPortal(
+        <div>
+          {/* Backdrop */}
           <div
-            className="w-full max-w-4xl bg-white rounded-xl shadow-2xl pointer-events-auto border border-gray-200 max-h-[90vh] flex flex-col overflow-hidden"
-          >
-            {/* Header - Fixed */}
+            className="fixed inset-0 z-[9998] bg-black/30"
+            onClick={() => {
+              setIsExpanded(false);
+              setExpandedFilterId(null);
+            }}
+          />
+          {/* Modal */}
+          <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-4 sm:pt-10 px-2 sm:px-4 pointer-events-none">
+            <div
+              className="w-full max-w-4xl bg-white rounded-xl shadow-2xl pointer-events-auto border border-gray-200 max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              {/* Header - Fixed */}
             <div className="flex-shrink-0 flex items-start justify-between p-3 sm:p-6 pb-3 sm:pb-4 border-b border-gray-100">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="p-2 sm:p-2.5 bg-indigo-50 rounded-lg">
@@ -600,13 +620,18 @@ export default function AdvancedFilters({
                           side="bottom"
                           align="start"
                           sideOffset={4}
-                          className="z-[100] bg-white rounded-lg shadow-xl overflow-hidden"
+                          className="z-[10000] bg-white rounded-lg shadow-xl overflow-hidden"
                           style={{ 
-                            width: option.type === 'date' ? '320px' : option.type === 'month' ? '240px' : 'var(--radix-popover-trigger-width)' 
+                            width:
+                              option.type === ColumnFilterTypeEnum.date
+                                ? '320px'
+                                : option.type === ColumnFilterTypeEnum.month
+                                  ? '240px'
+                                  : 'var(--radix-popover-trigger-width)' 
                           }}
                           onOpenAutoFocus={(e) => e.preventDefault()}
                         >
-                        {option.type === 'number' ? (
+                        {option.type === ColumnFilterTypeEnum.number ? (
                           <NumberFilter
                             option={option}
                             filterValue={filterValue}
@@ -615,7 +640,7 @@ export default function AdvancedFilters({
                             onOperatorChange={setNumberOperator}
                             onApply={handleApplyNumberFilter}
                           />
-                        ) : option.type === 'date' ? (
+                        ) : option.type === ColumnFilterTypeEnum.date ? (
                           <DateRangeFilter
                             option={option}
                             dateRangeStart={dateRangeStart}
@@ -626,14 +651,14 @@ export default function AdvancedFilters({
                             }}
                             onApply={handleApplyDateRangeFilter}
                           />
-                        ) : option.type === 'month' ? (
+                        ) : option.type === ColumnFilterTypeEnum.month ? (
                           <MonthYearFilter
                             option={option}
                             selectedMonthYear={selectedMonthYear}
                             onMonthYearChange={setSelectedMonthYear}
                             onApply={handleApplyMonthYearFilter}
                           />
-                        ) : option.type === 'dropdown' ? (
+                        ) : option.type === ColumnFilterTypeEnum.dropdown ? (
                           <DropdownFilter
                             option={option}
                             filterValue={filterValue}
@@ -642,7 +667,7 @@ export default function AdvancedFilters({
                             onToggleValue={toggleValue}
                             onApply={handleApplyMultiSelect}
                           />
-                        ) : option.type === 'boolean' ? (
+                        ) : option.type === ColumnFilterTypeEnum.boolean ? (
                           <BooleanFilter
                             option={option}
                             selectedValue={booleanValue}
@@ -656,7 +681,7 @@ export default function AdvancedFilters({
                             }}
                             hasActiveFilter={localFilters.some(f => f.columnName === option.columnName)}
                           />
-                        ) : option.type === 'factory' ? (
+                        ) : option.type === ColumnFilterTypeEnum.factory ? (
                           <FactoryFilter
                             option={option}
                             selectedValues={selectedValues}
@@ -668,7 +693,7 @@ export default function AdvancedFilters({
                             }}
                             hasActiveFilter={selectedValues.length > 0}
                           />
-                        ) : option.type === 'category' ? (
+                        ) : option.type === ColumnFilterTypeEnum.category ? (
                           <CategoryFilter
                             option={option}
                             selectedValues={selectedValues}
@@ -681,7 +706,7 @@ export default function AdvancedFilters({
                             hasActiveFilter={selectedValues.length > 0}
                             factoryId={undefined}
                           />
-                        ) : option.type === 'company' ? (
+                        ) : option.type === ColumnFilterTypeEnum.company ? (
                           <CompanyFilter
                             option={option}
                             selectedValues={selectedValues}
@@ -693,7 +718,7 @@ export default function AdvancedFilters({
                             }}
                             hasActiveFilter={selectedValues.length > 0}
                           />
-                        ) : option.type === 'companyType' ? (
+                        ) : option.type === ColumnFilterTypeEnum.companyType ? (
                           <CompanyTypeFilter
                             option={option}
                             selectedValues={selectedValues}
@@ -705,7 +730,19 @@ export default function AdvancedFilters({
                             }}
                             hasActiveFilter={selectedValues.length > 0}
                           />
-                        ) : option.type === 'picklist' && option.picklistKey ? (
+                        ) : option.type === ColumnFilterTypeEnum.customer ? (
+                          <CustomerFilter
+                            option={option}
+                            selectedValues={selectedValues}
+                            onToggleValue={toggleValue}
+                            onApply={handleApplyMultiSelect}
+                            onClear={() => {
+                              setSelectedValues([]);
+                              handleClearFilter(option.columnName);
+                            }}
+                            hasActiveFilter={selectedValues.length > 0}
+                          />
+                        ) : option.type === ColumnFilterTypeEnum.picklist && option.picklistKey ? (
                           <PicklistFilter
                             picklistKey={option.picklistKey as PicklistKey}
                             selectedValues={selectedValues}
@@ -749,13 +786,10 @@ export default function AdvancedFilters({
                 </button>
               </div>
             )}
+            </div>
           </div>
-          
-          {/* Backdrop - blocks interaction with content behind modal */}
-          <div 
-            className="fixed inset-0 bg-black/30 -z-10 pointer-events-auto"
-          />
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

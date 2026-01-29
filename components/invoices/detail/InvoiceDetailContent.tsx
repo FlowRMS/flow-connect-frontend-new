@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { useFlowChat } from '@/contexts/FlowChatContext';
@@ -29,7 +29,7 @@ import {
 import { WarehouseConversionModal, DeleteConfirmModal } from './components/modals/utility';
 import { useDeleteInvoice } from '../api/useInvoicesApi';
 import { invoiceToasts } from '@/components/lib/toast';
-import { AdditionalDetailsModal } from './components/modals/line-items';
+import { AdditionalDetailsModal, ColumnsModal } from './components/modals/line-items';
 import { DEFAULT_VISIBLE_COLUMNS, COLUMN_LABELS } from './constants';
 import { getTabsConfig } from './config/tabsConfig';
 import { isOverdue } from './utils';
@@ -62,10 +62,26 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
     };
   }, [state?.invoice?.invoiceNumber, invoiceId, setFullEntityContext]);
 
+  // Bridge setVisibleColumns to columnConfig-based state
+  const setVisibleColumns = useCallback(
+    (updater: Set<ColumnKey> | ((prev: Set<ColumnKey>) => Set<ColumnKey>)) => {
+      if (!state?.setColumnConfig || !state?.columnConfig) return;
+      const currentVisible = state.visibleColumns ?? new Set(DEFAULT_VISIBLE_COLUMNS);
+      const newVisible = typeof updater === 'function' ? updater(currentVisible) : updater;
+      state.setColumnConfig(
+        state.columnConfig.map(col => ({
+          ...col,
+          visible: newVisible.has(col.key as ColumnKey),
+        }))
+      );
+    },
+    [state?.setColumnConfig, state?.columnConfig, state?.visibleColumns]
+  );
+
   // Line items table hook - must be called before any early returns to respect Rules of Hooks
   const tableHook = useInvoiceLineItemsTable({
     visibleColumns: state?.visibleColumns ?? new Set(DEFAULT_VISIBLE_COLUMNS),
-    setVisibleColumns: state?.setVisibleColumns ?? (() => {}),
+    setVisibleColumns,
     selectedLineItems: state?.selectedLineItems ?? new Set(),
     lineItemsCount: state?.invoice?.lineItems?.length ?? 0,
     onSelectAll: state?.selectAllLineItems,
@@ -320,42 +336,45 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
   return (
     <main className="h-full overflow-auto bg-[var(--background)]">
-      {/* Header Top Bar */}
-      <HeaderTopBar
-        invoice={state.invoice}
-        showActionsDropdown={state.showActionsDropdown}
-        setShowActionsDropdown={state.setShowActionsDropdown}
-        showStatusDropdown={state.showStatusDropdown}
-        setShowStatusDropdown={state.setShowStatusDropdown}
-        showVersionDropdown={state.showVersionDropdown}
-        setShowVersionDropdown={state.setShowVersionDropdown}
-        showViewModeDropdown={state.showViewModeDropdown}
-        setShowViewModeDropdown={state.setShowViewModeDropdown}
-        showSaveDropdown={state.showSaveDropdown}
-        setShowSaveDropdown={state.setShowSaveDropdown}
-        currentVersion={state.currentVersion}
-        setCurrentVersion={state.setCurrentVersion}
-        availableVersions={state.availableVersions}
-        viewMode={state.viewMode}
-        setViewMode={state.setViewMode}
-        setVisibleColumns={state.setVisibleColumns}
-        updateInvoiceStatus={state.updateInvoiceStatus}
-        handleMakeWarehouseOrder={handleMakeWarehouseOrder}
-        handleGeneratePDF={handleGeneratePDF}
-        handleSave={handleSave}
-        handleSaveAsNew={handleSaveAsNew}
-        onDelete={handleDelete}
-        isCreateMode={state.isCreateMode}
-        hasChanges={state.hasChanges}
-        isSaving={state.isSaving}
-        onBack={handleBack}
-      />
+      {/* Sticky header section containing top bar and pricing summary */}
+      <div className="sticky top-0 z-30 bg-[var(--background)]">
+        {/* Header Top Bar */}
+        <HeaderTopBar
+          invoice={state.invoice}
+          showActionsDropdown={state.showActionsDropdown}
+          setShowActionsDropdown={state.setShowActionsDropdown}
+          showStatusDropdown={state.showStatusDropdown}
+          setShowStatusDropdown={state.setShowStatusDropdown}
+          showVersionDropdown={state.showVersionDropdown}
+          setShowVersionDropdown={state.setShowVersionDropdown}
+          showViewModeDropdown={state.showViewModeDropdown}
+          setShowViewModeDropdown={state.setShowViewModeDropdown}
+          showSaveDropdown={state.showSaveDropdown}
+          setShowSaveDropdown={state.setShowSaveDropdown}
+          currentVersion={state.currentVersion}
+          setCurrentVersion={state.setCurrentVersion}
+          availableVersions={state.availableVersions}
+          viewMode={state.viewMode}
+          setViewMode={state.setViewMode}
+          setVisibleColumns={setVisibleColumns}
+          updateInvoiceStatus={state.updateInvoiceStatus}
+          handleMakeWarehouseOrder={handleMakeWarehouseOrder}
+          handleGeneratePDF={handleGeneratePDF}
+          handleSave={handleSave}
+          handleSaveAsNew={handleSaveAsNew}
+          onDelete={handleDelete}
+          isCreateMode={state.isCreateMode}
+          hasChanges={state.hasChanges}
+          isSaving={state.isSaving}
+          onBack={handleBack}
+        />
 
-      {/* Pricing Summary Bar */}
-      <PricingSummaryBar
-        viewMode={state.viewMode}
-        totals={state.totals}
-      />
+        {/* Pricing Summary Bar */}
+        <PricingSummaryBar
+          viewMode={state.viewMode}
+          totals={state.totals}
+        />
+      </div>
 
       {/* Invoice Details Fields */}
       <InvoiceDetailsFields
@@ -468,75 +487,6 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
                   </svg>
                 </button>
 
-                {/* Sections Button */}
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="3" y="3" width="14" height="4" rx="1" />
-                    <rect x="3" y="10" width="14" height="7" rx="1" />
-                  </svg>
-                  Sections
-                </button>
-
-                {/* Columns Button */}
-                <div className="relative">
-                  <button
-                    onClick={() =>
-                      tableHook.setShowColumnsMenu(!tableHook.showColumnsMenu)
-                    }
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path
-                        d="M4 6h12M4 10h12M4 14h12"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    Columns
-                    <span className="px-1.5 py-0.5 bg-[var(--muted)] rounded text-xs">
-                      {state.visibleColumns.size}
-                    </span>
-                  </button>
-                  {tableHook.showColumnsMenu && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => tableHook.setShowColumnsMenu(false)}
-                      />
-                      <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 py-1 max-h-80 overflow-y-auto">
-                        {(Object.keys(COLUMN_LABELS) as ColumnKey[]).map(
-                          (col) => (
-                            <label
-                              key={col}
-                              className="flex items-center gap-2 px-4 py-2 hover:bg-[var(--muted)] cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={state.visibleColumns.has(col)}
-                                onChange={() => tableHook.toggleColumn(col)}
-                                className="accent-[var(--primary)]"
-                              />
-                              <span className="text-sm">{COLUMN_LABELS[col]}</span>
-                            </label>
-                          )
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
               </div>
             )}
           </div>
@@ -563,6 +513,10 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
                 onOpenAdditionalDetails={state.openAdditionalDetails}
                 isEditable={state.invoice.status !== 'paid'}
                 factoryId={state.invoice.manufacturerId}
+                isPinned={state.isPinned}
+                getPinnedColumnStyle={state.getPinnedColumnStyle}
+                onOpenSectionsModal={undefined}
+                onOpenColumnsModal={() => state.openColumnsModal()}
               />
             </div>
           )}
@@ -762,6 +716,14 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         isPending={isDeleting}
         onConfirm={handleConfirmDelete}
         onCancel={() => setShowDeleteInvoiceModal(false)}
+      />
+
+      {/* Columns Modal */}
+      <ColumnsModal
+        isOpen={state.showColumnsModal}
+        onClose={state.closeColumnsModal}
+        columnConfig={state.columnConfig}
+        onColumnConfigChange={state.setColumnConfig}
       />
     </main>
   );

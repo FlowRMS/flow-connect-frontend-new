@@ -97,12 +97,12 @@ export function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
     const commissionRate = parseFloat(detail.commissionRate || '0');
 
-    // Calculate extended price - always calculate from inputs to ensure correctness
-    // The API subtotal/commission fields can be stale or incorrect, so we recalculate
-    const extendedPrice = quantity * unitPrice / divisor;
+    // Use API subtotal if available, otherwise calculate from inputs
+    const extendedPrice = detail.subtotal ? parseFloat(String(detail.subtotal)) : (quantity * unitPrice / divisor);
 
-    // Calculate commission amount based on extended price and commission rate
-    const commissionAmount = extendedPrice * (commissionRate / 100);
+    // Use API commission value if available, otherwise calculate
+    // API sends: commission (before discount), totalLineCommission (after discount)
+    const commissionAmount = detail.commission ? parseFloat(String(detail.commission)) : (extendedPrice * (commissionRate / 100));
 
     return {
     id: detail.id,
@@ -132,9 +132,9 @@ export function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     outsideSplitRates: detail.outsideSplitRates, // Store outside rep split rates from line item
     // Additional details fields (from AdditionalDetailsModal)
     commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
-    commissionDiscountAmount: detail.commissionDiscount || 0,
+    commissionDiscountAmount: parseFloat(String(detail.commissionDiscount || '0')),
     lineDiscountPercent: parseFloat(detail.discountRate || '0'),
-    lineDiscountAmount: detail.discount || 0,
+    lineDiscountAmount: parseFloat(String(detail.discount || '0')),
     leadTime: detail.leadTime || '',
     note: detail.note || '',
     // Invoice linked to this line item
@@ -531,6 +531,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
 
   // Update line items (for both create and edit mode)
   // Automatically recalculates totals when line items change
+  // Commission is calculated based on discounted sell total (extendedPrice - lineDiscountAmount)
   const updateLineItems = (items: OrderLineItem[]) => {
     if (!isCreateMode) setHasLocalEdits(true);
 
@@ -541,7 +542,10 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       const divisor = item.divisor || 1;
       const commissionRate = item.commissionRate || 0; // Stored as whole percentage (e.g., 8 for 8%)
       const extendedPrice = quantity * unitPrice / divisor;
-      const commissionAmount = extendedPrice * (commissionRate / 100); // Convert to decimal for calculation
+      // Commission is based on discounted sell total (if line discount exists)
+      const lineDiscountAmount = (item as any).lineDiscountAmount || 0;
+      const discountedSellTotal = extendedPrice - lineDiscountAmount;
+      const commissionAmount = discountedSellTotal * (commissionRate / 100); // Convert to decimal for calculation
       return {
         ...item,
         extendedPrice,
@@ -639,6 +643,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   };
 
   // Live update additional details for a line item (without closing modal)
+  // When line discount changes, commission is recalculated based on discounted sell total
   const liveUpdateAdditionalDetails = (updates: Partial<OrderLineItem>) => {
     // Update the additionalDetailsLineItem so the modal stays in sync
     setAdditionalDetailsLineItem((prev) => prev ? { ...prev, ...updates } : prev);
@@ -653,11 +658,25 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       const lineItemIdToUpdate = additionalDetailsLineItem?.id;
       if (!lineItemIdToUpdate) return prevOrder;
 
-      const updatedItems = (prevOrder.lineItems || []).map((li) =>
-        li.id === lineItemIdToUpdate ? { ...li, ...updates } : li
-      );
+      const updatedItems = (prevOrder.lineItems || []).map((li) => {
+        if (li.id !== lineItemIdToUpdate) return li;
 
-      // Recalculate totals
+        const updatedItem = { ...li, ...updates };
+
+        // If line discount changed, recalculate commission based on discounted sell total
+        if ('lineDiscountAmount' in updates || 'lineDiscountPercent' in updates) {
+          const extendedPrice = updatedItem.extendedPrice || 0;
+          const lineDiscountAmount = (updatedItem as any).lineDiscountAmount || 0;
+          const discountedSellTotal = extendedPrice - lineDiscountAmount;
+          const commissionRate = updatedItem.commissionRate || 0;
+          // Commission is now based on the discounted sell total
+          updatedItem.commissionAmount = discountedSellTotal * (commissionRate / 100);
+        }
+
+        return updatedItem;
+      });
+
+      // Recalculate totals (header already accounts for discounts separately, but we update base values too)
       const subtotal = updatedItems.reduce((sum, item) => sum + (item.extendedPrice || 0), 0);
       const totalCommission = updatedItems.reduce((sum, item) => sum + (item.commissionAmount || 0), 0);
 
@@ -1034,7 +1053,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     // Apply mutation result to local state (prevents stale data after save)
     applyMutationResult: (savedOrder: ApiOrder) => {
       const transformed = transformApiOrderToUiOrder(savedOrder);
-      // Preserve any display names we already have (factory, customer, rep names)
+      // Preserve any display names we already have (factory, customer, rep names, job name)
       // Also preserve custPartNumber and uom for each line item since mutation response may not include them
       setLocalOrder(prev => {
         // Create a map of previous line items by ID to preserve custPartNumber and uom
@@ -1046,6 +1065,8 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
           ...transformed,
           manufacturerName: prev.manufacturerName || transformed.manufacturerName,
           customerName: prev.customerName || transformed.customerName,
+          // Preserve job name if API didn't return it but we have it locally
+          jobName: transformed.jobName || prev.jobName,
           // Preserve custPartNumber and uom from previous line items if not in response
           lineItems: (transformed.lineItems || []).map(li => {
             const prevItem = prevLineItemsMap.get(li.id);

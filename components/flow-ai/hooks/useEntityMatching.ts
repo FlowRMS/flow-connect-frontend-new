@@ -836,7 +836,7 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
               ? 'skipped'
               : action === 'SET_FOR_CREATION'
               ? 'set for creation'
-              : action === 'DOCUMENT_SPECIFIC'
+              : action === 'DOCUMENT_SPECIFIC_PRODUCT'
               ? 'marked as document specific'
               : 'rejected';
           toast.success(
@@ -890,7 +890,7 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
   );
 
   const handleBulkDocSpecific = useCallback(
-    () => handleBulkAction('DOCUMENT_SPECIFIC'),
+    () => handleBulkAction('DOCUMENT_SPECIFIC_PRODUCT'),
     [handleBulkAction]
   );
 
@@ -985,7 +985,7 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
           const actionLabel =
             action === 'SKIP' ? 'skipped' :
             action === 'SET_FOR_CREATION' ? 'set for creation' :
-            action === 'DOCUMENT_SPECIFIC' ? 'marked as document specific' :
+            action === 'DOCUMENT_SPECIFIC_PRODUCT' ? 'marked as document specific' :
             action === 'REJECT' ? 'rejected' : 'updated';
           toast.success(`Entity ${actionLabel}`);
         }

@@ -6,8 +6,10 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useCreateOrderFromQuote } from '../../orders/api';
+import { createLink } from '../../lib/graphql/entity-links';
 import type { Order } from '../../orders/api/ordersApi';
 import type { QuoteDetailToOrderDetailInput } from '../../lib/graphql/orders';
 import type { LineItemV2 } from '../types';
@@ -15,6 +17,8 @@ import type { LineItemV2 } from '../types';
 interface LineItemOverride {
   quantity: string;
   unitPrice: string;
+  lineDiscountAmount: number;
+  commissionDiscountAmount: number;
 }
 
 interface CreateOrderFromQuoteModalProps {
@@ -57,13 +61,15 @@ export function CreateOrderFromQuoteModal({
       : new Set(lineItems.map(item => item.id))
   );
 
-  // State for quantity and unit price overrides per line item
+  // State for quantity and unit price overrides per line item (including discounts)
   const [lineItemOverrides, setLineItemOverrides] = useState<Record<string, LineItemOverride>>(() => {
     const overrides: Record<string, LineItemOverride> = {};
     lineItems.forEach(item => {
       overrides[item.id] = {
         quantity: String(item.quantity || '0'),
         unitPrice: String(item.unitPrice || '0'),
+        lineDiscountAmount: item.lineDiscountAmount || 0,
+        commissionDiscountAmount: item.commissionDiscountAmount || 0,
       };
     });
     return overrides;
@@ -77,19 +83,21 @@ export function CreateOrderFromQuoteModal({
           ? new Set(initialSelectedItemIds)
           : new Set(lineItems.map(item => item.id))
       );
-      // Initialize overrides with original values
+      // Initialize overrides with original values (including discounts)
       const overrides: Record<string, LineItemOverride> = {};
       lineItems.forEach(item => {
         overrides[item.id] = {
           quantity: String(item.quantity || '0'),
           unitPrice: String(item.unitPrice || '0'),
+          lineDiscountAmount: item.lineDiscountAmount || 0,
+          commissionDiscountAmount: item.commissionDiscountAmount || 0,
         };
       });
       setLineItemOverrides(overrides);
     }
   }, [isOpen, initialSelectedItemIds, lineItems]);
 
-  // Calculate totals for selected items using overridden values
+  // Calculate totals for selected items using overridden values (minus line discounts)
   const selectedTotal = useMemo(() => {
     return lineItems
       .filter(item => selectedItemIds.has(item.id))
@@ -98,9 +106,12 @@ export function CreateOrderFromQuoteModal({
         if (override) {
           const qty = Number(override.quantity) || 0;
           const price = Number(override.unitPrice) || 0;
-          return sum + (qty * price);
+          const lineDiscount = override.lineDiscountAmount || 0;
+          return sum + (qty * price) - lineDiscount;
         }
-        return sum + (Number(item.sellTotal) || Number(item.total) || 0);
+        const baseTotal = Number(item.sellTotal) || Number(item.total) || 0;
+        const lineDiscount = item.lineDiscountAmount || 0;
+        return sum + baseTotal - lineDiscount;
       }, 0);
   }, [lineItems, selectedItemIds, lineItemOverrides]);
 
@@ -182,6 +193,19 @@ export function CreateOrderFromQuoteModal({
         quoteDetailsInputs,
       });
 
+      // Auto-link the quote to the newly created order
+      try {
+        await createLink({
+          sourceEntityType: 'QUOTE',
+          sourceEntityId: quoteId,
+          targetEntityType: 'ORDER',
+          targetEntityId: order.id,
+        });
+      } catch (linkError) {
+        // Log but don't fail the whole operation if linking fails
+        console.warn('Failed to auto-link quote to order:', linkError);
+      }
+
       setCreatedOrder(order);
       setStep('success');
       onSuccess?.(order);
@@ -213,12 +237,14 @@ export function CreateOrderFromQuoteModal({
         ? new Set(initialSelectedItemIds)
         : new Set(lineItems.map(item => item.id))
     );
-    // Reset line item overrides to original values
+    // Reset line item overrides to original values (including discounts)
     const overrides: Record<string, LineItemOverride> = {};
     lineItems.forEach(item => {
       overrides[item.id] = {
         quantity: String(item.quantity || '0'),
         unitPrice: String(item.unitPrice || '0'),
+        lineDiscountAmount: item.lineDiscountAmount || 0,
+        commissionDiscountAmount: item.commissionDiscountAmount || 0,
       };
     });
     setLineItemOverrides(overrides);
@@ -229,8 +255,8 @@ export function CreateOrderFromQuoteModal({
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
       <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col">
         {step === 'select-items' ? (
           <>
@@ -288,7 +314,9 @@ export function CreateOrderFromQuoteModal({
                     const override = lineItemOverrides[item.id];
                     const currentQty = Number(override?.quantity) || 0;
                     const currentPrice = Number(override?.unitPrice) || 0;
-                    const lineTotal = currentQty * currentPrice;
+                    const lineDiscount = override?.lineDiscountAmount || 0;
+                    const commDiscount = override?.commissionDiscountAmount || 0;
+                    const lineTotal = (currentQty * currentPrice) - lineDiscount;
                     return (
                       <div
                         key={item.id}
@@ -364,6 +392,21 @@ export function CreateOrderFromQuoteModal({
                                 <span className="text-xs text-gray-400">(orig: {formatCurrency(Number(item.unitPrice) || 0)})</span>
                               </div>
                             </div>
+                            {/* Show discounts if any */}
+                            {(lineDiscount > 0 || commDiscount > 0) && (
+                              <div className="flex flex-wrap items-center gap-4 mt-2">
+                                {lineDiscount > 0 && (
+                                  <span className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                                    Line Discount: -{formatCurrency(lineDiscount)}
+                                  </span>
+                                )}
+                                {commDiscount > 0 && (
+                                  <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
+                                    Comm. Discount: -{formatCurrency(commDiscount)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           {/* Item Total */}
@@ -371,6 +414,11 @@ export function CreateOrderFromQuoteModal({
                             <span className={`text-sm font-bold ${isSelected ? 'text-indigo-600' : 'text-gray-900'}`}>
                               {formatCurrency(lineTotal)}
                             </span>
+                            {lineDiscount > 0 && (
+                              <div className="text-xs text-gray-400 line-through">
+                                {formatCurrency(currentQty * currentPrice)}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -631,6 +679,7 @@ export function CreateOrderFromQuoteModal({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

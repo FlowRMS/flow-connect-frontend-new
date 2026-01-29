@@ -17,7 +17,7 @@ export type ConfirmationStatus =
   | 'DOCUMENT_SPECIFIC';
 
 // Bulk Confirm Action Types
-export type BulkConfirmAction = 'MATCH_EXISTING' | 'CREATE_NEW' | 'REJECT' | 'SKIP' | 'SET_FOR_CREATION' | 'DOCUMENT_SPECIFIC';
+export type BulkConfirmAction = 'MATCH_EXISTING' | 'CREATE_NEW' | 'REJECT' | 'SKIP' | 'SET_FOR_CREATION' | 'DOCUMENT_SPECIFIC_PRODUCT';
 
 // Match Candidate from API
 export interface MatchCandidate {

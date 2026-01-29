@@ -994,8 +994,9 @@ export default function CycleCountDetailContent({ cycleCountId }: CycleCountDeta
                                                   type="number"
                                                   value={issue.quantity}
                                                   onChange={(e) => handleUpdateIssue(item.productId, bin.binLocation, issueIdx, { quantity: parseInt(e.target.value) || 0 })}
+                                                  onFocus={(e) => e.target.select()}
                                                   min={1}
-                                                  className="w-12 px-1 py-1 text-xs text-center border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                                  className="w-12 px-1 py-1 text-xs text-center border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                 />
                                                 <button
                                                   onClick={() => handleUpdateIssue(item.productId, bin.binLocation, issueIdx, { quantity: issue.quantity + 1 })}

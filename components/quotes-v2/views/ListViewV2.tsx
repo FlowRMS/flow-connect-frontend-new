@@ -5,6 +5,7 @@ import type { QuoteV2, QuotePipelineStage } from '../types';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { ColumnFilterTypeEnum } from '@/components/advancedFilters/types';
 import { getQuoteFilterOptions } from '../config/filterConfig';
 import { QuotesTableSkeleton } from '../components/QuotesTableSkeleton';
 import { SortIndicator } from '@/components/shared/sorting/components/SortIndicator';
@@ -146,6 +147,7 @@ export function ListViewV2({
     quoteDate: 'quote-date',
     expirationDate: 'expiration-date',
     published: 'published',
+    endUsers: 'end-users',
   };
   
   // Handle column filter change - now receives ActiveFilter[]
@@ -231,22 +233,22 @@ export function ListViewV2({
     const filterOption = filterOptions.find(f => f.id === filterId);
     if (!filterOption || !filterOption.columnName) return null;
     
-    // Ensure type is preserved correctly
-    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean';
-    
     // Get filters for this column (ActiveFilter[])
     const columnFiltersForThisColumn = columnFilters[columnKey] || [];
     
     return (
       <ColumnFilter
-        type={filterType}
+        type={filterOption.type}
         columnName={filterOption.columnName}
         value={columnFiltersForThisColumn}
         onChange={(filters) => handleColumnFilterChange(columnKey, filters)}
         options={filterOption.options}
-        placeholder={filterOption.type === 'text' || filterOption.type === 'number' 
+        placeholder={
+          filterOption.type === ColumnFilterTypeEnum.text ||
+          filterOption.type === ColumnFilterTypeEnum.number
           ? `Filter ${filterOption.label.toLowerCase()}...` 
-          : undefined}
+          : undefined
+        }
         isOpen={openFilter === columnKey}
         onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
         filterOption={filterOption}
@@ -279,7 +281,7 @@ export function ListViewV2({
               {/* Preview */}
               <th className="w-10 px-3 py-3 text-center"></th>
               {/* Quote Number */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '180px' }}>
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
@@ -303,7 +305,7 @@ export function ListViewV2({
                 </div>
               </th>
               {/* Customer Name */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '190px' }}>
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
@@ -323,28 +325,65 @@ export function ListViewV2({
                   )}
                 </div>
               </th>
+              {/* End Users - next to Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('endUsers')}
+                  >
+                    End Users
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('endUsers')}
+                  </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="endUsers" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
+                </div>
+              </th>
               {/* Part Numbers - moved after Customer */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Part Numbers
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+                <span className="whitespace-nowrap">Part Numbers</span>
               </th>
               {/* Sales Reps - moved after Customer */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Sales Reps
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '190px' }}>
+                <span className="whitespace-nowrap">Sales Reps</span>
               </th>
               {/* Factories - moved after Customer */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('factories')}
+                  >
                 Factories
-              </th>
-              {/* End Users - moved after Customer */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                End Users
+                  </span>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="factories" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
+                </div>
               </th>
               {/* Categories - moved after Customer */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Categories
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+                <span className="whitespace-nowrap">Categories</span>
               </th>
               {/* Status */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
@@ -368,7 +407,7 @@ export function ListViewV2({
                 </div>
               </th>
               {/* Pipeline Stage */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '190px' }}>
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
@@ -392,7 +431,7 @@ export function ListViewV2({
                 </div>
               </th>
               {/* Quote Amount */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
@@ -416,7 +455,7 @@ export function ListViewV2({
                 </div>
               </th>
               {/* Commission */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '160px' }}>
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
@@ -440,7 +479,7 @@ export function ListViewV2({
                 </div>
               </th>
               {/* Entry Date */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
@@ -464,7 +503,7 @@ export function ListViewV2({
                 </div>
               </th>
               {/* Quote Date */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
@@ -488,7 +527,7 @@ export function ListViewV2({
                 </div>
               </th>
               {/* Exp. Date */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '110px' }}>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
@@ -512,11 +551,11 @@ export function ListViewV2({
                 </div>
               </th>
               {/* Created By */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
                 <span className="whitespace-nowrap">Created By</span>
               </th>
               {/* Published */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '110px' }}>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
                 <div className="flex items-center gap-1.5">
                   <span 
                     className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
@@ -542,7 +581,7 @@ export function ListViewV2({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {(isLoading || isFetching) ? (
+            {(isLoading || (isFetching && !isFetchingNextPage)) ? (
               <QuotesTableSkeleton rowCount={8} />
             ) : quotes.length === 0 ? (
               <tr>
@@ -608,6 +647,13 @@ export function ListViewV2({
                       {quote.soldToCustomerName || '-'}
                     </span>
                   </td>
+                  {/* End Users - next to Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.endUsers || []}
+                      type="endUser"
+                    />
+                  </td>
                   {/* Part Numbers - moved after Customer */}
                   <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                     <ListPreviewHoverCard
@@ -627,13 +673,6 @@ export function ListViewV2({
                     <ListPreviewHoverCard
                       items={quote.factories || []}
                       type="factory"
-                    />
-                  </td>
-                  {/* End Users - moved after Customer */}
-                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    <ListPreviewHoverCard
-                      items={quote.endUsers || []}
-                      type="endUser"
                     />
                   </td>
                   {/* Categories - moved after Customer */}

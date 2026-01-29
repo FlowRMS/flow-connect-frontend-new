@@ -372,12 +372,17 @@ export function QuoteDetailHeaderV2({
   }, [quote.outsideReps]);
 
   // Calculate totals from line items
+  // Includes line discounts and commission discounts from AdditionalDetailsModal
   const calculatedTotals = useMemo(() => {
     if (lineItems.length === 0) {
       return {
         basePrice: Number(quote.basePrice) || 0,
         sellPrice: Number(quote.sellPrice) || 0,
         commission: Number(quote.commission) || 0,
+        originalSellPrice: Number(quote.sellPrice) || 0,
+        originalCommission: Number(quote.commission) || 0,
+        totalLineDiscount: 0,
+        totalCommissionDiscount: 0,
       };
     }
 
@@ -388,15 +393,38 @@ export function QuoteDetailHeaderV2({
       return sum + (qty * price / div);
     }, 0);
 
-    const sellPrice = lineItems.reduce((sum, item) => {
+    // Calculate original values (before discounts) and total discounts
+    const originalSellPrice = lineItems.reduce((sum, item) => {
       return sum + (Number(item.sellTotal) || 0);
     }, 0);
 
-    const commission = lineItems.reduce((sum, item) => {
-      return sum + (Number(item.commissionTotal) || 0);
+    // originalCommission is commission BEFORE commission discount
+    // Use item.commission which is the total commission calculated on (discounted) sell total
+    // item.commissionTotal is commission AFTER commission discount (from API's totalLineCommission)
+    const originalCommission = lineItems.reduce((sum, item) => {
+      // If commission is set, use it (this is total commission before comm discount)
+      // Otherwise fall back to commissionTotal + commissionDiscountAmount to reconstruct it
+      const commBeforeDiscount = (Number(item.commission) || 0) > 0
+        ? Number(item.commission)
+        : (Number(item.commissionTotal) || 0) + (Number(item.commissionDiscountAmount) || 0);
+      return sum + commBeforeDiscount;
     }, 0);
 
-    return { basePrice, sellPrice, commission };
+    const totalLineDiscount = lineItems.reduce((sum, item) => {
+      return sum + (Number(item.lineDiscountAmount) || 0);
+    }, 0);
+
+    const totalCommissionDiscount = lineItems.reduce((sum, item) => {
+      return sum + (Number(item.commissionDiscountAmount) || 0);
+    }, 0);
+
+    // sellPrice accounts for line discounts
+    const sellPrice = originalSellPrice - totalLineDiscount;
+
+    // commission accounts for commission discounts
+    const commission = originalCommission - totalCommissionDiscount;
+
+    return { basePrice, sellPrice, commission, originalSellPrice, originalCommission, totalLineDiscount, totalCommissionDiscount };
   }, [lineItems, quote.basePrice, quote.sellPrice, quote.commission]);
 
   // API hooks for search
@@ -666,7 +694,9 @@ export function QuoteDetailHeaderV2({
   }, []);
 
   return (
-    <div className="sticky top-0 z-50 flex-shrink-0 bg-white">
+    <div className="flex-shrink-0 bg-white">
+      {/* Sticky section: Top Header Row + Pricing Summary */}
+      <div className="sticky top-0 z-30 bg-white">
       {/* Top Header Row */}
       <div className="flex items-center justify-between pt-6 pb-4 px-6 border-b border-gray-200">
         <div className="flex items-center gap-4">
@@ -1016,24 +1046,37 @@ export function QuoteDetailHeaderV2({
       </div>
 
       {/* Pricing Summary Bar */}
-      <div className="flex items-center justify-end gap-6 px-6 py-2 text-sm border-b border-gray-200 bg-gray-50">
-        <div>
-          <span className="text-gray-500">Base Price:</span>
-          <span className="ml-2 font-semibold">${Number(calculatedTotals.basePrice.toFixed(2)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      <div className="flex items-center justify-end gap-6 px-6 py-3 text-sm border-b border-gray-200 bg-gradient-to-r from-slate-50 to-indigo-50/50">
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] uppercase tracking-wider text-gray-400">Base Price</span>
+          <span className="font-semibold text-gray-700">${Number(calculatedTotals.basePrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
         </div>
-        <div className="border-l border-gray-300 h-4" />
-        <div>
-          <span className="text-gray-500">Sell Price:</span>
-          <span className="ml-2 font-semibold">${Number(calculatedTotals.sellPrice.toFixed(2)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        <div className="h-8 w-px bg-gray-200" />
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] uppercase tracking-wider text-gray-400">Sell Price</span>
+          <span className="font-bold text-lg text-gray-900">${Number(calculatedTotals.sellPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+          {calculatedTotals.totalLineDiscount > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-400 line-through">${Number(calculatedTotals.originalSellPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded">-${Number(calculatedTotals.totalLineDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          )}
         </div>
-        <div className="border-l border-gray-300 h-4" />
-        <div>
-          <span className="text-gray-500">Commission:</span>
-          <span className="ml-2 font-semibold text-green-600">${Number(calculatedTotals.commission.toFixed(2)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        <div className="h-8 w-px bg-gray-200" />
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] uppercase tracking-wider text-purple-500">Commission</span>
+          <span className="font-bold text-lg text-purple-600">${Number(calculatedTotals.commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+          {calculatedTotals.totalCommissionDiscount > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-400 line-through">${Number(calculatedTotals.originalCommission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded">-${Number(calculatedTotals.totalCommissionDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          )}
         </div>
       </div>
+      </div>
 
-      {/* Quote Details Section - Collapsible */}
+      {/* Quote Details Section - Collapsible (not sticky) */}
       <div className="border-b border-gray-200 bg-blue-50/30">
         <button
           onClick={() => setShowQuoteDetails(!showQuoteDetails)}

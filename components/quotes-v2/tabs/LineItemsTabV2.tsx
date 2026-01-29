@@ -168,8 +168,12 @@ export function LineItemsTabV2({
     const divisor = item.divisor || 1;
     const newCommissionPercent = commissionRate ?? item.commissionPercent;
     const sellTotal = qty * price / divisor;
-    const commissionTotal = sellTotal * (newCommissionPercent / 100);
-    const commission = qty > 0 ? commissionTotal / qty : 0;
+    // Commission is calculated on DISCOUNTED sell total (after line discount)
+    const lineDiscountPct = item.lineDiscountPercent || 0;
+    const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+    const discountedSellTotal = sellTotal - lineDiscountAmount;
+    const commissionBeforeDiscount = discountedSellTotal * (newCommissionPercent / 100);
+    const commissionDiscountAmt = commissionBeforeDiscount * ((item.commissionDiscountPercent || 0) / 100);
 
     onLineItemsChange(
       lineItems.map(li => li.id === itemId ? {
@@ -177,8 +181,10 @@ export function LineItemsTabV2({
         unitPrice: price,
         commissionPercent: newCommissionPercent,
         sellTotal,
-        commission,
-        commissionTotal,
+        lineDiscountAmount,
+        commission: commissionBeforeDiscount,
+        commissionTotal: commissionBeforeDiscount - commissionDiscountAmt,
+        commissionDiscountAmount: commissionDiscountAmt,
         isManualPrice: source === 'manual',
         pricingSource: source,
       } : li)
@@ -271,6 +277,84 @@ export function LineItemsTabV2({
     [columnConfig]
   );
 
+  // Helper function to check if a column is pinned
+  const isPinned = useCallback((colKey: LineItemColumnKey) => {
+    const col = columnConfig.find((c) => c.key === colKey);
+    return col?.pinned === true && col?.visible === true;
+  }, [columnConfig]);
+
+  // Get pinned column styles (for sticky positioning)
+  // isHeader: true for header cells (uses gray-50), false for body cells (uses white)
+  const getPinnedColumnStyle = useCallback((colKey: LineItemColumnKey, isHeader: boolean = false): React.CSSProperties => {
+    if (!isPinned(colKey)) return {};
+
+    // Calculate left offset based on which columns are pinned before this one
+    // Fixed columns: checkbox (40px)
+    const fixedLeftOffset = 40; // checkbox width
+
+    // Get ordered list of visible pinned columns (in display order)
+    const allColumns: LineItemColumnKey[] = [
+      'partNumber',
+      'customerPartNumber',
+      'description',
+      'manufacturer',
+      'quantity',
+      'uom',
+      'divisor',
+      'unitPrice',
+      'endUser',
+      'sellTotal',
+      'commissionPercent',
+      'commission',
+      'commissionTotal',
+      'linkedOrder',
+    ];
+    
+    const visiblePinnedColumns = allColumns.filter(
+      (key) => {
+        const col = columnConfig.find((c) => c.key === key);
+        return col?.visible && col?.pinned;
+      }
+    );
+
+    // Calculate offset
+    const indexInPinned = visiblePinnedColumns.indexOf(colKey);
+    if (indexInPinned === -1) return {};
+
+    // Width for each column type (approximate widths)
+    const columnWidths: Record<LineItemColumnKey, number> = {
+      partNumber: 150,
+      customerPartNumber: 150,
+      description: 300,
+      manufacturer: 150,
+      quantity: 100,
+      uom: 80,
+      divisor: 80,
+      unitPrice: 120,
+      endUser: 150,
+      sellTotal: 120,
+      commissionPercent: 120,
+      commission: 120,
+      commissionTotal: 140,
+      linkedOrder: 120,
+    };
+
+    let leftOffset = 0; //fixedLeftOffset;
+    for (let i = 0; i < indexInPinned; i++) {
+      const prevCol = visiblePinnedColumns[i];
+      const colWidth = columnWidths[prevCol] || 120;
+      const adjustmentPerColumn = 20;
+      leftOffset += colWidth - adjustmentPerColumn;
+    }
+
+    return {
+      position: 'sticky',
+      left: `${leftOffset}px`,
+      zIndex: 10,
+      backgroundColor: isHeader ? '#f9fafb' : 'white', // gray-50 for header, white for body
+    };
+  }, [columnConfig, isPinned]);
+
   const toggleSelectAll = () => {
     if (selectedItems.size === lineItems.length) {
       setSelectedItems(new Set());
@@ -360,12 +444,18 @@ export function LineItemsTabV2({
       // User can change pricing source via dropdown if they want tier pricing
       const unitPrice = item.unitPrice;
       const sellTotal = qty * unitPrice / item.divisor;
-      const commissionTotal = sellTotal * (item.commissionPercent / 100);
-      const commission = qty > 0 ? commissionTotal / qty : 0;
+      // Commission is calculated on DISCOUNTED sell total (after line discount)
+      const lineDiscountPct = item.lineDiscountPercent || 0;
+      const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+      const discountedSellTotal = sellTotal - lineDiscountAmount;
+      const commissionBeforeDiscount = discountedSellTotal * (item.commissionPercent / 100);
+      const commissionDiscountAmt = commissionBeforeDiscount * ((item.commissionDiscountPercent || 0) / 100);
       updates.quantity = qty;
       updates.sellTotal = sellTotal;
-      updates.commission = commission;
-      updates.commissionTotal = commissionTotal;
+      updates.lineDiscountAmount = lineDiscountAmount;
+      updates.commission = commissionBeforeDiscount; // commission before commission discount
+      updates.commissionTotal = commissionBeforeDiscount - commissionDiscountAmt; // commission after commission discount
+      updates.commissionDiscountAmount = commissionDiscountAmt;
     } else if (column === 'divisor') {
       const divisor = parseFloat(value) || 1;
       // Skip if value hasn't changed
@@ -374,12 +464,18 @@ export function LineItemsTabV2({
         return;
       }
       const sellTotal = item.quantity * item.unitPrice / divisor;
-      const commissionTotal = sellTotal * (item.commissionPercent / 100);
-      const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
+      // Commission is calculated on DISCOUNTED sell total (after line discount)
+      const lineDiscountPct = item.lineDiscountPercent || 0;
+      const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+      const discountedSellTotal = sellTotal - lineDiscountAmount;
+      const commissionBeforeDiscount = discountedSellTotal * (item.commissionPercent / 100);
+      const commissionDiscountAmt = commissionBeforeDiscount * ((item.commissionDiscountPercent || 0) / 100);
       updates.divisor = divisor;
       updates.sellTotal = sellTotal;
-      updates.commission = commission;
-      updates.commissionTotal = commissionTotal;
+      updates.lineDiscountAmount = lineDiscountAmount;
+      updates.commission = commissionBeforeDiscount;
+      updates.commissionTotal = commissionBeforeDiscount - commissionDiscountAmt;
+      updates.commissionDiscountAmount = commissionDiscountAmt;
     } else if (column === 'unitPrice') {
       const price = parseFloat(value.replace(/[$,]/g, '')) || 0;
       // Skip if value hasn't changed
@@ -388,12 +484,18 @@ export function LineItemsTabV2({
         return;
       }
       const sellTotal = item.quantity * price / item.divisor;
-      const commissionTotal = sellTotal * (item.commissionPercent / 100);
-      const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
+      // Commission is calculated on DISCOUNTED sell total (after line discount)
+      const lineDiscountPct = item.lineDiscountPercent || 0;
+      const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+      const discountedSellTotal = sellTotal - lineDiscountAmount;
+      const commissionBeforeDiscount = discountedSellTotal * (item.commissionPercent / 100);
+      const commissionDiscountAmt = commissionBeforeDiscount * ((item.commissionDiscountPercent || 0) / 100);
       updates.unitPrice = price;
       updates.sellTotal = sellTotal;
-      updates.commission = commission;
-      updates.commissionTotal = commissionTotal;
+      updates.lineDiscountAmount = lineDiscountAmount;
+      updates.commission = commissionBeforeDiscount;
+      updates.commissionTotal = commissionBeforeDiscount - commissionDiscountAmt;
+      updates.commissionDiscountAmount = commissionDiscountAmt;
       // Mark as manual override - user typed their own price
       updates.isManualPrice = true;
       updates.pricingSource = 'manual';
@@ -410,13 +512,18 @@ export function LineItemsTabV2({
       }
       // Recalculate sellTotal to ensure consistency
       const sellTotal = item.quantity * item.unitPrice / item.divisor;
-      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
-      const commissionTotal = sellTotal * (pct / 100);
-      const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
+      // Commission is calculated on DISCOUNTED sell total (after line discount)
+      const lineDiscountPct = item.lineDiscountPercent || 0;
+      const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+      const discountedSellTotal = sellTotal - lineDiscountAmount;
+      const commissionBeforeDiscount = discountedSellTotal * (pct / 100);
+      const commissionDiscountAmt = commissionBeforeDiscount * ((item.commissionDiscountPercent || 0) / 100);
       updates.commissionPercent = pct;
       updates.sellTotal = sellTotal; // Ensure sellTotal is up to date
-      updates.commission = commission;
-      updates.commissionTotal = commissionTotal;
+      updates.lineDiscountAmount = lineDiscountAmount;
+      updates.commission = commissionBeforeDiscount;
+      updates.commissionTotal = commissionBeforeDiscount - commissionDiscountAmt;
+      updates.commissionDiscountAmount = commissionDiscountAmt;
     }
     updateLineItem(itemId, updates);
     setEditingCell(null);
@@ -523,24 +630,26 @@ export function LineItemsTabV2({
         editValue = (item.divisor || 1).toString();
         break;
       case 'unitPrice':
-        displayValue = `$${Number(item.unitPrice || 0).toLocaleString()}`;
+        displayValue = `$${Number(item.unitPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         editValue = String(item.unitPrice || 0);
         break;
       case 'sellTotal':
         // Subtract line discount from sell total
-        displayValue = `$${Number((item.sellTotal || 0) - (item.lineDiscountAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        displayValue = `$${Number((item.sellTotal || 0) - (item.lineDiscountAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         break;
       case 'commissionPercent':
-        displayValue = Number(item.commissionPercent || 0).toFixed(2);
-        editValue = Number(item.commissionPercent || 0).toFixed(2);
+        displayValue = String(Number(item.commissionPercent || 0));
+        editValue = String(Number(item.commissionPercent || 0));
         break;
       case 'commission':
-        // Subtract commission discount from commission per unit
-        displayValue = `$${Number((item.commission || 0) - ((item.commissionDiscountAmount || 0) / (item.quantity || 1))).toFixed(2)}`;
+        // Show base commission before commission discount (per unit)
+        displayValue = `$${Number(item.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         break;
       case 'commissionTotal':
-        // Subtract commission discount from commission total
-        displayValue = `$${Number((item.commissionTotal || 0) - (item.commissionDiscountAmount || 0)).toFixed(2)}`;
+        // Display commission after commission discount
+        // item.commission = commission BEFORE discount, item.commissionTotal = commission AFTER discount
+        // If commissionTotal is available from API, use it. Otherwise calculate from commission - discount.
+        displayValue = `$${Number((item.commission || 0) - (item.commissionDiscountAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         break;
       case 'linkedOrder':
         displayValue = item.linkedOrderNumber || '—';
@@ -558,8 +667,48 @@ export function LineItemsTabV2({
       readOnlyCells.push('endUser');
     }
     if (readOnlyCells.includes(column.key)) {
+      // Handle sellTotal with line discount display
+      if (column.key === 'sellTotal' && (item.lineDiscountAmount || 0) > 0) {
+        const originalSellTotal = item.sellTotal || 0;
+        const lineDiscount = item.lineDiscountAmount || 0;
+        const discountedSellTotal = originalSellTotal - lineDiscount;
+        return (
+          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
+            <div className="flex flex-col items-center">
+              <span>${Number(discountedSellTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-gray-400 line-through">${Number(originalSellTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded mt-0.5">-${Number(lineDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          </td>
+        );
+      }
+      // Commission column shows base commission without discount
+      // (discount breakdown is shown in commissionTotal column only)
+      // Handle commissionTotal with commission discount display
+      // item.commission = commission BEFORE commission discount (calculated on discounted sell total)
+      // item.commissionTotal = commission AFTER commission discount (from API's totalLineCommission)
+      if (column.key === 'commissionTotal' && (item.commissionDiscountAmount || 0) > 0) {
+        // Use item.commission (before discount) as the original, NOT item.commissionTotal
+        const originalCommissionTotal = item.commission || 0;
+        const commissionDiscount = item.commissionDiscountAmount || 0;
+        const discountedCommissionTotal = originalCommissionTotal - commissionDiscount;
+        return (
+          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
+            <div className="flex flex-col items-center">
+              <span className="font-medium text-purple-600">${Number(discountedCommissionTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-gray-400 line-through">${Number(originalCommissionTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-${Number(commissionDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          </td>
+        );
+      }
       return (
-        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
+        <td 
+          key={column.key} 
+          data-column={column.key} 
+          className={`px-3 py-2 text-sm text-center ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+          style={getPinnedColumnStyle(column.key)}
+        >
           <span className={column.key === 'commissionTotal' ? 'font-medium text-purple-600' : ''}>
             {displayValue}
           </span>
@@ -572,7 +721,12 @@ export function LineItemsTabV2({
     // Text is now selectable for copying
     if (isReadOnlyDisplayColumn) {
       return (
-        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm">
+        <td 
+          key={column.key} 
+          data-column={column.key} 
+          className={`px-3 py-2 text-sm ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+          style={getPinnedColumnStyle(column.key)}
+        >
           <span 
             className={`truncate select-text ${!displayValue || displayValue === '—' ? 'text-gray-400' : ''}`}
             style={{ userSelect: 'text' }}
@@ -598,7 +752,12 @@ export function LineItemsTabV2({
       // Render disabled state for manufacturer when factoryPerLineItem is false
       if (isManufacturerDisabled) {
         return (
-          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm relative">
+          <td 
+            key={column.key} 
+            data-column={column.key} 
+            className={`px-3 py-2 text-sm relative ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+            style={getPinnedColumnStyle(column.key)}
+          >
             <div className="w-full text-left px-2 py-1 rounded bg-gray-100 text-gray-400 cursor-not-allowed">
               <span className="truncate">
                 {displayValue}
@@ -610,7 +769,12 @@ export function LineItemsTabV2({
 
       // All dropdown columns use selectable text + chevron button pattern
       return (
-        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm relative">
+        <td 
+          key={column.key} 
+          data-column={column.key} 
+          className={`px-3 py-2 text-sm relative ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+          style={getPinnedColumnStyle(column.key)}
+        >
           <div className="w-full flex items-center gap-1">
             <span
               className="flex-1 py-1 select-text truncate cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
@@ -655,7 +819,12 @@ export function LineItemsTabV2({
     // Editable cells
     if (isEditing) {
       return (
-        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm">
+        <td 
+          key={column.key} 
+          data-column={column.key} 
+          className={`px-3 py-2 text-sm ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+          style={getPinnedColumnStyle(column.key)}
+        >
           <input
             type="text"
             defaultValue={editValue}
@@ -740,7 +909,12 @@ export function LineItemsTabV2({
 
       if (isEditing) {
         return (
-          <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm">
+          <td 
+            key={column.key} 
+            data-column={column.key} 
+            className={`px-3 py-2 text-sm ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+            style={getPinnedColumnStyle(column.key)}
+          >
             <input
               type="text"
               defaultValue={editValue}
@@ -795,7 +969,12 @@ export function LineItemsTabV2({
       }
 
       return (
-        <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center relative">
+        <td 
+          key={column.key} 
+          data-column={column.key} 
+          className={`px-3 py-2 text-sm text-center relative ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+          style={getPinnedColumnStyle(column.key)}
+        >
           <div className="flex items-center justify-center gap-1.5">
             {/* Price value - clickable to edit */}
             <button
@@ -845,7 +1024,7 @@ export function LineItemsTabV2({
                       <span className="w-2 h-2 rounded-full bg-purple-500"></span>
                       Product
                     </span>
-                    <span className="text-gray-500">${productPrice.toFixed(2)}</span>
+                    <span className="text-gray-500">${productPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                   </button>
                 );
               })()}
@@ -861,7 +1040,7 @@ export function LineItemsTabV2({
                       <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                       CPN
                     </span>
-                    <span className="text-gray-500">${cpnPrice.toFixed(2)}</span>
+                    <span className="text-gray-500">${cpnPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                   </button>
                 );
               })()}
@@ -884,7 +1063,7 @@ export function LineItemsTabV2({
                           <span className="w-2 h-2 rounded-full bg-green-500"></span>
                           Qty {tier.quantityLow}-{tier.quantityHigh}
                         </span>
-                        <span className="text-gray-500">${tierPrice.toFixed(2)}</span>
+                        <span className="text-gray-500">${tierPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                       </button>
                     );
                   })}
@@ -909,7 +1088,12 @@ export function LineItemsTabV2({
     }
 
     return (
-      <td key={column.key} data-column={column.key} className="px-3 py-2 text-sm text-center">
+      <td 
+        key={column.key} 
+        data-column={column.key} 
+        className={`px-3 py-2 text-sm text-center ${isPinned(column.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+        style={getPinnedColumnStyle(column.key)}
+      >
         <button
           onClick={(e) => handleCellClick(item.id, column.key, e)}
           onFocus={() => {
@@ -1029,12 +1213,24 @@ export function LineItemsTabV2({
                 {visibleColumns.map((col) => (
                   <th
                     key={col.key}
-                    className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center whitespace-nowrap bg-gray-50"
+                    className={`px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center whitespace-nowrap bg-gray-50 ${
+                      isPinned(col.key) ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''
+                    }`}
+                    style={getPinnedColumnStyle(col.key, true)}
                   >
-                    {col.label}
-                    <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="inline ml-1 text-gray-400">
-                      <path d="M3 4h14M5 8h10M7 12h6M9 16h2" strokeLinecap="round" />
-                    </svg>
+                    <div className="flex items-center justify-center gap-1">
+                      {col.label}
+                      {isPinned(col.key) && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                          <path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6a1 1 0 00-1-1h-4a1 1 0 00-1 1v4.76z" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                      {!isPinned(col.key) && (
+                        <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                          <path d="M3 4h14M5 8h10M7 12h6M9 16h2" strokeLinecap="round" />
+                        </svg>
+                      )}
+                    </div>
                   </th>
                 ))}
                 <th className="w-10 px-3 py-2 bg-gray-50"></th>
@@ -1492,17 +1688,22 @@ export function LineItemsTabV2({
                               const unitPrice = item?.unitPrice || 0;
                               const commissionPercent = item?.commissionPercent || 0;
                               const sellTotal = quantity * unitPrice / divisor;
-                              // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
-                              const commissionTotal = sellTotal * (commissionPercent / 100);
-                              const commission = quantity > 0 ? commissionTotal / quantity : 0;
+                              // Commission is calculated on DISCOUNTED sell total (after line discount)
+                              const lineDiscountPct = item?.lineDiscountPercent || 0;
+                              const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+                              const discountedSellTotal = sellTotal - lineDiscountAmount;
+                              const commissionBeforeDiscount = discountedSellTotal * (commissionPercent / 100);
+                              const commissionDiscountAmt = commissionBeforeDiscount * ((item?.commissionDiscountPercent || 0) / 100);
 
                               updateLineItem(dropdownOpen.itemId, {
                                 uomId: uom.id,
                                 uom: uom.title,
                                 divisor: divisor,
                                 sellTotal: sellTotal,
-                                commission: commission,
-                                commissionTotal: commissionTotal,
+                                lineDiscountAmount: lineDiscountAmount,
+                                commission: commissionBeforeDiscount,
+                                commissionTotal: commissionBeforeDiscount - commissionDiscountAmt,
+                                commissionDiscountAmount: commissionDiscountAmt,
                               });
                               setDropdownOpen(null);
                               setSearchQuery('');

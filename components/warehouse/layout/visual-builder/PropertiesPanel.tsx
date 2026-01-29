@@ -86,9 +86,10 @@ export default function PropertiesPanel({ selectedElement, onUpdate, onDelete, o
               type="number"
               value={widthFeet}
               onChange={(e) => setWidthFeet(Number(e.target.value))}
+              onFocus={(e) => e.target.select()}
               onBlur={handleUpdate}
               min={1}
-              className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
           </div>
           <div>
@@ -97,9 +98,10 @@ export default function PropertiesPanel({ selectedElement, onUpdate, onDelete, o
               type="number"
               value={heightFeet}
               onChange={(e) => setHeightFeet(Number(e.target.value))}
+              onFocus={(e) => e.target.select()}
               onBlur={handleUpdate}
               min={1}
-              className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
           </div>
         </div>
@@ -112,8 +114,9 @@ export default function PropertiesPanel({ selectedElement, onUpdate, onDelete, o
               type="number"
               value={xPos}
               onChange={(e) => setXPos(Number(e.target.value))}
+              onFocus={(e) => e.target.select()}
               onBlur={handleUpdate}
-              className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
           </div>
           <div>
@@ -122,8 +125,9 @@ export default function PropertiesPanel({ selectedElement, onUpdate, onDelete, o
               type="number"
               value={yPos}
               onChange={(e) => setYPos(Number(e.target.value))}
+              onFocus={(e) => e.target.select()}
               onBlur={handleUpdate}
-              className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
           </div>
         </div>

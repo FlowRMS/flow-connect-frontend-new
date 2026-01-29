@@ -74,6 +74,9 @@ interface LineItemsTableProps {
   currentInsideReps?: RepSplitRateInfo[];
   // Invoice modal callback
   onViewInvoice?: (invoice: { id: string; invoiceNumber?: string; status?: string; entityDate?: string; dueDate?: string; creationType?: string; locked?: boolean }) => void;
+  // Modals callbacks
+  onOpenSectionsModal?: () => void;
+  onOpenColumnsModal?: () => void;
 }
 
 export function LineItemsTable({
@@ -112,6 +115,8 @@ export function LineItemsTable({
   currentOutsideReps,
   currentInsideReps,
   onViewInvoice,
+  onOpenSectionsModal,
+  onOpenColumnsModal,
 }: LineItemsTableProps) {
   // Editable state
   const [editingCell, setEditingCell] = useState<{ itemId: string; column: EditableColumnKey } | null>(null);
@@ -683,8 +688,8 @@ export function LineItemsTable({
         editValue = String(item.unitPrice || 0);
         break;
       case 'commissionPercent':
-        displayValue = `${Number(item.commissionRate || 0).toFixed(1)}%`;
-        editValue = Number(item.commissionRate || 0).toFixed(1);
+        displayValue = `${String(Number(item.commissionRate || 0))}%`;
+        editValue = String(Number(item.commissionRate || 0));
         break;
     }
 
@@ -885,7 +890,7 @@ export function LineItemsTable({
                       <span className="w-2 h-2 rounded-full bg-purple-500"></span>
                       Product
                     </span>
-                    <span className="text-gray-500">${productPrice.toFixed(2)}</span>
+                    <span className="text-gray-500">${productPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                   </button>
                 );
               })()}
@@ -901,7 +906,7 @@ export function LineItemsTable({
                       <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                       CPN
                     </span>
-                    <span className="text-gray-500">${cpnPrice.toFixed(2)}</span>
+                    <span className="text-gray-500">${cpnPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                   </button>
                 );
               })()}
@@ -924,7 +929,7 @@ export function LineItemsTable({
                           <span className="w-2 h-2 rounded-full bg-green-500"></span>
                           Qty {tier.quantityLow}-{tier.quantityHigh}
                         </span>
-                        <span className="text-gray-500">${tierPrice.toFixed(2)}</span>
+                        <span className="text-gray-500">${tierPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                       </button>
                     );
                   })}
@@ -991,8 +996,50 @@ export function LineItemsTable({
         />
       )}
 
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-6 py-3 flex-shrink-0 bg-[var(--card)] rounded-t-lg border border-[var(--border)] border-b-0">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-[var(--foreground)]">Line Items</span>
+          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+            {(order.lineItems || []).length}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Sections Button */}
+          <div className="relative">
+            <button
+              disabled
+              className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg transition-colors opacity-50 cursor-not-allowed"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 6h12M4 10h12M4 14h12" strokeLinecap="round" />
+              </svg>
+              Sections
+              <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
+            </button>
+          </div>
+
+          {/* Columns Button */}
+          <button
+            onClick={onOpenColumnsModal}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="4" height="14" rx="1" />
+              <rect x="8" y="3" width="4" height="14" rx="1" />
+              <rect x="13" y="3" width="4" height="14" rx="1" />
+            </svg>
+            Columns
+            <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+              {visibleColumns.size}
+            </span>
+          </button>
+        </div>
+      </div>
+
       {/* Line Items Table */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full">
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full rounded-t-none">
         {/* Add Line Button - at top */}
         <div className="border-b border-[var(--border)] flex-shrink-0">
           <button
@@ -1172,7 +1219,15 @@ export function LineItemsTable({
                   {/* Sell Total */}
                   {visibleColumns.has('sellTotal') && (
                     <td className={`px-3 py-2 text-sm text-right font-medium ${item.isCredit ? 'text-red-600' : ''}`}>
-                      {formatCurrency(item.extendedPrice - ((item as any).lineDiscountAmount || 0))}
+                      <div className="flex flex-col items-end">
+                        <span>{formatCurrency(item.extendedPrice - ((item as any).lineDiscountAmount || 0))}</span>
+                        {(item as any).lineDiscountAmount > 0 && (
+                          <>
+                            <span className="text-xs text-gray-400 line-through">{formatCurrency(item.extendedPrice)}</span>
+                            <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded mt-0.5">-{formatCurrency((item as any).lineDiscountAmount)}</span>
+                          </>
+                        )}
+                      </div>
                     </td>
                   )}
 
@@ -1186,14 +1241,30 @@ export function LineItemsTable({
                   {/* Commission */}
                   {visibleColumns.has('commission') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency((item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}
+                      <div className="flex flex-col items-end">
+                        <span>{formatCurrency((item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}</span>
+                        {(item as any).commissionDiscountAmount > 0 && (
+                          <>
+                            <span className="text-xs text-gray-400 line-through">{formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100))}</span>
+                            <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-{formatCurrency((item as any).commissionDiscountAmount)}</span>
+                          </>
+                        )}
+                      </div>
                     </td>
                   )}
 
                   {/* Commission Total */}
                   {visibleColumns.has('commissionTotal') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency((item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}
+                      <div className="flex flex-col items-end">
+                        <span>{formatCurrency((item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}</span>
+                        {(item as any).commissionDiscountAmount > 0 && (
+                          <>
+                            <span className="text-xs text-gray-400 line-through">{formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100))}</span>
+                            <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-{formatCurrency((item as any).commissionDiscountAmount)}</span>
+                          </>
+                        )}
+                      </div>
                     </td>
                   )}
 

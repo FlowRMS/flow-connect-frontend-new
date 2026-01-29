@@ -365,7 +365,8 @@ export default function ProcessRmaModal({ rma, onClose, onComplete }: ProcessRma
                       max={rma.totalValue}
                       value={refundAmount}
                       onChange={(e) => setRefundAmount(parseFloat(e.target.value) || 0)}
-                      className="w-40 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                      onFocus={(e) => e.target.select()}
+                      className="w-40 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <span className="text-sm text-[var(--muted-foreground)]">
                       of ${rma.totalValue.toLocaleString()} original value

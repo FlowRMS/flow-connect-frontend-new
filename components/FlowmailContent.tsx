@@ -8063,12 +8063,13 @@ Best regards,
             <div>
               <div className="flex items-center justify-between mb-3">
                 <label className="block text-sm font-medium text-[var(--foreground)]">Recipient List Type</label>
-                <button className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
+                {/* TODO: Re-enable "Create Campaign with AI" button when AI campaign generation feature is ready */}
+                {/* <button className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
                   </svg>
                   Generate with AI
-                </button>
+                </button> */}
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <button

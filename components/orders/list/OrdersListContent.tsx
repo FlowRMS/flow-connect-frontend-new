@@ -7,7 +7,7 @@
 
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
@@ -27,11 +27,73 @@ import {
   AcknowledgementModal,
 } from './components/modals';
 import { BulkDeleteModal } from '@/components/shared/modals/BulkDeleteModal';
+import { SaveViewButton } from '@/components/shared';
 import { orderQueryKeys } from '../api/useOrdersApi';
+import { useOrderSettings } from '@/contexts/UserSettingsContext';
+import type { SavedViewState } from '@/components/lib/graphql/settings';
 
 export default function OrdersListContent() {
   const router = useRouter();
   const state = useOrdersListState();
+  const { settings: orderSettings, saveSettings: saveOrderSettings, isLoading: isSettingsLoading } = useOrderSettings();
+
+  // Get current view state for saving
+  const getCurrentViewState = (): SavedViewState => ({
+    filters: state.activeFilters.map(f => ({
+      operator: f.operator,
+      columnName: f.columnName,
+      value: f.value,
+      values: f.values,
+    })),
+    columnFilters: Object.fromEntries(
+      Object.entries(state.columnFilters || {}).map(([key, filters]) => [
+        key,
+        filters.map(f => ({
+          operator: f.operator,
+          columnName: f.columnName,
+          value: f.value,
+          values: f.values,
+        })),
+      ])
+    ),
+    sortField: state.sortField,
+    sortDirection: state.sortDirection,
+    quickDatePreset: state.quickDatePreset,
+    quickDateField: state.quickDateField,
+  });
+
+  // Save current view state
+  const handleSaveView = async (viewState: SavedViewState): Promise<boolean> => {
+    const updatedSettings = {
+      ...orderSettings,
+      columnConfig: orderSettings?.columnConfig || [],
+      showEndUserPerLine: orderSettings?.showEndUserPerLine ?? false,
+      showOutsideRepPerLine: orderSettings?.showOutsideRepPerLine ?? false,
+      showInsideRepPerLine: orderSettings?.showInsideRepPerLine ?? false,
+      savedView: viewState,
+    };
+    return saveOrderSettings(updatedSettings, 'my');
+  };
+
+  // Clear saved view state
+  const handleClearView = async (): Promise<boolean> => {
+    const updatedSettings = {
+      ...orderSettings,
+      columnConfig: orderSettings?.columnConfig || [],
+      showEndUserPerLine: orderSettings?.showEndUserPerLine ?? false,
+      showOutsideRepPerLine: orderSettings?.showOutsideRepPerLine ?? false,
+      showInsideRepPerLine: orderSettings?.showInsideRepPerLine ?? false,
+      savedView: undefined,
+    };
+    const success = await saveOrderSettings(updatedSettings, 'my');
+    if (success) {
+      // Reset to defaults
+      window.location.reload();
+    }
+    return success;
+  };
+
+  const hasSavedView = !!orderSettings?.savedView;
 
   // Navigation morph hooks
   const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
@@ -52,25 +114,29 @@ export default function OrdersListContent() {
   const filterOptions = getOrderFilterOptions();
   const sortOptions = getOrderSortOptions();
   
-  // Map sortField and sortDirection to ActiveSort format for SortButton
+  // Map serverOrderBy to ActiveSort[] format for SortButton
   // The columnName should match API field names directly
-  const activeSort = state.sortField && state.sortDirection
-    ? {
-        columnName: (() => {
-          const fieldMap: Record<string, string> = {
-            orderNumber: 'orderNumber',
-            customerName: 'soldToCustomerName',
-            manufacturerName: 'factoryName',
-            orderDate: 'entityDate',
-            total: 'total',
-            totalCommission: 'commission',
-            status: 'status',
-          };
-          return fieldMap[state.sortField] || 'entityDate';
-        })(),
-        direction: state.sortDirection.toUpperCase() as 'ASC' | 'DESC',
-      }
-    : undefined;
+  const activeSorts = useMemo(() => {
+    return state.serverOrderBy.map(orderBy => ({
+      columnName: orderBy.columnName,
+      direction: orderBy.direction,
+    }));
+  }, [state.serverOrderBy]);
+
+  // Handler for column sort click - only allows one sort at a time (replaces previous)
+  const handleColumnSort = useCallback((columnName: string) => {
+    // Check if this column is already the active sort
+    const currentSort = activeSorts.find(s => s.columnName === columnName);
+    
+    if (currentSort) {
+      // Column is already sorted - toggle direction (replace with new direction)
+      const newDirection = currentSort.direction === 'ASC' ? 'DESC' : 'ASC';
+      state.handleMultiSortChange([{ columnName, direction: newDirection }]);
+    } else {
+      // Replace all sorts with this new one - default to ASC
+      state.handleMultiSortChange([{ columnName, direction: 'ASC' }]);
+    }
+  }, [activeSorts, state.handleMultiSortChange]);
 
   // Determine if we're loading (only initial load, not when fetching more pages)
   const isLoading = state.isLoading;
@@ -195,10 +261,18 @@ export default function OrdersListContent() {
               
               <SortButton
                 sortOptions={sortOptions}
-                onSortChange={state.handleSortChange}
-                activeSort={activeSort}
+                onMultiSortChange={state.handleMultiSortChange}
+                activeSorts={activeSorts}
               />
-              
+
+              <SaveViewButton
+                onSave={handleSaveView}
+                onClear={handleClearView}
+                getCurrentViewState={getCurrentViewState}
+                hasSavedView={hasSavedView}
+                isSaving={isSettingsLoading}
+              />
+
               <button
                 onClick={() => router.push('/orders/new')}
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
@@ -255,6 +329,9 @@ export default function OrdersListContent() {
             isFetchingNextPage={state.isFetchingNextPage}
             fetchNextPage={state.fetchNextPage}
             searchQuery={state.searchQuery}
+            activeSorts={activeSorts}
+            onSortChange={handleColumnSort}
+            isFetching={state.isFetching}
           />
 
           {/* Empty State - shown outside table when no data */}

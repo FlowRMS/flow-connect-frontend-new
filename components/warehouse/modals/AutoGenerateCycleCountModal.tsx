@@ -180,9 +180,10 @@ export default function AutoGenerateCycleCountModal({
                 type="number"
                 value={itemCount}
                 onChange={(e) => setItemCount(Math.max(1, parseInt(e.target.value) || 1))}
+                onFocus={(e) => e.target.select()}
                 min={1}
                 max={100}
-                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
 
@@ -195,9 +196,10 @@ export default function AutoGenerateCycleCountModal({
                 type="number"
                 value={excludeDays}
                 onChange={(e) => setExcludeDays(Math.max(0, parseInt(e.target.value) || 0))}
+                onFocus={(e) => e.target.select()}
                 min={0}
                 max={365}
-                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
               <p className="text-xs text-[var(--muted-foreground)] mt-1">
                 Products counted within this period will not be included
@@ -311,7 +313,8 @@ export default function AutoGenerateCycleCountModal({
                           max="12"
                           value={interval}
                           onChange={(e) => setInterval(parseInt(e.target.value) || 1)}
-                          className="w-20 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                          onFocus={(e) => e.target.select()}
+                          className="w-20 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                         <span className="text-sm text-[var(--muted-foreground)]">
                           {frequency === 'DAILY' ? 'day(s)' :

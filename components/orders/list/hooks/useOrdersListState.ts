@@ -17,6 +17,8 @@ import { getQuickDateRange } from '../utils';
 import { formatDateToISO, formatDateToBackend } from '../../../advancedFilters/utils';
 import { useFilterSync } from '../../../advancedFilters/hooks/useFilterSync';
 import { getOrderFilterOptions } from '../config/filterConfig';
+import { useOrderSettings } from '@/contexts/UserSettingsContext';
+import type { FilterOperator } from '../../../advancedFilters/types';
 
 /**
  * Transform OrderLandingPage from API to UI Order type
@@ -125,6 +127,11 @@ function transformSearchResultToOrder(result: OrderSearchResult): Order {
 }
 
 export function useOrdersListState() {
+  // Get saved view settings
+  const { settings: orderSettings, isInitialized: isSettingsInitialized } = useOrderSettings();
+  const savedView = orderSettings?.savedView;
+  const hasAppliedSavedView = useRef(false);
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -170,6 +177,7 @@ export function useOrdersListState() {
     published: 'published',
     factoryName: 'factory-name',
     customerName: 'customer-name',
+    createdBy: 'created-by',
   }), []);
 
   // We initialize with empty arrays to avoid dependency issues
@@ -260,17 +268,16 @@ export function useOrdersListState() {
     }
   }, [syncColumnToAdvanced]);
 
-  // Handler for server-side sort changes (from SortButton - ActiveSort format)
-  const handleSortChange = useCallback((sort: { columnName: string; direction: 'ASC' | 'DESC' } | undefined) => {
-    if (sort) {
-      // Update server-side sort
-      setServerOrderBy([{
+  // Handler for multiple sorts (from SortButton - ActiveSort[] format)
+  const handleMultiSortChange = useCallback((sorts: { columnName: string; direction: 'ASC' | 'DESC' }[]) => {
+    if (sorts.length > 0) {
+      // Update server-side sort with all sorts
+      setServerOrderBy(sorts.map(sort => ({
         columnName: sort.columnName,
         direction: sort.direction,
-      }]);
+      })));
       
-      // Also update local sort state for backwards compatibility
-      // Map API columnName back to SortField if possible
+      // Also update local sort state for backwards compatibility (use first sort)
       const fieldMap: Record<string, SortField> = {
         'orderNumber': 'orderNumber',
         'soldToCustomerName': 'customerName',
@@ -281,13 +288,14 @@ export function useOrdersListState() {
         'status': 'status',
       };
       
-      const mappedField = fieldMap[sort.columnName];
+      const firstSort = sorts[0];
+      const mappedField = fieldMap[firstSort.columnName];
       if (mappedField) {
         setSortField(mappedField);
-        setSortDirection(sort.direction.toLowerCase() as SortDirection);
+        setSortDirection(firstSort.direction.toLowerCase() as SortDirection);
       }
     } else {
-      // Clear sort
+      // Clear sort - use default
       setServerOrderBy([{
         columnName: mapSortFieldToColumnName('orderDate'),
         direction: 'DESC',
@@ -369,6 +377,75 @@ export function useOrdersListState() {
     setColumnFiltersToAPIState(columnFiltersToAPI);
   }, [columnFiltersToAPI]);
 
+  // Apply saved view when settings are loaded (only once on mount)
+  useEffect(() => {
+    if (isSettingsInitialized && savedView && !hasAppliedSavedView.current) {
+      hasAppliedSavedView.current = true;
+
+      // Apply saved filters
+      if (savedView.filters && savedView.filters.length > 0) {
+        const restoredFilters: ActiveFilter[] = savedView.filters.map((f) => ({
+          operator: f.operator as FilterOperator,
+          columnName: f.columnName,
+          value: f.value,
+          values: f.values,
+        }));
+        setActiveFilters(restoredFilters);
+        const apiFilters: OrderLandingPageFilter[] = restoredFilters.map(f => {
+          if (f.values && f.values.length > 0) {
+            return { operator: f.operator, columnName: f.columnName, values: f.values };
+          }
+          return { operator: f.operator, columnName: f.columnName, value: f.value };
+        });
+        setServerFilters(apiFilters);
+      }
+
+      // Apply saved column filters
+      if (savedView.columnFilters && Object.keys(savedView.columnFilters).length > 0) {
+        const restoredColumnFilters: Record<string, ActiveFilter[]> = {};
+        Object.entries(savedView.columnFilters).forEach(([key, filters]) => {
+          restoredColumnFilters[key] = filters.map((f) => ({
+            operator: f.operator as FilterOperator,
+            columnName: f.columnName,
+            value: f.value,
+            values: f.values,
+          }));
+        });
+        setColumnFilters(restoredColumnFilters);
+      }
+
+      // Apply saved sort
+      if (savedView.sortField) {
+        const fieldMap: Record<string, SortField> = {
+          orderNumber: 'orderNumber',
+          soldToCustomerName: 'customerName',
+          factoryName: 'manufacturerName',
+          entityDate: 'orderDate',
+          total: 'total',
+          commission: 'totalCommission',
+          status: 'status',
+        };
+        const mappedField = fieldMap[savedView.sortField] || (savedView.sortField as SortField);
+        setSortField(mappedField);
+        setSortDirection(savedView.sortDirection || 'desc');
+        setServerOrderBy([{
+          columnName: mapSortFieldToColumnName(mappedField),
+          direction: (savedView.sortDirection?.toUpperCase() || 'DESC') as 'ASC' | 'DESC',
+        }]);
+      }
+
+      // Apply saved quick date preset
+      if (savedView.quickDatePreset) {
+        setQuickDatePreset(savedView.quickDatePreset as QuickDatePreset);
+      }
+
+      // Apply saved quick date field
+      if (savedView.quickDateField) {
+        setQuickDateField(savedView.quickDateField as QuickDateField);
+      }
+    }
+  }, [isSettingsInitialized, savedView]);
+
   // Combine quick filters with advanced filters and column filters
   const filters = useMemo<OrderLandingPageFilter[]>(() => {
     return [...quickFilters, ...serverFilters, ...columnFiltersToAPIState];
@@ -436,10 +513,9 @@ export function useOrdersListState() {
 
   // Get filter options with unique values (for column filters)
   const orderFilterOptionsWithValues = useMemo(() => {
-    // Extract unique values from orders if needed in the future
-    // For now, use empty arrays
+    // Extract unique values from orders for filter dropdowns
     return getOrderFilterOptions([], []);
-  }, [orders]);
+  }, []);
 
   // Scroll handler for infinite scroll
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -638,7 +714,8 @@ export function useOrdersListState() {
     // Sorting
     sortField,
     sortDirection,
-    handleSortChange,
+    handleMultiSortChange,
+    serverOrderBy, // Expose for creating activeSorts
     // Selected order
     selectedOrder,
     setSelectedOrder,

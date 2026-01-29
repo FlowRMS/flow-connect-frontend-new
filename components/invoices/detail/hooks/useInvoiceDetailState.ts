@@ -13,6 +13,8 @@ import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import { calculateInvoiceTotals } from '../utils';
 import { useInvoiceSettings } from '@/contexts/UserSettingsContext';
+import { useLineItemsColumnConfig } from '@/components/shared/hooks/useLineItemsColumnConfig';
+import { defaultInvoiceColumnConfig, defaultInvoiceSettings } from '../config/defaultColumnConfig';
 import {
   useInvoice,
   useCreateInvoice,
@@ -82,10 +84,11 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
     const commissionRate = parseFloat(detail.commissionRate || '0');
 
-    // Always calculate derived values from base fields (like quotes does)
-    // Don't rely on API total/commission as they may not be populated
-    const sellTotal = quantity * unitPrice / divisor;
-    const commissionAmount = sellTotal * (commissionRate / 100);
+    // Use API values if available, otherwise calculate
+    const calculatedSellTotal = quantity * unitPrice / divisor;
+    const sellTotal = detail.subtotal ? parseFloat(String(detail.subtotal)) : calculatedSellTotal;
+    // Use API commission if available, otherwise calculate
+    const commissionAmount = detail.commission ? parseFloat(String(detail.commission)) : (sellTotal * (commissionRate / 100));
 
     return {
     id: detail.id,
@@ -107,9 +110,9 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     commission: commissionAmount,
     commissionAmount: commissionAmount,
     discountPercent: parseFloat(detail.discountRate || '0'),
-    discount: detail.discount || 0,
+    discount: parseFloat(String(detail.discount || '0')),
     commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
-    commissionDiscount: detail.commissionDiscount || 0,
+    commissionDiscount: parseFloat(String(detail.commissionDiscount || '0')),
     status: detail.status || 'open',
     leadTime: detail.leadTime || '',
     note: detail.note || '',
@@ -242,10 +245,11 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
   const divisor = parseFloat(detail.divisionFactor || '1');
   const commissionRate = parseFloat(detail.commissionRate || '0');
 
-  // Always calculate derived values from base fields (like quotes does)
-  // Don't rely on API total/commission as they may not be populated
-  const total = quantity * unitPrice / divisor;
-  const commissionAmount = total * (commissionRate / 100);
+  // Use API values if available, otherwise calculate
+  const calculatedTotal = quantity * unitPrice / divisor;
+  const total = detail.subtotal ? parseFloat(String(detail.subtotal)) : calculatedTotal;
+  // Use API commission if available, otherwise calculate
+  const commissionAmount = detail.commission ? parseFloat(String(detail.commission)) : (total * (commissionRate / 100));
 
   return {
     id: detail.id,
@@ -269,9 +273,9 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
     commissionPercent: commissionRate,
     commission: commissionAmount,
     discountPercent: parseFloat(detail.discountRate || '0'),
-    discount: detail.discount || 0,
+    discount: parseFloat(String(detail.discount || '0')),
     commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
-    commissionDiscount: detail.commissionDiscount || 0,
+    commissionDiscount: parseFloat(String(detail.commissionDiscount || '0')),
     status: detail.status || 'open',
     leadTime: detail.leadTime || '',
     note: detail.note || '',
@@ -326,10 +330,13 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   const isCreateMode = invoiceId === 'new';
 
   // Get saved invoice settings from context (already cached, no extra API calls)
-  const { settings: savedInvoiceSettings, isInitialized: settingsInitialized } = useInvoiceSettings();
+  const { settings: savedInvoiceSettings, isInitialized: settingsInitialized, saveSettings } = useInvoiceSettings();
 
   // Track if we've applied column settings to avoid re-applying on every render
   const hasAppliedColumnSettings = useRef(false);
+
+  // Track previous invoice date to detect user changes (for dynamic due date recalculation)
+  const previousInvoiceDateRef = useRef<string | null>(null);
 
   // Fetch invoice from API
   const {
@@ -590,31 +597,45 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   }, [linkedFactory, localInvoice]);
 
   useEffect(() => {
-    if (isCreateMode && localInvoice?.invoiceDate && localInvoice.manufacturerId) {
-      let daysToAdd: number | null = null;
+    if (localInvoice?.invoiceDate && localInvoice.manufacturerId) {
+      // Detect if invoice date actually changed (user edit) vs initial load
+      const invoiceDateChanged = previousInvoiceDateRef.current !== null &&
+                                  previousInvoiceDateRef.current !== localInvoice.invoiceDate;
 
-      // Priority 1: Use factory paymentTerms if available
-      if (linkedFactory?.paymentTerms) {
-        daysToAdd = linkedFactory.paymentTerms;
-      }
-      // Priority 2: Use settings offset if no paymentTerms from factory
-      else if (savedInvoiceSettings?.dueDateOffset !== undefined && savedInvoiceSettings.dueDateOffset !== null) {
-        daysToAdd = savedInvoiceSettings.dueDateOffset;
-      }
+      // Recalculate due date if:
+      // 1. In create mode (always recalculate), OR
+      // 2. Invoice date was changed by user (edit mode)
+      const shouldRecalculate = isCreateMode || invoiceDateChanged;
 
-      // Calculate dueDate if we have days to add
-      if (daysToAdd !== null && daysToAdd > 0) {
-        const calculatedDueDate = addDaysToDate(localInvoice.invoiceDate, daysToAdd);
-        if (calculatedDueDate && calculatedDueDate !== localInvoice.dueDate) {
-          setLocalInvoice(prev => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              dueDate: calculatedDueDate,
-            };
-          });
+      if (shouldRecalculate) {
+        let daysToAdd: number | null = null;
+
+        // Priority 1: Use factory paymentTerms if available
+        if (linkedFactory?.paymentTerms) {
+          daysToAdd = linkedFactory.paymentTerms;
+        }
+        // Priority 2: Use settings offset if no paymentTerms from factory
+        else if (savedInvoiceSettings?.dueDateOffset !== undefined && savedInvoiceSettings.dueDateOffset !== null) {
+          daysToAdd = savedInvoiceSettings.dueDateOffset;
+        }
+
+        // Calculate dueDate if we have days to add
+        if (daysToAdd !== null && daysToAdd > 0) {
+          const calculatedDueDate = addDaysToDate(localInvoice.invoiceDate, daysToAdd);
+          if (calculatedDueDate && calculatedDueDate !== localInvoice.dueDate) {
+            setLocalInvoice(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                dueDate: calculatedDueDate,
+              };
+            });
+          }
         }
       }
+
+      // Update the ref to track current invoice date for next change detection
+      previousInvoiceDateRef.current = localInvoice.invoiceDate;
     }
   }, [isCreateMode, localInvoice?.invoiceDate, localInvoice?.manufacturerId, linkedFactory, savedInvoiceSettings?.dueDateOffset, localInvoice?.dueDate]);
 
@@ -818,26 +839,32 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     new Set()
   );
 
-  // Column visibility
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
-    new Set(DEFAULT_VISIBLE_COLUMNS)
-  );
-  const [showColumnsMenu, setShowColumnsMenu] = useState(false);
+  // Column configuration - managed by generic hook with Settings API persistence
+  const { columnConfig, setColumnConfig } = useLineItemsColumnConfig({
+    settings: savedInvoiceSettings,
+    isInitialized: settingsInitialized,
+    saveSettings,
+    defaultColumnConfig: defaultInvoiceColumnConfig,
+    defaultSettings: defaultInvoiceSettings,
+    getColumnConfig: (s) => s.columnConfig,
+    setColumnConfig: (s, config) => ({ ...s, columnConfig: config }),
+  });
 
-  // Apply saved column configuration when settings are loaded
-  // This runs once when settings are initialized and applies to ALL invoices (new and existing)
-  useEffect(() => {
-    if (settingsInitialized && !hasAppliedColumnSettings.current) {
-      if (savedInvoiceSettings?.columnConfig && savedInvoiceSettings.columnConfig.length > 0) {
-        // Use saved settings - only include columns marked as visible
-        const visibleKeys = savedInvoiceSettings.columnConfig
-          .filter(col => col.visible)
-          .map(col => col.key as ColumnKey);
-        setVisibleColumns(new Set(visibleKeys));
-      }
-      hasAppliedColumnSettings.current = true;
-    }
-  }, [settingsInitialized, savedInvoiceSettings?.columnConfig]);
+  // Derive visibleColumns and pinnedColumns from columnConfig
+  const visibleColumns = useMemo(() => {
+    return new Set<ColumnKey>(
+      columnConfig.filter(col => col.visible).map(col => col.key as ColumnKey)
+    );
+  }, [columnConfig]);
+
+  const pinnedColumns = useMemo(() => {
+    return new Set<ColumnKey>(
+      columnConfig.filter(col => col.visible && col.pinned).map(col => col.key as ColumnKey)
+    );
+  }, [columnConfig]);
+
+  // Columns modal state
+  const [showColumnsModal, setShowColumnsModal] = useState(false);
 
   // Header dropdowns
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
@@ -1046,9 +1073,29 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   };
 
   // Live update additional details for a line item (without closing modal)
+  // When line discount changes, commission is recalculated based on discounted sell total
   const liveUpdateAdditionalDetails = (updates: Partial<InvoiceLineItem>) => {
     // Update the selected line item so the modal stays in sync
-    setSelectedLineItemForDetails((prev) => prev ? { ...prev, ...updates } : prev);
+    setSelectedLineItemForDetails((prev) => {
+      if (!prev) return prev;
+      const updatedItem = { ...prev, ...updates };
+
+      // If line discount changed, recalculate commission based on discounted sell total
+      if ('discount' in updates || 'discountRate' in updates) {
+        const quantity = updatedItem.quantity || 0;
+        const unitPrice = updatedItem.unitPrice || 0;
+        const divisor = updatedItem.divisor || 1;
+        const sellTotal = quantity * unitPrice / divisor;
+        const lineDiscount = updatedItem.discount || 0;
+        const discountedSellTotal = sellTotal - lineDiscount;
+        const commissionRate = updatedItem.commissionRate || 0;
+        // Commission is now based on the discounted sell total
+        // Note: We update the internal calculated value, not overwriting user's commissionRate
+        (updatedItem as any).commissionAmount = discountedSellTotal * (commissionRate / 100);
+      }
+
+      return updatedItem;
+    });
 
     // Use functional update pattern to avoid stale closure issues
     // This reads from prev instead of the closure-captured selectedLineItemForDetails
@@ -1061,9 +1108,25 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
 
       return {
         ...prevInvoice,
-        lineItems: prevInvoice.lineItems.map((li) =>
-          li.id === lineItemIdToUpdate ? { ...li, ...updates } : li
-        ),
+        lineItems: prevInvoice.lineItems.map((li) => {
+          if (li.id !== lineItemIdToUpdate) return li;
+          const updatedItem = { ...li, ...updates };
+
+          // If line discount changed, recalculate commission based on discounted sell total
+          if ('discount' in updates || 'discountRate' in updates) {
+            const quantity = updatedItem.quantity || 0;
+            const unitPrice = updatedItem.unitPrice || 0;
+            const divisor = updatedItem.divisor || 1;
+            const sellTotal = quantity * unitPrice / divisor;
+            const lineDiscount = updatedItem.discount || 0;
+            const discountedSellTotal = sellTotal - lineDiscount;
+            const commissionRate = updatedItem.commissionRate || 0;
+            // Commission is now based on the discounted sell total
+            (updatedItem as any).commissionAmount = discountedSellTotal * (commissionRate / 100);
+          }
+
+          return updatedItem;
+        }),
       };
     });
 
@@ -1117,11 +1180,74 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     selectAllLineItems,
     clearLineItemSelection,
 
-    // Column visibility
+    // Column configuration
+    columnConfig,
+    setColumnConfig,
     visibleColumns,
-    setVisibleColumns,
-    showColumnsMenu,
-    setShowColumnsMenu,
+    pinnedColumns,
+    showColumnsModal,
+    setShowColumnsModal,
+    openColumnsModal: () => setShowColumnsModal(true),
+    closeColumnsModal: () => setShowColumnsModal(false),
+    isPinned: (colKey: ColumnKey) => pinnedColumns.has(colKey),
+    getPinnedColumnStyle: (colKey: ColumnKey, isHeader: boolean = false): React.CSSProperties => {
+      if (!pinnedColumns.has(colKey)) return {};
+
+      const fixedLeftOffset = 40; // checkbox width
+
+      const allColumns: ColumnKey[] = [
+        'partNumber', 'custPartNumber', 'description', 'uom', 'divisor', 'unitPrice',
+        'quantity', 'sellTotal', 'commissionPercent', 'commission', 'commissionTotal',
+        'linkedOrder', 'linkedCheck', 'percentOver', 'commissionAmount',
+        'ovgPercent', 'ovgAmount', 'earnPercent', 'earnAmount',
+      ];
+
+      const visiblePinnedColumns = allColumns.filter(
+        (key) => {
+          const col = columnConfig.find((c) => c.key === key);
+          return col?.visible && col?.pinned;
+        }
+      );
+
+      const indexInPinned = visiblePinnedColumns.indexOf(colKey);
+      if (indexInPinned === -1) return {};
+
+      const columnWidths: Record<ColumnKey, number> = {
+        partNumber: 150,
+        custPartNumber: 150,
+        description: 300,
+        uom: 80,
+        divisor: 80,
+        unitPrice: 120,
+        quantity: 100,
+        sellTotal: 120,
+        commissionPercent: 130,
+        commission: 120,
+        commissionTotal: 150,
+        linkedOrder: 120,
+        linkedCheck: 120,
+        percentOver: 100,
+        commissionAmount: 120,
+        ovgPercent: 100,
+        ovgAmount: 120,
+        earnPercent: 110,
+        earnAmount: 120,
+      };
+
+      let leftOffset = 0 //fixedLeftOffset;
+      for (let i = 0; i < indexInPinned; i++) {
+        const prevCol = visiblePinnedColumns[i];
+        const colWidth = columnWidths[prevCol] || 120;
+        leftOffset += colWidth - 12;
+      }
+
+      return {
+        position: 'sticky',
+        left: `${leftOffset}px`,
+        zIndex: 10,
+        backgroundColor: isHeader ? '#f9fafb' : 'white',
+      };
+    },
 
     // Header dropdowns
     showActionsDropdown,

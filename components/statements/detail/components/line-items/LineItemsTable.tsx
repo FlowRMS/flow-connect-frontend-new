@@ -671,7 +671,7 @@ export function LineItemsTable({
                     <span className="w-2 h-2 rounded-full bg-purple-500"></span>
                     Product
                   </span>
-                  <span className="text-gray-500">${options!.productPrice!.toFixed(2)}</span>
+                  <span className="text-gray-500">${options!.productPrice!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                 </button>
               )}
               {options?.cpnPrice !== null && (
@@ -683,7 +683,7 @@ export function LineItemsTable({
                     <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                     CPN
                   </span>
-                  <span className="text-gray-500">${options!.cpnPrice!.toFixed(2)}</span>
+                  <span className="text-gray-500">${options!.cpnPrice!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                 </button>
               )}
               {options?.tiers && options.tiers.length > 0 && (
@@ -703,7 +703,7 @@ export function LineItemsTable({
                           <span className="w-2 h-2 rounded-full bg-green-500"></span>
                           Qty {tier.quantityLow}-{tier.quantityHigh}
                         </span>
-                        <span className="text-gray-500">${tierPrice.toFixed(2)}</span>
+                        <span className="text-gray-500">${tierPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                       </button>
                     );
                   })}

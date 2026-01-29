@@ -23,11 +23,67 @@ import {
   RecordPaymentModal,
   CreateInvoiceModal,
 } from './components/modals';
-import { BulkDeleteModal, BulkActionsToolbar } from '../../shared';
+import { BulkDeleteModal, BulkActionsToolbar, SaveViewButton } from '../../shared';
 import { InvoicesEmptyState } from './components/table';
+import { useInvoiceSettings } from '@/contexts/UserSettingsContext';
+import type { SavedViewState } from '@/components/lib/graphql/settings';
 
 export default function InvoicesListContent() {
   const state = useInvoicesListState();
+  const { settings: invoiceSettings, saveSettings: saveInvoiceSettings, isLoading: isSettingsLoading } = useInvoiceSettings();
+
+  // Get current view state for saving
+  const getCurrentViewState = (): SavedViewState => ({
+    filters: state.activeFilters.map(f => ({
+      operator: f.operator,
+      columnName: f.columnName,
+      value: f.value,
+      values: f.values,
+    })),
+    columnFilters: Object.fromEntries(
+      Object.entries(state.columnFilters || {}).map(([key, filters]) => [
+        key,
+        filters.map(f => ({
+          operator: f.operator,
+          columnName: f.columnName,
+          value: f.value,
+          values: f.values,
+        })),
+      ])
+    ),
+    sortField: state.sortField,
+    sortDirection: state.sortDirection,
+    quickDatePreset: state.quickDatePreset,
+    quickDateField: state.quickDateField,
+  });
+
+  // Save current view state
+  const handleSaveView = async (viewState: SavedViewState): Promise<boolean> => {
+    const updatedSettings = {
+      ...invoiceSettings,
+      columnConfig: invoiceSettings?.columnConfig || [],
+      dueDateOffset: invoiceSettings?.dueDateOffset,
+      savedView: viewState,
+    };
+    return saveInvoiceSettings(updatedSettings, 'my');
+  };
+
+  // Clear saved view state
+  const handleClearView = async (): Promise<boolean> => {
+    const updatedSettings = {
+      ...invoiceSettings,
+      columnConfig: invoiceSettings?.columnConfig || [],
+      dueDateOffset: invoiceSettings?.dueDateOffset,
+      savedView: undefined,
+    };
+    const success = await saveInvoiceSettings(updatedSettings, 'my');
+    if (success) {
+      window.location.reload();
+    }
+    return success;
+  };
+
+  const hasSavedView = !!invoiceSettings?.savedView;
 
   // Navigation morph hooks
   const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
@@ -151,7 +207,15 @@ export default function InvoicesListContent() {
                 onSortChange={state.handleSortChange}
                 activeSort={activeSort}
               />
-              
+
+              <SaveViewButton
+                onSave={handleSaveView}
+                onClear={handleClearView}
+                getCurrentViewState={getCurrentViewState}
+                hasSavedView={hasSavedView}
+                isSaving={isSettingsLoading}
+              />
+
               <button
                 onClick={() => state.setShowCreateModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"

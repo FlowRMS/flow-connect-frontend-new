@@ -15,6 +15,7 @@ import { iconMap } from '@/components/Sidebar';
 import { useStatementsListState } from './hooks/useStatementsListState';
 import { StatementsTable } from './components/table/StatementsTable';
 import { StatementDetailPanel } from './components/sidebar/StatementDetailPanel';
+import { BulkDeleteModal } from '@/components/shared/modals/BulkDeleteModal';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
 import SortButton from '@/components/SortButton';
 import { getStatementFilterOptions, getStatementSortOptions } from './config/filterConfig';
@@ -110,6 +111,12 @@ export default function StatementsListContent() {
     handleSelectOne,
     selectedCount,
     clearSelection,
+    getAllSelectedIds,
+
+    // Bulk delete
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleBulkDeleteSuccess,
   } = useStatementsListState();
 
   // Calculate totals
@@ -300,7 +307,10 @@ export default function StatementsListContent() {
             >
               Clear Selection
             </button>
-            <button className="px-4 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors">
+            <button
+              onClick={() => setShowBulkDeleteModal(true)}
+              className="px-4 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+            >
               Delete Selected
             </button>
           </motion.div>
@@ -309,7 +319,7 @@ export default function StatementsListContent() {
 
       {/* Content */}
       <div
-        className={`flex-1 overflow-auto p-6 transition-all duration-300 ${
+        className={`flex-1 overflow-auto p-6 transition-all duration-300 relative z-0 ${
           selectedStatement ? 'mr-[520px]' : ''
         }`}
         onScroll={handleScroll}
@@ -366,6 +376,17 @@ export default function StatementsListContent() {
         statement={selectedStatement}
         onClose={() => setSelectedStatement(null)}
         isLoading={isLoadingDetails}
+      />
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="STATEMENTS"
+        selectedCount={selectedCount}
+        getAllSelectedIds={getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['statements'], ['statements-infinite']]}
       />
     </div>
   );
