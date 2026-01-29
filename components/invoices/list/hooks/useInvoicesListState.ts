@@ -526,6 +526,7 @@ export function useInvoicesListState() {
     handleSort: _handleSort,
     setSortField: _setSortField,
     setSortDirection: _setSortDirection,
+    clearAllFilters: _oldClearAllFilters,
     ...otherFilterState
   } = filterState;
 
@@ -690,6 +691,15 @@ export function useInvoicesListState() {
     0
   );
 
+  // Clear all filters (advanced, column, quick date, and search)
+  const clearAllFilters = useCallback(() => {
+    setActiveFilters([]);
+    setServerFilters([]);
+    setColumnFilters({});
+    setQuickDatePreset('all');
+    setSearchQuery('');
+  }, []);
+
   // Handle create invoice
   const handleCreateInvoice = (newInvoice: Invoice) => {
     setInvoices([newInvoice, ...invoices]);
@@ -750,6 +760,7 @@ export function useInvoicesListState() {
     activeFilters,
     handleServerFiltersChange,
     serverFilters,
+    clearAllFilters,
     // Column filters
     columnFilters,
     handleColumnFiltersChange,
