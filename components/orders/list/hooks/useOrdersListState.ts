@@ -579,6 +579,7 @@ export function useOrdersListState() {
     handleSort: _handleSort,
     columnFilters: _oldColumnFilters, // Exclude old columnFilters
     setColumnFilters: _oldSetColumnFilters, // Exclude old setColumnFilters
+    clearAllFilters: _oldClearAllFilters, // Exclude old clearAllFilters - we define our own
     ...otherFilterState
   } = filterState;
 
@@ -643,6 +644,16 @@ export function useOrdersListState() {
     }
   };
 
+  // Clear all filters (advanced, column, quick date, and search)
+  const clearAllFilters = useCallback(() => {
+    setActiveFilters([]);
+    setServerFilters([]);
+    setColumnFilters({});
+    setColumnFiltersToAPIState([]);
+    setQuickDatePreset('all');
+    setSearchQuery('');
+  }, []);
+
   const saveSplits = () => {
     if (selectedOrder) {
       const totalPercentage = editedSplits.reduce(
@@ -701,6 +712,7 @@ export function useOrdersListState() {
     activeFilters,
     handleServerFiltersChange,
     serverFilters,
+    clearAllFilters,
     // Column filters
     columnFilters,
     handleColumnFiltersChange,
