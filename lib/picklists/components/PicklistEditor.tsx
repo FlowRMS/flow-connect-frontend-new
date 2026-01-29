@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -20,11 +20,12 @@ import { CSS } from '@dnd-kit/utilities';
 import { usePicklist } from '../usePicklist';
 import { PicklistKey, PicklistColor } from '../enums';
 import { ColorPicker } from './ColorPicker';
-import { useSettingsPage } from '@/contexts/SettingsPageContext';
 import type { PicklistItem } from '../types';
 
 interface PicklistEditorProps {
   picklistKey: PicklistKey;
+  onHasChangesChange?: (hasChanges: boolean) => void;
+  onSaveReady?: (saveFn: () => Promise<boolean>) => void;
 }
 
 interface SortableItemProps {
@@ -194,13 +195,13 @@ function SortableItem({
   );
 }
 
-export function PicklistEditor({ picklistKey }: PicklistEditorProps) {
+export function PicklistEditor({ picklistKey, onHasChangesChange, onSaveReady }: PicklistEditorProps) {
   const { items, definition, isLoading, saveItems } = usePicklist(picklistKey);
-  const settingsPage = useSettingsPage();
   const [localItems, setLocalItems] = useState<PicklistItem[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
   const [newItemLabel, setNewItemLabel] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const localItemsRef = useRef<PicklistItem[]>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -208,32 +209,34 @@ export function PicklistEditor({ picklistKey }: PicklistEditorProps) {
     })
   );
 
+  // Keep ref in sync with state for the save function
+  useEffect(() => {
+    localItemsRef.current = localItems;
+  }, [localItems]);
+
   useEffect(() => {
     setLocalItems(items);
     setHasChanges(false);
   }, [items]);
 
-  // Save function for the settings page context
+  // Notify parent when hasChanges changes
+  useEffect(() => {
+    onHasChangesChange?.(hasChanges);
+  }, [hasChanges, onHasChangesChange]);
+
+  // Save function - uses ref to always have current items
   const save = useCallback(async (): Promise<boolean> => {
-    const success = await saveItems(localItems);
+    const success = await saveItems(localItemsRef.current);
     if (success) {
       setHasChanges(false);
     }
     return success;
-  }, [saveItems, localItems]);
+  }, [saveItems]);
 
-  // Get hasChanges for the settings page context
-  const getHasChanges = useCallback(() => hasChanges, [hasChanges]);
-
-  // Register with settings page context
+  // Provide save function to parent
   useEffect(() => {
-    if (settingsPage) {
-      settingsPage.registerChild(`picklist-${picklistKey}`, save, getHasChanges);
-      return () => {
-        settingsPage.unregisterChild(`picklist-${picklistKey}`);
-      };
-    }
-  }, [settingsPage, picklistKey, save, getHasChanges]);
+    onSaveReady?.(save);
+  }, [save, onSaveReady]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;

@@ -10,7 +10,6 @@ import { OrderSettingsTab } from './settings/OrderSettingsTab';
 import { InvoiceSettingsTab } from './settings/InvoiceSettingsTab';
 import { CommissionSettingsTab } from './settings/CommissionSettingsTab';
 import { ChatSettingsTab } from './settings/ChatSettingsTab';
-import { SettingsPageProvider } from '@/contexts/SettingsPageContext';
 import {
   mockTeamMembers,
   mockFlowBotSettings,
@@ -115,6 +114,12 @@ type ActivityRule = {
 
 
 type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'commission-settings' | 'chat-settings';
+
+interface TabItem {
+  id: TabType;
+  label: string;
+  children?: TabItem[];
+}
 
 const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'commission-settings', 'chat-settings'];
 
@@ -221,56 +226,55 @@ export default function SettingsContent() {
   const selectedRepTypes = repTypes.filter(rt => rt.selected);
   const selectedCount = selectedRepTypes.length;
 
-  const tabGroups = [
+  const tabGroups: { label: string; tabs: TabItem[] }[] = [
     {
       label: 'Company',
       tabs: [
-        { id: 'general' as TabType, label: 'General Settings' },
-        { id: 'team' as TabType, label: 'Your Team' },
-        { id: 'permissions' as TabType, label: 'Permissions' },
+        { id: 'general', label: 'General Settings' },
+        { id: 'team', label: 'Your Team' },
+        { id: 'permissions', label: 'Permissions' },
       ],
     },
     {
       label: 'Sales',
       tabs: [
-        { id: 'sales-reps' as TabType, label: 'Rep Assignments' },
-        { id: 'credit-for-sale' as TabType, label: 'Credit for Sale' },
-        { id: 'categories' as TabType, label: 'Categories' },
+        { id: 'sales-reps', label: 'Rep Assignments' },
+        { id: 'credit-for-sale', label: 'Credit for Sale' },
+        { id: 'categories', label: 'Categories' },
       ],
     },
     {
       label: 'Products',
       tabs: [
-        { id: 'product-categories' as TabType, label: 'Product Categories' },
+        { id: 'product-categories', label: 'Product Categories' },
       ],
     },
     {
       label: 'Automation',
       tabs: [
-        { id: 'flowbot' as TabType, label: 'flowBot Settings' },
-        { id: 'takeoffs' as TabType, label: 'Take-Off Settings' },
+        { id: 'flowbot', label: 'flowBot Settings' },
+        { id: 'takeoffs', label: 'Take-Off Settings' },
       ],
     },
     {
       label: 'Document Defaults',
       tabs: [
-        { id: 'quote-settings' as TabType, label: 'Quote Settings' },
-        { id: 'order-settings' as TabType, label: 'Order Settings' },
-        { id: 'invoice-settings' as TabType, label: 'Invoice Settings' },
+        { id: 'quote-settings', label: 'Quote Settings' },
+        { id: 'order-settings', label: 'Order Settings' },
+        { id: 'invoice-settings', label: 'Invoice Settings' },
       ],
     },
     {
       label: 'Preferences',
       tabs: [
-        { id: 'default-views' as TabType, label: 'Default Views' },
-        { id: 'chat-settings' as TabType, label: 'Chat Settings' },
-        { id: 'sidebar' as TabType, label: 'Sidebar' },
+        { id: 'default-views', label: 'Default Views' },
+        { id: 'chat-settings', label: 'Chat Settings' },
+        { id: 'sidebar', label: 'Sidebar' },
       ],
     },
   ];
 
   return (
-    <SettingsPageProvider>
     <main className="flex-1 flex overflow-hidden bg-[var(--background)]">
       {/* Vertical Sidebar Menu */}
       <aside className="w-56 flex-shrink-0 bg-[var(--card)] border-r border-[var(--border)] overflow-y-auto">
@@ -292,7 +296,7 @@ export default function SettingsContent() {
                   >
                     {tab.label}
                   </button>
-                  {'children' in tab && tab.children && tab.children.map((child) => (
+                  {tab.children?.map((child) => (
                     <button
                       key={child.id}
                       onClick={() => setActiveTab(child.id)}
@@ -313,7 +317,7 @@ export default function SettingsContent() {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto m-6">
       {/* Take-Off Settings Tab */}
       {activeTab === 'takeoffs' && (
         <ComingSoonOverlay>
@@ -764,7 +768,6 @@ export default function SettingsContent() {
       {activeTab === 'product-categories' && <ComingSoonOverlay><ProductCategoriesTab /></ComingSoonOverlay>}
       </div>
     </main>
-    </SettingsPageProvider>
   );
 }
 

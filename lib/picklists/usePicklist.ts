@@ -2,7 +2,6 @@
 
 import { useMemo, useCallback } from 'react';
 import { useUserSettings } from '@/contexts/UserSettingsContext';
-import { parseSettingValue } from '@/components/lib/graphql/settings';
 import type { SettingKey } from '@/components/lib/graphql/settings';
 
 import { PicklistKey, PicklistColor } from './enums';
@@ -16,9 +15,11 @@ export function usePicklist(picklistKey: PicklistKey): UsePicklistReturn {
   const definition = getPicklistDefinition(picklistKey);
 
   // Get all picklist settings from tenant
-  const allPicklistSettings = useMemo(() => {
+  const allPicklistSettings = useMemo((): PicklistSettingsValue | null => {
     const tenantSetting = tenantSettings.get(SETTING_KEY);
-    return tenantSetting ? parseSettingValue<PicklistSettingsValue>(tenantSetting) : null;
+    if (!tenantSetting) return null;
+    // The value is already parsed by the context
+    return tenantSetting as PicklistSettingsValue;
   }, [tenantSettings]);
 
   // Get items: if saved config exists use it, otherwise use defaults
