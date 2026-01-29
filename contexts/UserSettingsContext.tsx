@@ -8,6 +8,7 @@ import {
   type QuoteSettingsValue,
   type OrderSettingsValue,
   type InvoiceSettingsValue,
+  type CommissionSettingsValue,
   type ChatSettingsValue,
   type SidebarSettingsValue,
   type FlowAISettingsValue,
