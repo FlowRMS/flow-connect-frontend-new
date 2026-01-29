@@ -205,7 +205,7 @@ export function AddLineItemModal({
     setShowAdjustmentDropdown(false);
     // Pre-fill the amount from the adjustment
     if (adjustment.amount) {
-      setAppliedAmount(Math.abs(parseFloat(adjustment.amount)));
+      setAppliedAmount(parseFloat(adjustment.amount));
     }
   };
 

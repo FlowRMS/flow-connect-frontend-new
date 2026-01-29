@@ -106,10 +106,8 @@ export function CheckDetailsFields({
   currentCheckId,
   onOpenInvoicesLoaded,
 }: CheckDetailsFieldsProps) {
-  // Calculate stated commissions excluding adjustments
-  // summary.paidTotal includes adjustments (since adjustments are stored as line items)
-  // So we subtract totalAdjustments to get only invoice/credit commissions
-  const statedCommissions = summary.paidTotal - totalAdjustments;
+  // Stated commissions = only invoice/credit line items (adjustments already excluded from summary)
+  const statedCommissions = summary.paidTotal;
   // Factory search state
   const [factorySearch, setFactorySearch] = useState(factory || '');
   const [factories, setFactories] = useState<FactorySearchResult[]>([]);
