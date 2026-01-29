@@ -20,10 +20,6 @@ export interface Job {
   tags: string[];
   createdBy: string;
   createdAt: string;
-  // Additional fields from GetJob endpoint
-  additionalInformation: string;
-  structuralInformation: string;
-  structuralDetails: string;
   requesterId: string;
 }
 
@@ -165,10 +161,6 @@ export function mapLandingPageToUIJob(landingPage: JobLandingPage): Job {
     tags: parsedTags,
     createdBy: landingPage.createdBy || '',
     createdAt: landingPage.createdAt || '',
-    // Landing page doesn't have these fields, so use defaults
-    additionalInformation: '',
-    structuralInformation: '',
-    structuralDetails: '',
     requesterId: '',
   };
 }
@@ -208,10 +200,6 @@ export function mapAPIJobToUIJob(apiJob: APIJob): Job {
     tags: parsedTags,
     createdBy: apiJob.createdBy || '',
     createdAt: apiJob.createdAt || '',
-    // Additional fields from GetJob endpoint
-    additionalInformation: apiJob.additionalInformation || '',
-    structuralInformation: apiJob.structuralInformation || '',
-    structuralDetails: apiJob.structuralDetails || '',
     requesterId: apiJob.requesterId || '',
   };
 }

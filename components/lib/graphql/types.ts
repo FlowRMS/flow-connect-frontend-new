@@ -108,9 +108,6 @@ export interface Job {
   jobName: string;
   jobType: string;
   description: string;
-  additionalInformation: string;
-  structuralInformation: string;
-  structuralDetails: string;
   startDate: string;
   endDate: string;
   requesterId: string;
@@ -123,30 +120,24 @@ export interface Job {
 export interface JobInput {
   jobName: string;
   statusId: string;
-  structuralInformation?: string;
-  structuralDetails?: string;
   startDate?: string;
   requesterId?: string;
   jobType?: string;
   jobOwnerId?: string;
   endDate?: string;
   description?: string;
-  additionalInformation?: string;
   tags?: string;
 }
 
 export interface UpdateJobInput {
   jobName?: string;
   statusId?: string;
-  structuralInformation?: string;
-  structuralDetails?: string;
   startDate?: string;
   requesterId?: string;
   jobType?: string;
   jobOwnerId?: string;
   endDate?: string;
   description?: string;
-  additionalInformation?: string;
   tags?: string;
 }
 
@@ -1164,9 +1155,6 @@ export interface RelatedEntityJob {
   jobName: string;
   jobType?: string;
   description?: string;
-  additionalInformation?: string;
-  structuralDetails?: string;
-  structuralInformation?: string;
   startDate?: string;
   endDate?: string;
   requesterId?: string;

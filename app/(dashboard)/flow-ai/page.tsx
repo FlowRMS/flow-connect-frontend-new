@@ -323,6 +323,7 @@ function FlowRMSPageContent() {
     isApplyingTemplate,
     applyTemplate: applyTemplateFromTemplate,
     activeTemplateName,
+    activeTemplateHasInstructions,
   } = usePendingReview(refreshHistory);
 
   // Update temp values when real values change
@@ -1607,7 +1608,9 @@ function FlowRMSPageContent() {
           </div>
           {activeTemplateName && (
             <div className="text-sm text-muted-foreground flex items-center gap-2">
-              Active template: <span className="font-medium text-foreground">{activeTemplateName}</span>
+              Active template: <span className="font-medium text-foreground">
+                {activeTemplateName}{!activeTemplateHasInstructions && ' (No Instructions)'}
+              </span>
             </div>
            )}
           <div className="flex items-center gap-2">
@@ -1721,7 +1724,9 @@ function FlowRMSPageContent() {
                 >
                   <Sparkles className="w-4 h-4 mr-2" />
                   Active Template: <span className="font-semibold ml-1">
-                    {activeTemplateName || 'None'}
+                    {activeTemplateName 
+                      ? `${activeTemplateName}${!activeTemplateHasInstructions ? ' (No Instructions)' : ''}`
+                      : 'None'}
                   </span>
                 </Button>
                 <Button
