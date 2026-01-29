@@ -16,6 +16,7 @@ import { FactoryFilter } from './components/filter-types/FactoryFilter';
 import { CategoryFilter } from './components/filter-types/CategoryFilter';
 import { CompanyFilter } from './components/filter-types/CompanyFilter';
 import { CompanyTypeFilter } from './components/filter-types/CompanyTypeFilter';
+import { PicklistFilter, PicklistKey } from '@/lib/picklists';
 
 // Re-export types for backward compatibility
 export type { FilterOperator, ActiveFilter, ActiveSort, FilterOption };
@@ -138,8 +139,8 @@ export default function AdvancedFilters({
           
           setFilterValue('');
           setSelectedValues([]);
-        } else if (option.type === 'factory' || option.type === 'category' || option.type === 'company' || option.type === 'companyType') {
-          // For factory/category/company/companyType filters, look for IN operator with values
+        } else if (option.type === 'factory' || option.type === 'category' || option.type === 'company' || option.type === 'companyType' || option.type === 'picklist') {
+          // For factory/category/company/companyType/picklist filters, look for IN operator with values
           const existingFilter = existingFilters.find(f => f.operator === 'IN' && f.values);
           if (existingFilter && existingFilter.values) {
             setSelectedValues(existingFilter.values);
@@ -698,6 +699,18 @@ export default function AdvancedFilters({
                             selectedValues={selectedValues}
                             onToggleValue={toggleValue}
                             onApply={handleApplyMultiSelect}
+                            onClear={() => {
+                              setSelectedValues([]);
+                              handleClearFilter(option.columnName);
+                            }}
+                            hasActiveFilter={selectedValues.length > 0}
+                          />
+                        ) : option.type === 'picklist' && option.picklistKey ? (
+                          <PicklistFilter
+                            picklistKey={option.picklistKey as PicklistKey}
+                            selectedValues={selectedValues}
+                            onToggleValue={toggleValue}
+                            onApply={() => handleApplyMultiSelect(option)}
                             onClear={() => {
                               setSelectedValues([]);
                               handleClearFilter(option.columnName);

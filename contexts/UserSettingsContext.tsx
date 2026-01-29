@@ -22,6 +22,7 @@ import {
   parseSettingValue,
   getEffectiveSetting,
 } from '@/components/lib/graphql/settings';
+import { useSettingsPage } from './SettingsPageContext';
 
 // ============================================================================
 // Types
@@ -293,6 +294,7 @@ export function useUserSettings(): UserSettingsContextType {
 export function useQuoteSettings() {
   const { getMySettingValue, getTenantSettingValue, saveSetting, isLoading, isInitialized, mySettings, tenantSettings } =
     useUserSettings();
+  const settingsPage = useSettingsPage();
 
   const settings = useMemo(() => {
     const mySetting = mySettings.get('QUOTE_SETTINGS');
@@ -311,8 +313,14 @@ export function useQuoteSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: QuoteSettingsValue, scope: SettingScope) => saveSetting('QUOTE_SETTINGS', value, scope),
-    [saveSetting]
+    async (value: QuoteSettingsValue, scope: SettingScope) => {
+      const result = await saveSetting('QUOTE_SETTINGS', value, scope);
+      if (result && scope === 'tenant' && settingsPage) {
+        await settingsPage.saveRegisteredChildren();
+      }
+      return result;
+    },
+    [saveSetting, settingsPage]
   );
 
   return {
@@ -328,6 +336,7 @@ export function useQuoteSettings() {
 export function useOrderSettings() {
   const { getMySettingValue, getTenantSettingValue, saveSetting, isLoading, isInitialized, mySettings, tenantSettings } =
     useUserSettings();
+  const settingsPage = useSettingsPage();
 
   const settings = useMemo(() => {
     const mySetting = mySettings.get('ORDER_SETTINGS');
@@ -346,8 +355,14 @@ export function useOrderSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: OrderSettingsValue, scope: SettingScope) => saveSetting('ORDER_SETTINGS', value, scope),
-    [saveSetting]
+    async (value: OrderSettingsValue, scope: SettingScope) => {
+      const result = await saveSetting('ORDER_SETTINGS', value, scope);
+      if (result && scope === 'tenant' && settingsPage) {
+        await settingsPage.saveRegisteredChildren();
+      }
+      return result;
+    },
+    [saveSetting, settingsPage]
   );
 
   return {
@@ -363,6 +378,7 @@ export function useOrderSettings() {
 export function useInvoiceSettings() {
   const { getMySettingValue, getTenantSettingValue, saveSetting, isLoading, isInitialized, mySettings, tenantSettings } =
     useUserSettings();
+  const settingsPage = useSettingsPage();
 
   const settings = useMemo(() => {
     const mySetting = mySettings.get('INVOICE_SETTINGS');
@@ -381,8 +397,56 @@ export function useInvoiceSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: InvoiceSettingsValue, scope: SettingScope) => saveSetting('INVOICE_SETTINGS', value, scope),
-    [saveSetting]
+    async (value: InvoiceSettingsValue, scope: SettingScope) => {
+      const result = await saveSetting('INVOICE_SETTINGS', value, scope);
+      if (result && scope === 'tenant' && settingsPage) {
+        await settingsPage.saveRegisteredChildren();
+      }
+      return result;
+    },
+    [saveSetting, settingsPage]
+  );
+
+  return {
+    settings,
+    mySettings: mySettingsValue,
+    tenantSettings: tenantSettingsValue,
+    saveSettings: saveSettingsHandler,
+    isLoading,
+    isInitialized,
+  };
+}
+
+export function useCommissionSettings() {
+  const { getMySettingValue, getTenantSettingValue, saveSetting, isLoading, isInitialized, mySettings, tenantSettings } =
+    useUserSettings();
+  const settingsPage = useSettingsPage();
+
+  const settings = useMemo(() => {
+    const mySetting = mySettings.get('CHECKS_SETTINGS');
+    const tenantSetting = tenantSettings.get('CHECKS_SETTINGS');
+    return getEffectiveSetting<CommissionSettingsValue>(mySetting || null, tenantSetting || null);
+  }, [mySettings, tenantSettings]);
+
+  const mySettingsValue = useMemo(
+    () => getMySettingValue<CommissionSettingsValue>('CHECKS_SETTINGS'),
+    [getMySettingValue]
+  );
+
+  const tenantSettingsValue = useMemo(
+    () => getTenantSettingValue<CommissionSettingsValue>('CHECKS_SETTINGS'),
+    [getTenantSettingValue]
+  );
+
+  const saveSettingsHandler = useCallback(
+    async (value: CommissionSettingsValue, scope: SettingScope) => {
+      const result = await saveSetting('CHECKS_SETTINGS', value, scope);
+      if (result && scope === 'tenant' && settingsPage) {
+        await settingsPage.saveRegisteredChildren();
+      }
+      return result;
+    },
+    [saveSetting, settingsPage]
   );
 
   return {
@@ -398,6 +462,7 @@ export function useInvoiceSettings() {
 export function useChatSettings() {
   const { getMySettingValue, getTenantSettingValue, saveSetting, isLoading, isInitialized, mySettings, tenantSettings } =
     useUserSettings();
+  const settingsPage = useSettingsPage();
 
   const settings = useMemo(() => {
     const mySetting = mySettings.get('CHAT_SETTINGS');
@@ -416,8 +481,14 @@ export function useChatSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: ChatSettingsValue, scope: SettingScope) => saveSetting('CHAT_SETTINGS', value, scope),
-    [saveSetting]
+    async (value: ChatSettingsValue, scope: SettingScope) => {
+      const result = await saveSetting('CHAT_SETTINGS', value, scope);
+      if (result && scope === 'tenant' && settingsPage) {
+        await settingsPage.saveRegisteredChildren();
+      }
+      return result;
+    },
+    [saveSetting, settingsPage]
   );
 
   return {
@@ -433,6 +504,7 @@ export function useChatSettings() {
 export function useSidebarSettings() {
   const { getMySettingValue, getTenantSettingValue, saveSetting, isLoading, isInitialized, mySettings, tenantSettings } =
     useUserSettings();
+  const settingsPage = useSettingsPage();
 
   const settings = useMemo(() => {
     const mySetting = mySettings.get('SIDEBAR_SETTINGS');
@@ -451,8 +523,14 @@ export function useSidebarSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: SidebarSettingsValue, scope: SettingScope) => saveSetting('SIDEBAR_SETTINGS', value, scope),
-    [saveSetting]
+    async (value: SidebarSettingsValue, scope: SettingScope) => {
+      const result = await saveSetting('SIDEBAR_SETTINGS', value, scope);
+      if (result && scope === 'tenant' && settingsPage) {
+        await settingsPage.saveRegisteredChildren();
+      }
+      return result;
+    },
+    [saveSetting, settingsPage]
   );
 
   return {
@@ -468,6 +546,7 @@ export function useSidebarSettings() {
 export function useFlowAISettings() {
   const { getMySettingValue, getTenantSettingValue, saveSetting, isLoading, isInitialized, mySettings, tenantSettings } =
     useUserSettings();
+  const settingsPage = useSettingsPage();
 
   const settings = useMemo(() => {
     const mySetting = mySettings.get('FLOW_AI_SETTINGS');
@@ -486,8 +565,14 @@ export function useFlowAISettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: FlowAISettingsValue, scope: SettingScope) => saveSetting('FLOW_AI_SETTINGS', value, scope),
-    [saveSetting]
+    async (value: FlowAISettingsValue, scope: SettingScope) => {
+      const result = await saveSetting('FLOW_AI_SETTINGS', value, scope);
+      if (result && scope === 'tenant' && settingsPage) {
+        await settingsPage.saveRegisteredChildren();
+      }
+      return result;
+    },
+    [saveSetting, settingsPage]
   );
 
   return {

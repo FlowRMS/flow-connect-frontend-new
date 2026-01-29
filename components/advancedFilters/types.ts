@@ -27,11 +27,14 @@ export type FilterOption = {
     | 'factory'
     | 'category'
     | 'company'
-    | 'companyType';
+    | 'companyType'
+    | 'user'
+    | 'picklist';
   columnName?: string; // API column name for filtering
   available?: boolean; // Whether this filter is available in the API
   options?: string[]; // Available options for dropdown filters
   numberFormat?: NumberFormat; // Format for number filters: 'currency' | 'percentage' | 'number' (default)
+  picklistKey?: string; // Key for picklist filters (e.g., 'orderTypes')
 };
 
 export type AdvancedFiltersProps = {

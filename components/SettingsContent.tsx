@@ -9,7 +9,7 @@ import { QuoteSettingsTab } from './settings/QuoteSettingsTab';
 import { OrderSettingsTab } from './settings/OrderSettingsTab';
 import { InvoiceSettingsTab } from './settings/InvoiceSettingsTab';
 import { ChatSettingsTab } from './settings/ChatSettingsTab';
-import { PicklistValuesTab } from './settings/PicklistValuesTab';
+import { SettingsPageProvider } from '@/contexts/SettingsPageContext';
 import {
   mockTeamMembers,
   mockFlowBotSettings,
@@ -113,9 +113,9 @@ type ActivityRule = {
 };
 
 
-type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'chat-settings' | 'picklist-values';
+type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'commission-settings' | 'chat-settings';
 
-const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'chat-settings', 'picklist-values'];
+const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'commission-settings', 'chat-settings'];
 
 export default function SettingsContent() {
   const searchParams = useSearchParams();
@@ -254,9 +254,7 @@ export default function SettingsContent() {
       label: 'Document Defaults',
       tabs: [
         { id: 'quote-settings' as TabType, label: 'Quote Settings' },
-        { id: 'order-settings' as TabType, label: 'Order Settings', children: [
-          { id: 'picklist-values' as TabType, label: 'Picklist Values' },
-        ] },
+        { id: 'order-settings' as TabType, label: 'Order Settings' },
         { id: 'invoice-settings' as TabType, label: 'Invoice Settings' },
       ],
     },
@@ -271,6 +269,7 @@ export default function SettingsContent() {
   ];
 
   return (
+    <SettingsPageProvider>
     <main className="flex-1 flex overflow-hidden bg-[var(--background)]">
       {/* Vertical Sidebar Menu */}
       <aside className="w-56 flex-shrink-0 bg-[var(--card)] border-r border-[var(--border)] overflow-y-auto">
@@ -613,10 +612,6 @@ export default function SettingsContent() {
         <ChatSettingsTab />
       )}
 
-      {/* Picklist Values Tab */}
-      {activeTab === 'picklist-values' && (
-        <PicklistValuesTab />
-      )}
 
       {/* Default Views Tab */}
       {activeTab === 'default-views' && (
@@ -763,6 +758,7 @@ export default function SettingsContent() {
       {activeTab === 'product-categories' && <ComingSoonOverlay><ProductCategoriesTab /></ComingSoonOverlay>}
       </div>
     </main>
+    </SettingsPageProvider>
   );
 }
 

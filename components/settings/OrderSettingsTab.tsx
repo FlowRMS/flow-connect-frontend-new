@@ -9,6 +9,8 @@ import type { OrderSettingsValue, OrderColumnConfig } from '@/components/lib/gra
 import { DEFAULT_VISIBLE_COLUMNS, COLUMN_LABELS } from '@/components/orders/detail/constants';
 import type { ColumnKey } from '@/components/orders/detail/types';
 import { showSuccessToast, showErrorToast } from '@/components/lib/toast';
+import { PicklistEditor } from '@/lib/picklists/components';
+import { PicklistKey } from '@/lib/picklists/enums';
 
 // All available columns for orders
 const ALL_ORDER_COLUMNS: ColumnKey[] = [
@@ -225,6 +227,13 @@ export function OrderSettingsTab() {
           comingSoonKeys={COMING_SOON_COLUMNS}
         />
       </div>
+
+      {/* Order Types Picklist - Only visible for tenant settings */}
+      {scope === 'tenant' && (
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+          <PicklistEditor picklistKey={PicklistKey.ORDER_TYPES} />
+        </div>
+      )}
 
       {/* Info Banner */}
       <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
