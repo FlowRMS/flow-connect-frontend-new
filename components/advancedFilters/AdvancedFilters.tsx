@@ -466,9 +466,14 @@ export default function AdvancedFilters({
         option?.type === ColumnFilterTypeEnum.date || option?.type === ColumnFilterTypeEnum.month;
       
       const newFilters = localFilters.filter(f => {
+        // Keep filters for other columns
         if (f.columnName !== columnName) return true;
-        if (isDateOrMonthFilter && (f.operator === 'GTE' || f.operator === 'LTE')) return false;
-        return true;
+        // For date/month filters, remove GTE and LTE operators
+        if (isDateOrMonthFilter) {
+          return !(f.operator === 'GTE' || f.operator === 'LTE');
+        }
+        // For all other filter types, remove the filter
+        return false;
       });
       setLocalFilters(newFilters);
       if (onFiltersChange) {
@@ -476,6 +481,7 @@ export default function AdvancedFilters({
       } else if (onFilterChange) {
         onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
       }
+      // Keep modal open when removing individual filters
     } else {
       // Clear all filters
       setLocalFilters([]);
@@ -484,13 +490,14 @@ export default function AdvancedFilters({
       } else if (onFilterChange) {
         onFilterChange(undefined);
       }
+      // Close modal only when clearing ALL filters
+      setFilterValue('');
+      setExpandedFilterId(null);
+      setDateRangeStart(null);
+      setDateRangeEnd(null);
+      setBooleanValue(null);
+      setIsExpanded(false);
     }
-    setFilterValue('');
-    setExpandedFilterId(null);
-    setDateRangeStart(null);
-    setDateRangeEnd(null);
-    setBooleanValue(null);
-    setIsExpanded(false);
   };
 
   const activeFilterCount = localFilters.length;
