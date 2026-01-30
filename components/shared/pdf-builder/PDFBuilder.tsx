@@ -45,6 +45,7 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
     organizationAddress: '',
     centerLogo: null,
     showCenterLogo: false,
+    centerLogoSize: 35,
     headerNote: '',
     footerNote: 'Thank you for your business.',
     showLogo: true,
@@ -56,6 +57,33 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
 
   const [isExporting, setIsExporting] = useState(false);
   const [isUploadingCenterLogo, setIsUploadingCenterLogo] = useState(false);
+
+  // localStorage key for persisting PDF Builder config per entity type
+  const storageKey = `pdfBuilder_config_${entityType}`;
+
+  // Save config to localStorage whenever relevant state changes
+  useEffect(() => {
+    if (state.isLoading || state.error) return;
+    if (!state.entityData) return;
+
+    const config = {
+      fieldVisibility: state.fields.reduce((acc, f) => { acc[f.id] = f.visible; return acc; }, {} as Record<string, boolean>),
+      columnVisibility: state.columns.reduce((acc, c) => { acc[c.id] = c.visible; return acc; }, {} as Record<string, boolean>),
+      headerNote: state.headerNote,
+      footerNote: state.footerNote,
+      showLogo: state.showLogo,
+      showLineNumbers: state.showLineNumbers,
+      showCenterLogo: state.showCenterLogo,
+      centerLogo: state.centerLogo,
+      centerLogoSize: state.centerLogoSize,
+    };
+
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(config));
+    } catch {
+      // localStorage may be full or unavailable
+    }
+  }, [state.fields, state.columns, state.headerNote, state.footerNote, state.showLogo, state.showLineNumbers, state.showCenterLogo, state.centerLogo, state.centerLogoSize, state.isLoading, state.error, state.entityData, storageKey]);
 
   // Load entity data
   useEffect(() => {
@@ -71,14 +99,58 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
           throw new Error('Entity not found');
         }
 
-        const fields = extractFields(entityType, data);
+        let fields = extractFields(entityType, data);
         const lineItems = extractLineItems(entityType, data);
+
+        // Restore saved config from localStorage
+        let savedHeaderNote: string | undefined;
+        let savedFooterNote: string | undefined;
+        let savedShowLogo: boolean | undefined;
+        let savedShowLineNumbers: boolean | undefined;
+        let savedShowCenterLogo: boolean | undefined;
+        let savedCenterLogo: string | null | undefined;
+        let savedCenterLogoSize: number | undefined;
+        let savedColumnVisibility: Record<string, boolean> | undefined;
+
+        try {
+          const saved = localStorage.getItem(`pdfBuilder_config_${entityType}`);
+          if (saved) {
+            const config = JSON.parse(saved);
+            // Restore field visibility
+            if (config.fieldVisibility) {
+              fields = fields.map((f) => ({
+                ...f,
+                visible: config.fieldVisibility[f.id] ?? f.visible,
+              }));
+            }
+            savedColumnVisibility = config.columnVisibility;
+            savedHeaderNote = config.headerNote;
+            savedFooterNote = config.footerNote;
+            savedShowLogo = config.showLogo;
+            savedShowLineNumbers = config.showLineNumbers;
+            savedShowCenterLogo = config.showCenterLogo;
+            savedCenterLogo = config.centerLogo;
+            savedCenterLogoSize = config.centerLogoSize;
+          }
+        } catch {
+          // Ignore parse errors
+        }
 
         setState((prev) => ({
           ...prev,
           entityData: data,
           fields,
           lineItems,
+          columns: savedColumnVisibility
+            ? prev.columns.map((c) => ({ ...c, visible: savedColumnVisibility![c.id] ?? c.visible }))
+            : prev.columns,
+          ...(savedHeaderNote !== undefined && { headerNote: savedHeaderNote }),
+          ...(savedFooterNote !== undefined && { footerNote: savedFooterNote }),
+          ...(savedShowLogo !== undefined && { showLogo: savedShowLogo }),
+          ...(savedShowLineNumbers !== undefined && { showLineNumbers: savedShowLineNumbers }),
+          ...(savedShowCenterLogo !== undefined && { showCenterLogo: savedShowCenterLogo }),
+          ...(savedCenterLogo !== undefined && { centerLogo: savedCenterLogo }),
+          ...(savedCenterLogoSize !== undefined && { centerLogoSize: savedCenterLogoSize }),
           isLoading: false,
         }));
       } catch (err) {
@@ -214,6 +286,10 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
     setState((prev) => ({ ...prev, centerLogo: null }));
   }, []);
 
+  const handleCenterLogoSizeChange = useCallback((size: number) => {
+    setState((prev) => ({ ...prev, centerLogoSize: size }));
+  }, []);
+
   // Export to PDF
   const handleExport = useCallback(async () => {
     if (!state.entityData) return;
@@ -285,9 +361,10 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
         try {
           const centerLogoBase64 = await loadImageAsBase64(state.centerLogo);
           if (centerLogoBase64) {
-            // Position the center logo in the middle of the page, same size as the left logo (20x20mm)
-            const centerX = (pageWidth / 2) - 10; // Center the 20mm wide logo
-            doc.addImage(centerLogoBase64, 'PNG', centerX, yPos, 20, 20);
+            // Position the center logo in the middle of the page
+            const centerLogoSize = state.centerLogoSize || 35; // Default 35mm
+            const centerX = (pageWidth / 2) - (centerLogoSize / 2);
+            doc.addImage(centerLogoBase64, 'PNG', centerX, yPos, centerLogoSize, centerLogoSize);
           }
         } catch {
           // If center logo fails, just skip it
@@ -394,9 +471,10 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
           doc.text(field.label, margin, fieldYPos);
           doc.setFontSize(9);
           doc.setTextColor(...darkColor);
-          const value = field.editedValue ?? field.value;
-          doc.text(String(value || '-'), margin, fieldYPos + 4);
-          fieldYPos += 10;
+          const value = String(field.editedValue ?? field.value ?? '-');
+          const wrappedLines = doc.splitTextToSize(value, colWidth - 5);
+          doc.text(wrappedLines, margin, fieldYPos + 4);
+          fieldYPos += 4 + (wrappedLines.length * 4) + 2;
         });
         maxSectionHeight = Math.max(maxSectionHeight, fieldYPos - yPos);
       }
@@ -415,9 +493,10 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
           doc.text(field.label, margin + colWidth, fieldYPos);
           doc.setFontSize(9);
           doc.setTextColor(...darkColor);
-          const value = field.editedValue ?? field.value;
-          doc.text(String(value || '-'), margin + colWidth, fieldYPos + 4);
-          fieldYPos += 10;
+          const value = String(field.editedValue ?? field.value ?? '-');
+          const wrappedLines = doc.splitTextToSize(value, colWidth - 5);
+          doc.text(wrappedLines, margin + colWidth, fieldYPos + 4);
+          fieldYPos += 4 + (wrappedLines.length * 4) + 2;
         });
         maxSectionHeight = Math.max(maxSectionHeight, fieldYPos - yPos);
       }
@@ -436,9 +515,10 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
           doc.text(field.label, margin + colWidth * 2, fieldYPos);
           doc.setFontSize(9);
           doc.setTextColor(...darkColor);
-          const value = field.editedValue ?? field.value;
-          doc.text(String(value || '-'), margin + colWidth * 2, fieldYPos + 4);
-          fieldYPos += 10;
+          const value = String(field.editedValue ?? field.value ?? '-');
+          const wrappedLines = doc.splitTextToSize(value, colWidth - 5);
+          doc.text(wrappedLines, margin + colWidth * 2, fieldYPos + 4);
+          fieldYPos += 4 + (wrappedLines.length * 4) + 2;
         });
         maxSectionHeight = Math.max(maxSectionHeight, fieldYPos - yPos);
       }
@@ -839,6 +919,8 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
                     onCenterLogoUpload={handleCenterLogoUpload}
                     onCenterLogoRemove={handleCenterLogoRemove}
                     onShowCenterLogoToggle={handleShowCenterLogoToggle}
+                    centerLogoSize={state.centerLogoSize}
+                    onCenterLogoSizeChange={handleCenterLogoSizeChange}
                     isUploadingCenterLogo={isUploadingCenterLogo}
                   />
                 </div>
@@ -860,6 +942,7 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
                     organizationAddress={state.organizationAddress}
                     centerLogo={state.centerLogo}
                     showCenterLogo={state.showCenterLogo}
+                    centerLogoSize={state.centerLogoSize}
                   />
                 </div>
               </>

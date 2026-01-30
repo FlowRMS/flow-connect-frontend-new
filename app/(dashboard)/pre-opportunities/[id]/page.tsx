@@ -213,6 +213,7 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
         onDelete={handleDelete}
         onEditChange={handleEditChange}
         onLineItemsChange={handleLineItemsChange}
+        onRefetch={refetch}
       />
 
       {/* Delete Confirmation Modal */}

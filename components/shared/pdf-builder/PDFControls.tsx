@@ -34,6 +34,8 @@ interface PDFControlsProps {
   onCenterLogoUpload: (file: File) => void;
   onCenterLogoRemove: () => void;
   onShowCenterLogoToggle: () => void;
+  centerLogoSize: number;
+  onCenterLogoSizeChange: (size: number) => void;
   isUploadingCenterLogo?: boolean;
 }
 
@@ -61,6 +63,8 @@ export function PDFControls({
   onCenterLogoUpload,
   onCenterLogoRemove,
   onShowCenterLogoToggle,
+  centerLogoSize,
+  onCenterLogoSizeChange,
   isUploadingCenterLogo,
 }: PDFControlsProps) {
   const [activeSection, setActiveSection] = useState<SectionType>('fields');
@@ -737,6 +741,28 @@ export function PDFControls({
                           disabled={isUploadingCenterLogo}
                         />
                       </label>
+                    )}
+
+                    {/* Center Logo Size Slider */}
+                    {centerLogo && (
+                      <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">Logo Size</span>
+                          <span className="text-sm font-semibold text-blue-600">{centerLogoSize}mm</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={15}
+                          max={60}
+                          value={centerLogoSize}
+                          onChange={(e) => onCenterLogoSizeChange(Number(e.target.value))}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>Small</span>
+                          <span>Large</span>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
