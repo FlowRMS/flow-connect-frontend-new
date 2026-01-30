@@ -46,6 +46,7 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
     centerLogo: null,
     showCenterLogo: false,
     centerLogoSize: 35,
+    centerLogoPosition: 50,
     headerNote: '',
     footerNote: 'Thank you for your business.',
     showLogo: true,
@@ -76,6 +77,7 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
       showCenterLogo: state.showCenterLogo,
       centerLogo: state.centerLogo,
       centerLogoSize: state.centerLogoSize,
+      centerLogoPosition: state.centerLogoPosition,
     };
 
     try {
@@ -83,7 +85,7 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
     } catch {
       // localStorage may be full or unavailable
     }
-  }, [state.fields, state.columns, state.headerNote, state.footerNote, state.showLogo, state.showLineNumbers, state.showCenterLogo, state.centerLogo, state.centerLogoSize, state.isLoading, state.error, state.entityData, storageKey]);
+  }, [state.fields, state.columns, state.headerNote, state.footerNote, state.showLogo, state.showLineNumbers, state.showCenterLogo, state.centerLogo, state.centerLogoSize, state.centerLogoPosition, state.isLoading, state.error, state.entityData, storageKey]);
 
   // Load entity data
   useEffect(() => {
@@ -110,6 +112,7 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
         let savedShowCenterLogo: boolean | undefined;
         let savedCenterLogo: string | null | undefined;
         let savedCenterLogoSize: number | undefined;
+        let savedCenterLogoPosition: number | undefined;
         let savedColumnVisibility: Record<string, boolean> | undefined;
 
         try {
@@ -131,6 +134,7 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
             savedShowCenterLogo = config.showCenterLogo;
             savedCenterLogo = config.centerLogo;
             savedCenterLogoSize = config.centerLogoSize;
+            savedCenterLogoPosition = config.centerLogoPosition;
           }
         } catch {
           // Ignore parse errors
@@ -151,6 +155,7 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
           ...(savedShowCenterLogo !== undefined && { showCenterLogo: savedShowCenterLogo }),
           ...(savedCenterLogo !== undefined && { centerLogo: savedCenterLogo }),
           ...(savedCenterLogoSize !== undefined && { centerLogoSize: savedCenterLogoSize }),
+          ...(savedCenterLogoPosition !== undefined && { centerLogoPosition: savedCenterLogoPosition }),
           isLoading: false,
         }));
       } catch (err) {
@@ -290,6 +295,10 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
     setState((prev) => ({ ...prev, centerLogoSize: size }));
   }, []);
 
+  const handleCenterLogoPositionChange = useCallback((position: number) => {
+    setState((prev) => ({ ...prev, centerLogoPosition: position }));
+  }, []);
+
   // Export to PDF
   const handleExport = useCallback(async () => {
     if (!state.entityData) return;
@@ -315,8 +324,8 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
       // Get entity number
       const entityNumber = getEntityNumber(entityType, state.entityData);
 
-      // Helper function to load image and convert to base64
-      const loadImageAsBase64 = async (url: string): Promise<string | null> => {
+      // Helper function to load image and convert to base64, also returns natural dimensions
+      const loadImageAsBase64 = async (url: string): Promise<{ data: string; width: number; height: number } | null> => {
         return new Promise((resolve) => {
           const img = new Image();
           img.crossOrigin = 'anonymous';
@@ -328,7 +337,7 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
               const ctx = canvas.getContext('2d');
               if (ctx) {
                 ctx.drawImage(img, 0, 0);
-                resolve(canvas.toDataURL('image/png'));
+                resolve({ data: canvas.toDataURL('image/png'), width: img.width, height: img.height });
               } else {
                 resolve(null);
               }
@@ -346,9 +355,23 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
       if (state.showLogo && state.organizationLogo) {
         try {
           // Load image and convert to base64 for jsPDF
-          const logoBase64 = await loadImageAsBase64(state.organizationLogo);
-          if (logoBase64) {
-            doc.addImage(logoBase64, 'PNG', margin, yPos, 20, 20);
+          const logoResult = await loadImageAsBase64(state.organizationLogo);
+          if (logoResult) {
+            // Fit within a 20x20mm box preserving aspect ratio (matches preview)
+            const logoBox = 20;
+            const aspect = logoResult.width / logoResult.height;
+            let logoW: number, logoH: number;
+            if (aspect >= 1) {
+              logoW = logoBox;
+              logoH = logoBox / aspect;
+            } else {
+              logoH = logoBox;
+              logoW = logoBox * aspect;
+            }
+            // Center within the 20x20 box
+            const logoOffsetX = (logoBox - logoW) / 2;
+            const logoOffsetY = (logoBox - logoH) / 2;
+            doc.addImage(logoResult.data, 'PNG', margin + logoOffsetX, yPos + logoOffsetY, logoW, logoH);
             logoAdded = true;
           }
         } catch {
@@ -359,12 +382,23 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
       // Center Logo (Second Company) - positioned in the center at the same height as left logo
       if (state.showCenterLogo && state.centerLogo) {
         try {
-          const centerLogoBase64 = await loadImageAsBase64(state.centerLogo);
-          if (centerLogoBase64) {
-            // Position the center logo in the middle of the page
-            const centerLogoSize = state.centerLogoSize || 35; // Default 35mm
-            const centerX = (pageWidth / 2) - (centerLogoSize / 2);
-            doc.addImage(centerLogoBase64, 'PNG', centerX, yPos, centerLogoSize, centerLogoSize);
+          const centerLogoResult = await loadImageAsBase64(state.centerLogo);
+          if (centerLogoResult) {
+            // Position the center logo based on user-configured horizontal position
+            const maxSize = state.centerLogoSize || 35;
+            const aspect = centerLogoResult.width / centerLogoResult.height;
+            let clW: number, clH: number;
+            if (aspect >= 1) {
+              clW = maxSize;
+              clH = maxSize / aspect;
+            } else {
+              clH = maxSize;
+              clW = maxSize * aspect;
+            }
+            const positionPercent = state.centerLogoPosition ?? 50;
+            const usableWidth = pageWidth - margin * 2;
+            const centerX = margin + (usableWidth * positionPercent / 100) - (clW / 2);
+            doc.addImage(centerLogoResult.data, 'PNG', centerX, yPos, clW, clH);
           }
         } catch {
           // If center logo fails, just skip it
@@ -685,7 +719,8 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
       // Load FlowRMS logo for footer
       let flowLogoBase64: string | null = null;
       try {
-        flowLogoBase64 = await loadImageAsBase64('/flow-logo copy.png');
+        const flowLogoResult = await loadImageAsBase64('/flow-logo copy.png');
+        flowLogoBase64 = flowLogoResult?.data ?? null;
       } catch {
         // Logo failed to load, continue without it
       }
@@ -921,6 +956,8 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
                     onShowCenterLogoToggle={handleShowCenterLogoToggle}
                     centerLogoSize={state.centerLogoSize}
                     onCenterLogoSizeChange={handleCenterLogoSizeChange}
+                    centerLogoPosition={state.centerLogoPosition}
+                    onCenterLogoPositionChange={handleCenterLogoPositionChange}
                     isUploadingCenterLogo={isUploadingCenterLogo}
                   />
                 </div>
@@ -943,6 +980,7 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
                     centerLogo={state.centerLogo}
                     showCenterLogo={state.showCenterLogo}
                     centerLogoSize={state.centerLogoSize}
+                    centerLogoPosition={state.centerLogoPosition}
                   />
                 </div>
               </>
