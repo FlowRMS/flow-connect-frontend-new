@@ -23,6 +23,11 @@ export const SUB_PROCESS_DOC = gql`
         sourceType
         status
         updatedAt
+        cluster {
+          id
+          clusterName
+          additionalInstructions
+        }
       }
       action
     }

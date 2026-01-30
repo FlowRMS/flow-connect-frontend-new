@@ -27,7 +27,6 @@ export const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
   'expectedCommission',
   'paidCommission',
   'balance',
-  'paid',
 ];
 
 // Column labels
@@ -40,6 +39,5 @@ export const COLUMN_LABELS: Record<ColumnKey, string> = {
   expectedCommission: 'Expected Commission',
   paidCommission: 'Stated Commission',
   balance: 'Balance',
-  paid: 'On Check',
 };
 

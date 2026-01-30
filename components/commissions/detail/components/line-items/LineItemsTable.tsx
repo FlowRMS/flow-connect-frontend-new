@@ -25,6 +25,7 @@ interface LineItemsTableProps {
   onAddNewLine: () => void;
   onRowClick: (item: LineItem) => void;
   onUpdateStatedCommission?: (id: string, amount: number) => void;
+  onZeroAllStatedCommissions?: () => void;
   onOrderClick?: (orderId: string) => void;
   onDelete?: (id: string) => void;
   isPinned?: (colKey: ColumnKey) => boolean;
@@ -46,6 +47,7 @@ export function LineItemsTable({
   onAddNewLine,
   onRowClick,
   onUpdateStatedCommission,
+  onZeroAllStatedCommissions,
   onOrderClick,
   onDelete,
   isPinned = () => false,
@@ -149,6 +151,17 @@ export function LineItemsTable({
           <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">
             {lineItems.length}
           </span>
+          {status !== 'posted' && onZeroAllStatedCommissions && lineItems.length > 0 && (
+            <label className="flex items-center gap-2 ml-4 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={lineItems.every(item => item.paidCommission === 0)}
+                onChange={() => onZeroAllStatedCommissions()}
+                className="w-4 h-4 accent-[var(--primary)] cursor-pointer"
+              />
+              <span className="text-sm text-[var(--muted-foreground)]">Zero all stated commissions</span>
+            </label>
+          )}
         </div>
 
         <div className="flex items-center gap-2">

@@ -189,7 +189,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
     const allColumns: ColumnKey[] = [
       'number', 'orderNumber', 'customer', 'salesRep', 'commissionRate',
-      'expectedCommission', 'paidCommission', 'balance', 'paid',
+      'expectedCommission', 'paidCommission', 'balance',
     ];
 
     const visiblePinnedColumns = allColumns.filter(
@@ -205,7 +205,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     const columnWidths: Record<ColumnKey, number> = {
       number: 150, orderNumber: 150, customer: 200, salesRep: 150,
       commissionRate: 150, expectedCommission: 180, paidCommission: 180,
-      balance: 150, paid: 100,
+      balance: 150,
     };
 
     let leftOffset = 0; //fixedLeftOffset;
@@ -527,7 +527,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
           convertedDeductionAdjustments.push({
             id: detail.adjustment.id || detail.id,
             adjustmentNumber: detail.adjustment.adjustmentNumber,
-            amount: detail.appliedAmount || detail.adjustment.amount, // Use appliedAmount for correct totals
+            amount: detail.adjustment.amount, // Use original adjustment amount (preserves negative sign)
             createdAt: detail.adjustment.createdAt,
             entityDate: detail.adjustment.entityDate,
             locked: detail.adjustment.locked,
@@ -718,10 +718,43 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     );
   };
 
+  // Zero out all stated commissions (toggle: if all are 0, restore expected values)
+  // Only affects invoices/credits, not adjustments
+  const zeroAllStatedCommissions = () => {
+    if (!isCreateMode) setHasLocalEdits(true);
+    const nonAdjustmentItems = lineItems.filter(item => item.type !== 'adjustment');
+    const allZero = nonAdjustmentItems.every(item => item.paidCommission === 0);
+    if (allZero) {
+      // Restore to expected commission values
+      setLineItems((prev) =>
+        prev.map((item) =>
+          item.type !== 'adjustment'
+            ? { ...item, paidCommission: item.expectedCommission }
+            : item
+        )
+      );
+    } else {
+      // Set all to 0
+      setLineItems((prev) =>
+        prev.map((item) =>
+          item.type !== 'adjustment'
+            ? { ...item, paidCommission: 0 }
+            : item
+        )
+      );
+    }
+  };
+
   const deleteLineItem = (id: string) => {
     if (!isCreateMode) setHasLocalEdits(true);
     setLineItems((prev) => prev.filter((item) => item.id !== id));
     closeLineItemDetail();
+  };
+
+  const removeDeductionAdjustment = (id: string) => {
+    if (!isCreateMode) setHasLocalEdits(true);
+    setDeductionAdjustments((prev) => prev.filter((adj) => adj.id !== id));
+    setAdjustments((prev) => prev.filter((adj) => adj.id !== id));
   };
 
   const togglePaid = (id: string) => {
@@ -789,15 +822,20 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     });
   }, [isCreateMode]);
 
-  // Summary calculations
+  // Summary calculations - exclude adjustment-type items so stated commissions only reflects invoices/credits
   const summary = useMemo(() => {
-    return calculateLineItemsSummary(lineItems);
+    const nonAdjustmentItems = lineItems.filter(item => item.type !== 'adjustment');
+    return calculateLineItemsSummary(nonAdjustmentItems);
   }, [lineItems]);
 
   const totalAdjustments = useMemo(() => {
-    // Calculate from deductionAdjustments since adjustments are no longer in lineItems
-    return deductionAdjustments.reduce((sum, adj) => sum + (parseFloat(adj.amount || '0') || 0), 0);
-  }, [deductionAdjustments]);
+    // Calculate from deductionAdjustments (saved) + adjustment-type lineItems (unsaved)
+    const savedTotal = deductionAdjustments.reduce((sum, adj) => sum + (parseFloat(adj.amount || '0') || 0), 0);
+    const unsavedTotal = lineItems
+      .filter((item) => item.type === 'adjustment')
+      .reduce((sum, item) => sum + (Number(item.paidCommission) || 0), 0);
+    return savedTotal + unsavedTotal;
+  }, [deductionAdjustments, lineItems]);
 
   // Factory ID state (needed for API)
   const [factoryId, setFactoryId] = useState<string>(apiCheck?.factoryId || '');
@@ -1207,6 +1245,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     setLineItems,
     addNewLine,
     deleteLineItem,
+    removeDeductionAdjustment,
     togglePaid,
     handleOpenInvoicesLoaded,
 
@@ -1220,6 +1259,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     openLineItemDetail,
     closeLineItemDetail,
     updateLineItemAmount,
+    zeroAllStatedCommissions,
 
     // Order detail modal
     showOrderDetailModal,

@@ -452,9 +452,6 @@ export default function JobsContent() {
         gc: jobToEdit.gc,
         ec: jobToEdit.ec,
         value: jobToEdit.value,
-        additionalInformation: jobToEdit.additionalInformation,
-        structuralInformation: jobToEdit.structuralInformation,
-        structuralDetails: jobToEdit.structuralDetails,
         tags: jobToEdit.tags || [],
       });
       setIsEditing(true);
@@ -500,9 +497,6 @@ export default function JobsContent() {
           startDate: editFormData.startDate !== '-' ? editFormData.startDate : undefined,
           endDate: editFormData.endDate !== '-' ? editFormData.endDate : undefined,
           description: editFormData.description,
-          additionalInformation: editFormData.additionalInformation,
-          structuralInformation: editFormData.structuralInformation,
-          structuralDetails: editFormData.structuralDetails,
           tags: tagsString,
         },
       });
@@ -519,9 +513,6 @@ export default function JobsContent() {
         startDate: editFormData.startDate || currentJob.startDate,
         endDate: editFormData.endDate || currentJob.endDate,
         description: editFormData.description || currentJob.description,
-        additionalInformation: editFormData.additionalInformation || currentJob.additionalInformation,
-        structuralInformation: editFormData.structuralInformation || currentJob.structuralInformation,
-        structuralDetails: editFormData.structuralDetails || currentJob.structuralDetails,
         tags: updatedTags,
       });
       
@@ -612,9 +603,6 @@ export default function JobsContent() {
           startDate: editFormData.startDate !== '-' ? editFormData.startDate : undefined,
           endDate: editFormData.endDate !== '-' ? editFormData.endDate : undefined,
           description: editFormData.description,
-          additionalInformation: editFormData.additionalInformation,
-          structuralInformation: editFormData.structuralInformation,
-          structuralDetails: editFormData.structuralDetails,
           tags: tagsString,
         },
       });

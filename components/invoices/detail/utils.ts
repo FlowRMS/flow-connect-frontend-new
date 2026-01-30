@@ -117,7 +117,8 @@ export const calculateInvoiceTotals = (invoice: EditableInvoice | Invoice): {
     const unitPrice = lineItem.unitPrice || 0;
     const divisor = lineItem.divisor || 1;
     const commissionRate = lineItem.commissionRate ?? 0;
-    const sellTotal = quantity * unitPrice / divisor;
+    const lineDiscount = lineItem.discount || 0;
+    const sellTotal = (quantity * unitPrice / divisor) - lineDiscount;
     return sum + (sellTotal * (commissionRate / 100));
   }, 0);
 
