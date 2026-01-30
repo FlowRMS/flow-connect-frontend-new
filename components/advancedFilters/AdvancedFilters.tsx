@@ -146,7 +146,13 @@ export default function AdvancedFilters({
             setSelectedValues(existingFilter.values);
             setFilterValue('');
           } else {
-            setSelectedValues([]);
+            // Also check for ILIKE single-value company filter
+            const ilikeFilter = existingFilters.find(f => f.operator === 'ILIKE' && f.value);
+            if (ilikeFilter && ilikeFilter.value) {
+              setSelectedValues([ilikeFilter.value]);
+            } else {
+              setSelectedValues([]);
+            }
             setFilterValue('');
           }
         } else if (existingFilters.length > 0) {
@@ -274,6 +280,37 @@ export default function AdvancedFilters({
       onFiltersChange(newFilters);
     } else if (onFilterChange) {
       // Backward compatibility - use the first filter or undefined if no filters
+      onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
+    }
+    setExpandedFilterId(null);
+    setIsExpanded(false);
+  };
+
+  const handleApplyCompanyFilter = (option: FilterOption) => {
+    if (!option.columnName) return;
+
+    let newFilters = localFilters.filter(f => f.columnName !== option.columnName);
+
+    if (selectedValues.length === 1) {
+      // Use ILIKE for single company selection - much faster on the backend
+      newFilters.push({
+        columnName: option.columnName,
+        operator: 'ILIKE',
+        value: selectedValues[0],
+      });
+    } else if (selectedValues.length > 1) {
+      newFilters.push({
+        columnName: option.columnName,
+        operator: 'IN',
+        values: selectedValues,
+      });
+    }
+
+    setLocalFilters(newFilters);
+
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    } else if (onFilterChange) {
       onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
     }
     setExpandedFilterId(null);
@@ -696,7 +733,7 @@ export default function AdvancedFilters({
                             option={option}
                             selectedValues={selectedValues}
                             onToggleValue={toggleValue}
-                            onApply={handleApplyMultiSelect}
+                            onApply={handleApplyCompanyFilter}
                             onClear={() => {
                               setSelectedValues([]);
                               handleClearFilter(option.columnName);

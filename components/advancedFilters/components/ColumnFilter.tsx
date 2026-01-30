@@ -81,8 +81,12 @@ export function ColumnFilter({
   };
 
   const getSelectedValues = () => {
-    const filter = safeValue.find(f => f.columnName === columnName && f.operator === 'IN' && f.values);
-    return filter?.values || [];
+    const inFilter = safeValue.find(f => f.columnName === columnName && f.operator === 'IN' && f.values);
+    if (inFilter?.values) return inFilter.values;
+    // Support single ILIKE company filter
+    const ilikeFilter = safeValue.find(f => f.columnName === columnName && f.operator === 'ILIKE' && f.value);
+    if (ilikeFilter?.value) return [ilikeFilter.value];
+    return [];
   };
 
   // Get factoryId from active filters (for category filter)
@@ -211,6 +215,10 @@ export function ColumnFilter({
         }
       } else if (type === 'factory' || type === 'category' || type === 'company' || type === 'user') {
         if (filter.values && Array.isArray(filter.values) && filter.values.length > 0) {
+          return true;
+        }
+        // Company filter may use ILIKE with single value
+        if (type === 'company' && filter.operator === 'ILIKE' && filter.value) {
           return true;
         }
       }
@@ -592,7 +600,29 @@ export function ColumnFilter({
               option={filterOption}
               selectedValues={localSelectedValues}
               onToggleValue={toggleDropdownValue}
-              onApply={handleDropdownApply}
+              onApply={() => {
+                if (localSelectedValues.length === 1) {
+                  // Use ILIKE for single company selection - much faster than IN on the backend
+                  updateFilters([{
+                    columnName,
+                    operator: 'ILIKE' as FilterOperator,
+                    value: localSelectedValues[0],
+                  }]);
+                } else if (localSelectedValues.length > 1) {
+                  // Multiple selections still use IN
+                  updateFilters([{
+                    columnName,
+                    operator: 'IN',
+                    values: localSelectedValues,
+                  }]);
+                } else {
+                  const otherFilters = safeValue.filter(f => f.columnName !== columnName);
+                  onChange(otherFilters);
+                }
+                if (onToggle) {
+                  onToggle();
+                }
+              }}
               onClear={handleClear}
               hasActiveFilter={getSelectedValues().length > 0}
             />
