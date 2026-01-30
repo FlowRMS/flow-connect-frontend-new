@@ -283,7 +283,8 @@ export default function CreateWorkflowPage() {
   useEffect(() => {
     if (!pipelineResult?.nodes?.node4 || autoDownloadedCsv) return;
     const raw = pipelineResult.nodes.node4.result;
-    const data = (raw?.data ?? raw?.rows ?? raw) as Record<string, any>[] | undefined;
+    const rawObj = raw as Record<string, unknown> | undefined;
+    const data = (rawObj?.data ?? rawObj?.rows ?? raw) as Record<string, unknown>[] | undefined;
     if (!Array.isArray(data) || !data.length) return;
     const csv = jsonToCsv(data);
     if (!csv) return;
@@ -470,12 +471,13 @@ export default function CreateWorkflowPage() {
         </p>
       );
     const raw = node4.result;
-    const data = Array.isArray(raw?.data)
-      ? raw.data
-      : Array.isArray(raw?.rows)
-      ? raw.rows
-      : Array.isArray(raw?.result)
-      ? raw.result
+    const rawObj = raw as Record<string, unknown> | undefined;
+    const data = Array.isArray(rawObj?.data)
+      ? rawObj.data
+      : Array.isArray(rawObj?.rows)
+      ? rawObj.rows
+      : Array.isArray(rawObj?.result)
+      ? rawObj.result
       : Array.isArray(raw)
       ? raw
       : [];

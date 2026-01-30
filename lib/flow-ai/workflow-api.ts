@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { apolloClient } from './apollo';
@@ -17,13 +16,23 @@ import {
 } from './gql';
 import { uploadFile as crmUploadFile } from '@/components/lib/graphql/files';
 
-// Type definitions
+export class WorkflowAPIError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public context?: Record<string, unknown>
+  ) {
+    super(message);
+    this.name = 'WorkflowAPIError';
+  }
+}
+
 export interface Workflow {
   id: string;
   name: string;
   description?: string;
   instruction?: string;
-  workflow_json: any;
+  workflow_json: WorkflowJson;
   generated_code?: string;
   pseudo_code?: string;
   status: string;
@@ -34,12 +43,27 @@ export interface Workflow {
   tenant_id?: string;
 }
 
+export interface WorkflowJson {
+  steps?: WorkflowStep[];
+  output_format?: string;
+  [key: string]: unknown;
+}
+
+export interface WorkflowStep {
+  id?: string;
+  type?: string;
+  step_number?: number;
+  description?: string;
+  config?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface WorkflowExecution {
   id: string;
   workflow_id: string;
   status: string;
-  input_data?: Record<string, any>;
-  output_data?: Record<string, any>;
+  input_data?: Record<string, unknown>;
+  output_data?: ExecutionOutputData;
   error_message?: string;
   execution_log?: string;
   started_at?: string;
@@ -47,12 +71,17 @@ export interface WorkflowExecution {
   created_at: string;
 }
 
+export interface ExecutionOutputData {
+  nodes?: Record<string, PipelineNodeResult>;
+  [key: string]: unknown;
+}
+
 export interface CreateWorkflowPayload {
   name: string;
   description?: string;
   instruction: string;
   auto_execute?: boolean;
-  input_data?: Record<string, any>;
+  input_data?: Record<string, unknown>;
   is_public?: boolean;
 }
 
@@ -64,13 +93,49 @@ export interface WorkflowGalleryResponse {
 export interface PipelineNodeResult {
   success: boolean;
   error?: string | null;
-  [key: string]: any;
+  result?: PipelineResultData;
+  file_metadata?: FileMetadata[];
+  workflow_plan?: WorkflowPlan;
+  code?: string;
+  pseudo_code?: string;
+  stdout?: string;
+  stderr?: string;
+  [key: string]: unknown;
+}
+
+export type PipelineResultData = Record<string, unknown> | unknown[] | string | null;
+
+export interface FileMetadata {
+  filename: string;
+  filepath: string;
+  file_type: string;
+  was_structured: boolean;
+  tabs_data?: TabData[];
+}
+
+export interface TabData {
+  tab_name: string;
+  columns?: string[];
+  sample_rows?: unknown[];
+  error?: string;
+}
+
+export interface WorkflowPlan {
+  steps?: PlanStep[];
+  output_format?: string;
+  [key: string]: unknown;
+}
+
+export interface PlanStep {
+  step_number?: number;
+  description?: string;
+  [key: string]: unknown;
 }
 
 export interface PipelineExecuteResponse {
   success: boolean;
   error?: string | null;
-  result?: any;
+  result?: unknown;
   nodes: {
     node1?: PipelineNodeResult;
     node2?: PipelineNodeResult;
@@ -79,18 +144,54 @@ export interface PipelineExecuteResponse {
     [key: string]: PipelineNodeResult | undefined;
   };
   warnings?: string[];
-  column_mapping?: Record<string, any>;
-  fileIds?: string[]; // Returned after Node 1 upload for reuse in subsequent nodes
+  column_mapping?: Record<string, string>;
+  fileIds?: string[];
 }
 
-// Helper to transform GraphQL workflow response to our format
-function transformWorkflow(w: any): Workflow {
+interface GraphQLWorkflow {
+  id: string;
+  name: string;
+  description?: string | null;
+  instruction?: string;
+  workflowJson?: WorkflowJson;
+  generatedCode?: string | null;
+  pseudoCode?: string | null;
+  status: string;
+  isPublic?: boolean | null;
+  createdAt: string;
+  updatedAt?: string | null;
+  createdBy?: string | null;
+}
+
+interface GraphQLExecution {
+  id: string;
+  workflowId: string;
+  status: string;
+  inputData?: Record<string, unknown>;
+  outputData?: ExecutionOutputData | string;
+  errorMessage?: string | null;
+  executionLog?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+}
+
+interface GraphQLPipelineResult {
+  success: boolean;
+  error: string | null;
+  result: unknown;
+  nodes: Record<string, PipelineNodeResult> | string;
+  warnings: string[] | null;
+  columnMapping: Record<string, string> | string | null;
+}
+
+function transformWorkflow(w: GraphQLWorkflow): Workflow {
   return {
     id: w.id,
     name: w.name,
     description: w.description ?? undefined,
     instruction: w.instruction,
-    workflow_json: w.workflowJson,
+    workflow_json: w.workflowJson ?? {},
     generated_code: w.generatedCode ?? undefined,
     pseudo_code: w.pseudoCode ?? undefined,
     status: w.status,
@@ -98,12 +199,11 @@ function transformWorkflow(w: any): Workflow {
     created_at: w.createdAt,
     updated_at: w.updatedAt ?? undefined,
     created_by: w.createdBy ?? undefined,
-    tenant_id: undefined, // tenantId not available in GraphQL schema
+    tenant_id: undefined,
   };
 }
 
-// Helper to transform GraphQL execution response to our format
-function transformExecution(e: any): WorkflowExecution {
+function transformExecution(e: GraphQLExecution): WorkflowExecution {
   return {
     id: e.id,
     workflow_id: e.workflowId,
@@ -118,10 +218,17 @@ function transformExecution(e: any): WorkflowExecution {
   };
 }
 
-// Helper to parse nodes in output_data if it's a JSON string
-function parseOutputDataNodes(outputData: any): any {
-  if (!outputData || typeof outputData !== 'object') {
-    return outputData;
+function parseOutputDataNodes(outputData: ExecutionOutputData | string | undefined): ExecutionOutputData | undefined {
+  if (!outputData) {
+    return undefined;
+  }
+
+  if (typeof outputData === 'string') {
+    try {
+      return JSON.parse(outputData);
+    } catch {
+      return undefined;
+    }
   }
 
   if (outputData.nodes && typeof outputData.nodes === 'string') {
@@ -139,14 +246,24 @@ function parseOutputDataNodes(outputData: any): any {
   return outputData;
 }
 
+function parseJsonString<T>(value: T | string, fallback: T): T {
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return value;
+}
+
 class WorkflowAPI {
-  // Get workflow gallery (public + my workflows)
   async getWorkflowGallery(): Promise<WorkflowGalleryResponse> {
     const client = apolloClient;
     const { data } = await client.query<{
       workflowGallery: {
-        publicWorkflows: any[];
-        myWorkflows: any[];
+        publicWorkflows: GraphQLWorkflow[];
+        myWorkflows: GraphQLWorkflow[];
       };
     }>({
       query: Q_GET_WORKFLOW_GALLERY,
@@ -154,7 +271,7 @@ class WorkflowAPI {
     });
 
     if (!data?.workflowGallery) {
-      throw new Error('Failed to fetch workflow gallery');
+      throw new WorkflowAPIError('GALLERY_FETCH_FAILED', 'Failed to fetch workflow gallery');
     }
 
     return {
@@ -163,7 +280,6 @@ class WorkflowAPI {
     };
   }
 
-  // List workflows with pagination
   async listWorkflows(
     page: number = 1,
     pageSize: number = 20
@@ -171,7 +287,7 @@ class WorkflowAPI {
     const client = apolloClient;
     const { data } = await client.query<{
       workflows: {
-        workflows: any[];
+        workflows: GraphQLWorkflow[];
         total: number;
         page: number;
         pageSize: number;
@@ -183,7 +299,7 @@ class WorkflowAPI {
     });
 
     if (!data?.workflows) {
-      throw new Error('Failed to fetch workflows');
+      throw new WorkflowAPIError('WORKFLOWS_FETCH_FAILED', 'Failed to fetch workflows');
     }
 
     return {
@@ -194,11 +310,10 @@ class WorkflowAPI {
     };
   }
 
-  // Get single workflow by ID
   async getWorkflow(id: string): Promise<Workflow> {
     const client = apolloClient;
     const { data } = await client.query<{
-      workflow: any | null;
+      workflow: GraphQLWorkflow | null;
     }>({
       query: Q_GET_WORKFLOW,
       variables: { workflowId: id },
@@ -206,32 +321,31 @@ class WorkflowAPI {
     });
 
     if (!data?.workflow) {
-      throw new Error('Workflow not found');
+      throw new WorkflowAPIError('WORKFLOW_NOT_FOUND', 'Workflow not found', { workflowId: id });
     }
 
     return transformWorkflow(data.workflow);
   }
 
-  // Save workflow from pipeline
   async saveWorkflow(opts: {
     name: string;
     instruction: string;
-    workflowJson: any;
-    generatedCode: string;
+    workflowJson?: WorkflowJson;
+    generatedCode?: string;
     description?: string;
     pseudoCode?: string;
     isPublic?: boolean;
   }): Promise<Workflow> {
     const client = apolloClient;
     const { data } = await client.mutate<{
-      saveWorkflow: any;
+      saveWorkflow: GraphQLWorkflow;
     }>({
       mutation: M_SAVE_WORKFLOW,
       variables: {
         name: opts.name,
         instruction: opts.instruction,
-        workflowJson: opts.workflowJson,
-        generatedCode: opts.generatedCode,
+        workflowJson: opts.workflowJson ?? {},
+        generatedCode: opts.generatedCode ?? '',
         description: opts.description,
         pseudoCode: opts.pseudoCode,
         isPublic: opts.isPublic ?? false,
@@ -239,18 +353,17 @@ class WorkflowAPI {
     });
 
     if (!data?.saveWorkflow) {
-      throw new Error('Failed to save workflow');
+      throw new WorkflowAPIError('WORKFLOW_SAVE_FAILED', 'Failed to save workflow');
     }
 
     return transformWorkflow(data.saveWorkflow);
   }
 
-  // Alias for saveWorkflow for compatibility
   async saveWorkflowFromPipeline(opts: {
     name: string;
     instruction: string;
-    workflowJson: any;
-    generatedCode: string;
+    workflowJson?: WorkflowJson;
+    generatedCode?: string;
     description?: string;
     pseudoCode?: string;
     isPublic?: boolean;
@@ -258,11 +371,10 @@ class WorkflowAPI {
     return this.saveWorkflow(opts);
   }
 
-  // Update workflow
   async updateWorkflow(id: string, payload: Partial<Workflow>): Promise<Workflow> {
     const client = apolloClient;
     const { data } = await client.mutate<{
-      updateWorkflow: any | null;
+      updateWorkflow: GraphQLWorkflow | null;
     }>({
       mutation: M_UPDATE_WORKFLOW,
       variables: {
@@ -279,13 +391,12 @@ class WorkflowAPI {
     });
 
     if (!data?.updateWorkflow) {
-      throw new Error('Workflow not found');
+      throw new WorkflowAPIError('WORKFLOW_NOT_FOUND', 'Workflow not found', { workflowId: id });
     }
 
     return transformWorkflow(data.updateWorkflow);
   }
 
-  // Delete workflow
   async deleteWorkflow(id: string): Promise<void> {
     const client = apolloClient;
     const { data } = await client.mutate<{
@@ -296,18 +407,17 @@ class WorkflowAPI {
     });
 
     if (!data?.deleteWorkflow) {
-      throw new Error('Failed to delete workflow');
+      throw new WorkflowAPIError('WORKFLOW_DELETE_FAILED', 'Failed to delete workflow', { workflowId: id });
     }
   }
 
-  // Execute workflow
   async executeWorkflow(
     workflowId: string,
-    inputData?: Record<string, any>
+    inputData?: Record<string, unknown>
   ): Promise<WorkflowExecution> {
     const client = apolloClient;
     const { data } = await client.mutate<{
-      executeWorkflow: any;
+      executeWorkflow: GraphQLExecution;
     }>({
       mutation: M_EXECUTE_WORKFLOW,
       variables: {
@@ -317,17 +427,16 @@ class WorkflowAPI {
     });
 
     if (!data?.executeWorkflow) {
-      throw new Error('Failed to execute workflow');
+      throw new WorkflowAPIError('WORKFLOW_EXECUTE_FAILED', 'Failed to execute workflow', { workflowId });
     }
 
     return transformExecution(data.executeWorkflow);
   }
 
-  // Get execution by ID
   async getExecution(executionId: string): Promise<WorkflowExecution> {
     const client = apolloClient;
     const { data } = await client.query<{
-      executionById: any | null;
+      executionById: GraphQLExecution | null;
     }>({
       query: Q_GET_EXECUTION_BY_ID,
       variables: { executionId },
@@ -335,17 +444,16 @@ class WorkflowAPI {
     });
 
     if (!data?.executionById) {
-      throw new Error('Execution not found');
+      throw new WorkflowAPIError('EXECUTION_NOT_FOUND', 'Execution not found', { executionId });
     }
 
     return transformExecution(data.executionById);
   }
 
-  // List executions for a workflow
   async listExecutions(workflowId: string): Promise<WorkflowExecution[]> {
     const client = apolloClient;
     const { data } = await client.query<{
-      workflowExecutions: any[];
+      workflowExecutions: GraphQLExecution[];
     }>({
       query: Q_GET_WORKFLOW_EXECUTIONS,
       variables: { workflowId },
@@ -353,13 +461,12 @@ class WorkflowAPI {
     });
 
     if (!data?.workflowExecutions) {
-      throw new Error('Failed to fetch executions');
+      throw new WorkflowAPIError('EXECUTIONS_FETCH_FAILED', 'Failed to fetch executions', { workflowId });
     }
 
     return data.workflowExecutions.map(transformExecution);
   }
 
-  // List all executions with optional filters
   async listAllExecutions(params?: {
     status?: string;
     workflowId?: string;
@@ -369,7 +476,7 @@ class WorkflowAPI {
     const client = apolloClient;
     const { data } = await client.query<{
       allExecutions: {
-        executions: any[];
+        executions: GraphQLExecution[];
         total: number;
         page: number;
         pageSize: number;
@@ -386,36 +493,29 @@ class WorkflowAPI {
     });
 
     if (!data?.allExecutions) {
-      throw new Error('Failed to fetch executions');
+      throw new WorkflowAPIError('EXECUTIONS_FETCH_FAILED', 'Failed to fetch executions');
     }
 
     return data.allExecutions.executions.map(transformExecution);
   }
 
-  // Upload a single file using CRM's uploadFile function
   private async uploadFile(file: File): Promise<string> {
-    console.log('📤 Uploading file for pipeline:', file.name);
-
     try {
-      // Use UNDEFINED for pipeline files since they can be any document type
       const result = await crmUploadFile({
         file,
         fileName: file.name,
         fileEntityType: 'UNDEFINED',
       });
 
-      console.log('✅ Upload successful:', result);
       return result.id;
     } catch (error) {
-      console.error('❌ Upload error:', error);
-      throw new Error(`Failed to upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new WorkflowAPIError('FILE_UPLOAD_FAILED', `Failed to upload ${file.name}: ${message}`, {
+        fileName: file.name,
+      });
     }
   }
 
-  // Execute pipeline (4-node)
-  // For Node 1: pass files to upload
-  // For Nodes 2-4: pass fileIds from previous Node 1 run
-  // For templates: use startFromNode=4 to skip to execution with saved code
   async executePipeline(
     prompt: string,
     files: File[] | undefined,
@@ -429,30 +529,19 @@ class WorkflowAPI {
     let fileIds: string[];
 
     if (existingFileIds && existingFileIds.length > 0) {
-      // Reuse existing fileIds (for nodes 2, 3, 4)
       fileIds = existingFileIds;
-      console.log('♻️ Reusing existing fileIds:', fileIds);
     } else if (files && files.length > 0) {
-      // Upload files to get fileIds (for node 1)
       fileIds = [];
       for (const file of files) {
         const fileId = await this.uploadFile(file);
         fileIds.push(fileId);
       }
-      console.log('📄 Files uploaded with IDs:', fileIds);
     } else {
-      throw new Error('Either files or fileIds must be provided');
+      throw new WorkflowAPIError('MISSING_FILES', 'Either files or fileIds must be provided');
     }
 
     const { data } = await client.mutate<{
-      executePipeline: {
-        success: boolean;
-        error: string | null;
-        result: any;
-        nodes: any;
-        warnings: string[] | null;
-        columnMapping: any;
-      };
+      executePipeline: GraphQLPipelineResult;
     }>({
       mutation: M_EXECUTE_PIPELINE,
       variables: {
@@ -465,46 +554,26 @@ class WorkflowAPI {
     });
 
     if (!data?.executePipeline) {
-      throw new Error('Pipeline execution failed');
+      throw new WorkflowAPIError('PIPELINE_EXECUTE_FAILED', 'Pipeline execution failed');
     }
 
     const result = data.executePipeline;
-
-    // Parse nodes if it's a JSON string
-    let nodes = result.nodes || {};
-    if (typeof nodes === 'string') {
-      try {
-        nodes = JSON.parse(nodes);
-      } catch (e) {
-        console.error('Failed to parse nodes JSON string:', e);
-        nodes = {};
-      }
-    }
+    const nodes = parseJsonString(result.nodes, {} as Record<string, PipelineNodeResult>);
 
     const response: PipelineExecuteResponse = {
       success: result.success,
       error: result.error,
       result: result.result,
       nodes: nodes,
-      fileIds: fileIds, // Return fileIds so caller can reuse for subsequent nodes
+      fileIds: fileIds,
     };
 
     if (result.warnings) {
       response.warnings = result.warnings;
     }
 
-    // Parse columnMapping if it's a JSON string
     if (result.columnMapping) {
-      let columnMapping = result.columnMapping;
-      if (typeof columnMapping === 'string') {
-        try {
-          columnMapping = JSON.parse(columnMapping);
-        } catch (e) {
-          console.error('Failed to parse columnMapping JSON string:', e);
-          columnMapping = {};
-        }
-      }
-      response.column_mapping = columnMapping;
+      response.column_mapping = parseJsonString(result.columnMapping, {} as Record<string, string>);
     }
 
     return response;
@@ -512,8 +581,3 @@ class WorkflowAPI {
 }
 
 export const workflowAPI = new WorkflowAPI();
-
-
-
-
-

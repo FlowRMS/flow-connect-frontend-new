@@ -1,29 +1,26 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import {
-  Loader2,
-  PlayCircle,
-  FileText,
-  CheckCircle2,
-  ChevronRight,
-  Upload,
-  Download,
-} from 'lucide-react';
+import { Loader2, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/flow-ai/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/flow-ai/ui/tabs';
-import { Badge } from '@/components/flow-ai/ui/badge';
-import { Textarea } from '@/components/flow-ai/ui/textarea';
-import { Input } from '@/components/flow-ai/ui/input';
-import { Label } from '@/components/flow-ai/ui/label';
 import { useWorkflowTenant } from '@/lib/flow-ai/workflow-tenant-context';
-import { workflowAPI, type Workflow, type PipelineExecuteResponse } from '@/lib/flow-ai/workflow-api';
-import { convertPseudoCodeToHTML } from '@/lib/flow-ai/pseudo-code-formatter';
+import type { Workflow, PipelineExecuteResponse } from '@/lib/flow-ai/workflow-api';
+import { cleanupOldImports } from '@/lib/flow-ai/workflow-import-storage';
+import { jsonToCsv, downloadCsv, parseNodeResult } from '@/lib/flow-ai/pipeline-utils';
 import { toast } from 'sonner';
-
-type StepIndex = 1 | 2 | 3 | 4;
+import {
+  usePipelineFiles,
+  usePipelineExecution,
+  useProductImport,
+  type StepIndex,
+} from '@/components/flow-ai/hooks';
+import {
+  PipelineInput,
+  PipelineStepIndicator,
+  PipelineNodeViewer,
+  TemplateRunnerView,
+} from './pipeline';
 
 const STEP_TITLES: Record<StepIndex, string> = {
   1: 'Files & Tabs (Node 1)',
@@ -40,757 +37,187 @@ interface PipelineRunnerProps {
 export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
   const { isAdmin } = useWorkflowTenant();
   const [prompt, setPrompt] = useState(workflow?.instruction || '');
-  const [files, setFiles] = useState<File[]>([]);
-  // Pre-populate editedCode from saved workflow if available
   const [editedCode, setEditedCode] = useState<string>(workflow?.generated_code || '');
+  const [autoDownloadedCsv, setAutoDownloadedCsv] = useState(false);
 
-  // Store fileIds after first upload (Node 1) to reuse for subsequent nodes
-  const [uploadedFileIds, setUploadedFileIds] = useState<string[]>([]);
-
-  // Check if workflow has saved code (for template mode)
   const hasSavedCode = useMemo(
     () => Boolean(workflow?.generated_code && workflow.generated_code.trim().length > 0),
     [workflow]
   );
 
-  const [currentStep, setCurrentStep] = useState<StepIndex>(1);
-  const [maxCompletedStep, setMaxCompletedStep] = useState<StepIndex | 0>(0);
-  const [loadingStep, setLoadingStep] = useState<StepIndex | null>(null);
-  const [pipelineResult, setPipelineResult] = useState<PipelineExecuteResponse | null>(null);
-  const [autoDownloadedCsv, setAutoDownloadedCsv] = useState(false);
+  const pipelineFiles = usePipelineFiles();
+  const pipelineExecution = usePipelineExecution({
+    prompt,
+    files: pipelineFiles.files,
+    uploadedFileIds: pipelineFiles.uploadedFileIds,
+    setUploadedFileIds: pipelineFiles.setUploadedFileIds,
+    editedCode,
+    workflow,
+    onSave,
+  });
 
-  const canRun = useMemo(
-    () => prompt.trim().length > 0 && files.length > 0,
-    [prompt, files]
-  );
+  const productImport = useProductImport({
+    prompt,
+    workflow,
+  });
 
-  const handleFileChange = (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return;
-    const arr = Array.from(fileList);
-    setFiles((prev) => [...prev, ...arr]);
-    // Clear fileIds when files change - will need to re-upload on next Node 1 run
-    setUploadedFileIds([]);
-    toast.success(`Added ${arr.length} file(s)`);
-  };
-
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-    // Clear fileIds when files change - will need to re-upload on next Node 1 run
-    setUploadedFileIds([]);
-  };
-
-  // Run with saved code: upload files, then execute Node 4 with saved code
-  const runWithSavedCode = async () => {
-    if (!canRun) {
-      toast.error('Please provide a prompt and at least one file.');
-      return;
-    }
-
-    if (!editedCode || editedCode.trim().length === 0) {
-      toast.error('No saved code available. Run the full pipeline first.');
-      return;
-    }
-
-    setLoadingStep(4);
-    try {
-      // Execute pipeline with startFromNode=4 and the saved code
-      // This uploads files and runs only Node 4
-      const res = await workflowAPI.executePipeline(
-        prompt.trim(),
-        files,               // Upload new files
-        undefined,           // No existing fileIds
-        4,                   // stopAfter Node 4
-        editedCode,          // Use saved code
-        4                    // startFromNode = 4 (skip nodes 1-3)
-      );
-      setPipelineResult(res);
-
-      if (res.fileIds) {
-        setUploadedFileIds(res.fileIds);
-      }
-
-      if (!res.success) {
-        toast.error(res.error || 'Pipeline failed at Node 4');
-        return;
-      }
-
-      setMaxCompletedStep(4);
-      setCurrentStep(4);
-      toast.success('Execution completed with saved code!');
-
-      if (onSave) {
-        onSave(res);
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to run with saved code');
-    } finally {
-      setLoadingStep(null);
-    }
-  };
-
-  const runStep = async (step: StepIndex) => {
-    if (!canRun) {
-      toast.error('Please provide a prompt and at least one file.');
-      return;
-    }
-
-    // For nodes 2, 3, 4: must have fileIds from a previous Node 1 run
-    if (step > 1 && uploadedFileIds.length === 0) {
-      toast.error('Please run Node 1 first to upload files.');
-      return;
-    }
-
-    setLoadingStep(step);
-    try {
-      const shouldOverrideCode = step === 4 && editedCode.trim().length > 0;
-
-      // Node 1: pass files to upload, nodes 2-4: pass existing fileIds
-      const res = await workflowAPI.executePipeline(
-        prompt.trim(),
-        step === 1 ? files : undefined,
-        step === 1 ? undefined : uploadedFileIds,
-        step,
-        shouldOverrideCode ? editedCode : undefined
-      );
-      setPipelineResult(res);
-
-      // Store the fileIds returned from Node 1 for reuse
-      if (step === 1 && res.fileIds) {
-        setUploadedFileIds(res.fileIds);
-      }
-
-      if (!res.success) {
-        toast.error(res.error || `Pipeline failed at node ${step}`);
-        return;
-      }
-
-      setMaxCompletedStep((prev) => {
-        const next = step > prev ? step : prev;
-        return next as StepIndex | 0;
-      });
-
-      toast.success(`Node ${step} completed successfully.`);
-      setCurrentStep(step);
-
-      if (onSave && step >= 3) {
-        onSave(res);
-      }
-    } catch (err: any) {
-      toast.error(err.message || `Failed to run node ${step}`);
-    } finally {
-      setLoadingStep(null);
-    }
-  };
-
-  const handleNext = async () => {
-    const nextStep = (currentStep + 1) as StepIndex;
-    if (nextStep > 4) return;
-    await runStep(nextStep);
-  };
-
-  const handleRunThisStep = async () => {
-    await runStep(currentStep);
-  };
-
-  const jsonToCsv = (rows: Record<string, any>[]): string => {
-    if (!rows || !rows.length) return '';
-    const headers = Object.keys(rows[0] ?? {});
-    const escape = (v: any) => {
-      const s = v == null ? '' : String(v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const csvRows = [
-      headers.join(','),
-      ...rows.map((row) => headers.map((h) => escape(row[h])).join(',')),
-    ];
-    return csvRows.join('\n');
-  };
-
-  const downloadCsv = (filename: string, csv: string) => {
-    if (!csv) return;
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const downloadJson = (filename: string, data: any) => {
-    if (!data) return;
-    const jsonStr = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // Check if result is a product import JSON structure
-  // Can be either: { products: [...] } or { output_file: "...", preview_products: [...] }
-  const isProductImportJson = (data: any): boolean => {
-    if (!data) return false;
-    // Check for direct products array
-    if (data.products && Array.isArray(data.products)) {
-      const firstProduct = data.products[0];
-      if (firstProduct && 'factoryPartNumber' in firstProduct) {
-        return true;
-      }
-    }
-    // Check for output_file + preview_products structure (from streaming code)
-    if (data.output_file && data.preview_products && Array.isArray(data.preview_products)) {
-      const firstProduct = data.preview_products[0];
-      if (firstProduct && 'factoryPartNumber' in firstProduct) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  // Download JSON file from URL (for streaming output) or direct data
-  const downloadProductImportJson = async (data: any) => {
-    try {
-      if (data.output_file) {
-        // Fetch the full JSON from the output_file URL
-        toast.info('Downloading full product data...');
-        const response = await fetch(data.output_file);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch: ${response.statusText}`);
-        }
-        const jsonData = await response.json();
-        downloadJson('products-import.json', jsonData);
-        toast.success('Product import JSON downloaded. Go to Products > Import to upload it.');
-      } else {
-        // Direct download of the data object
-        downloadJson('products-import.json', data);
-        toast.success('Product import JSON downloaded. Go to Products > Import to upload it.');
-      }
-    } catch (error) {
-      console.error('Failed to download product JSON:', error);
-      toast.error('Failed to download JSON. Try copying from Raw JSON tab.');
-    }
-  };
-
+  // Cleanup old workflow imports on mount
   useEffect(() => {
-    if (!pipelineResult?.nodes?.node4 || autoDownloadedCsv) return;
-    const raw = pipelineResult.nodes.node4.result;
-    const data = (raw?.data ?? raw?.rows ?? raw) as Record<string, any>[] | undefined;
+    cleanupOldImports();
+  }, []);
+
+  // Auto-download CSV on node4 completion
+  useEffect(() => {
+    if (!pipelineExecution.pipelineResult?.nodes?.node4 || autoDownloadedCsv) return;
+
+    const raw = pipelineExecution.pipelineResult.nodes.node4.result;
+    const rawObj = raw as Record<string, unknown> | undefined;
+    const data = (rawObj?.data ?? rawObj?.rows ?? raw) as Record<string, unknown>[] | undefined;
+
     if (!Array.isArray(data) || !data.length) return;
+
     const csv = jsonToCsv(data);
     if (!csv) return;
+
     downloadCsv('workflow-result.csv', csv);
     setAutoDownloadedCsv(true);
     toast.success('Result CSV downloaded.');
-  }, [pipelineResult, autoDownloadedCsv]);
+  }, [pipelineExecution.pipelineResult, autoDownloadedCsv]);
 
-  const node1 = pipelineResult?.nodes?.node1;
-  const node2 = pipelineResult?.nodes?.node2;
-  const node3 = pipelineResult?.nodes?.node3;
-  const node4 = pipelineResult?.nodes?.node4;
-
-  const renderNode1 = () => {
-    if (!node1)
-      return <p className="text-sm text-muted-foreground">Run Node 1 to see file metadata and tabs.</p>;
-    const filesMeta = node1.file_metadata ?? [];
+  // Template mode: simplified view for workflows with saved code
+  if (hasSavedCode) {
     return (
-      <div className="space-y-4">
-        {filesMeta.map((meta: any, idx: number) => (
-          <Card key={`${meta.filename}-${idx}`} className="border border-border">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center justify-between">
-                <span>{meta.filename}</span>
-                <Badge variant={meta.was_structured ? 'default' : 'outline'}>
-                  {meta.was_structured ? 'Structured' : 'Original'}
-                </Badge>
+      <TemplateRunnerView
+        files={pipelineFiles.files}
+        handleFileChange={pipelineFiles.handleFileChange}
+        removeFile={pipelineFiles.removeFile}
+        loadingStep={pipelineExecution.loadingStep}
+        pipelineResult={pipelineExecution.pipelineResult}
+        isNavigatingToImport={productImport.isNavigatingToImport}
+        onRunWithSavedCode={pipelineExecution.runWithSavedCode}
+        onNavigateToImport={productImport.handleNavigateToImport}
+        onDownloadJson={productImport.downloadProductImportJson}
+      />
+    );
+  }
+
+  // Full pipeline mode: step-by-step execution
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-1">
+          <PipelineInput
+            prompt={prompt}
+            setPrompt={setPrompt}
+            files={pipelineFiles.files}
+            handleFileChange={pipelineFiles.handleFileChange}
+            removeFile={pipelineFiles.removeFile}
+            canRun={pipelineExecution.canRun}
+            loadingStep={pipelineExecution.loadingStep}
+            currentStep={pipelineExecution.currentStep}
+            hasSavedCode={hasSavedCode}
+            onStartFromNode1={() => pipelineExecution.runStep(1)}
+            onRunWithSavedCode={pipelineExecution.runWithSavedCode}
+            onRunThisStep={pipelineExecution.handleRunThisStep}
+          />
+        </div>
+
+        <div className="lg:col-span-3">
+          <Card className="h-[calc(100vh-12rem)] flex flex-col flow-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center justify-between">
+                <span>{STEP_TITLES[pipelineExecution.currentStep]}</span>
+                <PipelineStepIndicator
+                  steps={[1, 2, 3, 4]}
+                  stepStatus={pipelineExecution.stepStatus}
+                  onStepClick={pipelineExecution.handleStepClick}
+                />
               </CardTitle>
               <CardDescription className="text-xs">
-                Type: {meta.file_type} - Path: {meta.filepath}
+                Inspect each node&apos;s output, then click Next to advance the pipeline.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-2">
-              <Tabs defaultValue="tabs">
-                <TabsList className="mb-2">
-                  <TabsTrigger value="tabs" className="text-xs">
-                    Tabs
-                  </TabsTrigger>
-                  <TabsTrigger value="raw" className="text-xs">
-                    Raw JSON
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="tabs" className="space-y-2">
-                  {(meta.tabs_data ?? []).map((tab: any, i: number) => (
-                    <div key={`${tab.tab_name}-${i}`} className="rounded-md border border-dashed p-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-xs">{tab.tab_name}</span>
-                        {tab.error && <Badge variant="destructive">Error</Badge>}
-                      </div>
-                      {tab.error ? (
-                        <p className="text-xs text-destructive">{tab.error}</p>
-                      ) : (
-                        <>
-                          <p className="text-[11px] text-muted-foreground mb-1">
-                            Columns: {(tab.columns ?? []).join(', ')}
-                          </p>
-                          <pre className="text-[11px] bg-muted p-2 rounded overflow-x-auto">
-                            {JSON.stringify(tab.sample_rows ?? [], null, 2)}
-                          </pre>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </TabsContent>
-                <TabsContent value="raw">
-                  <pre className="text-[11px] bg-muted p-2 rounded overflow-x-auto max-h-64">
-                    {JSON.stringify(node1, null, 2)}
-                  </pre>
-                </TabsContent>
-              </Tabs>
+            <CardContent className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-auto mb-3 border rounded-md p-3 bg-background">
+                <PipelineNodeViewer
+                  currentStep={pipelineExecution.currentStep}
+                  pipelineResult={pipelineExecution.pipelineResult}
+                  isAdmin={isAdmin}
+                  editedCode={editedCode}
+                  setEditedCode={setEditedCode}
+                  isNavigatingToImport={productImport.isNavigatingToImport}
+                  onNavigateToImport={productImport.handleNavigateToImport}
+                  onDownloadProductJson={productImport.downloadProductImportJson}
+                />
+              </div>
+              <PipelineNavigation
+                currentStep={pipelineExecution.currentStep}
+                setCurrentStep={pipelineExecution.setCurrentStep}
+                canGoNext={pipelineExecution.canGoNext}
+                loadingStep={pipelineExecution.loadingStep}
+                onNext={pipelineExecution.handleNext}
+              />
             </CardContent>
           </Card>
-        ))}
-      </div>
-    );
-  };
-
-  const renderNode2 = () => {
-    if (!node2)
-      return <p className="text-sm text-muted-foreground">Run Node 2 to see the workflow plan.</p>;
-    return (
-      <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-[420px]">
-        {JSON.stringify(node2.workflow_plan ?? node2, null, 2)}
-      </pre>
-    );
-  };
-
-  const renderNode3 = () => {
-    if (!node3)
-      return <p className="text-sm text-muted-foreground">Run Node 3 to see generated Python code.</p>;
-
-    const codeValue = editedCode || node3.code || '';
-    const pseudoCode = node3.pseudo_code || '';
-
-    // Admin mode: show actual code (editable)
-    // User mode: show pseudo code (read-only)
-    if (isAdmin) {
-      return (
-        <div className="space-y-2">
-          <div className="text-xs text-muted-foreground">
-            Admin Mode: You can edit this Python code. When you run Node 4, the edited version will
-            be executed.
-          </div>
-          {pseudoCode ? (
-            <Tabs defaultValue="code" className="w-full">
-              <TabsList>
-                <TabsTrigger value="code">Actual Code (Editable)</TabsTrigger>
-                <TabsTrigger value="pseudo">Pseudo Code (Reference)</TabsTrigger>
-              </TabsList>
-              <TabsContent value="code">
-                <Textarea
-                  value={codeValue}
-                  onChange={(e) => setEditedCode(e.target.value)}
-                  rows={20}
-                  className="font-mono text-xs bg-muted"
-                />
-              </TabsContent>
-              <TabsContent value="pseudo">
-                <div className="pseudo-code-container p-6 bg-card border rounded-lg overflow-auto max-h-[500px]">
-                  <div className="pseudo-code-content">
-                    <div dangerouslySetInnerHTML={{ __html: convertPseudoCodeToHTML(pseudoCode) }} />
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          ) : (
-            <Textarea
-              value={codeValue}
-              onChange={(e) => setEditedCode(e.target.value)}
-              rows={20}
-              className="font-mono text-xs bg-muted"
-            />
-          )}
         </div>
-      );
-    } else {
-      // User mode: show pseudo code only (read-only)
-      return (
-        <div className="space-y-2">
-          <div className="text-xs text-muted-foreground">
-            User Mode: Viewing pseudo code (read-only). Switch to Admin mode to view and edit actual
-            code.
-          </div>
-          {pseudoCode ? (
-            <div className="pseudo-code-container p-6 bg-card border rounded-lg overflow-auto max-h-[500px]">
-              <div className="pseudo-code-content">
-                <div dangerouslySetInnerHTML={{ __html: convertPseudoCodeToHTML(pseudoCode) }} />
-              </div>
-            </div>
-          ) : (
-            <div className="p-4 border rounded-lg bg-muted/50">
-              <p className="text-sm text-muted-foreground">
-                Pseudo code not available. Please run Node 3 again or switch to Admin mode to view
-                actual code.
-              </p>
-            </div>
-          )}
-        </div>
-      );
-    }
-  };
-
-  const renderNode4 = () => {
-    if (!node4)
-      return <p className="text-sm text-muted-foreground">Run Node 4 to see execution result.</p>;
-    const raw = node4.result;
-    const data = Array.isArray(raw?.data)
-      ? raw.data
-      : Array.isArray(raw?.rows)
-      ? raw.rows
-      : Array.isArray(raw?.result)
-      ? raw.result
-      : Array.isArray(raw)
-      ? raw
-      : [];
-    const hasData = Array.isArray(data) && data.length;
-    return (
-      <>
-        <Tabs defaultValue="table">
-          <TabsList className="mb-2">
-            <TabsTrigger value="table" className="text-xs">
-              Table
-            </TabsTrigger>
-            <TabsTrigger value="json" className="text-xs">
-              Raw JSON
-            </TabsTrigger>
-            <TabsTrigger value="log" className="text-xs">
-              Logs
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="table">
-            {Array.isArray(data) && data.length ? (
-              <div className="border rounded-md overflow-auto max-h-[420px] text-xs">
-                <table className="min-w-full border-collapse">
-                  <thead className="bg-muted sticky top-0">
-                    <tr>
-                      {Object.keys(data[0] ?? {}).map((key) => (
-                        <th key={key} className="px-2 py-1 border text-left font-medium">
-                          {key}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.map((row: any, idx: number) => (
-                      <tr key={idx} className="odd:bg-background even:bg-muted/40">
-                        {Object.keys(data[0] ?? {}).map((key) => (
-                          <td key={key} className="px-2 py-1 border">
-                            {String(row[key] ?? '')}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No tabular data in result.</p>
-            )}
-          </TabsContent>
-          <TabsContent value="json">
-            <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-[420px]">
-              {JSON.stringify(node4.result ?? node4, null, 2)}
-            </pre>
-          </TabsContent>
-          <TabsContent value="log">
-            <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-[420px]">
-              {node4.stderr || node4.stdout || 'No logs captured.'}
-            </pre>
-          </TabsContent>
-        </Tabs>
-        {/* Download buttons */}
-        <div className="mt-3 flex justify-end gap-2">
-          {/* Product Import JSON download button */}
-          {isProductImportJson(raw) && (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={() => downloadProductImportJson(raw)}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Download JSON for Import
-            </Button>
-          )}
-          {/* CSV download button (for tabular data) */}
-          {hasData && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const csv = jsonToCsv(data);
-                if (!csv) {
-                  toast.error('No CSV data found.');
-                  return;
-                }
-                downloadCsv('workflow-result.csv', csv);
-              }}
-            >
-              Download CSV
-            </Button>
-          )}
-        </div>
-      </>
-    );
-  };
-
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 1:
-        return renderNode1();
-      case 2:
-        return renderNode2();
-      case 3:
-        return renderNode3();
-      case 4:
-        return renderNode4();
-      default:
-        return null;
-    }
-  };
-
-  const canGoNext = currentStep < 4 && maxCompletedStep >= currentStep;
-
-  const stepStatus = (step: StepIndex) => {
-    if (loadingStep === step) return 'loading';
-    if (maxCompletedStep >= step) return 'done';
-    return 'pending';
-  };
-
-  const handleStepClick = (step: StepIndex) => {
-    if (step <= (maxCompletedStep || 1)) {
-      setCurrentStep(step);
-    }
-  };
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      <div className="lg:col-span-1">
-        <Card className="sticky top-6 flow-card">
-          <CardHeader>
-            <CardTitle>Pipeline Input</CardTitle>
-            <CardDescription>Prompt and files for this run</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="prompt">Prompt *</Label>
-              <Textarea
-                id="prompt"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                rows={4}
-                placeholder="Describe what you want the workflow to do..."
-              />
-            </div>
-
-            <div>
-              <Label>Files *</Label>
-              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center mt-1 hover:border-primary/50 transition-colors">
-                <Upload className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground mb-2">
-                  Upload Excel/CSV/PDF files for the pipeline to process.
-                </p>
-                <Input
-                  id="pipeline-files"
-                  type="file"
-                  multiple
-                  accept=".xlsx,.xls,.csv,.pdf"
-                  onChange={(e) => handleFileChange(e.target.files)}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => document.getElementById('pipeline-files')?.click()}
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Select Files
-                </Button>
-              </div>
-              {files.length > 0 && (
-                <div className="mt-3 space-y-1">
-                  <Label className="text-xs">Selected Files</Label>
-                  {files.map((file, idx) => (
-                    <div
-                      key={`${file.name}-${idx}`}
-                      className="flex items-center justify-between px-2 py-1 rounded bg-muted text-xs"
-                    >
-                      <div className="flex items-center gap-1">
-                        <FileText className="w-3 h-3 text-muted-foreground" />
-                        <span className="truncate max-w-[120px]">{file.name}</span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => removeFile(idx)}
-                      >
-                        x
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="pt-2 space-y-2 border-t border-border">
-              <Button
-                type="button"
-                className="w-full"
-                disabled={!canRun || loadingStep !== null}
-                onClick={() => runStep(1)}
-              >
-                {loadingStep === 1 ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Running Node 1...
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="w-4 h-4 mr-2" />
-                    Start from Node 1
-                  </>
-                )}
-              </Button>
-
-              {/* Run with saved code button - only show if workflow has saved code */}
-              {hasSavedCode && (
-                <Button
-                  type="button"
-                  variant="default"
-                  className="w-full bg-green-600 hover:bg-green-700"
-                  disabled={!canRun || loadingStep !== null}
-                  onClick={runWithSavedCode}
-                >
-                  {loadingStep === 4 ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Executing...
-                    </>
-                  ) : (
-                    <>
-                      <PlayCircle className="w-4 h-4 mr-2" />
-                      Run with Saved Code
-                    </>
-                  )}
-                </Button>
-              )}
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                disabled={loadingStep !== null}
-                onClick={handleRunThisStep}
-              >
-                {loadingStep === currentStep ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Running Node {currentStep}...
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="w-4 h-4 mr-2" />
-                    Run Node {currentStep} only
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="lg:col-span-3">
-        <Card className="h-[calc(100vh-12rem)] flex flex-col flow-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between">
-              <span>{STEP_TITLES[currentStep]}</span>
-              <div className="flex gap-2 text-xs">
-                {([1, 2, 3, 4] as StepIndex[]).map((step) => {
-                  const status = stepStatus(step);
-                  return (
-                    <button
-                      key={step}
-                      type="button"
-                      onClick={() => handleStepClick(step)}
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 border text-[11px] transition-colors ${
-                        status === 'done'
-                          ? 'border-success/60 text-success bg-success/10'
-                          : status === 'loading'
-                          ? 'border-primary text-primary bg-primary/10'
-                          : 'border-muted text-muted-foreground bg-background'
-                      }`}
-                    >
-                      {status === 'done' && <CheckCircle2 className="w-3 h-3" />}
-                      <span>Node {step}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Inspect each node&apos;s output, then click Next to advance the pipeline.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-hidden flex flex-col">
-            <div className="flex-1 overflow-auto mb-3 border rounded-md p-3 bg-background">
-              {renderStepContent()}
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-muted-foreground">Node {currentStep} of 4</div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={currentStep === 1 || loadingStep !== null}
-                  onClick={() => setCurrentStep((prev) => (prev - 1) as StepIndex)}
-                >
-                  Previous
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!canGoNext || loadingStep !== null}
-                  onClick={handleNext}
-                >
-                  {loadingStep === ((currentStep + 1) as StepIndex) ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Running Node {currentStep + 1}...
-                    </>
-                  ) : (
-                    <>
-                      Next Node
-                      <ChevronRight className="w-4 h-4 ml-1" />
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
 }
 
+interface PipelineNavigationProps {
+  currentStep: StepIndex;
+  setCurrentStep: (step: StepIndex) => void;
+  canGoNext: boolean;
+  loadingStep: StepIndex | null;
+  onNext: () => void;
+}
 
+function PipelineNavigation({
+  currentStep,
+  setCurrentStep,
+  canGoNext,
+  loadingStep,
+  onNext,
+}: PipelineNavigationProps) {
+  const handlePrevious = () => {
+    if (currentStep > 1) {
+      setCurrentStep((currentStep - 1) as StepIndex);
+    }
+  };
 
-
-
+  return (
+    <div className="flex items-center justify-between">
+      <div className="text-xs text-muted-foreground">Node {currentStep} of 4</div>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={currentStep === 1 || loadingStep !== null}
+          onClick={handlePrevious}
+        >
+          Previous
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={!canGoNext || loadingStep !== null}
+          onClick={onNext}
+        >
+          {loadingStep === ((currentStep + 1) as StepIndex) ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Running Node {currentStep + 1}...
+            </>
+          ) : (
+            <>
+              Next Node
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}

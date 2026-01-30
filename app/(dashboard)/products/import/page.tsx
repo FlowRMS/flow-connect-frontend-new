@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   useFactorySearch,
@@ -13,6 +13,12 @@ import {
   type QuantityPricingImportInput,
   type CustomerPricingImportInput,
 } from '../../../../components/products/api';
+import {
+  loadWorkflowImport,
+  clearWorkflowImport,
+  type WorkflowImportData,
+  type WorkflowImportProduct,
+} from '@/lib/flow-ai/workflow-import-storage';
 
 interface ParsedQuantityPricing {
   quantityLow: number;
@@ -39,9 +45,8 @@ interface ParsedProduct {
 }
 
 // Expandable product row component
-function ProductRow({ product, index, formatPrice }: {
+function ProductRow({ product, formatPrice }: {
   product: ParsedProduct;
-  index: number;
   formatPrice: (price: number) => string;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -183,6 +188,13 @@ function ProductRow({ product, index, formatPrice }: {
 
 export default function ImportProductsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Workflow integration state
+  const [workflowSession, setWorkflowSession] = useState<WorkflowImportData | null>(null);
+  const [isLoadingWorkflowData, setIsLoadingWorkflowData] = useState(false);
+  const fromWorkflow = searchParams.get('from') === 'workflow';
+  const sessionId = searchParams.get('session');
 
   // Factory selection state
   const [factorySearchTerm, setFactorySearchTerm] = useState('');
@@ -213,12 +225,132 @@ export default function ImportProductsPage() {
     errors: Array<{ factoryPartNumber: string; error: string }>;
   } | null>(null);
 
-  // API hooks
+  // API hooks - enable factory search when we have a detected factory to search for
+  const [autoSearchFactory, setAutoSearchFactory] = useState('');
   const { data: factories = [], isLoading: isLoadingFactories } = useFactorySearch(
-    factorySearchTerm,
-    isFactoryDropdownOpen
+    factorySearchTerm || autoSearchFactory,
+    isFactoryDropdownOpen || !!autoSearchFactory
   );
   const { data: uoms = [] } = useProductUoms();
+
+  // Load workflow data from IndexedDB when coming from workflow
+  useEffect(() => {
+    async function loadFromWorkflow() {
+      if (!fromWorkflow || !sessionId) return;
+
+      setIsLoadingWorkflowData(true);
+      try {
+        const data = await loadWorkflowImport(sessionId);
+        if (!data) {
+          toast.error('Workflow data not found. Please try again.');
+          router.push('/flow-ai/workflows');
+          return;
+        }
+
+        setWorkflowSession(data);
+
+        // Parse products from workflow data
+        const products: ParsedProduct[] = data.products.map((item: WorkflowImportProduct) => {
+          const unitPrice = typeof item.unitPrice === 'string'
+            ? parseFloat(item.unitPrice) || 0
+            : item.unitPrice || 0;
+
+          const defaultCommissionRate = item.defaultCommissionRate
+            ? (typeof item.defaultCommissionRate === 'string'
+                ? parseFloat(item.defaultCommissionRate)
+                : item.defaultCommissionRate)
+            : undefined;
+
+          // Parse quantity pricing
+          const quantityPricing: ParsedQuantityPricing[] = [];
+          if (item.quantityPricing && Array.isArray(item.quantityPricing)) {
+            for (const qp of item.quantityPricing) {
+              const qpLow = typeof qp.quantityLow === 'string'
+                ? parseInt(qp.quantityLow, 10)
+                : qp.quantityLow;
+              const qpHigh = qp.quantityHigh
+                ? (typeof qp.quantityHigh === 'string' ? parseInt(qp.quantityHigh, 10) : qp.quantityHigh)
+                : null;
+              const qpPrice = typeof qp.unitPrice === 'string'
+                ? parseFloat(qp.unitPrice) || 0
+                : qp.unitPrice || 0;
+
+              quantityPricing.push({
+                quantityLow: qpLow,
+                quantityHigh: qpHigh,
+                unitPrice: qpPrice,
+              });
+            }
+          }
+
+          // Parse customer pricing
+          const customerPricing: ParsedCustomerPricing[] = [];
+          if (item.customerPricing && Array.isArray(item.customerPricing)) {
+            for (const cp of item.customerPricing) {
+              if (!cp.customerName) continue;
+
+              const cpPrice = typeof cp.unitPrice === 'string'
+                ? parseFloat(cp.unitPrice) || 0
+                : cp.unitPrice || 0;
+              const cpCommission = typeof cp.commissionRate === 'string'
+                ? parseFloat(cp.commissionRate) || 0
+                : cp.commissionRate || 0;
+
+              customerPricing.push({
+                customerName: cp.customerName,
+                customerPartNumber: cp.customerPartNumber,
+                unitPrice: cpPrice,
+                commissionRate: cpCommission,
+              });
+            }
+          }
+
+          return {
+            factoryPartNumber: item.factoryPartNumber,
+            description: item.description || '',
+            unitPrice,
+            upc: item.upc || '',
+            category: item.category,
+            defaultCommissionRate,
+            quantityPricing,
+            customerPricing,
+          };
+        });
+
+        setParsedProducts(products);
+
+        // Auto-search for factory based on detected factory
+        if (data.detectedFactory) {
+          setAutoSearchFactory(data.detectedFactory.toUpperCase());
+        }
+
+        toast.success(`Data loaded from workflow: ${products.length} products`);
+      } catch (error) {
+        console.error('Failed to load workflow data:', error);
+        toast.error('Error loading workflow data');
+      } finally {
+        setIsLoadingWorkflowData(false);
+      }
+    }
+
+    loadFromWorkflow();
+  }, [fromWorkflow, sessionId, router]);
+
+  // Auto-select factory when factories load and we have a detected factory
+  useEffect(() => {
+    if (autoSearchFactory && factories.length > 0 && !selectedFactory) {
+      // Find the first matching factory
+      const match = factories.find(f =>
+        f.title.toLowerCase().includes(autoSearchFactory.toLowerCase())
+      );
+      if (match) {
+        setSelectedFactory(match);
+        setFactorySearchTerm(match.title);
+        setAutoSearchFactory(''); // Clear auto-search
+        toast.info(`Factory auto-selected: ${match.title}`);
+      }
+    }
+  }, [factories, autoSearchFactory, selectedFactory]);
 
   // Parse JSON file (from workflow output)
   const parseJSON = useCallback((content: string) => {
@@ -413,6 +545,11 @@ export default function ImportProductsPage() {
 
       if (result.success) {
         toast.success(result.message);
+
+        // Clear workflow data from IndexedDB after successful import
+        if (sessionId) {
+          await clearWorkflowImport(sessionId);
+        }
       } else {
         toast.error(`Import completed with errors: ${result.errors.length} failed`);
       }
@@ -450,6 +587,21 @@ export default function ImportProductsPage() {
   const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1.5";
 
+  // Loading state for workflow data
+  if (isLoadingWorkflowData) {
+    return (
+      <main className="flex-1 bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <svg className="animate-spin h-10 w-10 mx-auto text-blue-500 mb-4" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+          </svg>
+          <p className="text-gray-600">Loading workflow data...</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex-1 bg-gray-50 overflow-hidden flex flex-col">
       {/* Header */}
@@ -457,7 +609,7 @@ export default function ImportProductsPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/products')}
+              onClick={() => router.push(fromWorkflow ? `/flow-ai/workflows/${workflowSession?.workflowId}` : '/products')}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -471,19 +623,28 @@ export default function ImportProductsPage() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-gray-900">Import Products</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-semibold text-gray-900">Import Products</h1>
+                  {fromWorkflow && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                      From Workflow
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-500">
-                  Import products from JSON file (workflow output)
+                  {fromWorkflow && workflowSession
+                    ? `Workflow: ${workflowSession.workflowName}`
+                    : 'Import products from JSON file (workflow output)'}
                 </p>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push('/products')}
+              onClick={() => router.push(fromWorkflow ? `/flow-ai/workflows/${workflowSession?.workflowId}` : '/products')}
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
             >
-              Cancel
+              {fromWorkflow ? 'Back to Workflow' : 'Cancel'}
             </button>
             <button
               onClick={handleImport}
@@ -602,42 +763,68 @@ export default function ImportProductsPage() {
             </div>
           </div>
 
-          {/* File Upload Section */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload JSON File</h2>
+          {/* File Upload Section - Hide when data comes from workflow */}
+          {!fromWorkflow && (
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload JSON File</h2>
 
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-              <input
-                type="file"
-                accept=".json"
-                onChange={handleFileChange}
-                className="hidden"
-                id="json-upload"
-              />
-              <label
-                htmlFor="json-upload"
-                className="cursor-pointer flex flex-col items-center"
-              >
-                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  id="json-upload"
+                />
+                <label
+                  htmlFor="json-upload"
+                  className="cursor-pointer flex flex-col items-center"
+                >
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-gray-700">
+                    {file ? file.name : 'Click to upload JSON file'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Download the JSON from a workflow result and upload it here
+                  </p>
+                </label>
+              </div>
+
+              {parseError && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-700">{parseError}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Workflow Data Info - Show when data comes from workflow */}
+          {fromWorkflow && workflowSession && (
+            <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <p className="text-sm font-medium text-gray-700">
-                  {file ? file.name : 'Click to upload JSON file'}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Download the JSON from a workflow result and upload it here
-                </p>
-              </label>
-            </div>
-
-            {parseError && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700">{parseError}</p>
+                <div>
+                  <h3 className="text-sm font-medium text-blue-800">Data loaded from Workflow</h3>
+                  <p className="text-sm text-blue-700 mt-1">
+                    {parsedProducts.length} products ready to import
+                    {workflowSession.detectedFactory && (
+                      <span className="ml-2">
+                        (Detected factory: <strong>{workflowSession.detectedFactory.toUpperCase()}</strong>)
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Import Result */}
           {importResult && (
@@ -748,7 +935,6 @@ export default function ImportProductsPage() {
                       <ProductRow
                         key={idx}
                         product={product}
-                        index={idx}
                         formatPrice={formatPrice}
                       />
                     ))}
