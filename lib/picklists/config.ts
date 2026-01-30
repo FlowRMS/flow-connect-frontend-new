@@ -35,6 +35,25 @@ export const PICKLIST_DEFINITIONS: Record<PicklistKey, PicklistDefinition> = {
     ],
   },
 
+  [PicklistKey.PRE_OPPORTUNITY_STATUS]: {
+    key: PicklistKey.PRE_OPPORTUNITY_STATUS,
+    title: 'Pre Opportunity Status',
+    description: 'Manage status values used in pre opportunities.',
+    helpText: 'Default values cannot be deleted but can be disabled, renamed, or reordered.',
+    allowCustomValues: true,
+    allowDisable: true,
+    allowColors: true,
+    allowReorder: true,
+    defaultItems: [
+      { key: 'QUALIFIED', label: 'Qualified', sortOrder: 0, enabled: true, isDefault: true, color: PicklistColor.BLUE },
+      { key: 'NEGOTIATION', label: 'Negotiation', sortOrder: 1, enabled: true, isDefault: true, color: PicklistColor.PURPLE },
+      { key: 'FOLLOW_UP', label: 'Follow Up', sortOrder: 2, enabled: true, isDefault: true, color: PicklistColor.YELLOW },
+      { key: 'WAITING_ON_FACTORY', label: 'Waiting on Factory', sortOrder: 3, enabled: true, isDefault: true, color: PicklistColor.ORANGE },
+      { key: 'LOST', label: 'Lost', sortOrder: 4, enabled: true, isDefault: true, color: PicklistColor.RED },
+      { key: 'WON', label: 'Won', sortOrder: 5, enabled: true, isDefault: true, color: PicklistColor.GREEN },
+    ],
+  },
+
   // Add more picklist definitions here as needed...
 };
 
