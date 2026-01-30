@@ -26,6 +26,7 @@ interface PDFPreviewProps {
   organizationAddress: string;
   centerLogo: string | null;
   showCenterLogo: boolean;
+  centerLogoSize: number;
 }
 
 export function PDFPreview({
@@ -43,6 +44,7 @@ export function PDFPreview({
   organizationAddress,
   centerLogo,
   showCenterLogo,
+  centerLogoSize,
 }: PDFPreviewProps) {
   const visibleFields = fields.filter((f) => f.visible);
   const visibleLineItems = lineItems.filter((item) => item.visible);
@@ -112,7 +114,10 @@ export function PDFPreview({
             {/* Center Logo (Second Company) - Absolutely positioned in center */}
             {showCenterLogo && centerLogo && (
               <div className="absolute left-1/2 top-0 -translate-x-1/2">
-                <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center border border-gray-100">
+                <div
+                  className="rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center border border-gray-100"
+                  style={{ width: `${centerLogoSize * 3.78}px`, height: `${centerLogoSize * 3.78}px` }}
+                >
                   <img
                     src={centerLogo}
                     alt="Partner Logo"

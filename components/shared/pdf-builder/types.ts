@@ -69,6 +69,7 @@ export interface PDFBuilderState {
   // Center logo (second company logo)
   centerLogo: string | null;
   showCenterLogo: boolean;
+  centerLogoSize: number; // Size in mm for PDF export (default 35)
   // Notes
   headerNote: string;
   footerNote: string;

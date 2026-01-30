@@ -9,7 +9,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import DatePicker from 'react-datepicker';
+import { getMonth, getYear } from 'date-fns';
 import 'react-datepicker/dist/react-datepicker.css';
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
 
 interface StyledDatePickerProps {
   selected: Date | null;
@@ -276,6 +282,12 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
         .shared-datepicker-portal .react-datepicker__triangle {
           display: none;
         }
+        .shared-datepicker-portal .react-datepicker__header--custom {
+          background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
+          border-bottom: 1px solid #e5e7eb;
+          padding: 0;
+          border-radius: 0;
+        }
       `}</style>
       <DatePicker
         selected={selected}
@@ -295,6 +307,61 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
         }}
         inline
         calendarClassName="shadow-xl"
+        renderCustomHeader={({
+          date,
+          changeYear,
+          changeMonth,
+          decreaseMonth,
+          increaseMonth,
+          prevMonthButtonDisabled,
+          nextMonthButtonDisabled,
+        }) => {
+          const years = Array.from({ length: 201 }, (_, i) => 1900 + i);
+          return (
+            <div className="flex items-center justify-between px-2 pt-3 pb-2">
+              <button
+                type="button"
+                onClick={decreaseMonth}
+                disabled={prevMonthButtonDisabled}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-30"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <div className="flex gap-1.5">
+                <select
+                  value={getMonth(date)}
+                  onChange={({ target: { value } }) => changeMonth(Number(value))}
+                  className="px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-semibold text-gray-800 cursor-pointer outline-none hover:border-blue-400 hover:bg-blue-50/50 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                >
+                  {MONTHS.map((month, i) => (
+                    <option key={month} value={i}>{month}</option>
+                  ))}
+                </select>
+                <select
+                  value={getYear(date)}
+                  onChange={({ target: { value } }) => changeYear(Number(value))}
+                  className="px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-semibold text-gray-800 cursor-pointer outline-none hover:border-blue-400 hover:bg-blue-50/50 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                >
+                  {years.map((year) => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={increaseMonth}
+                disabled={nextMonthButtonDisabled}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-30"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          );
+        }}
       />
     </div>,
     portalTarget
@@ -367,8 +434,8 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
     <div ref={wrapperRef} className="relative">
       <div
         className={`
-          w-full px-4 py-3 border rounded-xl text-sm flex items-center justify-between
-          transition-all duration-200
+          w-full px-3 sm:px-4 py-3 border rounded-xl text-sm flex items-center gap-2
+          transition-all duration-200 overflow-hidden
           ${disabled
             ? 'border-gray-200 bg-gray-50 cursor-default text-gray-500'
             : 'border-gray-300 bg-white hover:border-blue-300 hover:shadow-sm'
@@ -388,7 +455,7 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
           placeholder={displayPlaceholder}
           disabled={disabled}
           tabIndex={disabled ? -1 : tabIndex}
-          className="flex-1 bg-transparent outline-none text-gray-900 placeholder-gray-400"
+          className="flex-1 min-w-0 bg-transparent outline-none text-gray-900 placeholder-gray-400"
         />
         <button
           ref={triggerRef}
@@ -397,9 +464,9 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
           onKeyDown={handleKeyDown}
           disabled={disabled}
           tabIndex={-1}
-          className="ml-2 flex-shrink-0"
+          className="flex-shrink-0"
         >
-          <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         </button>
