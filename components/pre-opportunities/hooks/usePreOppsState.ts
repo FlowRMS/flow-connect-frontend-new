@@ -203,6 +203,17 @@ export function usePreOppsState() {
     setServerOrderBy(toServerOrderBy(sorts));
   }, [toServerOrderBy]);
 
+  // Clear all filters and sorts
+  const clearAllFilters = useCallback(() => {
+    setActiveFilter(undefined);
+    setActiveFilters([]);
+    setServerFilters([]);
+    setClientSortColumn(undefined);
+    setClientSortDirection('ASC');
+    setClientSortColumns([]);
+    setServerOrderBy([]);
+  }, []);
+
   return {
     // View state
     viewMode,
@@ -240,12 +251,14 @@ export function usePreOppsState() {
     setClientSortDirection,
     clientSortColumns,
     setClientSortColumns,
+    serverOrderBy,
 
     // Handlers
     handleFilterChange,
     handleFiltersChange,
     handleSortChange,
     handleMultiSortChange,
+    clearAllFilters,
 
     // Unique values for filters (from ALL data)
     uniqueEntityNumbers,
