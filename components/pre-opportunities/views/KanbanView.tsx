@@ -37,16 +37,9 @@ import { fetchPreOpportunity } from '../../lib/crm-graphql';
 import type { PreOpportunityLandingPage as APIPreOppLandingPage } from '../../lib/crm-graphql';
 import { CreatePreOpportunityModal } from '../modals/CreatePreOpportunityModal';
 import { preOpportunityToasts } from '../../lib/toast';
-
-// Column status indicator colors (dots) - matching Jobs style
-const COLUMN_STATUS_COLORS: Record<PreOpportunityStatus, string> = {
-  'QUALIFIED': 'bg-blue-500',
-  'NEGOTIATION': 'bg-purple-500',
-  'FOLLOW_UP': 'bg-yellow-500',
-  'WAITING_ON_FACTORY': 'bg-orange-500',
-  'LOST': 'bg-red-500',
-  'WON': 'bg-green-500',
-};
+import { PicklistValue } from '@/lib/picklists/components';
+import { PicklistKey } from '@/lib/picklists/enums';
+import { usePicklist } from '@/lib/picklists/usePicklist';
 
 // ============================================================================
 // Types
@@ -237,17 +230,27 @@ function DroppableColumn({
     id: stage.name,
   });
 
-  const statusColor = COLUMN_STATUS_COLORS[stage.name] || 'bg-gray-400';
+  const { getColorByKey } = usePicklist(PicklistKey.PRE_OPPORTUNITY_STATUS);
+  const statusColor = getColorByKey(stage.name);
 
   return (
     <div className="flex flex-col min-w-[140px] sm:min-w-0">
       {/* Column Header - Minimal like Jobs */}
       <div className="flex items-center justify-between px-1.5 md:px-2 py-1.5 md:py-2 mb-2">
         <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusColor}`}></span>
-          <span className="text-xs md:text-sm text-gray-700 font-medium truncate">
-            {stage.displayName}
-          </span>
+          {statusColor && (
+            <span 
+              className="w-2 h-2 rounded-full flex-shrink-0" 
+              style={{ backgroundColor: statusColor }}
+            />
+          )}
+          <PicklistValue
+            picklistKey={PicklistKey.PRE_OPPORTUNITY_STATUS}
+            value={stage.name}
+            variant="text"
+            showColor={false}
+            className="text-xs md:text-sm text-gray-700 font-medium truncate"
+          />
           <span className="text-[10px] md:text-xs text-gray-400 font-medium flex-shrink-0">
             {preOpps.length}
           </span>
