@@ -4,6 +4,7 @@
  */
 
 import type { FilterOption, SortOption } from '../../lib/filter-utils';
+import { ColumnFilterTypeEnum } from '../../advancedFilters/types';
 
 export function getPreOppFilterOptions(
   uniqueEntityNumbers: string[],
@@ -22,10 +23,11 @@ export function getPreOppFilterOptions(
     {
       id: 'status',
       label: 'Status',
-      type: 'dropdown',
+      type: ColumnFilterTypeEnum.picklist,
       columnName: 'status',
       available: true,
-      options: uniqueStatuses
+      picklistKey: 'preOpportunityStatus',
+      multiSelect: true
     },
     {
       id: 'created-by',
