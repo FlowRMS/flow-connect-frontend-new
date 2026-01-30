@@ -43,6 +43,7 @@ import { useFlowChat } from '@/contexts/FlowChatContext';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
 import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
+import { useLineItemsColumnConfig } from '@/components/shared/hooks/useLineItemsColumnConfig';
 import { useEntityFilesCount } from '@/components/shared/hooks/useEntityFilesCount';
 
 type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings' | 'files';
@@ -63,7 +64,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   const duplicateQuoteMutation = useDuplicateQuoteV2();
 
   // User settings hook for applying saved defaults on new quotes
-  const { settings: savedQuoteSettings, isInitialized: settingsInitialized } = useQuoteSettings();
+  const { settings: savedQuoteSettings, isInitialized: settingsInitialized, saveSettings } = useQuoteSettings();
 
   // Quote state
   const [quote, setQuote] = useState<QuoteV2>(createEmptyQuoteV2());
@@ -121,16 +122,6 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [isNew, settingsInitialized, savedQuoteSettings]);
 
-  // Apply saved column configuration for ALL quotes (new AND existing)
-  // This runs once when settings are initialized, regardless of isNew
-  useEffect(() => {
-    if (settingsInitialized && !hasAppliedColumnSettings.current) {
-      if (savedQuoteSettings?.columnConfig && savedQuoteSettings.columnConfig.length > 0) {
-        setColumnConfig(savedQuoteSettings.columnConfig);
-      }
-      hasAppliedColumnSettings.current = true;
-    }
-  }, [settingsInitialized, savedQuoteSettings?.columnConfig]);
 
   // Modal states
   const [showColumnsModal, setShowColumnsModal] = useState(false);
@@ -365,13 +356,48 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   }, [selectedLineItem]);
 
   // Live update handler - updates both lineItems AND selectedLineItem without closing modal
+  // When line discount changes, commission is recalculated based on discounted sell total
+  // The modal sends the calculated commission value - use it directly
+  // Field naming:
+  //   - commission: total commission on (discounted) sell total, BEFORE commission discount
+  //   - commissionTotal: commission AFTER commission discount (= commission - commissionDiscountAmount)
   const handleLiveUpdateAdditionalDetails = useCallback((updates: Partial<LineItemV2>) => {
     if (selectedLineItem) {
       // Update the selected line item so the modal stays in sync
-      setSelectedLineItem((prev) => prev ? { ...prev, ...updates } : prev);
+      setSelectedLineItem((prev) => {
+        if (!prev) return prev;
+        const updatedItem = { ...prev, ...updates };
+
+        // If commission was sent from modal (which calculates it on discounted total), use it
+        // The modal sends total commission before commission discount as 'commission'
+        if ('commission' in updates && updates.commission !== undefined) {
+          // commission field = total commission before commission discount
+          updatedItem.commission = updates.commission;
+          // commissionTotal = commission after commission discount
+          const commDiscountAmt = updatedItem.commissionDiscountAmount || 0;
+          updatedItem.commissionTotal = updates.commission - commDiscountAmt;
+        }
+
+        return updatedItem;
+      });
       // Update the line items array
       setLineItems((prev) =>
-        prev.map((li) => (li.id === selectedLineItem.id ? { ...li, ...updates } : li))
+        prev.map((li) => {
+          if (li.id !== selectedLineItem.id) return li;
+          const updatedItem = { ...li, ...updates };
+
+          // If commission was sent from modal (which calculates it on discounted total), use it
+          // The modal sends total commission before commission discount as 'commission'
+          if ('commission' in updates && updates.commission !== undefined) {
+            // commission field = total commission before commission discount
+            updatedItem.commission = updates.commission;
+            // commissionTotal = commission after commission discount
+            const commDiscountAmt = updatedItem.commissionDiscountAmount || 0;
+            updatedItem.commissionTotal = updates.commission - commDiscountAmt;
+          }
+
+          return updatedItem;
+        })
       );
       setHasChanges(true);
     }

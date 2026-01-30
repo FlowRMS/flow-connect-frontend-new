@@ -454,7 +454,8 @@ export default function CreateShipmentRecordModal({
                               min="1"
                               value={item.expectedQuantity}
                               onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 1)}
-                              className="w-24 px-2 py-1 border border-[var(--border)] rounded bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                              onFocus={(e) => e.target.select()}
+                              className="w-24 px-2 py-1 border border-[var(--border)] rounded bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </td>
                           <td className="px-4 py-3 text-right">

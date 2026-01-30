@@ -86,14 +86,6 @@ export const LINE_ITEM_COLUMNS: ColumnDefinition[] = [
     group: 'financial',
   },
 
-  // Status
-  {
-    key: 'paid',
-    label: COLUMN_LABELS.paid,
-    width: '100px',
-    align: 'center',
-    group: 'status',
-  },
 ];
 
 /**

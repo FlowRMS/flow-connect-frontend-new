@@ -10,47 +10,37 @@ import type { ColumnKey, InvoiceTooltipState } from '../types';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import { SAVED_VIEWS, getDefaultView } from '../config/viewsConfig';
 import { useOrderSettings } from '@/contexts/UserSettingsContext';
-
-/**
- * Get visible columns from saved settings or fall back to defaults
- * This is the key function that applies user column preferences
- */
-function getInitialVisibleColumns(
-  savedColumnConfig: Array<{ key: string; visible: boolean }> | undefined
-): Set<ColumnKey> {
-  if (savedColumnConfig && savedColumnConfig.length > 0) {
-    // Use saved settings - only include columns marked as visible
-    const visibleKeys = savedColumnConfig
-      .filter(col => col.visible)
-      .map(col => col.key as ColumnKey);
-    return new Set(visibleKeys);
-  }
-  // Fall back to hardcoded defaults if no settings
-  return new Set(DEFAULT_VISIBLE_COLUMNS);
-}
+import { useLineItemsColumnConfig } from '@/components/shared/hooks/useLineItemsColumnConfig';
+import { defaultOrderColumnConfig, defaultOrderSettings } from '../config/defaultColumnConfig';
+import type { OrderColumnConfig } from '@/components/lib/graphql/settings';
 
 export function useLineItemsTable() {
   // Get saved order settings from context (already cached, no extra API calls)
-  const { settings: savedOrderSettings, isInitialized: settingsInitialized } = useOrderSettings();
+  const { settings: savedOrderSettings, isInitialized: settingsInitialized, saveSettings } = useOrderSettings();
 
-  // Track if we've applied settings to avoid re-applying on every render
-  const hasAppliedSettings = useRef(false);
+  // Column configuration - managed by generic hook with Settings API persistence
+  const { columnConfig, setColumnConfig } = useLineItemsColumnConfig({
+    settings: savedOrderSettings,
+    isInitialized: settingsInitialized,
+    saveSettings,
+    defaultColumnConfig: defaultOrderColumnConfig,
+    defaultSettings: defaultOrderSettings,
+    getColumnConfig: (s) => s.columnConfig,
+    setColumnConfig: (s, config) => ({ ...s, columnConfig: config }),
+  });
 
-  // Column visibility and pinning - initialize with defaults, will be updated from settings
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
-    new Set(DEFAULT_VISIBLE_COLUMNS)
-  );
-  const [pinnedColumns, setPinnedColumns] = useState<Set<ColumnKey>>(new Set());
+  // Derive visibleColumns and pinnedColumns from columnConfig
+  const visibleColumns = useMemo(() => {
+    return new Set<ColumnKey>(
+      columnConfig.filter(col => col.visible).map(col => col.key as ColumnKey)
+    );
+  }, [columnConfig]);
 
-  // Apply saved column configuration when settings are loaded
-  // This runs once when settings are initialized and applies to ALL orders (new and existing)
-  useEffect(() => {
-    if (settingsInitialized && !hasAppliedSettings.current) {
-      const columnsFromSettings = getInitialVisibleColumns(savedOrderSettings?.columnConfig);
-      setVisibleColumns(columnsFromSettings);
-      hasAppliedSettings.current = true;
-    }
-  }, [settingsInitialized, savedOrderSettings?.columnConfig]);
+  const pinnedColumns = useMemo(() => {
+    return new Set<ColumnKey>(
+      columnConfig.filter(col => col.visible && col.pinned).map(col => col.key as ColumnKey)
+    );
+  }, [columnConfig]);
 
   // Views
   const [showViewsMenu, setShowViewsMenu] = useState(false);
@@ -72,47 +62,55 @@ export function useLineItemsTable() {
 
   // Toggle column visibility
   const toggleColumn = useCallback((column: ColumnKey) => {
-    setVisibleColumns((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(column)) {
-        newSet.delete(column);
-      } else {
-        newSet.add(column);
-      }
-      return newSet;
-    });
-  }, []);
+    setColumnConfig(
+      columnConfig.map((col) =>
+        col.key === column ? { ...col, visible: !col.visible, pinned: !col.visible ? false : col.pinned } : col
+      )
+    );
+  }, [columnConfig, setColumnConfig]);
 
   // Toggle column pinning
   const togglePinColumn = useCallback((column: ColumnKey) => {
-    setPinnedColumns((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(column)) {
-        newSet.delete(column);
-      } else {
-        newSet.add(column);
-      }
-      return newSet;
-    });
-  }, []);
+    setColumnConfig(
+      columnConfig.map((col) => {
+        if (col.key === column) {
+          // If pinning, ensure it's also visible
+          return { ...col, pinned: !col.pinned, visible: !col.pinned || col.visible };
+        }
+        return col;
+      })
+    );
+  }, [columnConfig, setColumnConfig]);
 
   // Apply view
   const applyView = useCallback((viewId: string) => {
     const view = SAVED_VIEWS.find((v) => v.id === viewId);
     if (view) {
-      setVisibleColumns(new Set(view.columns));
+      // Update columnConfig to match view columns
+      setColumnConfig(
+        columnConfig.map((col) => ({
+          ...col,
+          visible: view.columns.includes(col.key as ColumnKey),
+        }))
+      );
       setActiveView(viewId);
       setShowViewsMenu(false);
     }
-  }, []);
+  }, [columnConfig, setColumnConfig]);
 
   // Reset to default view
   const resetToDefaultView = useCallback(() => {
     const defaultView = getDefaultView();
-    setVisibleColumns(new Set(defaultView.columns));
+    // Reset to default column config
+    setColumnConfig(
+      defaultOrderColumnConfig.map((col) => ({
+        ...col,
+        visible: defaultView.columns.includes(col.key as ColumnKey),
+        pinned: false,
+      }))
+    );
     setActiveView(defaultView.id);
-    setPinnedColumns(new Set());
-  }, []);
+  }, [setColumnConfig]);
 
   // Show invoice tooltip
   const showInvoiceTooltip = useCallback(
@@ -197,7 +195,7 @@ export function useLineItemsTable() {
       lineStatus: 120,
     };
 
-    let leftOffset = fixedLeftOffset + iconColWidth;
+    let leftOffset = 0 // fixedLeftOffset + iconColWidth;
     for (let i = 0; i < indexInPinned; i++) {
       const prevCol = visiblePinnedColumns[i];
       leftOffset += columnWidths[prevCol] || 100; // default 100px
@@ -213,12 +211,12 @@ export function useLineItemsTable() {
 
   return {
     // Columns
+    columnConfig,
+    setColumnConfig,
     visibleColumns,
-    setVisibleColumns,
     visibleColumnsArray,
     toggleColumn,
     pinnedColumns,
-    setPinnedColumns,
     pinnedColumnsArray,
     togglePinColumn,
 

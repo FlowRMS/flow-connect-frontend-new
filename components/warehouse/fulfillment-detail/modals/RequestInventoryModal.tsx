@@ -272,7 +272,8 @@ export default function RequestInventoryModal({
                               onChange={(e) =>
                                 updateQuantity(item.lineItem.id, parseInt(e.target.value) || 0)
                               }
-                              className="w-16 text-center py-1 border-x border-gray-300 focus:outline-none focus:ring-0"
+                              onFocus={(e) => e.target.select()}
+                              className="w-16 text-center py-1 border-x border-gray-300 focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               min={0}
                             />
                             <button

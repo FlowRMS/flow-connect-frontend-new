@@ -17,7 +17,8 @@ export type SettingKey =
   | 'CHECKS_SETTINGS'
   | 'CHAT_SETTINGS'
   | 'SIDEBAR_SETTINGS'
-  | 'FLOW_AI_SETTINGS';
+  | 'FLOW_AI_SETTINGS'
+  | 'PICKLIST_SETTINGS';
 
 // ============================================================================
 // Setting Value Types
@@ -30,12 +31,35 @@ export interface QuoteSettingsValue {
   insideRepAtLineLevel: boolean;
   factoryPerLineItem: boolean;
   customerPartNumberSource: 'sold_to' | 'end_user';
+  savedView?: SavedViewState;
 }
 
 export interface OrderColumnConfig {
   key: string;
   label: string;
   visible: boolean;
+  pinned?: boolean;
+}
+
+// View state that can be saved for landing pages
+export interface SavedViewState {
+  filters?: Array<{
+    operator: string;
+    columnName: string;
+    value?: string;
+    values?: string[];
+  }>;
+  columnFilters?: Record<string, Array<{
+    operator: string;
+    columnName: string;
+    value?: string;
+    values?: string[];
+  }>>;
+  sortField?: string;
+  sortDirection?: 'asc' | 'desc';
+  quickDatePreset?: string;
+  quickDateField?: string;
+  viewMode?: 'list' | 'kanban'; // For quotes
 }
 
 export interface OrderSettingsValue {
@@ -43,17 +67,31 @@ export interface OrderSettingsValue {
   showEndUserPerLine: boolean;
   showOutsideRepPerLine: boolean;
   showInsideRepPerLine: boolean;
+  savedView?: SavedViewState;
 }
 
 export interface InvoiceColumnConfig {
   key: string;
   label: string;
   visible: boolean;
+  pinned?: boolean;
 }
 
 export interface InvoiceSettingsValue {
   columnConfig: InvoiceColumnConfig[];
   dueDateOffset?: number;
+  savedView?: SavedViewState;
+}
+
+export interface CommissionColumnConfig {
+  key: string;
+  label: string;
+  visible: boolean;
+  pinned?: boolean;
+}
+
+export interface CommissionSettingsValue {
+  columnConfig: CommissionColumnConfig[];
 }
 
 export type ProcessingMode = 'automatic' | 'manual';
@@ -103,15 +141,34 @@ export interface NavGroupConfig {
 
 export interface SidebarSettingsValue {
   groups: NavGroupConfig[];
+  darkMode?: boolean;
+}
+
+// Structure for a single picklist (orderTypes, lostReasons, etc.)
+export interface PicklistValue {
+  defaultValues: readonly string[];
+  customValues: string[];
+  labelMap?: Record<string, string>;
+}
+
+// All picklists stored under PICKLIST_SETTINGS key
+export interface PicklistSettingsValue {
+  orderTypes?: PicklistValue;
+  lostReasons?: PicklistValue;
+  expenseCategories?: PicklistValue;
+  creditReasons?: PicklistValue;
+  // Future picklists can be added here
 }
 
 export type SettingValue =
   | QuoteSettingsValue
   | OrderSettingsValue
   | InvoiceSettingsValue
+  | CommissionSettingsValue
   | ChatSettingsValue
   | SidebarSettingsValue
-  | FlowAISettingsValue;
+  | FlowAISettingsValue
+  | PicklistSettingsValue;
 
 // ============================================================================
 // Setting Response Types

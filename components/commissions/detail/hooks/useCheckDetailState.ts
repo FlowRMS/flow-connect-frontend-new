@@ -4,7 +4,7 @@
  * Manages overall state and integrates all sub-hooks
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { CommissionCheck } from '@/lib/types/rms';
@@ -39,6 +39,10 @@ import {
   calculateTotalAdjustmentsFromLineItems,
   toggleAllLineItems,
 } from '../utils';
+import { useCommissionSettings } from '@/contexts/UserSettingsContext';
+import { useLineItemsColumnConfig } from '@/components/shared/hooks/useLineItemsColumnConfig';
+import { defaultCommissionColumnConfig, defaultCommissionSettings } from '../config/defaultColumnConfig';
+import type { CommissionColumnConfig, CommissionSettingsValue } from '@/components/lib/graphql/settings';
 
 interface UseCheckDetailStateProps {
   checkId: string;
@@ -128,10 +132,97 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     new Set()
   );
 
-  // Column visibility
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
-    new Set(DEFAULT_VISIBLE_COLUMNS)
-  );
+  // Column configuration - managed by generic hook with Settings API persistence
+  const { settings: savedCommissionSettings, isInitialized: settingsInitialized, saveSettings } = useCommissionSettings();
+
+  const { columnConfig, setColumnConfig } = useLineItemsColumnConfig<CommissionColumnConfig, CommissionSettingsValue>({
+    settings: savedCommissionSettings,
+    isInitialized: settingsInitialized,
+    saveSettings,
+    defaultColumnConfig: defaultCommissionColumnConfig,
+    defaultSettings: defaultCommissionSettings,
+    getColumnConfig: (s) => s.columnConfig,
+    setColumnConfig: (s, config) => ({ ...s, columnConfig: config }),
+  });
+
+  // Derive visibleColumns from columnConfig for backward compatibility
+  const visibleColumns = useMemo(() => {
+    return new Set<ColumnKey>(
+      columnConfig.filter(col => col.visible).map(col => col.key as ColumnKey)
+    );
+  }, [columnConfig]);
+
+  const pinnedColumns = useMemo(() => {
+    return new Set<ColumnKey>(
+      columnConfig.filter(col => col.visible && col.pinned).map(col => col.key as ColumnKey)
+    );
+  }, [columnConfig]);
+
+  const toggleColumn = useCallback((key: ColumnKey) => {
+    setColumnConfig(
+      columnConfig.map((c) =>
+        c.key === key ? { ...c, visible: !c.visible, pinned: !c.visible ? false : c.pinned } : c
+      )
+    );
+  }, [columnConfig, setColumnConfig]);
+
+  const togglePinColumn = useCallback((key: ColumnKey) => {
+    setColumnConfig(
+      columnConfig.map((c) => {
+        if (c.key === key) {
+          return { ...c, pinned: !c.pinned, visible: !c.pinned || c.visible };
+        }
+        return c;
+      })
+    );
+  }, [columnConfig, setColumnConfig]);
+
+  const isPinned = useCallback((colKey: ColumnKey) => {
+    const col = columnConfig.find((c) => c.key === colKey);
+    return col?.pinned ?? false;
+  }, [columnConfig]);
+
+  const getPinnedColumnStyle = useCallback((colKey: ColumnKey, isHeader: boolean = false): React.CSSProperties => {
+    if (!isPinned(colKey)) return {};
+
+    const fixedLeftOffset = 40; // checkbox width
+
+    const allColumns: ColumnKey[] = [
+      'number', 'orderNumber', 'customer', 'salesRep', 'commissionRate',
+      'expectedCommission', 'paidCommission', 'balance',
+    ];
+
+    const visiblePinnedColumns = allColumns.filter(
+      (key) => {
+        const col = columnConfig.find((c) => c.key === key);
+        return col?.visible && col?.pinned;
+      }
+    );
+
+    const indexInPinned = visiblePinnedColumns.indexOf(colKey);
+    if (indexInPinned === -1) return {};
+
+    const columnWidths: Record<ColumnKey, number> = {
+      number: 150, orderNumber: 150, customer: 200, salesRep: 150,
+      commissionRate: 150, expectedCommission: 180, paidCommission: 180,
+      balance: 150,
+    };
+
+    let leftOffset = 0; //fixedLeftOffset;
+    for (let i = 0; i < indexInPinned; i++) {
+      const prevCol = visiblePinnedColumns[i];
+      const colWidth = columnWidths[prevCol] || 150;
+      leftOffset += colWidth - 12;
+    }
+
+    return {
+      position: 'sticky',
+      left: `${leftOffset}px`,
+      zIndex: 10,
+      backgroundColor: isHeader ? '#f9fafb' : 'white',
+    };
+  }, [columnConfig, isPinned]);
+
   const [showColumnsModal, setShowColumnsModal] = useState(false);
 
   // Header dropdowns
@@ -436,7 +527,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
           convertedDeductionAdjustments.push({
             id: detail.adjustment.id || detail.id,
             adjustmentNumber: detail.adjustment.adjustmentNumber,
-            amount: detail.appliedAmount || detail.adjustment.amount, // Use appliedAmount for correct totals
+            amount: detail.adjustment.amount, // Use original adjustment amount (preserves negative sign)
             createdAt: detail.adjustment.createdAt,
             entityDate: detail.adjustment.entityDate,
             locked: detail.adjustment.locked,
@@ -627,10 +718,43 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     );
   };
 
+  // Zero out all stated commissions (toggle: if all are 0, restore expected values)
+  // Only affects invoices/credits, not adjustments
+  const zeroAllStatedCommissions = () => {
+    if (!isCreateMode) setHasLocalEdits(true);
+    const nonAdjustmentItems = lineItems.filter(item => item.type !== 'adjustment');
+    const allZero = nonAdjustmentItems.every(item => item.paidCommission === 0);
+    if (allZero) {
+      // Restore to expected commission values
+      setLineItems((prev) =>
+        prev.map((item) =>
+          item.type !== 'adjustment'
+            ? { ...item, paidCommission: item.expectedCommission }
+            : item
+        )
+      );
+    } else {
+      // Set all to 0
+      setLineItems((prev) =>
+        prev.map((item) =>
+          item.type !== 'adjustment'
+            ? { ...item, paidCommission: 0 }
+            : item
+        )
+      );
+    }
+  };
+
   const deleteLineItem = (id: string) => {
     if (!isCreateMode) setHasLocalEdits(true);
     setLineItems((prev) => prev.filter((item) => item.id !== id));
     closeLineItemDetail();
+  };
+
+  const removeDeductionAdjustment = (id: string) => {
+    if (!isCreateMode) setHasLocalEdits(true);
+    setDeductionAdjustments((prev) => prev.filter((adj) => adj.id !== id));
+    setAdjustments((prev) => prev.filter((adj) => adj.id !== id));
   };
 
   const togglePaid = (id: string) => {
@@ -698,15 +822,20 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     });
   }, [isCreateMode]);
 
-  // Summary calculations
+  // Summary calculations - exclude adjustment-type items so stated commissions only reflects invoices/credits
   const summary = useMemo(() => {
-    return calculateLineItemsSummary(lineItems);
+    const nonAdjustmentItems = lineItems.filter(item => item.type !== 'adjustment');
+    return calculateLineItemsSummary(nonAdjustmentItems);
   }, [lineItems]);
 
   const totalAdjustments = useMemo(() => {
-    // Calculate from deductionAdjustments since adjustments are no longer in lineItems
-    return deductionAdjustments.reduce((sum, adj) => sum + (parseFloat(adj.amount || '0') || 0), 0);
-  }, [deductionAdjustments]);
+    // Calculate from deductionAdjustments (saved) + adjustment-type lineItems (unsaved)
+    const savedTotal = deductionAdjustments.reduce((sum, adj) => sum + (parseFloat(adj.amount || '0') || 0), 0);
+    const unsavedTotal = lineItems
+      .filter((item) => item.type === 'adjustment')
+      .reduce((sum, item) => sum + (Number(item.paidCommission) || 0), 0);
+    return savedTotal + unsavedTotal;
+  }, [deductionAdjustments, lineItems]);
 
   // Factory ID state (needed for API)
   const [factoryId, setFactoryId] = useState<string>(apiCheck?.factoryId || '');
@@ -998,9 +1127,15 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     selectAllLineItems,
     clearLineItemSelection,
 
-    // Column visibility
+    // Column configuration
+    columnConfig,
+    setColumnConfig,
     visibleColumns,
-    setVisibleColumns,
+    pinnedColumns,
+    toggleColumn,
+    togglePinColumn,
+    isPinned,
+    getPinnedColumnStyle,
     showColumnsModal,
     setShowColumnsModal,
 
@@ -1110,6 +1245,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     setLineItems,
     addNewLine,
     deleteLineItem,
+    removeDeductionAdjustment,
     togglePaid,
     handleOpenInvoicesLoaded,
 
@@ -1123,6 +1259,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     openLineItemDetail,
     closeLineItemDetail,
     updateLineItemAmount,
+    zeroAllStatedCommissions,
 
     // Order detail modal
     showOrderDetailModal,

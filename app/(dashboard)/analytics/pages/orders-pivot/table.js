@@ -474,6 +474,13 @@ export function OrderPivotGrid() {
           // Additional fields
           jobName: record.jobName || "N/A",
           endUser: record.endUser || "N/A",
+          
+          // End User Billing Address fields (from backend snake_case to frontend camelCase)
+          endUserBillingAddressLineOne: record.endUserBillingAddressLineOne || record.end_user_billing_address_line_one || "Unknown",
+          endUserBillingAddressLineTwo: record.endUserBillingAddressLineTwo || record.end_user_billing_address_line_two || "Unknown",
+          endUserBillingCity: record.endUserBillingCity || record.end_user_billing_city || "Unknown",
+          endUserBillingState: record.endUserBillingState || record.end_user_billing_state || "Unknown",
+          endUserBillingZip: record.endUserBillingZip || record.end_user_billing_zip || "Unknown",
 
           // Computed fields for better analysis
           profitMargin:

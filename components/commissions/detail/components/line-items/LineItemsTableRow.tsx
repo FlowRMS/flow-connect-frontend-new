@@ -24,6 +24,8 @@ interface LineItemsTableRowProps {
   registerInput?: (rowIndex: number, fieldIndex: number, element: HTMLInputElement | null) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>, rowIndex: number, fieldIndex: number) => void;
   getTabIndex?: (rowIndex: number, fieldIndex: number) => number;
+  isPinned?: (colKey: ColumnKey) => boolean;
+  getPinnedColumnStyle?: (colKey: ColumnKey, isHeader?: boolean) => React.CSSProperties;
 }
 
 export function LineItemsTableRow({
@@ -39,6 +41,8 @@ export function LineItemsTableRow({
   registerInput,
   onKeyDown,
   getTabIndex,
+  isPinned = () => false,
+  getPinnedColumnStyle = () => ({}),
 }: LineItemsTableRowProps) {
   const [statedCommission, setStatedCommission] = useState(item.paidCommission.toString());
   const inputRef = useRef<HTMLInputElement>(null);
@@ -96,7 +100,7 @@ export function LineItemsTableRow({
       onClick={() => onRowClick(item)}
     >
       {visibleColumns.has('number') && (
-        <td className="px-4 py-3">
+        <td className={`px-4 py-3 ${isPinned('number') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`} style={getPinnedColumnStyle('number')}>
           <div className="flex items-center gap-2">
             <span className={`px-2 py-0.5 text-xs font-medium rounded border ${
               item.type === 'invoice'
@@ -117,7 +121,7 @@ export function LineItemsTableRow({
         </td>
       )}
       {visibleColumns.has('orderNumber') && (
-        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+        <td className={`px-4 py-3 text-sm text-[var(--muted-foreground)] ${isPinned('orderNumber') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`} style={getPinnedColumnStyle('orderNumber')}>
           {item.type === 'adjustment' ? (
             <span className="text-xs italic">N/A</span>
           ) : item.orderNumber ? (
@@ -148,12 +152,12 @@ export function LineItemsTableRow({
         </td>
       )}
       {visibleColumns.has('customer') && (
-        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+        <td className={`px-4 py-3 text-sm text-[var(--muted-foreground)] ${isPinned('customer') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`} style={getPinnedColumnStyle('customer')}>
           {item.customer}
         </td>
       )}
       {visibleColumns.has('salesRep') && (
-        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]" onClick={(e) => e.stopPropagation()}>
+        <td className={`px-4 py-3 text-sm text-[var(--muted-foreground)] ${isPinned('salesRep') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`} style={getPinnedColumnStyle('salesRep')} onClick={(e) => e.stopPropagation()}>
           <ListPreviewHoverCard
             items={item.salesRepsList && item.salesRepsList.length > 0 ? item.salesRepsList : [item.salesRep]}
             type="salesRep"
@@ -161,7 +165,7 @@ export function LineItemsTableRow({
         </td>
       )}
       {visibleColumns.has('commissionRate') && (
-        <td className="px-4 py-3 text-sm">
+        <td className={`px-4 py-3 text-sm ${isPinned('commissionRate') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`} style={getPinnedColumnStyle('commissionRate')}>
           <span className="text-[var(--muted-foreground)]">
             {Number(item.commissionRateExpected).toFixed(3)}%
           </span>
@@ -172,12 +176,12 @@ export function LineItemsTableRow({
         </td>
       )}
       {visibleColumns.has('expectedCommission') && (
-        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+        <td className={`px-4 py-3 text-sm text-[var(--muted-foreground)] ${isPinned('expectedCommission') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`} style={getPinnedColumnStyle('expectedCommission')}>
           ${Number(item.expectedCommission).toFixed(4)}
         </td>
       )}
       {visibleColumns.has('paidCommission') && (
-        <td className="px-4 py-3 text-sm text-[var(--foreground)]">
+        <td className={`px-4 py-3 text-sm text-[var(--foreground)] ${isPinned('paidCommission') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`} style={getPinnedColumnStyle('paidCommission')}>
           {status === 'posted' ? (
             <span>${Number(item.paidCommission).toFixed(4)}</span>
           ) : (
@@ -200,7 +204,7 @@ export function LineItemsTableRow({
         </td>
       )}
       {visibleColumns.has('balance') && (
-        <td className="px-4 py-3 text-sm">
+        <td className={`px-4 py-3 text-sm ${isPinned('balance') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`} style={getPinnedColumnStyle('balance')}>
           <div className="flex items-center gap-2">
             {item.balance === 0 && (
               <svg
@@ -223,36 +227,6 @@ export function LineItemsTableRow({
               ${Number(item.balance).toFixed(4)}
             </span>
           </div>
-        </td>
-      )}
-      {visibleColumns.has('paid') && (
-        <td className="px-4 py-3 text-center">
-          {status === 'posted' ? (
-            item.paid ? (
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="mx-auto text-gray-400"
-              >
-                <path
-                  d="M5 10l3 3 7-7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            ) : null
-          ) : (
-            <input
-              type="checkbox"
-              checked={item.paid}
-              disabled
-              className="w-4 h-4 accent-[var(--primary)] cursor-not-allowed"
-            />
-          )}
         </td>
       )}
       {/* Actions column - Remove button (only when not posted) */}

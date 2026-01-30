@@ -5,12 +5,14 @@
 
 'use client';
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFlowChat } from '@/contexts/FlowChatContext';
 import { useCheckDetailState } from './hooks';
 import { usePostedStatement } from '@/components/orders/api/checksApi';
 import type { PostedStatement } from '@/components/orders/api/checksApi';
+import type { ColumnKey } from './types';
+import { formatCurrency } from './utils';
 import { HeaderTopBar, PricingSummaryBar, CheckDetailsFields } from './components/header';
 import { LineItemsTable } from './components/line-items';
 import {
@@ -52,6 +54,9 @@ export default function CheckDetailContent({
   const state = useCheckDetailState({ checkId });
   const { setFullEntityContext } = useFlowChat();
   const { requestNavigation, hasUnsavedChanges, clearUnsavedChanges } = useUnsavedChangesContext();
+
+  // Sub-tab state for line-items tab
+  const [lineItemsSubTab, setLineItemsSubTab] = useState<'invoices' | 'adjustments'>('invoices');
 
   // Adjustments state management - reuse from orders
   const adjustmentsState = useAdjustmentsState();
@@ -320,137 +325,259 @@ export default function CheckDetailContent({
               )}
             </div>
 
-            {/* View Controls */}
-            {state.activeTab === 'line-items' && (
-              <div className="flex items-center gap-3 pb-2">
-                {/* Views Dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => state.setShowViewsMenu(!state.showViewsMenu)}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <rect x="3" y="3" width="14" height="14" rx="2" />
-                      <path d="M3 8h14M8 8v9" />
-                    </svg>
-                    {SAVED_VIEWS.find((v) => v.id === state.activeView)?.name ||
-                      getDefaultView().name}
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path
-                        d="M6 8l4 4 4-4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  {state.showViewsMenu && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => state.setShowViewsMenu(false)}
-                      />
-                      <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
-                        <div className="p-2 border-b border-[var(--border)]">
-                          <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase px-2">
-                            Saved Views
-                          </p>
-                        </div>
-                        {SAVED_VIEWS.map((view) => (
-                          <button
-                            key={view.id}
-                            onClick={() => {
-                              state.setVisibleColumns(new Set(view.columns));
-                              state.setActiveView(view.id);
-                              state.setShowViewsMenu(false);
-                            }}
-                            className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center justify-between ${
-                              state.activeView === view.id
-                                ? 'text-[var(--primary)] font-medium'
-                                : ''
-                            }`}
-                          >
-                            {view.name}
-                            {state.activeView === view.id && (
-                              <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 20 20"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                              >
-                                <path
-                                  d="M5 10l3 3 7-7"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Columns Button */}
-                <button
-                  onClick={() => state.setShowColumnsModal(true)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path
-                      d="M4 6h12M4 10h12M4 14h12"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  Columns
-                  <span className="px-1.5 py-0.5 bg-[var(--muted)] rounded text-xs">
-                    {state.visibleColumns.size}
-                  </span>
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Tab Content */}
-          {state.activeTab === 'line-items' && (
+          {state.activeTab === 'line-items' && (() => {
+            const invoiceCreditItems = state.lineItems.filter(item => item.type !== 'adjustment');
+            const adjustmentLineItems = state.lineItems.filter(item => item.type === 'adjustment');
+            const allAdjustmentCount = state.deductionAdjustments.length + adjustmentLineItems.length;
+
+            return (
             <div>
-              <LineItemsTable
-                lineItems={state.lineItems}
-                visibleColumns={state.visibleColumns}
-                commissionSource={state.commissionSource}
-                status={state.status}
-                onTogglePaid={state.togglePaid}
-                onAddNewLine={state.addNewLine}
-                onRowClick={state.openLineItemDetail}
-                onUpdateStatedCommission={state.updateLineItemAmount}
-                onOrderClick={state.openOrderDetail}
-                onDelete={state.deleteLineItem}
-              />
+              {/* Sub-tabs: Invoices/Credits and Adjustments */}
+              <div className="flex items-center gap-1 mb-4">
+                <button
+                  onClick={() => setLineItemsSubTab('invoices')}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                    lineItemsSubTab === 'invoices'
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'bg-gray-100 text-[var(--muted-foreground)] hover:bg-gray-200'
+                  }`}
+                >
+                  Invoices / Credits
+                  {invoiceCreditItems.length > 0 && (
+                    <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
+                      lineItemsSubTab === 'invoices' ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      {invoiceCreditItems.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setLineItemsSubTab('adjustments')}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                    lineItemsSubTab === 'adjustments'
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'bg-gray-100 text-[var(--muted-foreground)] hover:bg-gray-200'
+                  }`}
+                >
+                  Adjustments
+                  {allAdjustmentCount > 0 && (
+                    <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
+                      lineItemsSubTab === 'adjustments' ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      {allAdjustmentCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Invoices/Credits sub-tab */}
+              {lineItemsSubTab === 'invoices' && (
+                <LineItemsTable
+                  lineItems={invoiceCreditItems}
+                  visibleColumns={state.visibleColumns}
+                  commissionSource={state.commissionSource}
+                  status={state.status}
+                  onTogglePaid={state.togglePaid}
+                  onAddNewLine={state.addNewLine}
+                  onRowClick={state.openLineItemDetail}
+                  onUpdateStatedCommission={state.updateLineItemAmount}
+                  onOrderClick={state.openOrderDetail}
+                  isPinned={state.isPinned}
+                  getPinnedColumnStyle={state.getPinnedColumnStyle}
+                  activeView={state.activeView}
+                  showViewsMenu={state.showViewsMenu}
+                  onToggleViewsMenu={() => state.setShowViewsMenu(!state.showViewsMenu)}
+                  onSelectView={(viewId) => {
+                    const view = SAVED_VIEWS.find((v) => v.id === viewId);
+                    if (view) {
+                      const newConfig = state.columnConfig.map(col => ({
+                        ...col,
+                        visible: view.columns.includes(col.key as ColumnKey),
+                      }));
+                      state.setColumnConfig(newConfig);
+                      state.setActiveView(viewId);
+                      state.setShowViewsMenu(false);
+                    }
+                  }}
+                  onOpenColumnsModal={() => state.setShowColumnsModal(true)}
+                  onDelete={state.deleteLineItem}
+                  onZeroAllStatedCommissions={state.zeroAllStatedCommissions}
+                />
+              )}
+
+              {/* Adjustments sub-tab */}
+              {lineItemsSubTab === 'adjustments' && (
+                <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                  {allAdjustmentCount === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-[var(--muted-foreground)]">
+                      No adjustments on this check.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-[var(--card)] sticky top-0 z-10">
+                          <tr className="border-b border-[var(--border)]">
+                            <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Number</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Date</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Reason</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-[var(--foreground)]">Amount</th>
+                            <th className="px-4 py-3 text-center text-sm font-medium text-[var(--foreground)]">Status</th>
+                            {state.status !== 'posted' && (
+                              <th className="px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] w-10"></th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {/* Unsaved adjustment line items */}
+                          {adjustmentLineItems.map((item) => (
+                            <tr
+                              key={item.id}
+                              className="border-b border-[var(--border)] hover:bg-[var(--muted)]/30 transition-colors cursor-pointer"
+                              onClick={() => state.openLineItemDetail(item)}
+                            >
+                              <td className="px-4 py-3 text-sm font-medium text-[var(--foreground)]">
+                                <div className="flex items-center gap-2">
+                                  {item.number || item.id.substring(0, 8)}
+                                  {item.isNew && (
+                                    <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-100 text-emerald-700 border border-emerald-300 uppercase tracking-wide">
+                                      New
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+                                {item.entityDate
+                                  ? new Date(item.entityDate).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    })
+                                  : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+                                {item.reason || '-'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-right font-medium">
+                                <span className={item.paidCommission < 0 ? 'text-red-500' : 'text-[var(--foreground)]'}>
+                                  {formatCurrency(item.paidCommission)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="px-2 py-0.5 text-xs font-medium rounded bg-yellow-100 text-yellow-700">
+                                  Unsaved
+                                </span>
+                              </td>
+                              {state.status !== 'posted' && (
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      state.deleteLineItem(item.id);
+                                    }}
+                                    className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors"
+                                    title="Remove from check"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                          {/* Saved adjustments from API */}
+                          {state.deductionAdjustments.map((adj) => (
+                            <tr
+                              key={adj.id}
+                              className="border-b border-[var(--border)] hover:bg-[var(--muted)]/30 transition-colors cursor-pointer"
+                              onClick={() => {
+                                const fullAdj = adjustmentsState.adjustments?.find(
+                                  (a) => a.id === adj.id
+                                );
+                                if (fullAdj) {
+                                  adjustmentsState.viewAdjustment(fullAdj);
+                                }
+                              }}
+                            >
+                              <td className="px-4 py-3 text-sm font-medium text-[var(--foreground)]">
+                                {adj.adjustmentNumber || adj.id.substring(0, 8)}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+                                {adj.entityDate
+                                  ? new Date(adj.entityDate).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    })
+                                  : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+                                {adj.reason || '-'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-right font-medium">
+                                <span className={parseFloat(adj.amount || '0') < 0 ? 'text-red-500' : 'text-[var(--foreground)]'}>
+                                  {formatCurrency(parseFloat(adj.amount || '0'))}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                  adj.status === 'POSTED'
+                                    ? 'bg-green-100 text-green-700'
+                                    : adj.status === 'VOID'
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                  {adj.status || 'Pending'}
+                                </span>
+                              </td>
+                              {state.status !== 'posted' && (
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      state.removeDeductionAdjustment(adj.id);
+                                    }}
+                                    className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors"
+                                    title="Remove from check"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-[var(--border)] bg-[var(--muted)]/20">
+                            <td colSpan={3} className="px-4 py-3 text-sm font-medium text-[var(--foreground)]">
+                              Total
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right font-semibold text-[var(--foreground)]">
+                              {formatCurrency(
+                                adjustmentLineItems.reduce((sum, item) => sum + item.paidCommission, 0) +
+                                state.deductionAdjustments.reduce(
+                                  (sum, adj) => sum + (parseFloat(adj.amount || '0') || 0),
+                                  0
+                                )
+                              )}
+                            </td>
+                            <td />
+                            {state.status !== 'posted' && <td />}
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Files Tab */}
           {state.activeTab === 'files' && (
@@ -515,23 +642,12 @@ export default function CheckDetailContent({
         />
       )}
 
-      {state.showColumnsModal && (
-        <ColumnsModal
-          visibleColumns={state.visibleColumns}
-          onToggleColumn={(column) => {
-            state.setVisibleColumns((prev) => {
-              const newSet = new Set(prev);
-              if (newSet.has(column)) {
-                newSet.delete(column);
-              } else {
-                newSet.add(column);
-              }
-              return newSet;
-            });
-          }}
-          onClose={() => state.setShowColumnsModal(false)}
-        />
-      )}
+      <ColumnsModal
+        isOpen={state.showColumnsModal}
+        onClose={() => state.setShowColumnsModal(false)}
+        columnConfig={state.columnConfig}
+        onColumnConfigChange={state.setColumnConfig}
+      />
 
       {/* Line Item Detail Modal */}
       {state.showLineItemDetailModal && state.selectedLineItem && (

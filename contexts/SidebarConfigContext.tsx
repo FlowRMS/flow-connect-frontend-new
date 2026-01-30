@@ -321,6 +321,7 @@ const defaultConfig: SidebarConfig = {
           href: "/manufacturers",
           enabled: true,
         },
+        { id: "files", name: "Files", href: "/files", enabled: true },
         // { id: 'spec-sheets', name: 'Spec Sheets', href: '/spec-sheets', enabled: true },
       ],
     },
@@ -358,7 +359,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = "sidebar-config";
-const CONFIG_VERSION = 38; // Increment this to force a reset of cached sidebar config (restored Flow AI group and Product Pricing)
+const CONFIG_VERSION = 39; // Increment this to force a reset of cached sidebar config (added Files to sidebar)
 
 const SidebarConfigContext = createContext<
   SidebarConfigContextType | undefined

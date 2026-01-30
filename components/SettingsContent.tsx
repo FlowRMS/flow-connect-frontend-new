@@ -8,7 +8,9 @@ import SidebarSettings from './SidebarSettings';
 import { QuoteSettingsTab } from './settings/QuoteSettingsTab';
 import { OrderSettingsTab } from './settings/OrderSettingsTab';
 import { InvoiceSettingsTab } from './settings/InvoiceSettingsTab';
+import { CommissionSettingsTab } from './settings/CommissionSettingsTab';
 import { ChatSettingsTab } from './settings/ChatSettingsTab';
+import { PicklistValuesTab } from './settings/PicklistValuesTab';
 import {
   mockTeamMembers,
   mockFlowBotSettings,
@@ -111,9 +113,10 @@ type ActivityRule = {
   tagModifiers: { tag: string; multiplier: number }[];
 };
 
-type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'chat-settings';
 
-const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'chat-settings'];
+type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'commission-settings' | 'chat-settings' | 'picklist-values';
+
+const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'commission-settings', 'chat-settings', 'picklist-values'];
 
 export default function SettingsContent() {
   const searchParams = useSearchParams();
@@ -252,7 +255,9 @@ export default function SettingsContent() {
       label: 'Document Defaults',
       tabs: [
         { id: 'quote-settings' as TabType, label: 'Quote Settings' },
-        { id: 'order-settings' as TabType, label: 'Order Settings' },
+        { id: 'order-settings' as TabType, label: 'Order Settings', children: [
+          { id: 'picklist-values' as TabType, label: 'Picklist Values' },
+        ] },
         { id: 'invoice-settings' as TabType, label: 'Invoice Settings' },
       ],
     },
@@ -277,17 +282,31 @@ export default function SettingsContent() {
                 {group.label}
               </p>
               {group.tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-full text-left px-5 py-2 text-sm transition-colors ${
-                    activeTab === tab.id
-                      ? 'bg-[var(--primary)]/10 text-[var(--primary)] font-medium border-r-2 border-[var(--primary)]'
-                      : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
+                <React.Fragment key={tab.id}>
+                  <button
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full text-left px-5 py-2 text-sm transition-colors ${
+                      activeTab === tab.id
+                        ? 'bg-[var(--primary)]/10 text-[var(--primary)] font-medium border-r-2 border-[var(--primary)]'
+                        : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                  {'children' in tab && tab.children && tab.children.map((child) => (
+                    <button
+                      key={child.id}
+                      onClick={() => setActiveTab(child.id)}
+                      className={`w-full text-left pl-8 pr-5 py-2 text-sm transition-colors ${
+                        activeTab === child.id
+                          ? 'bg-[var(--primary)]/10 text-[var(--primary)] font-medium border-r-2 border-[var(--primary)]'
+                          : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
+                      }`}
+                    >
+                      {child.label}
+                    </button>
+                  ))}
+                </React.Fragment>
               ))}
             </div>
           ))}
@@ -590,9 +609,19 @@ export default function SettingsContent() {
         <InvoiceSettingsTab />
       )}
 
+      {/* Commission Settings Tab */}
+      {activeTab === 'commission-settings' && (
+        <CommissionSettingsTab />
+      )}
+
       {/* Chat Settings Tab */}
       {activeTab === 'chat-settings' && (
         <ChatSettingsTab />
+      )}
+
+      {/* Picklist Values Tab */}
+      {activeTab === 'picklist-values' && (
+        <PicklistValuesTab />
       )}
 
       {/* Default Views Tab */}

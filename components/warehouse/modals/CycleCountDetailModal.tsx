@@ -398,9 +398,10 @@ export default function CycleCountDetailModal({ cycleCount: initialCycleCount, o
                       type="number"
                       value={countValue}
                       onChange={(e) => setCountValue(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       min="0"
                       placeholder="Enter count..."
-                      className="w-full px-4 py-3 text-lg font-bold border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 text-center"
+                      className="w-full px-4 py-3 text-lg font-bold border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       autoFocus
                     />
                     {countValue && !isBlindCount && (

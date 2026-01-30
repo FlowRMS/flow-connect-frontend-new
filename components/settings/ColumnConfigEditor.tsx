@@ -6,6 +6,7 @@ interface ColumnConfig {
   key: string;
   label: string;
   visible: boolean;
+  pinned?: boolean;
   group?: string;
   comingSoon?: boolean;
 }
@@ -32,6 +33,21 @@ export function ColumnConfigEditor({
     const newColumns = columns.map((col) =>
       col.key === key ? { ...col, visible: !col.visible } : col
     );
+    onChange(newColumns);
+  };
+
+  const handleTogglePin = (key: string) => {
+    // Don't allow pinning coming soon columns
+    if (comingSoonKeys.includes(key)) return;
+
+    const newColumns = columns.map((col) => {
+      if (col.key === key) {
+        // If unpinning, just remove pinned
+        // If pinning, ensure column is visible first
+        return { ...col, pinned: !col.pinned, visible: col.pinned ? col.visible : true };
+      }
+      return col;
+    });
     onChange(newColumns);
   };
 
@@ -95,35 +111,53 @@ export function ColumnConfigEditor({
             <div className="grid grid-cols-2 gap-2">
               {cols.map((col) => {
                 const isComingSoon = comingSoonKeys.includes(col.key);
+                const isPinned = col.pinned && col.visible;
                 return (
-                  <label
+                  <div
                     key={col.key}
                     className={`flex items-center gap-2 p-2 rounded-md transition-colors ${
                       isComingSoon
                         ? 'cursor-not-allowed opacity-50'
-                        : 'hover:bg-[var(--muted)] cursor-pointer'
+                        : 'hover:bg-[var(--muted)]'
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={col.visible}
-                      onChange={() => handleToggle(col.key)}
-                      disabled={isComingSoon}
-                      className={`w-4 h-4 rounded border-[var(--border)] focus:ring-[var(--primary)] focus:ring-offset-0 ${
-                        isComingSoon
-                          ? 'text-gray-300 cursor-not-allowed'
-                          : 'text-[var(--primary)]'
-                      }`}
-                    />
-                    <span className={`text-sm ${isComingSoon ? 'text-gray-400' : 'text-[var(--foreground)]'}`}>
-                      {col.label}
-                    </span>
+                    <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={col.visible}
+                        onChange={() => handleToggle(col.key)}
+                        disabled={isComingSoon}
+                        className={`w-4 h-4 rounded border-[var(--border)] focus:ring-[var(--primary)] focus:ring-offset-0 ${
+                          isComingSoon
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-[var(--primary)]'
+                        }`}
+                      />
+                      <span className={`text-sm ${isComingSoon ? 'text-gray-400' : 'text-[var(--foreground)]'}`}>
+                        {col.label}
+                      </span>
+                    </label>
+                    {col.visible && !isComingSoon && (
+                      <button
+                        onClick={() => handleTogglePin(col.key)}
+                        className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+                          isPinned
+                            ? 'bg-blue-500 text-white hover:bg-blue-600'
+                            : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                        }`}
+                        title={isPinned ? 'Unpin column' : 'Pin column'}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6a1 1 0 00-1-1h-4a1 1 0 00-1 1v4.76z" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                    )}
                     {isComingSoon && (
                       <span className="px-1.5 py-0.5 text-[10px] font-medium bg-yellow-100 text-yellow-700 rounded">
                         SOON
                       </span>
                     )}
-                  </label>
+                  </div>
                 );
               })}
             </div>

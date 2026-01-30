@@ -142,12 +142,9 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
     endDate: '',
     requesterId: '',
     jobOwnerId: '',
-    structuralInformation: '',
-    structuralDetails: '',
-    additionalInformation: '',
   });
   const [error, setError] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<'basic' | 'details' | 'additional' | 'connect'>('basic');
+  const [activeSection, setActiveSection] = useState<'basic' | 'connect'>('basic');
 
   const isConnected = true;
   const { data: statuses, isLoading: statusesLoading, error: statusesError } = useCRMJobStatuses();
@@ -174,8 +171,7 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
   const buildJobInput = (): JobInput => {
     const optionalFields: (keyof typeof formData)[] = [
       'jobType', 'description', 'startDate', 'endDate', 
-      'requesterId', 'jobOwnerId', 'structuralInformation', 
-      'structuralDetails', 'additionalInformation'
+      'requesterId', 'jobOwnerId'
     ];
     
     const optional = Object.fromEntries(
@@ -201,9 +197,6 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
       endDate: '',
       requesterId: '',
       jobOwnerId: '',
-      structuralInformation: '',
-      structuralDetails: '',
-      additionalInformation: '',
     });
     setActiveSection('basic');
   };
@@ -261,16 +254,6 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
     { id: 'basic', label: 'Basic Info', icon: (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    )},
-    { id: 'details', label: 'Details', icon: (
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-    )},
-    { id: 'additional', label: 'Additional', icon: (
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
       </svg>
     )},
     { id: 'connect', label: 'Connect', icon: (
@@ -502,80 +485,6 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
                 </div>
               )}
 
-              {/* Details Section */}
-              {activeSection === 'details' && (
-                <div className="space-y-5">
-                  <div>
-                    <label className="flex items-center gap-1 text-sm font-medium text-[var(--foreground)] mb-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
-                      Structural Information
-                    </label>
-                    <textarea
-                      name="structuralInformation"
-                      value={formData.structuralInformation}
-                      onChange={handleChange}
-                      placeholder="Enter structural information about the project..."
-                      rows={3}
-                      className="w-full px-4 py-3 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all placeholder:text-gray-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="flex items-center gap-1 text-sm font-medium text-[var(--foreground)] mb-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                      </svg>
-                      Structural Details
-                    </label>
-                    <textarea
-                      name="structuralDetails"
-                      value={formData.structuralDetails}
-                      onChange={handleChange}
-                      placeholder="Enter specific structural details..."
-                      rows={3}
-                      className="w-full px-4 py-3 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all placeholder:text-gray-400"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Additional Section */}
-              {activeSection === 'additional' && (
-                <div className="space-y-5">
-                  <div>
-                    <label className="flex items-center gap-1 text-sm font-medium text-[var(--foreground)] mb-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Additional Information
-                    </label>
-                    <textarea
-                      name="additionalInformation"
-                      value={formData.additionalInformation}
-                      onChange={handleChange}
-                      placeholder="Enter any additional information or notes..."
-                      rows={5}
-                      className="w-full px-4 py-3 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all placeholder:text-gray-400"
-                    />
-                  </div>
-
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <div>
-                        <h4 className="text-sm font-medium text-blue-800">Tip</h4>
-                        <p className="text-sm text-blue-700 mt-1">
-                          You can always add more details to the job after creation from the job detail view.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Connect Entities Section */}
               {activeSection === 'connect' && (

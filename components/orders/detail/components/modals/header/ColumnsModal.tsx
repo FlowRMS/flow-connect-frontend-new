@@ -5,28 +5,57 @@
 
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { ColumnKey } from '../../../types';
-import { columnLabels } from '../../../utils';
+import type { OrderColumnConfig } from '@/components/lib/graphql/settings';
 
 interface ColumnsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  visibleColumns: Set<ColumnKey>;
-  pinnedColumns: Set<ColumnKey>;
-  toggleColumn: (colKey: ColumnKey) => void;
-  togglePinColumn: (colKey: ColumnKey) => void;
+  columnConfig: OrderColumnConfig[];
+  onColumnConfigChange: (config: OrderColumnConfig[]) => void;
 }
 
 export function ColumnsModal({
   isOpen,
   onClose,
-  visibleColumns,
-  pinnedColumns,
-  toggleColumn,
-  togglePinColumn,
+  columnConfig,
+  onColumnConfigChange,
 }: ColumnsModalProps) {
   if (!isOpen) return null;
+
+  // Derive visible and pinned columns from columnConfig
+  const visibleColumns = useMemo(() => {
+    return new Set<ColumnKey>(
+      columnConfig.filter(col => col.visible).map(col => col.key as ColumnKey)
+    );
+  }, [columnConfig]);
+
+  const pinnedColumns = useMemo(() => {
+    return new Set<ColumnKey>(
+      columnConfig.filter(col => col.visible && col.pinned).map(col => col.key as ColumnKey)
+    );
+  }, [columnConfig]);
+
+  const toggleColumn = (key: ColumnKey) => {
+    onColumnConfigChange(
+      columnConfig.map((c) =>
+        c.key === key ? { ...c, visible: !c.visible, pinned: !c.visible ? false : c.pinned } : c
+      )
+    );
+  };
+
+  const togglePinColumn = (key: ColumnKey) => {
+    onColumnConfigChange(
+      columnConfig.map((c) => {
+        if (c.key === key) {
+          // If pinning, ensure it's also visible
+          return { ...c, pinned: !c.pinned, visible: !c.pinned || c.visible };
+        }
+        return c;
+      })
+    );
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -63,22 +92,22 @@ export function ColumnsModal({
                   </svg>
                   Pinned Columns (Frozen Left)
                 </div>
-                {(Object.keys(columnLabels) as ColumnKey[]).filter(col => pinnedColumns.has(col)).map(colKey => (
+                {columnConfig.filter(col => col.pinned && col.visible).map(col => (
                   <div
-                    key={colKey}
+                    key={col.key}
                     className="flex items-center gap-3 px-4 py-3 rounded-lg border transition-all bg-blue-50 border-blue-200"
                   >
                     <input
                       type="checkbox"
-                      checked={visibleColumns.has(colKey)}
-                      onChange={() => toggleColumn(colKey)}
+                      checked={col.visible}
+                      onChange={() => toggleColumn(col.key as ColumnKey)}
                       className="w-5 h-5 accent-[var(--primary)] cursor-pointer"
                     />
                     <span className="flex-1 text-sm font-medium text-blue-700">
-                      {columnLabels[colKey]}
+                      {col.label}
                     </span>
                     <button
-                      onClick={() => togglePinColumn(colKey)}
+                      onClick={() => togglePinColumn(col.key as ColumnKey)}
                       className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors bg-blue-500 text-white hover:bg-blue-600"
                       title="Unpin column"
                     >
@@ -95,25 +124,25 @@ export function ColumnsModal({
               </>
             )}
             {/* Unpinned columns */}
-            {(Object.keys(columnLabels) as ColumnKey[]).filter(col => !pinnedColumns.has(col)).map(colKey => (
+            {columnConfig.filter(col => !col.pinned).map(col => (
               <div
-                key={colKey}
+                key={col.key}
                 className="flex items-center gap-3 px-4 py-3 rounded-lg border transition-all bg-[var(--card)] border-[var(--border)] hover:bg-[var(--muted)]/50"
               >
                 <input
                   type="checkbox"
-                  checked={visibleColumns.has(colKey)}
-                  onChange={() => toggleColumn(colKey)}
+                  checked={col.visible}
+                  onChange={() => toggleColumn(col.key as ColumnKey)}
                   className="w-5 h-5 accent-[var(--primary)] cursor-pointer"
                 />
                 <span className="flex-1 text-sm font-medium">
-                  {columnLabels[colKey]}
+                  {col.label}
                 </span>
                 <button
-                  onClick={() => togglePinColumn(colKey)}
-                  disabled={!visibleColumns.has(colKey)}
+                  onClick={() => togglePinColumn(col.key as ColumnKey)}
+                  disabled={!col.visible}
                   className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-                    visibleColumns.has(colKey)
+                    col.visible
                       ? 'hover:bg-[var(--muted)] text-[var(--muted-foreground)]'
                       : 'opacity-30 cursor-not-allowed'
                   }`}

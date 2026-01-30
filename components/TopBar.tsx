@@ -13,6 +13,7 @@ import { useOrganizationContext } from '@/contexts/OrganizationContext';
 import { handleSignOut } from '@/lib/actions';
 import UserGuideModal from './UserGuideModal';
 import { getAvatarColors, getInitials } from '@/lib/utils/avatar';
+import DarkModeToggle from './ui/DarkModeToggle';
 
 // Key used by useWelcomeAnimation hook
 const WELCOME_SHOWN_KEY = 'flowcrm_welcome_animation_shown';
@@ -273,6 +274,9 @@ export default function TopBar() {
           <span className="sm:hidden">DISC</span>
         </Link> */}
         
+        {/* Dark Mode Toggle */}
+        <DarkModeToggle />
+
         {/* Notifications */}
         <button className="p-1.5 sm:p-2 hover:bg-[var(--muted)] rounded-lg transition-colors relative">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-5 sm:h-5">
