@@ -5,6 +5,7 @@
  */
 
 import type { FilterOption } from '../../../advancedFilters/types';
+import { ColumnFilterTypeEnum } from '../../../advancedFilters/types';
 import type { InvoiceStatus } from '@/lib/types/rms';
 
 // Invoice status options matching InvoiceStatus type
@@ -44,14 +45,14 @@ export function getInvoiceFilterOptions(): FilterOption[] {
     { 
       id: 'invoice-number', 
       label: 'Invoice Number', 
-      type: 'text' as const, 
+      type: ColumnFilterTypeEnum.text, 
       columnName: 'invoiceNumber', 
       available: true 
     },
     { 
       id: 'status', 
       label: 'Status', 
-      type: 'dropdown' as const, 
+      type: ColumnFilterTypeEnum.dropdown, 
       columnName: 'status', 
       available: true, 
       options: INVOICE_STATUSES 
@@ -59,21 +60,21 @@ export function getInvoiceFilterOptions(): FilterOption[] {
     { 
       id: 'invoice-date', 
       label: 'Invoice Date', 
-      type: 'date' as const, 
+      type: ColumnFilterTypeEnum.date, 
       columnName: 'entityDate', 
       available: true 
     },
     { 
       id: 'due-date', 
       label: 'Due Date', 
-      type: 'date' as const, 
+      type: ColumnFilterTypeEnum.date, 
       columnName: 'dueDate', 
       available: true 
     },
     { 
       id: 'total', 
       label: 'Total', 
-      type: 'number' as const, 
+      type: ColumnFilterTypeEnum.number, 
       columnName: 'total', 
       available: true,
       numberFormat: 'currency' as const
@@ -81,7 +82,7 @@ export function getInvoiceFilterOptions(): FilterOption[] {
     { 
       id: 'commission', 
       label: 'Commission', 
-      type: 'number' as const, 
+      type: ColumnFilterTypeEnum.number, 
       columnName: 'commission', 
       available: true,
       numberFormat: 'currency' as const
@@ -89,21 +90,21 @@ export function getInvoiceFilterOptions(): FilterOption[] {
     { 
       id: 'created-date', 
       label: 'Entry Date', 
-      type: 'date' as const, 
+      type: ColumnFilterTypeEnum.date, 
       columnName: 'createdAt', 
       available: true 
     },
     { 
       id: 'order-number', 
       label: 'Order Number', 
-      type: 'text' as const, 
+      type: ColumnFilterTypeEnum.text, 
       columnName: 'orderNumber', 
       available: true 
     },
     { 
       id: 'published', 
       label: 'Published', 
-      type: 'boolean' as const, 
+      type: ColumnFilterTypeEnum.boolean, 
       columnName: 'published', 
       available: true 
     },
@@ -111,7 +112,7 @@ export function getInvoiceFilterOptions(): FilterOption[] {
     { 
       id: 'factory-name', 
       label: 'Factory Name', 
-      type: 'text' as const, 
+      type: ColumnFilterTypeEnum.text, 
       columnName: 'factoryName', 
       available: false 
     },

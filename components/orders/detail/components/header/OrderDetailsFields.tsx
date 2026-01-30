@@ -22,8 +22,8 @@ import {
 import { useCreateCRMJob, useCRMJobStatuses } from '@/components/hooks/useCRMApi';
 import type { JobInput } from '@/components/lib/crm-graphql';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
-import { usePicklistSettings } from '@/contexts/UserSettingsContext';
-import { getAllPicklistOptions, getPicklistLabel } from '@/components/settings/picklistValues';
+import { usePicklist } from '@/lib/picklists';
+import { PicklistKey } from '@/lib/picklists/enums';
 
 // ComingSoonBadge component for unsupported features
 function ComingSoonBadge({ inline = false }: { inline?: boolean }) {
@@ -101,17 +101,16 @@ export function OrderDetailsFields({
   const { data: jobStatuses } = useCRMJobStatuses();
   
   // Picklist settings for order types
-  const { settings: orderTypesSettings, isInitialized: isPicklistInitialized } = usePicklistSettings('orderTypes');
+  const { enabledItems: orderTypeItems, isLoading: isPicklistLoading } = usePicklist(PicklistKey.ORDER_TYPES);
   
   // Order type options from picklist settings
   const orderTypeOptions = useMemo(() => {
-    if (!isPicklistInitialized) {
-      return [];
-    }
-    
-    const customValues = orderTypesSettings?.customValues || [];
-    return getAllPicklistOptions('orderTypes', customValues);
-  }, [orderTypesSettings, isPicklistInitialized]);
+    return orderTypeItems.map(item => ({
+      value: item.key,
+      label: item.label,
+      color: item.color,
+    }));
+  }, [orderTypeItems]);
   
   // Search states
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');

@@ -32,6 +32,12 @@ export default function InvoicesListContent() {
   const state = useInvoicesListState();
   const { settings: invoiceSettings, saveSettings: saveInvoiceSettings, isLoading: isSettingsLoading } = useInvoiceSettings();
 
+  // Check if there are any filters applied
+  const hasFilters = state.activeFilters.length > 0 || 
+                     state.quickDatePreset !== 'all' || 
+                     Object.keys(state.columnFilters || {}).length > 0 ||
+                     (state.searchQuery?.length >= 2);
+
   // Get current view state for saving
   const getCurrentViewState = (): SavedViewState => ({
     filters: state.activeFilters.map(f => ({
@@ -310,7 +316,7 @@ export default function InvoicesListContent() {
 
           {/* Empty State - shown outside table when no data */}
           {!state.isLoading && state.filteredInvoices.length === 0 && (
-            <InvoicesEmptyState />
+            <InvoicesEmptyState hasFilters={hasFilters} onClearFilters={state.clearAllFilters} />
           )}
 
           {/* Loading more indicator */}

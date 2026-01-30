@@ -8,6 +8,8 @@ import type { Order } from '@/lib/types/rms';
 import { orderStatusColors, orderStatusLabels } from '../../constants';
 import { formatCurrency, formatDate } from '../../utils';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
+import { PicklistValue } from '@/lib/picklists/components';
+import { PicklistKey } from '@/lib/picklists/enums';
 
 interface OrderRowProps {
   order: Order;
@@ -106,6 +108,16 @@ export function OrderRow({
         >
           {orderStatusLabels[order.status]}
         </span>
+      </td>
+
+      {/* Order Type */}
+      <td className="px-3 py-3">
+        <PicklistValue 
+          picklistKey={PicklistKey.ORDER_TYPES}
+          value={order.orderType || 'NORMAL'}
+          variant="badge"
+          showColor={true}
+        />
       </td>
 
       {/* Amount */}

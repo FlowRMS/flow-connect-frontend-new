@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import type { FilterOperator, FilterOption, ActiveFilter } from '../types';
+import type { FilterOperator, FilterOption, ActiveFilter, ColumnFilterType } from '../types';
+import { ColumnFilterTypeEnum } from '../types';
 import { TextFilter } from './filter-types/TextFilter';
 import { DropdownFilter } from './filter-types/DropdownFilter';
 import { NumberFilter } from './filter-types/NumberFilter';
@@ -14,20 +15,9 @@ import { CategoryFilter } from './filter-types/CategoryFilter';
 import { CompanyFilter } from './filter-types/CompanyFilter';
 import { CompanyTypeFilter } from './filter-types/CompanyTypeFilter';
 import { UserFilter } from './filter-types/UserFilter';
+import { CustomerFilter } from './filter-types/CustomerFilter';
+import { PicklistFilter, PicklistKey } from '@/lib/picklists';
 import { parseDateString, formatDateToBackend } from '../utils';
-
-export type ColumnFilterType =
-  | 'text'
-  | 'dropdown'
-  | 'number'
-  | 'date'
-  | 'boolean'
-  | 'month'
-  | 'factory'
-  | 'category'
-  | 'company'
-  | 'companyType'
-  | 'user';
 
 // Keep ColumnFilterValue for backward compatibility during migration
 export interface ColumnFilterValue {
@@ -53,6 +43,8 @@ export interface ColumnFilterProps {
   onToggle?: () => void;
   filterOption?: FilterOption; // Optional: full filter option with numberFormat, etc.
   factoryId?: string; // Optional: factory ID for category filter
+  picklistKey?: string; // Optional: key for picklist filters
+  multiSelect?: boolean; // For picklist/dropdown: true = IN with array, false = EQ with single value (default: true)
 }
 
 /**
@@ -70,6 +62,8 @@ export function ColumnFilter({
   onToggle,
   filterOption: externalFilterOption,
   factoryId,
+  picklistKey,
+  multiSelect = true,
 }: ColumnFilterProps) {
   // Ensure value is always an array
   const safeValue = Array.isArray(value) ? value : [];
@@ -81,8 +75,13 @@ export function ColumnFilter({
   };
 
   const getSelectedValues = () => {
-    const filter = safeValue.find(f => f.columnName === columnName && f.operator === 'IN' && f.values);
-    return filter?.values || [];
+    // Check for IN filter (multi-select)
+    const inFilter = safeValue.find(f => f.columnName === columnName && f.operator === 'IN' && f.values);
+    if (inFilter?.values) return inFilter.values;
+    // Check for EQ filter (single-select)
+    const eqFilter = safeValue.find(f => f.columnName === columnName && f.operator === 'EQ' && f.value);
+    if (eqFilter?.value) return [eqFilter.value];
+    return [];
   };
 
   // Get factoryId from active filters (for category filter)
@@ -209,7 +208,14 @@ export function ColumnFilter({
         if ((filter.operator === 'GTE' || filter.operator === 'LTE') && filter.value) {
           return true;
         }
-      } else if (type === 'factory' || type === 'category' || type === 'company' || type === 'user') {
+      } else if (
+        type === ColumnFilterTypeEnum.factory ||
+        type === ColumnFilterTypeEnum.category ||
+        type === ColumnFilterTypeEnum.company ||
+        type === ColumnFilterTypeEnum.user ||
+        type === ColumnFilterTypeEnum.customer ||
+        type === ColumnFilterTypeEnum.picklist
+      ) {
         if (filter.values && Array.isArray(filter.values) && filter.values.length > 0) {
           return true;
         }
@@ -226,19 +232,27 @@ export function ColumnFilter({
     if (hasActiveFilterInValue) return true;
     
     // Then check local state (for when user is configuring but hasn't applied yet)
-    if (type === 'text' || type === 'number') {
+    if (type === ColumnFilterTypeEnum.text || type === ColumnFilterTypeEnum.number) {
       return localTextValue.trim() !== '';
     }
-    if (type === 'dropdown') {
+    if (type === ColumnFilterTypeEnum.dropdown) {
       return localSelectedValues.length > 0;
     }
-    if (type === 'boolean') {
+    if (type === ColumnFilterTypeEnum.boolean) {
       return localBooleanValue !== 'all' && localBooleanValue !== null;
     }
-    if (type === 'date') {
+    if (type === ColumnFilterTypeEnum.date) {
       return localDateStart !== null || localDateEnd !== null;
     }
-    if (type === 'factory' || type === 'category' || type === 'company' || type === 'companyType' || type === 'user') {
+    if (
+      type === ColumnFilterTypeEnum.factory ||
+      type === ColumnFilterTypeEnum.category ||
+      type === ColumnFilterTypeEnum.company ||
+      type === ColumnFilterTypeEnum.companyType ||
+      type === ColumnFilterTypeEnum.user ||
+      type === ColumnFilterTypeEnum.customer ||
+      type === ColumnFilterTypeEnum.picklist
+    ) {
       return localSelectedValues.length > 0;
     }
     return false;
@@ -249,7 +263,7 @@ export function ColumnFilter({
   const filterOption: FilterOption = externalFilterOption || {
     id: columnName,
     label: columnName,
-    type: type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean',
+    type,
     columnName,
     options: type === 'dropdown' ? options : undefined,
   };
@@ -280,11 +294,21 @@ export function ColumnFilter({
 
   const handleDropdownApply = () => {
     if (localSelectedValues.length > 0) {
-      updateFilters([{
-        columnName,
-        operator: 'IN',
-        values: localSelectedValues,
-      }]);
+      if (multiSelect) {
+        // Multi-select: use IN operator with array
+        updateFilters([{
+          columnName,
+          operator: 'IN',
+          values: localSelectedValues,
+        }]);
+      } else {
+        // Single-select: use EQ operator with single value
+        updateFilters([{
+          columnName,
+          operator: 'EQ',
+          value: localSelectedValues[0],
+        }]);
+      }
     } else {
       // Remove filter if empty
       const otherFilters = safeValue.filter(f => f.columnName !== columnName);
@@ -420,6 +444,11 @@ export function ColumnFilter({
     }
   };
 
+  // For single-select mode: replace the selected value instead of toggling
+  const selectSingleValue = (val: string) => {
+    setLocalSelectedValues([val]);
+  };
+
   // Props for controlled vs uncontrolled popover
   const rootProps =
     typeof isOpen === 'boolean' && onToggle
@@ -453,7 +482,7 @@ export function ColumnFilter({
           </svg>
           {hasValue && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--primary)] text-white text-[10px] rounded-full flex items-center justify-center">
-              {(type === 'dropdown' || type === 'factory' || type === 'category' || type === 'company' || type === 'companyType' || type === 'user')
+              {(type === 'dropdown' || type === 'factory' || type === 'category' || type === 'company' || type === 'companyType' || type === 'user' || type === 'customer' || type === 'picklist')
                 ? localSelectedValues.length
                 : '•'}
             </span>
@@ -468,29 +497,41 @@ export function ColumnFilter({
           className="z-[100] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden"
           style={{
             width:
-              type === 'date' || type === 'month'
+              type === ColumnFilterTypeEnum.date || type === ColumnFilterTypeEnum.month
                 ? '300px'
-                : type === 'company' || type === 'companyType' || type === 'user'
+                : type === ColumnFilterTypeEnum.company ||
+                  type === ColumnFilterTypeEnum.companyType ||
+                  type === ColumnFilterTypeEnum.user ||
+                  type === ColumnFilterTypeEnum.customer ||
+                  type === ColumnFilterTypeEnum.picklist
                   ? '280px'
                   : 'var(--radix-popover-trigger-width)',
             minWidth:
-              type === 'date'
+              type === ColumnFilterTypeEnum.date
                 ? '300px'
-                : type === 'company' || type === 'companyType' || type === 'user'
+                : type === ColumnFilterTypeEnum.company ||
+                  type === ColumnFilterTypeEnum.companyType ||
+                  type === ColumnFilterTypeEnum.user ||
+                  type === ColumnFilterTypeEnum.customer ||
+                  type === ColumnFilterTypeEnum.picklist
                   ? '220px'
                   : '200px',
             maxWidth:
-              type === 'month'
+              type === ColumnFilterTypeEnum.month
                 ? '300px'
-                : type === 'date'
+                : type === ColumnFilterTypeEnum.date
                   ? '300px'
-                  : type === 'company' || type === 'companyType' || type === 'user'
+                  : type === ColumnFilterTypeEnum.company ||
+                    type === ColumnFilterTypeEnum.companyType ||
+                    type === ColumnFilterTypeEnum.user ||
+                    type === ColumnFilterTypeEnum.customer ||
+                    type === ColumnFilterTypeEnum.picklist
                     ? '320px'
                     : '320px',
           }}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
-          {type === 'text' && (
+          {type === ColumnFilterTypeEnum.text && (
             <TextFilter
               option={{
                 ...filterOption,
@@ -506,7 +547,7 @@ export function ColumnFilter({
             />
           )}
 
-          {type === 'dropdown' && (
+          {type === ColumnFilterTypeEnum.dropdown && (
             <DropdownFilter
               option={filterOption}
               filterValue={dropdownSearchValue}
@@ -519,7 +560,7 @@ export function ColumnFilter({
             />
           )}
 
-          {type === 'number' && (
+          {type === ColumnFilterTypeEnum.number && (
             <NumberFilter
               option={filterOption}
               filterValue={localTextValue}
@@ -532,7 +573,7 @@ export function ColumnFilter({
             />
           )}
 
-          {type === 'date' && (
+          {type === ColumnFilterTypeEnum.date && (
             <DateRangeFilter
               option={filterOption}
               dateRangeStart={localDateStart}
@@ -545,7 +586,7 @@ export function ColumnFilter({
             />
           )}
 
-          {type === 'boolean' && (
+          {type === ColumnFilterTypeEnum.boolean && (
             <BooleanFilter
               option={filterOption}
               selectedValue={localBooleanValue}
@@ -555,7 +596,7 @@ export function ColumnFilter({
             />
           )}
 
-          {type === 'month' && (
+          {type === ColumnFilterTypeEnum.month && (
             <MonthYearFilter
               option={filterOption}
               selectedMonthYear={localMonthYear}
@@ -564,7 +605,7 @@ export function ColumnFilter({
             />
           )}
 
-          {type === 'factory' && (
+          {type === ColumnFilterTypeEnum.factory && (
             <FactoryFilter
               option={filterOption}
               selectedValues={localSelectedValues}
@@ -575,7 +616,7 @@ export function ColumnFilter({
             />
           )}
 
-          {type === 'category' && (
+          {type === ColumnFilterTypeEnum.category && (
             <CategoryFilter
               option={filterOption}
               selectedValues={localSelectedValues}
@@ -587,7 +628,7 @@ export function ColumnFilter({
             />
           )}
 
-          {type === 'company' && (
+          {type === ColumnFilterTypeEnum.company && (
             <CompanyFilter
               option={filterOption}
               selectedValues={localSelectedValues}
@@ -598,7 +639,7 @@ export function ColumnFilter({
             />
           )}
           
-          {type === 'companyType' && (
+          {type === ColumnFilterTypeEnum.companyType && (
             <CompanyTypeFilter
               option={filterOption}
               selectedValues={localSelectedValues}
@@ -609,7 +650,7 @@ export function ColumnFilter({
             />
           )}
 
-          {type === 'user' && (
+          {type === ColumnFilterTypeEnum.user && (
             <UserFilter
               option={filterOption}
               selectedValues={localSelectedValues}
@@ -617,6 +658,30 @@ export function ColumnFilter({
               onApply={handleDropdownApply}
               onClear={handleClear}
               hasActiveFilter={getSelectedValues().length > 0}
+            />
+          )}
+
+          {type === ColumnFilterTypeEnum.customer && (
+            <CustomerFilter
+              option={filterOption}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
+            />
+          )}
+
+          {type === ColumnFilterTypeEnum.picklist && picklistKey && (
+            <PicklistFilter
+              picklistKey={picklistKey as PicklistKey}
+              selectedValues={localSelectedValues}
+              onToggleValue={toggleDropdownValue}
+              onSelectValue={selectSingleValue}
+              onApply={handleDropdownApply}
+              onClear={handleClear}
+              hasActiveFilter={getSelectedValues().length > 0}
+              multiSelect={multiSelect}
             />
           )}
         </PopoverPrimitive.Content>

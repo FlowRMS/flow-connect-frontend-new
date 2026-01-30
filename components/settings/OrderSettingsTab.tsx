@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SettingsToggle } from './SettingsToggle';
 import { SettingsScopeToggle } from './SettingsScopeToggle';
 import { ColumnConfigEditor } from './ColumnConfigEditor';
@@ -9,6 +9,8 @@ import type { OrderSettingsValue, OrderColumnConfig } from '@/components/lib/gra
 import { DEFAULT_VISIBLE_COLUMNS, COLUMN_LABELS } from '@/components/orders/detail/constants';
 import type { ColumnKey } from '@/components/orders/detail/types';
 import { showSuccessToast, showErrorToast } from '@/components/lib/toast';
+import { PicklistEditor } from '@/lib/picklists/components';
+import { PicklistKey } from '@/lib/picklists/enums';
 
 // All available columns for orders
 const ALL_ORDER_COLUMNS: ColumnKey[] = [
@@ -77,6 +79,10 @@ export function OrderSettingsTab() {
   const [localSettings, setLocalSettings] = useState<OrderSettingsValue | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  
+  // Picklist state
+  const [picklistHasChanges, setPicklistHasChanges] = useState(false);
+  const picklistSaveRef = useRef<(() => Promise<boolean>) | null>(null);
 
   // Get the active settings based on scope
   const activeSettings = scope === 'my' ? mySettings : tenantSettings;
@@ -103,12 +109,25 @@ export function OrderSettingsTab() {
 
     setIsSaving(true);
     try {
-      const success = await saveSettings(localSettings, scope);
-      if (success) {
+      let allSuccess = true;
+      
+      // Save tab settings if changed
+      if (hasChanges) {
+        const success = await saveSettings(localSettings, scope);
+        if (!success) allSuccess = false;
+      }
+      
+      // Save picklist if changed (only for tenant scope)
+      if (scope === 'tenant' && picklistHasChanges && picklistSaveRef.current) {
+        const picklistSuccess = await picklistSaveRef.current();
+        if (!picklistSuccess) allSuccess = false;
+      }
+      
+      if (allSuccess) {
         showSuccessToast(`Order settings saved to ${scope === 'my' ? 'My Settings' : 'Tenant Settings'}`);
         setHasChanges(false);
       } else {
-        showErrorToast('Failed to save order settings');
+        showErrorToast('Failed to save some settings');
       }
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -136,31 +155,34 @@ export function OrderSettingsTab() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-[var(--foreground)]">Order Settings</h2>
-          <p className="text-sm text-[var(--muted-foreground)] mt-1">
-            Configure default settings for orders
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleReset}
-            className="px-3 py-1.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded-md transition-colors"
-          >
-            Reset to Defaults
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!hasChanges || isSaving}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-              hasChanges && !isSaving
-                ? 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]'
-                : 'bg-[var(--muted)] text-[var(--muted-foreground)] cursor-not-allowed'
-            }`}
-          >
-            {isSaving ? 'Saving...' : 'Save Settings'}
-          </button>
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-10 bg-[var(--background)] pb-4 border-b border-[var(--border)]">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-[var(--foreground)]">Order Settings</h2>
+            <p className="text-sm text-[var(--muted-foreground)] mt-1">
+              Configure default settings for orders
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleReset}
+              className="px-3 py-1.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded-md transition-colors"
+            >
+              Reset to Defaults
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!(hasChanges || picklistHasChanges) || isSaving}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                (hasChanges || picklistHasChanges) && !isSaving
+                  ? 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]'
+                  : 'bg-[var(--muted)] text-[var(--muted-foreground)] cursor-not-allowed'
+              }`}
+            >
+              {isSaving ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -225,6 +247,17 @@ export function OrderSettingsTab() {
           comingSoonKeys={COMING_SOON_COLUMNS}
         />
       </div>
+
+      {/* Order Types Picklist - Only visible for tenant settings */}
+      {scope === 'tenant' && (
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+          <PicklistEditor 
+            picklistKey={PicklistKey.ORDER_TYPES} 
+            onHasChangesChange={setPicklistHasChanges}
+            onSaveReady={(saveFn) => { picklistSaveRef.current = saveFn; }}
+          />
+        </div>
+      )}
 
       {/* Info Banner */}
       <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">

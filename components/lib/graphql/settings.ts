@@ -94,6 +94,17 @@ export interface CommissionSettingsValue {
   columnConfig: CommissionColumnConfig[];
 }
 
+export interface CommissionColumnConfig {
+  key: string;
+  label: string;
+  visible: boolean;
+  pinned?: boolean;
+}
+
+export interface CommissionSettingsValue {
+  columnConfig: CommissionColumnConfig[];
+}
+
 export type ProcessingMode = 'automatic' | 'manual';
 
 export interface VoicePersonalityConfig {

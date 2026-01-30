@@ -15,6 +15,7 @@ export const ORDER_TABLE_COLUMNS: ColumnConfig[] = [
   { id: 'orderNumber', width: '140px', label: 'Order #', sortable: true, filterable: true },
   { id: 'totalCommission', width: '140px', label: 'Commission', sortable: true, filterable: true, align: 'right' },
   { id: 'status', width: '130px', label: 'Status', sortable: true, filterable: true },
+  { id: 'orderType', width: '120px', label: 'Order Type', sortable: true, filterable: true },
   { id: 'total', width: '120px', label: 'Amount', sortable: true, filterable: true, align: 'right' },
   { id: 'orderDate', width: '130px', label: 'Order Date', sortable: true, filterable: true },
   { id: 'entryDate', width: '130px', label: 'Entry Date', sortable: false, filterable: false },
