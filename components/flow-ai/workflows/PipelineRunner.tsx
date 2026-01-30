@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useWorkflowTenant } from '@/lib/flow-ai/workflow-tenant-context';
 import type { Workflow, PipelineExecuteResponse } from '@/lib/flow-ai/workflow-api';
 import { cleanupOldImports } from '@/lib/flow-ai/workflow-import-storage';
-import { jsonToCsv, downloadCsv, parseNodeResult } from '@/lib/flow-ai/pipeline-utils';
+import { jsonToCsv, downloadCsv } from '@/lib/flow-ai/pipeline-utils';
 import { toast } from 'sonner';
 import {
   usePipelineFiles,

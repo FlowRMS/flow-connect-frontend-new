@@ -121,7 +121,7 @@ export function usePipelineExecution({
         undefined,
         4,
         savedCode,
-        4
+        { startFromNode: 4, workflowId: workflow?.id }
       );
       setPipelineResult(res);
 

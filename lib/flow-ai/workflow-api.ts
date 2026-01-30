@@ -146,6 +146,7 @@ export interface PipelineExecuteResponse {
   warnings?: string[];
   column_mapping?: Record<string, string>;
   fileIds?: string[];
+  executionId?: string;
 }
 
 interface GraphQLWorkflow {
@@ -223,27 +224,36 @@ function parseOutputDataNodes(outputData: ExecutionOutputData | string | undefin
     return undefined;
   }
 
+  let parsedOutput: ExecutionOutputData | undefined = undefined;
   if (typeof outputData === 'string') {
     try {
-      return JSON.parse(outputData);
+      parsedOutput = JSON.parse(outputData);
     } catch {
+      console.error('Failed to parse output_data JSON string');
       return undefined;
     }
+  } else {
+    parsedOutput = outputData;
   }
 
-  if (outputData.nodes && typeof outputData.nodes === 'string') {
+  if (!parsedOutput || typeof parsedOutput !== 'object') {
+    return parsedOutput;
+  }
+
+  // Handle nested nodes JSON string
+  if (parsedOutput.nodes && typeof parsedOutput.nodes === 'string') {
     try {
       return {
-        ...outputData,
-        nodes: JSON.parse(outputData.nodes),
+        ...parsedOutput,
+        nodes: JSON.parse(parsedOutput.nodes as unknown as string),
       };
-    } catch (err) {
-      console.error('Failed to parse output_data.nodes JSON string:', err);
-      return outputData;
+    } catch {
+      console.error('Failed to parse output_data.nodes JSON string');
+      return parsedOutput;
     }
   }
 
-  return outputData;
+  return parsedOutput;
 }
 
 function parseJsonString<T>(value: T | string, fallback: T): T {
@@ -522,7 +532,12 @@ class WorkflowAPI {
     existingFileIds: string[] | undefined,
     stopAfter: number = 4,
     overrideCode?: string,
-    startFromNode: number = 1
+    options?: {
+      executionId?: string;
+      startFromNode?: number;
+      runAsync?: boolean;
+      workflowId?: string;
+    }
   ): Promise<PipelineExecuteResponse> {
     const client = apolloClient;
 
@@ -541,7 +556,7 @@ class WorkflowAPI {
     }
 
     const { data } = await client.mutate<{
-      executePipeline: GraphQLPipelineResult;
+      executePipeline: GraphQLPipelineResult & { executionId?: string | null };
     }>({
       mutation: M_EXECUTE_PIPELINE,
       variables: {
@@ -549,7 +564,10 @@ class WorkflowAPI {
         fileIds,
         overrideCode,
         stopAfter,
-        startFromNode,
+        executionId: options?.executionId,
+        startFromNode: options?.startFromNode,
+        runAsync: options?.runAsync ?? false,
+        workflowId: options?.workflowId,
       },
     });
 
@@ -566,6 +584,7 @@ class WorkflowAPI {
       result: result.result,
       nodes: nodes,
       fileIds: fileIds,
+      executionId: result.executionId ?? undefined,
     };
 
     if (result.warnings) {

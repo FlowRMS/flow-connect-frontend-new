@@ -67,27 +67,85 @@ export default function CreateWorkflowPage() {
   const [loadingStep, setLoadingStep] = useState<StepIndex | null>(null);
   const [pipelineResult, setPipelineResult] = useState<PipelineExecuteResponse | null>(null);
   const [uploadedFileIds, setUploadedFileIds] = useState<string[] | null>(null);
+  const [executionId, setExecutionId] = useState<string | null>(null);
+  const [pollingExecutionId, setPollingExecutionId] = useState<string | null>(null);
   const [autoDownloadedCsv, setAutoDownloadedCsv] = useState(false);
+  const [lastHydratedExecutionId, setLastHydratedExecutionId] = useState<string | null>(null);
   const [showVisibilityDialog, setShowVisibilityDialog] = useState(false);
   const [savingVisibility, setSavingVisibility] = useState(false);
+  const isPolling = pollingExecutionId !== null;
+  const isBusy = loadingStep !== null || isPolling;
 
   const canRun = useMemo(
     () => prompt.trim().length > 0 && files.length > 0,
     [prompt, files]
   );
 
+  const mergePipelineResult = (
+    prev: PipelineExecuteResponse | null,
+    next: PipelineExecuteResponse
+  ): PipelineExecuteResponse => {
+    if (!prev) return next;
+    const mergedNodes = { ...(prev.nodes ?? {}) };
+    Object.entries(next.nodes ?? {}).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        mergedNodes[key] = value;
+      }
+    });
+    return {
+      ...prev,
+      ...next,
+      nodes: mergedNodes,
+      fileIds: next.fileIds ?? prev.fileIds,
+      executionId: next.executionId ?? prev.executionId,
+    };
+  };
+
+  const normalizePipelineResponse = (
+    res: PipelineExecuteResponse
+  ): PipelineExecuteResponse => {
+    const rawNodes = (res as unknown as { nodes?: unknown }).nodes;
+    let nodes = res.nodes ?? {};
+    if (typeof rawNodes === 'string') {
+      try {
+        nodes = JSON.parse(rawNodes) as PipelineExecuteResponse['nodes'];
+      } catch (err) {
+        console.warn('Failed to parse nodes JSON string in response.', err);
+        nodes = {};
+      }
+    }
+    if (!nodes || typeof nodes !== 'object') {
+      nodes = {};
+    }
+    return {
+      ...res,
+      nodes,
+    };
+  };
+
   const handleFileChange = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     const arr = Array.from(fileList);
     setFiles((prev) => [...prev, ...arr]);
+    setUploadedFileIds(null);
+    setExecutionId(null);
+    setPipelineResult(null);
     toast.success(`Added ${arr.length} file(s)`);
   };
 
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
+    setUploadedFileIds(null);
+    setExecutionId(null);
+    setPipelineResult(null);
   };
 
   const runStep = async (step: StepIndex) => {
+    if (isPolling) {
+      toast.error('A pipeline execution is already running.');
+      return;
+    }
+
     // For step 1, we need files. For steps 2-4, we need uploadedFileIds from step 1.
     if (step === 1) {
       if (!canRun) {
@@ -99,11 +157,21 @@ export default function CreateWorkflowPage() {
         toast.error('Please run Node 1 first to upload files.');
         return;
       }
+      if (!executionId) {
+        toast.error('Please run Node 1 first to initialize the execution.');
+        return;
+      }
     }
 
     setLoadingStep(step);
     try {
-      const shouldOverrideCode = step === 4 && editedCode.trim().length > 0;
+      const node3Code = pipelineResult?.nodes?.node3?.code ?? '';
+      const overrideCode =
+        step === 4
+          ? (editedCode.trim() || node3Code || '').trim()
+          : '';
+      const shouldOverrideCode = step === 4 && overrideCode.length > 0;
+      const runAsync = step === 4;
 
       // For step 1: upload files (pass files, no existingFileIds)
       // For steps 2-4: reuse fileIds from step 1 (pass undefined for files, pass existingFileIds)
@@ -112,7 +180,12 @@ export default function CreateWorkflowPage() {
         step === 1 ? files : undefined,
         step === 1 ? undefined : uploadedFileIds ?? undefined,
         step,
-        shouldOverrideCode ? editedCode : undefined
+        shouldOverrideCode ? overrideCode : undefined,
+        {
+          executionId: step === 1 ? undefined : executionId ?? undefined,
+          startFromNode: step,
+          runAsync,
+        }
       );
 
       // Store fileIds from step 1 for reuse in subsequent steps
@@ -121,12 +194,56 @@ export default function CreateWorkflowPage() {
         console.log('📁 Stored fileIds for reuse:', res.fileIds);
       }
 
-      setPipelineResult(res);
+      if (res.executionId) {
+        setExecutionId(res.executionId);
+      }
 
       if (!res.success) {
         toast.error(res.error || `Pipeline failed at node ${step}`);
         return;
       }
+
+      if (runAsync) {
+        if (!res.executionId) {
+          toast.error('Execution did not return an ID. Cannot poll for results.');
+          return;
+        }
+        setAutoDownloadedCsv(false);
+        setPollingExecutionId(res.executionId);
+        setCurrentStep(step);
+        toast.success('Node 4 started. Waiting for completion...');
+        return;
+      }
+
+      const normalizedRes = normalizePipelineResponse(res);
+      let hydratedResult = normalizedRes;
+
+      const hydrationId = normalizedRes.executionId ?? executionId;
+      if (hydrationId && step >= 2) {
+        try {
+          const execution = await workflowAPI.getExecution(hydrationId);
+          let nodes = execution.output_data?.nodes ?? {};
+          if (typeof nodes === 'string') {
+            try {
+              nodes = JSON.parse(nodes);
+            } catch (err) {
+              console.warn('Failed to parse execution nodes JSON string.', err);
+              nodes = {};
+            }
+          }
+          if (nodes && Object.keys(nodes).length > 0) {
+            hydratedResult = mergePipelineResult(hydratedResult, {
+              ...normalizedRes,
+              nodes,
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to hydrate pipeline nodes from execution.', err);
+        }
+      }
+
+      // Ensure state is updated even if hydration fails.
+      setPipelineResult((prev) => mergePipelineResult(prev, hydratedResult));
 
       setMaxCompletedStep((prev) => {
         const next = step > prev ? step : prev;
@@ -150,6 +267,34 @@ export default function CreateWorkflowPage() {
 
   const handleRunThisStep = async () => {
     await runStep(currentStep);
+  };
+
+  const extractTabularData = (raw: any): Record<string, any>[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (Array.isArray(raw?.data)) return raw.data;
+    if (Array.isArray(raw?.rows)) return raw.rows;
+    if (Array.isArray(raw?.result)) return raw.result;
+    if (Array.isArray(raw?.customer_price_list)) return raw.customer_price_list;
+    if (Array.isArray(raw?.preview_rows)) return raw.preview_rows;
+    return [];
+  };
+
+  // Extract S3 output file URL if streaming was used
+  const getOutputFileUrl = (raw: any): string | null => {
+    if (!raw) return null;
+    // Direct output_file
+    if (typeof raw?.output_file === 'string' && raw.output_file.startsWith('http')) {
+      return raw.output_file;
+    }
+    return null;
+  };
+
+  // Get row count from streaming result
+  const getRowCount = (raw: any): number | null => {
+    if (!raw) return null;
+    if (typeof raw?.row_count === 'number') return raw.row_count;
+    return null;
   };
 
   const handleSaveWorkflow = () => {
@@ -281,17 +426,121 @@ export default function CreateWorkflowPage() {
   };
 
   useEffect(() => {
+    if (!pollingExecutionId) return;
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const pollExecution = async () => {
+      try {
+        const execution = await workflowAPI.getExecution(pollingExecutionId);
+        if (cancelled) return;
+
+        if (execution.status === 'completed' || execution.status === 'failed') {
+          const output = execution.output_data ?? {};
+          let nodes = output?.nodes ?? {};
+          if (typeof nodes === 'string') {
+            try {
+              nodes = JSON.parse(nodes);
+            } catch (err) {
+              nodes = {};
+            }
+          }
+          let columnMapping: Record<string, string> | undefined;
+          const rawColumnMapping = output?.column_mapping ?? output?.columnMapping;
+          if (typeof rawColumnMapping === 'string') {
+            try {
+              columnMapping = JSON.parse(rawColumnMapping);
+            } catch {
+              columnMapping = undefined;
+            }
+          } else if (rawColumnMapping && typeof rawColumnMapping === 'object') {
+            columnMapping = rawColumnMapping as Record<string, string>;
+          }
+
+          const response: PipelineExecuteResponse = {
+            success: typeof output?.success === 'boolean' ? output.success : execution.status === 'completed',
+            error: (typeof output?.error === 'string' ? output.error : null) ?? execution.error_message ?? null,
+            result: output?.result ?? null,
+            nodes: nodes,
+            warnings: Array.isArray(output?.warnings) ? output.warnings : undefined,
+            column_mapping: columnMapping,
+            fileIds: uploadedFileIds ?? undefined,
+            executionId: pollingExecutionId,
+          };
+
+          setPipelineResult((prev) => mergePipelineResult(prev, response));
+          setMaxCompletedStep(4);
+          setCurrentStep(4);
+          setPollingExecutionId(null);
+
+          if (execution.status === 'failed') {
+            toast.error(response.error || 'Node 4 failed.');
+          } else {
+            toast.success('Node 4 completed successfully.');
+          }
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+        setPollingExecutionId(null);
+        toast.error(err.message || 'Failed to fetch execution status.');
+      }
+    };
+
+    pollExecution();
+    intervalId = setInterval(pollExecution, 4000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [pollingExecutionId, uploadedFileIds]);
+
+  useEffect(() => {
     if (!pipelineResult?.nodes?.node4 || autoDownloadedCsv) return;
     const raw = pipelineResult.nodes.node4.result;
-    const rawObj = raw as Record<string, unknown> | undefined;
-    const data = (rawObj?.data ?? rawObj?.rows ?? raw) as Record<string, unknown>[] | undefined;
-    if (!Array.isArray(data) || !data.length) return;
+    const data = extractTabularData(raw);
+    if (!data.length) return;
     const csv = jsonToCsv(data);
     if (!csv) return;
     downloadCsv('workflow-result.csv', csv);
     setAutoDownloadedCsv(true);
     toast.success('Result CSV downloaded.');
   }, [pipelineResult, autoDownloadedCsv]);
+
+  useEffect(() => {
+    if (!executionId) return;
+    if (lastHydratedExecutionId === executionId) return;
+    if (pipelineResult?.nodes?.node2 && pipelineResult?.nodes?.node3) return;
+
+    const hydrateNodes = async () => {
+      try {
+        const execution = await workflowAPI.getExecution(executionId);
+        let nodes = execution.output_data?.nodes ?? {};
+        if (typeof nodes === 'string') {
+          try {
+            nodes = JSON.parse(nodes);
+          } catch (err) {
+            console.warn('Failed to parse execution nodes JSON string.', err);
+            nodes = {};
+          }
+        }
+        if (nodes && Object.keys(nodes).length > 0) {
+          setPipelineResult((prev) =>
+            mergePipelineResult(prev, {
+              success: true,
+              nodes,
+            } as PipelineExecuteResponse)
+          );
+        }
+      } catch (err) {
+        console.warn('Failed to hydrate pipeline nodes from execution.', err);
+      } finally {
+        setLastHydratedExecutionId(executionId);
+      }
+    };
+
+    hydrateNodes();
+  }, [executionId, lastHydratedExecutionId, pipelineResult]);
 
   const node1 = pipelineResult?.nodes?.node1;
   const node2 = pipelineResult?.nodes?.node2;
@@ -377,7 +626,7 @@ export default function CreateWorkflowPage() {
         </p>
       );
     return (
-      <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-[420px]">
+      <pre className="text-xs bg-muted p-3 rounded whitespace-pre-wrap break-words">
         {JSON.stringify(node2.workflow_plan ?? node2, null, 2)}
       </pre>
     );
@@ -416,7 +665,7 @@ export default function CreateWorkflowPage() {
                 />
               </TabsContent>
               <TabsContent value="pseudo">
-                <div className="pseudo-code-container p-6 bg-card border rounded-lg overflow-auto max-h-[500px]">
+                <div className="pseudo-code-container p-6 bg-card border rounded-lg">
                   <div className="pseudo-code-content">
                     <div
                       dangerouslySetInnerHTML={{ __html: convertPseudoCodeToHTML(pseudoCode) }}
@@ -443,7 +692,7 @@ export default function CreateWorkflowPage() {
             edit actual code.
           </div>
           {pseudoCode ? (
-            <div className="pseudo-code-container p-6 bg-card border rounded-lg overflow-auto max-h-[500px]">
+            <div className="pseudo-code-container p-6 bg-card border rounded-lg">
               <div className="pseudo-code-content">
                 <div
                   dangerouslySetInnerHTML={{ __html: convertPseudoCodeToHTML(pseudoCode) }}
@@ -464,6 +713,25 @@ export default function CreateWorkflowPage() {
   };
 
   const renderNode4 = () => {
+    // Show waiting message when polling for worker completion
+    if (isPolling) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary" />
+          <div className="text-center space-y-2">
+            <h3 className="text-lg font-semibold">Processing your data...</h3>
+            <p className="text-sm text-muted-foreground max-w-md">
+              This process may take several minutes depending on the size of your data.
+              Please do not close this tab or navigate away.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              The page will automatically update when the process is complete.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     if (!node4)
       return (
         <p className="text-sm text-muted-foreground">
@@ -471,23 +739,40 @@ export default function CreateWorkflowPage() {
         </p>
       );
     const raw = node4.result;
-    const rawObj = raw as Record<string, unknown> | undefined;
-    const data = Array.isArray(rawObj?.data)
-      ? rawObj.data
-      : Array.isArray(rawObj?.rows)
-      ? rawObj.rows
-      : Array.isArray(rawObj?.result)
-      ? rawObj.result
-      : Array.isArray(raw)
-      ? raw
-      : [];
+    const data = extractTabularData(raw);
     const hasData = Array.isArray(data) && data.length;
+    const outputFileUrl = getOutputFileUrl(raw);
+    const rowCount = getRowCount(raw);
+    const isStreaming = !!outputFileUrl;
     return (
       <>
+        {/* Show streaming info banner if applicable */}
+        {isStreaming && rowCount !== null && (
+          <div className="mb-3 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-primary">
+                  Streaming Result: {rowCount.toLocaleString()} rows generated
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Showing preview below. Click download for the complete file.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  window.open(outputFileUrl, '_blank');
+                }}
+              >
+                Download Full CSV
+              </Button>
+            </div>
+          </div>
+        )}
         <Tabs defaultValue="table">
           <TabsList className="mb-2">
             <TabsTrigger value="table" className="text-xs">
-              Table
+              {isStreaming ? 'Preview' : 'Table'}
             </TabsTrigger>
             <TabsTrigger value="json" className="text-xs">
               Raw JSON
@@ -551,7 +836,7 @@ export default function CreateWorkflowPage() {
             </Button>
           )}
           {/* CSV download button (for tabular data) */}
-          {hasData && (
+          {hasData && !isStreaming && (
             <Button
               size="sm"
               variant="outline"
@@ -590,7 +875,7 @@ export default function CreateWorkflowPage() {
   const canGoNext = currentStep < 4 && maxCompletedStep >= currentStep;
 
   const stepStatus = (step: StepIndex) => {
-    if (loadingStep === step) return 'loading';
+    if (loadingStep === step || (isPolling && step === 4)) return 'loading';
     if (maxCompletedStep >= step) return 'done';
     return 'pending';
   };
@@ -608,7 +893,7 @@ export default function CreateWorkflowPage() {
   }, [pipelineResult]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="h-screen overflow-auto bg-gradient-to-br from-background via-background to-primary/5">
       <div className="container mx-auto px-6 py-8 space-y-6">
         <div className="flex items-center justify-between mb-2">
           <Button variant="ghost" asChild>
@@ -630,7 +915,7 @@ export default function CreateWorkflowPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-1">
-            <Card className="sticky top-24 flow-card">
+            <Card className="lg:sticky lg:top-8 flow-card max-h-[calc(100vh-6rem)] overflow-auto">
               <CardHeader>
                 <CardTitle>Pipeline Input</CardTitle>
                 <CardDescription>Prompt and files for this run</CardDescription>
@@ -721,7 +1006,7 @@ export default function CreateWorkflowPage() {
                   <Button
                     type="button"
                     className="w-full"
-                    disabled={!canRun || loadingStep !== null}
+                    disabled={!canRun || isBusy}
                     onClick={() => runStep(1)}
                   >
                     {loadingStep === 1 ? (
@@ -741,10 +1026,10 @@ export default function CreateWorkflowPage() {
                     type="button"
                     variant="outline"
                     className="w-full"
-                    disabled={loadingStep !== null}
+                    disabled={isBusy}
                     onClick={handleRunThisStep}
                   >
-                    {loadingStep === currentStep ? (
+                    {loadingStep === currentStep || (isPolling && currentStep === 4) ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         Running Node {currentStep}...
@@ -762,7 +1047,7 @@ export default function CreateWorkflowPage() {
                     variant="outline"
                     className="w-full"
                     disabled={
-                      currentStep < 3 || !pipelineResult || loadingStep !== null
+                      currentStep < 3 || !pipelineResult || isBusy
                     }
                     onClick={handleSaveWorkflow}
                   >
@@ -819,7 +1104,7 @@ export default function CreateWorkflowPage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={currentStep === 1 || loadingStep !== null}
+                      disabled={currentStep === 1 || isBusy}
                       onClick={() => setCurrentStep((prev) => (prev - 1) as StepIndex)}
                     >
                       Previous
@@ -827,7 +1112,7 @@ export default function CreateWorkflowPage() {
                     <Button
                       type="button"
                       size="sm"
-                      disabled={!canGoNext || loadingStep !== null}
+                      disabled={!canGoNext || isBusy}
                       onClick={handleNext}
                     >
                       {loadingStep === ((currentStep + 1) as StepIndex) ? (
