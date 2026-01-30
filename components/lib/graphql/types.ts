@@ -597,6 +597,9 @@ export interface ProductSearchResult {
 export interface FactorySearchResult {
   id: string;
   title: string;
+  published?: boolean;
+  isParent?: boolean;
+  parentId?: string;
 }
 
 export interface CustomerSearchResult {

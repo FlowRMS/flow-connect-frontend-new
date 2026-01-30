@@ -58,6 +58,8 @@ export interface Factory {
   splitRates?: FactorySplitRate[];
   createdBy?: User;
   createdAt?: string;
+  isParent: boolean;
+  parentId?: string;
 }
 
 export interface FactoryLandingPage {
@@ -76,6 +78,16 @@ export interface FactoryLandingPage {
   splitRates?: string;
   createdBy?: string;
   createdAt?: string;
+  isParent: boolean;
+  parent?: string;
+}
+
+export interface FactoryLiteResponse {
+  id: string;
+  title: string;
+  published: boolean;
+  isParent: boolean;
+  parentId?: string;
 }
 
 export interface CreateFactoryInput {
@@ -94,6 +106,8 @@ export interface CreateFactoryInput {
   phone?: string;
   published: boolean;
   splitRates?: FactorySplitRateInput[];
+  isParent?: boolean;
+  parentId?: string;
 }
 
 export interface UpdateFactoryInput {
@@ -112,6 +126,8 @@ export interface UpdateFactoryInput {
   phone?: string;
   published?: boolean;
   splitRates?: FactorySplitRateInput[];
+  isParent?: boolean;
+  parentId?: string;
 }
 
 export interface FactoryLandingPageFilter {
@@ -171,6 +187,8 @@ const FIND_FACTORIES_LANDING_PAGES = `
           commissionDiscountRate
           baseCommissionRate
           accountNumber
+          isParent
+          parent
         }
       }
       total
@@ -229,6 +247,8 @@ const FIND_FACTORY_BY_ID = `
         }
       }
       title
+      isParent
+      parentId
     }
   }
 `;
@@ -284,6 +304,8 @@ const CREATE_FACTORY = `
         }
       }
       title
+      isParent
+      parentId
     }
   }
 `;
@@ -339,6 +361,8 @@ const UPDATE_FACTORY = `
         }
       }
       title
+      isParent
+      parentId
     }
   }
 `;
@@ -346,6 +370,30 @@ const UPDATE_FACTORY = `
 const DELETE_FACTORY = `
   mutation DeleteFactory($id: UUID!) {
     deleteFactory(id: $id)
+  }
+`;
+
+const FACTORY_CHILDREN = `
+  query FactoryChildren($parentId: UUID!) {
+    factoryChildren(parentId: $parentId) {
+      id
+      title
+      published
+      isParent
+      parentId
+    }
+  }
+`;
+
+const ASSIGN_CHILD_FACTORIES = `
+  mutation AssignChildFactories($parentId: UUID!, $childIds: [UUID!]!) {
+    assignChildFactories(parentId: $parentId, childIds: $childIds) {
+      id
+      title
+      published
+      isParent
+      parentId
+    }
   }
 `;
 
@@ -490,4 +538,39 @@ export async function fetchAllFactoryIds(
   }
 
   return allIds;
+}
+
+/**
+ * Fetch all child factories for a given parent factory
+ */
+export async function fetchFactoryChildren(parentId: string): Promise<FactoryLiteResponse[]> {
+  const response = await crmGraphQLRequest<{ factoryChildren: FactoryLiteResponse[] }>({
+    query: FACTORY_CHILDREN,
+    variables: { parentId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch factory children');
+  }
+
+  return response.data?.factoryChildren || [];
+}
+
+/**
+ * Assign child factories to a parent factory
+ */
+export async function assignChildFactories(
+  parentId: string,
+  childIds: string[]
+): Promise<FactoryLiteResponse[]> {
+  const response = await crmGraphQLRequest<{ assignChildFactories: FactoryLiteResponse[] }>({
+    query: ASSIGN_CHILD_FACTORIES,
+    variables: { parentId, childIds },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to assign child factories');
+  }
+
+  return response.data?.assignChildFactories || [];
 }

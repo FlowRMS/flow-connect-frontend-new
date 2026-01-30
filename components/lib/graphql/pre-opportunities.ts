@@ -337,6 +337,9 @@ const SEARCH_FACTORIES = `
     factorySearch(searchTerm: $searchTerm, published: $published) {
       id
       title
+      published
+      isParent
+      parentId
     }
   }
 `;
