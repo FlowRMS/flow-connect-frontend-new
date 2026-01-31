@@ -22,7 +22,8 @@ import {
 import { useCreateCRMJob, useCRMJobStatuses } from '@/components/hooks/useCRMApi';
 import type { JobInput } from '@/components/lib/crm-graphql';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
-import { usePicklistSettings } from '@/contexts/UserSettingsContext';
+import { usePicklistSettings, useOrderSettings } from '@/contexts/UserSettingsContext';
+import type { OutsideRepSource } from '@/components/lib/graphql/settings';
 import { getAllPicklistOptions, getPicklistLabel } from '@/components/settings/picklistValues';
 
 // ComingSoonBadge component for unsupported features
@@ -95,6 +96,10 @@ export function OrderDetailsFields({
     fetchOutsideRepsFromCustomer,
     fetchInsideRepsFromFactory,
   } = useAutoPopulateReps();
+
+  // Get outside rep source setting (tenant-wide) - read from tenant settings directly since personal settings mask it
+  const { settings: orderSettings, tenantSettings: orderTenantSettings } = useOrderSettings();
+  const outsideRepSource: OutsideRepSource = orderTenantSettings?.outsideRepSource || orderSettings?.outsideRepSource || 'end_user';
   
   // Job creation mutation and statuses
   const createJobMutation = useCreateCRMJob();
@@ -136,6 +141,10 @@ export function OrderDetailsFields({
   // Bill to same as sold to checkbox state
   // Initialize to false - user must explicitly check it (matching quotes behavior)
   const [billToSameAsSoldTo, setBillToSameAsSoldTo] = useState(false);
+
+  // Outside rep auto-populate loading state
+  const [isPopulatingOutsideReps, setIsPopulatingOutsideReps] = useState(false);
+  const [outsideRepPopulateSource, setOutsideRepPopulateSource] = useState<string | null>(null);
 
   // Update the checkbox when order changes - check both directions
   useEffect(() => {
@@ -267,38 +276,67 @@ export function OrderDetailsFields({
     }
   };
 
-  // Auto-populate outside reps from end user (called when end user changes)
-  const autoPopulateOutsideReps = async (endUserId: string) => {
-    const reps = await fetchOutsideRepsFromCustomer(endUserId);
-    if (reps.length === 0) return;
+  // Resolve the customer ID to use for outside rep auto-population based on the outsideRepSource setting
+  const getOutsideRepCustomerId = (): string => {
+    switch (outsideRepSource) {
+      case 'sold_to':
+        return order.customerId || '';
+      case 'bill_to':
+        return (order as any).billToCustomerId || '';
+      case 'end_user':
+      default:
+        return (order as any).endUserId || '';
+    }
+  };
 
-    if (showOutsideRepPerLine) {
-      // Per line item mode - populate all line items
-      onAutoPopulateOutsideRepsToLineItems?.(reps);
-    } else {
-      // Header level mode - populate header fields
-      const primaryRep = reps[0];
-      setOrderOutsideRep(primaryRep.userId);
-      handleFieldUpdate('outsideRepId' as keyof Order, primaryRep.userId);
-      handleFieldUpdate('outsideRepName' as keyof Order, primaryRep.userName);
+  // Source labels for the loading indicator
+  const outsideRepSourceLabel: Record<string, string> = {
+    'sold_to': 'Sold To',
+    'bill_to': 'Bill To',
+    'end_user': 'End User',
+  };
 
-      if (reps.length > 1) {
-        // Multiple reps - enable split commission
-        setSplitOutsideCommission(true);
-        const defaultPercentage = Math.floor(100 / reps.length);
-        setOutsideRepSplits(reps.map((r, idx) => {
-          const parsed = parseInt(r.splitRate, 10);
-          return {
-            repId: r.userId || '',
-            repName: r.userName || '',
-            percentage: !isNaN(parsed) ? parsed : (idx === reps.length - 1 ? 100 - (defaultPercentage * (reps.length - 1)) : defaultPercentage),
-          };
-        }));
-        openOutsideRepModal();
+  // Auto-populate outside reps from the configured source customer
+  const autoPopulateOutsideReps = async (customerId?: string, sourceOverride?: string) => {
+    const idToUse = customerId || getOutsideRepCustomerId();
+    if (!idToUse) return;
+    const sourceLabel = outsideRepSourceLabel[sourceOverride || outsideRepSource] || 'Customer';
+    setIsPopulatingOutsideReps(true);
+    setOutsideRepPopulateSource(sourceLabel);
+    try {
+      const reps = await fetchOutsideRepsFromCustomer(idToUse);
+      if (reps.length === 0) return;
+
+      if (showOutsideRepPerLine) {
+        onAutoPopulateOutsideRepsToLineItems?.(reps);
       } else {
-        setSplitOutsideCommission(false);
-        setOutsideRepSplits([]);
+        const primaryRep = reps[0];
+        setOrderOutsideRep(primaryRep.userId);
+        handleFieldUpdate('outsideRepId' as keyof Order, primaryRep.userId);
+        handleFieldUpdate('outsideRepName' as keyof Order, primaryRep.userName);
+
+        if (reps.length > 1) {
+          setSplitOutsideCommission(true);
+          const defaultPercentage = Math.floor(100 / reps.length);
+          setOutsideRepSplits(reps.map((r, idx) => {
+            const parsed = parseInt(r.splitRate, 10);
+            return {
+              repId: r.userId || '',
+              repName: r.userName || '',
+              percentage: !isNaN(parsed) ? parsed : (idx === reps.length - 1 ? 100 - (defaultPercentage * (reps.length - 1)) : defaultPercentage),
+            };
+          }));
+          openOutsideRepModal();
+        } else {
+          setSplitOutsideCommission(false);
+          setOutsideRepSplits([]);
+        }
       }
+    } catch (error) {
+      console.error('Failed to auto-populate outside reps:', error);
+    } finally {
+      setIsPopulatingOutsideReps(false);
+      setOutsideRepPopulateSource(null);
     }
   };
 
@@ -375,23 +413,26 @@ export function OrderDetailsFields({
               <SearchableDropdownV2
                 value={order.customerId || ''}
                 displayValue={order.customerName}
-                onChange={(id, label) => {
+                onChange={async (id, label) => {
                   handleFieldUpdate('customerId', id);
                   handleFieldUpdate('customerName', label);
                   setSoldToSearchEnabled(false);
-                  // If "Same as sold to" is checked, update end user too and auto-populate outside reps
                   if (endUserSameAsSoldTo) {
                     handleFieldUpdate('endUserId' as keyof Order, id);
                     handleFieldUpdate('endUserName' as keyof Order, label);
-                    // Auto-populate outside reps from end user (which is same as sold to in this case)
-                    if (id) {
-                      autoPopulateOutsideReps(id);
-                    }
                   }
-                  // If "Same as sold to" is checked for bill to, update bill to too
                   if (billToSameAsSoldTo) {
                     handleFieldUpdate('billToCustomerId' as keyof Order, id);
                     handleFieldUpdate('billToCustomerName' as keyof Order, label);
+                  }
+                  if (id) {
+                    if (outsideRepSource === 'sold_to') {
+                      await autoPopulateOutsideReps(id, 'sold_to');
+                    } else if (outsideRepSource === 'end_user' && endUserSameAsSoldTo) {
+                      await autoPopulateOutsideReps(id, 'end_user');
+                    } else if (outsideRepSource === 'bill_to' && billToSameAsSoldTo) {
+                      await autoPopulateOutsideReps(id, 'bill_to');
+                    }
                   }
                 }}
                 options={soldToOptions}
@@ -411,10 +452,13 @@ export function OrderDetailsFields({
               <SearchableDropdownV2
                 value={(order as any).billToCustomerId || ''}
                 displayValue={(order as any).billToCustomerName}
-                onChange={(id, label) => {
+                onChange={async (id, label) => {
                   handleFieldUpdate('billToCustomerId' as keyof Order, id);
                   handleFieldUpdate('billToCustomerName' as keyof Order, label);
                   setBillToSearchEnabled(false);
+                  if (id && outsideRepSource === 'bill_to') {
+                    await autoPopulateOutsideReps(id, 'bill_to');
+                  }
                 }}
                 options={billToOptions}
                 placeholder="Select Bill To..."
@@ -429,11 +473,14 @@ export function OrderDetailsFields({
                 <input
                   type="checkbox"
                   checked={billToSameAsSoldTo}
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     setBillToSameAsSoldTo(e.target.checked);
                     if (e.target.checked && order.customerId) {
                       handleFieldUpdate('billToCustomerId' as keyof Order, order.customerId);
                       handleFieldUpdate('billToCustomerName' as keyof Order, order.customerName);
+                      if (outsideRepSource === 'bill_to') {
+                        await autoPopulateOutsideReps(order.customerId, 'bill_to');
+                      }
                     }
                   }}
                   className="w-3 h-3 accent-[var(--primary)]"
@@ -452,13 +499,12 @@ export function OrderDetailsFields({
                   <SearchableDropdownV2
                     value={(order as any).endUserId || ''}
                     displayValue={(order as any).endUserName || ''}
-                    onChange={(id, label) => {
+                    onChange={async (id, label) => {
                       handleFieldUpdate('endUserId' as keyof Order, id);
                       handleFieldUpdate('endUserName' as keyof Order, label);
                       setEndUserSearchEnabled(false);
-                      // Auto-populate outside reps from end user
-                      if (id) {
-                        autoPopulateOutsideReps(id);
+                      if (id && outsideRepSource === 'end_user') {
+                        await autoPopulateOutsideReps(id, 'end_user');
                       }
                     }}
                     options={endUserOptions}
@@ -474,13 +520,14 @@ export function OrderDetailsFields({
                     <input
                       type="checkbox"
                       checked={endUserSameAsSoldTo}
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         setEndUserSameAsSoldTo(e.target.checked);
                         if (e.target.checked && order.customerId) {
                           handleFieldUpdate('endUserId' as keyof Order, order.customerId);
                           handleFieldUpdate('endUserName' as keyof Order, order.customerName);
-                          // Auto-populate outside reps from end user (which is same as sold to)
-                          autoPopulateOutsideReps(order.customerId);
+                          if (outsideRepSource === 'end_user') {
+                            await autoPopulateOutsideReps(order.customerId, 'end_user');
+                          }
                         }
                       }}
                       className="w-3 h-3 accent-[var(--primary)]"
@@ -638,6 +685,15 @@ export function OrderDetailsFields({
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Outside Rep
+                {isPopulatingOutsideReps && (
+                  <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] font-normal text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded animate-pulse">
+                    <svg className="animate-spin h-2.5 w-2.5" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    from {outsideRepPopulateSource}
+                  </span>
+                )}
               </label>
               {showOutsideRepPerLine ? (
                 <input

@@ -730,6 +730,14 @@ earnAmount = commissionAmount + overageAmount
 - `showInsideRepPerLine`: Different inside reps per line
 - `showEndUserPerLine`: Different end users per line
 
+### Outside Rep Population Source
+- `outsideRepSource`: Tenant-wide setting controlling which customer's outside reps auto-populate
+  - `'end_user'` (default): Outside reps are fetched from the End User customer
+  - `'sold_to'`: Outside reps are fetched from the Sold To Customer
+  - `'bill_to'`: Outside reps are fetched from the Bill To Customer
+- Configurable in: Order detail Settings tab, central Settings page (Order Settings)
+- Stored in `ORDER_SETTINGS` via `saveTenantSetting`
+
 ### Adhoc vs Catalog Products
 - **Catalog**: productId references catalog, auto-fills from product
 - **Adhoc**: productNameAdhoc/productDescriptionAdhoc, custom pricing
