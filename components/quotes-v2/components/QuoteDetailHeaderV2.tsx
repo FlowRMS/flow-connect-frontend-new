@@ -11,6 +11,7 @@ import { searchUsers } from '../../quotes/api/quotesApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { FactoryOverageSettingsModal } from '../modals/FactoryOverageSettingsModal';
+import { useFactory } from '@/components/warehouse/api/useFactoriesApi';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
 import CreateSubmittalModal from '@/components/submittals/CreateSubmittalModal';
@@ -475,6 +476,18 @@ export function QuoteDetailHeaderV2({
   const createJobMutation = useCreateCRMJob();
   const { data: jobStatuses } = useCRMJobStatuses();
   const { data: factories, isLoading: isFactoriesLoading } = useFactorySearch(factorySearchTerm, factorySearchEnabled);
+  // Fetch factory details to check overage settings
+  const { data: selectedFactory } = useFactory(quote.factoryId || '');
+  const isOverageAllowed = selectedFactory?.overageAllowed ?? false;
+
+  // Auto-switch to Simple View if overage is not allowed for the factory
+  useEffect(() => {
+    if (!isOverageAllowed && viewMode === 'overage') {
+      handleViewModeChange('simple');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOverageAllowed, viewMode]);
+
   const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, false, outsideRepSearchEnabled, true); // isInside=false, isOutside=true
   const { data: insideSplitRepResults, isLoading: isInsideSplitRepLoading } = useUserSearch(insideSplitRepSearchTerm, true, insideSplitRepSearchEnabled, false); // isInside=true, isOutside=false
   const { data: outsideSplitRepResults, isLoading: isOutsideSplitRepLoading } = useUserSearch(outsideSplitRepSearchTerm, false, outsideSplitRepSearchEnabled, true); // isInside=false, isOutside=true
@@ -1048,12 +1061,20 @@ export function QuoteDetailHeaderV2({
                   </button>
                   <button
                     onClick={() => {
-                      handleViewModeChange('overage');
-                      setShowViewModeMenu(false);
+                      if (isOverageAllowed) {
+                        handleViewModeChange('overage');
+                        setShowViewModeMenu(false);
+                      }
                     }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${viewMode === 'overage' ? 'bg-gray-50' : ''}`}
+                    disabled={!isOverageAllowed}
+                    title={!isOverageAllowed ? 'Overage is not enabled for this manufacturer. Click the gear icon to enable.' : ''}
+                    className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between ${
+                      !isOverageAllowed
+                        ? 'text-gray-400 cursor-not-allowed'
+                        : 'hover:bg-gray-50'
+                    } ${viewMode === 'overage' ? 'bg-gray-50' : ''}`}
                   >
-                    <span>Overage View</span>
+                    <span>Overage View {!isOverageAllowed && '(Disabled)'}</span>
                     {viewMode === 'overage' && (
                       <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" className="text-indigo-600">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />

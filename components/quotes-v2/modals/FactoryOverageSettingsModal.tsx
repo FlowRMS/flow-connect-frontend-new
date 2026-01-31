@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useFactory, useUpdateFactoryOverageSettings, type OverageType } from '@/components/warehouse/api/useFactoriesApi';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface FactoryOverageSettingsModalProps {
   isOpen: boolean;
@@ -22,8 +23,16 @@ export function FactoryOverageSettingsModal({
     repOverageShare: '100.00',
   });
 
-  const { data: factory, isLoading: isLoadingFactory } = useFactory(factoryId || '');
+  const queryClient = useQueryClient();
+  const { data: factory, isLoading: isLoadingFactory, refetch } = useFactory(factoryId || '');
   const updateOverageSettings = useUpdateFactoryOverageSettings();
+
+  // Refetch factory data when modal opens to ensure fresh data
+  useEffect(() => {
+    if (isOpen && factoryId) {
+      refetch();
+    }
+  }, [isOpen, factoryId, refetch]);
 
   useEffect(() => {
     if (factory) {
@@ -43,6 +52,8 @@ export function FactoryOverageSettingsModal({
         id: factoryId,
         input: formData,
       });
+      // Invalidate factory cache to refresh data across the app
+      queryClient.invalidateQueries({ queryKey: ['factories'] });
       onClose();
     } catch (error) {
       console.error('Failed to update overage settings:', error);
