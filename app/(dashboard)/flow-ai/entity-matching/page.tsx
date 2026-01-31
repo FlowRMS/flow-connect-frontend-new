@@ -2,7 +2,7 @@
 
 import { useState, Suspense, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ChevronRight, Loader2, Sparkles, CheckCircle2, Info, Search, Plus, HelpCircle, Ban, ChevronDown, SkipForward, FileText } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Loader2, Sparkles, CheckCircle2, Info, Search, Plus, HelpCircle, Ban, ChevronDown, SkipForward, FileText, ExternalLink, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Badge } from '@/components/flow-ai/ui/badge';
 import { Checkbox } from '@/components/flow-ai/ui/checkbox';
@@ -54,6 +54,7 @@ function getVisibleSteps(documentType: string | null): EntityStep[] {
 }
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import { Q_GET_PENDING, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
+import { fetchCustomerById } from '@/components/customers/api/customersApi';
 
 export default function EntityMatchingPage() {
   return (
@@ -175,6 +176,16 @@ function EntityMatchingContent() {
 
   // State for workflow triggering (new flow)
   const [isProcessingWorkflow, setIsProcessingWorkflow] = useState(false);
+
+  // State for outside rep validation modal
+  const [showOutsideRepModal, setShowOutsideRepModal] = useState(false);
+  const [missingOutsideRepEntities, setMissingOutsideRepEntities] = useState<Array<{
+    id: string;
+    name: string;
+    tab: 'Sold To Customer' | 'Bill To Customer' | 'End User';
+    customerId: string;
+  }>>([]);
+  const [isCheckingOutsideReps, setIsCheckingOutsideReps] = useState(false);
 
   // State for document type (CHECKS, INVOICES, etc.)
   const [documentType, setDocumentType] = useState<string | null>(null);
@@ -299,6 +310,99 @@ function EntityMatchingContent() {
   // Removed auto-skip logic - user must manually click "Complete & Continue" button
   // even when all entities are automatically matched or no entities exist
 
+  // Check outside reps for all matched customers, bill-to customers, and end users
+  const checkOutsideReps = async (): Promise<boolean> => {
+    const entitiesToCheck: Array<{
+      id: string;
+      name: string;
+      tab: 'Sold To Customer' | 'Bill To Customer' | 'End User';
+      customerId: string;
+    }> = [];
+
+    // Helper: collect matched entities (CONFIRMED, AUTO_MATCHED, or CREATED_NEW with bestMatchId)
+    const isMatched = (e: PendingEntity) =>
+      (e.confirmationStatus === 'CONFIRMED' || e.confirmationStatus === 'AUTO_MATCHED') && e.bestMatchId;
+
+    // Sold To Customers - always required
+    for (const e of customers) {
+      if (isMatched(e)) {
+        entitiesToCheck.push({
+          id: e.id,
+          name: e.bestMatchName || e.displayName,
+          tab: 'Sold To Customer',
+          customerId: e.bestMatchId!,
+        });
+      }
+    }
+
+    // Bill To Customers - only if not skipped (user actually selected/approved a match)
+    for (const e of billToCustomers) {
+      if (isMatched(e)) {
+        entitiesToCheck.push({
+          id: e.id,
+          name: e.bestMatchName || e.displayName,
+          tab: 'Bill To Customer',
+          customerId: e.bestMatchId!,
+        });
+      }
+    }
+
+    // End Users - always required
+    for (const e of endUsers) {
+      if (isMatched(e)) {
+        entitiesToCheck.push({
+          id: e.id,
+          name: e.bestMatchName || e.displayName,
+          tab: 'End User',
+          customerId: e.bestMatchId!,
+        });
+      }
+    }
+
+    if (entitiesToCheck.length === 0) return true;
+
+    setIsCheckingOutsideReps(true);
+    try {
+      // Deduplicate by customerId to avoid fetching same customer multiple times
+      const uniqueCustomerIds = [...new Set(entitiesToCheck.map(e => e.customerId))];
+      const customerDataMap = new Map<string, boolean>();
+
+      await Promise.all(
+        uniqueCustomerIds.map(async (customerId) => {
+          try {
+            const customer = await fetchCustomerById(customerId);
+            const hasOutsideRep = (customer?.outsideReps && customer.outsideReps.length > 0) || false;
+            customerDataMap.set(customerId, hasOutsideRep);
+          } catch (err) {
+            console.error(`Failed to fetch customer ${customerId}:`, err);
+            // Treat fetch failure as missing outside rep to be safe
+            customerDataMap.set(customerId, false);
+          }
+        })
+      );
+
+      const missing = entitiesToCheck.filter(e => !customerDataMap.get(e.customerId));
+
+      if (missing.length > 0) {
+        // Deduplicate by customerId for display (same customer might appear in multiple tabs)
+        const seen = new Set<string>();
+        const uniqueMissing = missing.filter(e => {
+          const key = `${e.customerId}-${e.tab}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setMissingOutsideRepEntities(uniqueMissing);
+        setShowOutsideRepModal(true);
+        return false;
+      }
+
+      return true;
+    } finally {
+      setIsCheckingOutsideReps(false);
+    }
+  };
+
   const handleCompleteMatching = async () => {
     if (!pendingId) {
       toast.error('No pending ID found');
@@ -308,6 +412,13 @@ function EntityMatchingContent() {
     setIsProcessingWorkflow(true);
 
     try {
+      // First check outside reps for all matched customers
+      const outsideRepsValid = await checkOutsideReps();
+      if (!outsideRepsValid) {
+        setIsProcessingWorkflow(false);
+        return;
+      }
+
       // Call executeDocumentWorkflow mutation
       console.log('📄 Executing document workflow for pendingId:', pendingId);
       toast.info('Processing document...');
@@ -340,6 +451,16 @@ function EntityMatchingContent() {
       console.error('Error in handleCompleteMatching:', error);
       toast.error('Failed to process document. Please try again.');
       setIsProcessingWorkflow(false);
+    }
+  };
+
+  // Re-check outside reps after user says they've added them
+  const handleOutsideRepAdded = async () => {
+    const valid = await checkOutsideReps();
+    if (valid) {
+      setShowOutsideRepModal(false);
+      setMissingOutsideRepEntities([]);
+      toast.success('All outside reps verified! You can now complete the matching.');
     }
   };
 
@@ -1259,7 +1380,7 @@ function EntityMatchingContent() {
               <Button
                 size="lg"
                 onClick={handleCompleteMatching}
-                disabled={isProcessingWorkflow || factoryEntitiesLoading}
+                disabled={isProcessingWorkflow || factoryEntitiesLoading || isCheckingOutsideReps}
                 className="gap-2 bg-green-600 hover:bg-green-700"
               >
                 {isProcessingWorkflow ? (
@@ -1455,6 +1576,7 @@ function EntityMatchingContent() {
             disabled={
               (isLastStep && !allValidated) ||
               isProcessingWorkflow ||
+              isCheckingOutsideReps ||
               // Only disable for factory loading if trying to go to a factory-dependent step or completing
               (factoryEntitiesLoading && (isLastStep || FACTORY_DEPENDENT_TABS.includes(getNextStep(currentStep) as EntityStep)))
             }
@@ -1733,6 +1855,73 @@ function EntityMatchingContent() {
         onSearchFactories={searchFactories}
         repRequirements={getRepRequirements()}
       />
+
+      {/* Missing Outside Rep Modal */}
+      <Dialog open={showOutsideRepModal} onOpenChange={setShowOutsideRepModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+              </div>
+              <div>
+                <DialogTitle>Missing Outside Rep</DialogTitle>
+                <DialogDescription>
+                  The following customers do not have an outside rep assigned. You must add an outside rep before continuing.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-3 py-4 max-h-[400px] overflow-y-auto">
+            {missingOutsideRepEntities.map((entity) => (
+              <div
+                key={`${entity.customerId}-${entity.tab}`}
+                className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {entity.tab}
+                    </Badge>
+                    <span className="font-medium text-sm">{entity.name}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">No outside rep assigned</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs shrink-0"
+                  onClick={() => {
+                    window.open(`/customers/${entity.customerId}/edit`, '_blank');
+                  }}
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Go to Customer
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowOutsideRepModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleOutsideRepAdded}
+              disabled={isCheckingOutsideReps}
+              className="gap-2"
+            >
+              {isCheckingOutsideReps ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              I&apos;ve Added the Outside Rep
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
