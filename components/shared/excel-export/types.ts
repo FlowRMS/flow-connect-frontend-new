@@ -6,13 +6,12 @@
  */
 
 import type { ActiveFilter } from '@/components/advancedFilters/types';
-import type { ColumnForExport } from '@/lib/analytics/utils/exportGridCsv';
 
 /**
  * Entity types that support Excel export
- * Starting with 'orders', ready to add: 'invoices', 'statements', 'quotes'
+ * Starting with 'orders', ready to add: 'statements', 'quotes'
  */
-export type ExportableEntityType = 'orders';
+export type ExportableEntityType = 'orders' | 'invoices';
 
 /**
  * Export type for formatting in Excel

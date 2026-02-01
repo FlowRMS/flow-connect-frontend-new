@@ -3,7 +3,6 @@
  * Local types for the orders list component
  */
 
-import type { Order } from '@/lib/types/rms';
 import type { ExportType } from '@/components/shared/excel-export/types';
 
 // Sort configuration

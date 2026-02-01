@@ -701,6 +701,7 @@ export function useInvoicesListState() {
   return {
     // Invoices data
     invoices,
+    allInvoicesData, // Raw InvoiceLandingPage[] data for export
     setInvoices,
     // Loading and error state
     isLoading,

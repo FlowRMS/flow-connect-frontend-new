@@ -17,7 +17,6 @@ import type { RefObject } from 'react';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
 import SortButton from '@/components/SortButton';
 import { useOrdersListState } from './hooks/useOrdersListState';
-import type { OrderLandingPage } from '../api';
 import { getOrderFilterOptions, getOrderSortOptions } from './config/filterConfig';
 import { OrdersTable } from './components/table/OrdersTable';
 import { OrdersEmptyState } from './components/table/OrdersEmptyState';
@@ -32,11 +31,10 @@ import { SaveViewButton } from '@/components/shared';
 import { orderQueryKeys } from '../api/useOrdersApi';
 import { useOrderSettings } from '@/contexts/UserSettingsContext';
 import type { SavedViewState } from '@/components/lib/graphql/settings';
-import { ExportExcelButton, getExportColumnsFromConfig, mapDataForExport } from '@/components/shared/excel-export';
+import { ExportExcelButton, useEntityExport } from '@/components/shared/excel-export';
 import { ORDER_TABLE_COLUMNS } from './config/columnConfig';
 import { getQuickDateRange } from './utils';
 import type { QuickDatePreset } from './types';
-import type { ExportContext } from '@/components/shared/excel-export/types';
 
 export default function OrdersListContent() {
   const router = useRouter();
@@ -129,61 +127,27 @@ export default function OrdersListContent() {
     }));
   }, [state.serverOrderBy]);
 
-  // Build export context for Excel export
-  const exportContext = useMemo<ExportContext<Record<string, unknown>>>(() => {
-    const mappedData = mapDataForExport(
-      state.allOrdersData as unknown as Record<string, unknown>[],
-      ORDER_TABLE_COLUMNS
-    );
-    const exportColumns = getExportColumnsFromConfig(ORDER_TABLE_COLUMNS);
-    
-    // Calculate quick date range if preset is not 'all'
-    const quickDateRange = state.quickDatePreset !== 'all' 
-      ? (() => {
-          const range = getQuickDateRange(state.quickDatePreset);
-          if (!range.start || !range.end) return undefined;
-          return {
-            startDate: range.start.toISOString().split('T')[0],
-            endDate: range.end.toISOString().split('T')[0],
-          };
-        })()
-      : undefined;
-
-    // Convert sorting to export format
-    const exportSorting = state.serverOrderBy.length > 0
-      ? state.serverOrderBy.map(sort => ({
-          prop: sort.columnName,
-          order: sort.direction.toLowerCase() as 'asc' | 'desc',
-        }))
-      : undefined;
-
-    return {
+  // Excel export hook
+  const { context: exportContext } = useEntityExport({
+    data: state.allOrdersData as unknown as Record<string, unknown>[],
+    activeFilters: state.activeFilters,
+    columnFilters: state.columnFilters,
+    quickDatePreset: state.quickDatePreset,
+    quickDateField: state.quickDateField,
+    sorting: state.serverOrderBy,
+    searchQuery: state.searchQuery,
+    config: {
       entityType: 'orders',
-      data: mappedData,
-      columns: exportColumns,
-      activeFilters: state.activeFilters,
-      columnFilters: state.columnFilters,
-      quickDatePreset: state.quickDatePreset,
-      quickDateField: state.quickDateField,
-      quickDateRange,
-      sorting: exportSorting,
-      searchQuery: state.searchQuery,
+      columns: ORDER_TABLE_COLUMNS,
+      getQuickDateRange: (preset: string) => getQuickDateRange(preset as QuickDatePreset),
       reportTitle: 'Orders Export',
-    };
-  }, [
-    state.allOrdersData,
-    state.activeFilters,
-    state.columnFilters,
-    state.quickDatePreset,
-    state.quickDateField,
-    state.serverOrderBy,
-    state.searchQuery,
-  ]);
+    },
+  });
 
   // Handler for column sort click - only allows one sort at a time (replaces previous)
   const handleColumnSort = useCallback((columnName: string) => {
     // Check if this column is already the active sort
-    const currentSort = activeSorts.find(s => s.columnName === columnName);
+    const currentSort = activeSorts.find((s: { columnName: string; direction: string }) => s.columnName === columnName);
     
     if (currentSort) {
       // Column is already sorted - toggle direction (replace with new direction)

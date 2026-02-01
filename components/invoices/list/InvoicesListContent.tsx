@@ -27,6 +27,10 @@ import { BulkDeleteModal, BulkActionsToolbar, SaveViewButton } from '../../share
 import { InvoicesEmptyState } from './components/table';
 import { useInvoiceSettings } from '@/contexts/UserSettingsContext';
 import type { SavedViewState } from '@/components/lib/graphql/settings';
+import { ExportExcelButton, useEntityExport } from '@/components/shared/excel-export';
+import { INVOICE_TABLE_COLUMNS } from './config/columnConfig';
+import { getQuickDateRange } from './utils';
+import type { QuickDatePreset } from './types';
 
 export default function InvoicesListContent() {
   const state = useInvoicesListState();
@@ -123,6 +127,29 @@ export default function InvoicesListContent() {
         direction: state.sortDirection.toUpperCase() as 'ASC' | 'DESC',
       }
     : undefined;
+
+  // Excel export hook
+  // Convert activeSort to sorting array format for useEntityExport
+  const sorting = activeSort ? [{
+    columnName: activeSort.columnName,
+    direction: activeSort.direction,
+  }] : undefined;
+
+  const { context: exportContext } = useEntityExport({
+    data: state.allInvoicesData as unknown as Record<string, unknown>[],
+    activeFilters: state.activeFilters,
+    columnFilters: state.columnFilters,
+    quickDatePreset: state.quickDatePreset,
+    quickDateField: state.quickDateField,
+    sorting,
+    searchQuery: state.searchQuery,
+    config: {
+      entityType: 'invoices',
+      columns: INVOICE_TABLE_COLUMNS,
+      getQuickDateRange: (preset: string) => getQuickDateRange(preset as QuickDatePreset),
+      reportTitle: 'Invoices Export',
+    },
+  });
 
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
@@ -236,8 +263,8 @@ export default function InvoicesListContent() {
             </motion.div>
           </div>
 
-          {/* Quick Date Filter */}
-          <div className="mt-4">
+          {/* Quick Date Filter and Export Button */}
+          <div className="mt-4 flex items-center justify-between">
             <QuickDateFilter
               quickDatePreset={state.quickDatePreset}
               setQuickDatePreset={state.setQuickDatePreset}
@@ -245,6 +272,10 @@ export default function InvoicesListContent() {
               setQuickDateField={state.setQuickDateField}
               showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
               setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
+            />
+            <ExportExcelButton
+              context={exportContext}
+              options={{}}
             />
           </div>
         </div>

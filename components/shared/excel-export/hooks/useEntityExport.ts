@@ -173,5 +173,10 @@ export function useEntityExport<T extends Record<string, unknown>>({
     ]
   );
 
-  return useListExport(context, options);
+  const listExport = useListExport(context, options);
+
+  return {
+    ...listExport,
+    context, // Expose context for ExportExcelButton
+  };
 }
