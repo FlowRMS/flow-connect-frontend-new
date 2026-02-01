@@ -658,10 +658,14 @@ function formatFilterInfo(filters: Record<string, unknown>, dateRange?: { startD
         filterLines.push(`Year Filter: ${yearLabel}`);
       }
     } else if (Array.isArray(values) && values.length > 0) {
+      // Multiple values (IN operator)
       const formattedValues = values.length > 5 ? 
         `${values.slice(0, 5).join(", ")} and ${values.length - 5} more` : 
         values.join(", ");
       filterLines.push(`${columnName}: ${formattedValues}`);
+    } else if (values !== undefined && values !== null && values !== '') {
+      // Single value
+      filterLines.push(`${columnName}: ${values}`);
     }
   });
   
