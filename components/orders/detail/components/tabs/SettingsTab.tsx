@@ -6,7 +6,10 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useOrderSettings } from '@/contexts/UserSettingsContext';
+import type { OutsideRepSource } from '@/components/lib/graphql/settings';
+import { showSuccessToast, showErrorToast } from '@/components/lib/toast';
 
 interface SettingsTabProps {
   showEndUserPerLine: boolean;
@@ -33,6 +36,42 @@ export function SettingsTab({
   hasFreightLine,
   onToggleFreightLine,
 }: SettingsTabProps) {
+  const { settings: orderSettings, tenantSettings, saveSettings } = useOrderSettings();
+  const [outsideRepSource, setOutsideRepSource] = useState<OutsideRepSource>('end_user');
+  const [isSavingRepSource, setIsSavingRepSource] = useState(false);
+
+  // Sync from tenant settings
+  useEffect(() => {
+    const tenantSource = (tenantSettings as any)?.outsideRepSource;
+    if (tenantSource) {
+      setOutsideRepSource(tenantSource);
+    } else if (orderSettings?.outsideRepSource) {
+      setOutsideRepSource(orderSettings.outsideRepSource);
+    }
+  }, [orderSettings, tenantSettings]);
+
+  // Save outsideRepSource directly to tenant settings
+  const handleOutsideRepSourceChange = async (value: OutsideRepSource) => {
+    setOutsideRepSource(value);
+    setIsSavingRepSource(true);
+    try {
+      const currentTenantSettings = tenantSettings || orderSettings || {};
+      const success = await saveSettings(
+        { ...currentTenantSettings, outsideRepSource: value } as any,
+        'tenant'
+      );
+      if (success) {
+        showSuccessToast('Outside rep source saved');
+      } else {
+        showErrorToast('Failed to save outside rep source');
+      }
+    } catch {
+      showErrorToast('Failed to save outside rep source');
+    } finally {
+      setIsSavingRepSource(false);
+    }
+  };
+
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
       <div className="space-y-5">
@@ -90,6 +129,56 @@ export function SettingsTab({
           <div className="flex flex-col">
             <span className="text-sm font-medium text-[var(--foreground)]">Inside rep at line item level</span>
             <span className="text-xs text-[var(--muted-foreground)]">{showInsideRepPerLine ? 'Set inside rep per line item' : 'Set inside rep in header'}</span>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-[var(--border)]"></div>
+
+        {/* Outside Rep Population Source - Tenant Wide */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-[var(--foreground)]">Outside Rep Population Source</span>
+            <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Tenant Wide</span>
+            {isSavingRepSource && (
+              <span className="text-xs text-[var(--muted-foreground)]">Saving...</span>
+            )}
+          </div>
+          <p className="text-xs text-[var(--muted-foreground)]">Choose which customer&apos;s outside reps auto-populate when selected</p>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="outsideRepSource"
+                checked={outsideRepSource === 'end_user'}
+                onChange={() => handleOutsideRepSourceChange('end_user')}
+                disabled={isSavingRepSource}
+                className="accent-[var(--primary)]"
+              />
+              <span className="text-sm text-[var(--foreground)]">End User</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="outsideRepSource"
+                checked={outsideRepSource === 'sold_to'}
+                onChange={() => handleOutsideRepSourceChange('sold_to')}
+                disabled={isSavingRepSource}
+                className="accent-[var(--primary)]"
+              />
+              <span className="text-sm text-[var(--foreground)]">Sold To Customer</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="outsideRepSource"
+                checked={outsideRepSource === 'bill_to'}
+                onChange={() => handleOutsideRepSourceChange('bill_to')}
+                disabled={isSavingRepSource}
+                className="accent-[var(--primary)]"
+              />
+              <span className="text-sm text-[var(--foreground)]">Bill To Customer</span>
+            </label>
           </div>
         </div>
 

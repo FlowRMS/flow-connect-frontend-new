@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { CheckCircle2, Info } from 'lucide-react';
 import { Card } from '@/components/flow-ai/ui/card';
 
@@ -9,6 +10,12 @@ interface InstructionsPaneProps {
 }
 
 export function InstructionsPane({ instructions, className }: InstructionsPaneProps) {
+  // Show latest instructions first
+  const reversedInstructions = useMemo(
+    () => [...instructions].reverse(),
+    [instructions]
+  );
+
   if (instructions.length === 0) {
     return (
       <Card className={className}>
@@ -36,22 +43,26 @@ export function InstructionsPane({ instructions, className }: InstructionsPanePr
         </div>
         
         <div className="space-y-3">
-          {instructions.map((instruction, index) => (
-            <div
-              key={index}
-              className="flex items-start gap-3 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-            >
-              <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-foreground leading-relaxed">{instruction}</p>
+          {reversedInstructions.map((instruction, index) => {
+            // Original index (1-based) for display numbering
+            const originalIndex = instructions.length - index;
+            return (
+              <div
+                key={originalIndex}
+                className="flex items-start gap-3 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+              >
+                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-foreground leading-relaxed">{instruction}</p>
+                </div>
+                <div className="flex-shrink-0">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                    {originalIndex}
+                  </span>
+                </div>
               </div>
-              <div className="flex-shrink-0">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">
-                  {index + 1}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </Card>

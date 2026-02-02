@@ -31,8 +31,7 @@ export type ColumnKey =
   | 'commissionRate'
   | 'expectedCommission'
   | 'paidCommission'
-  | 'balance'
-  | 'paid';
+  | 'balance';
 
 // Rep split configuration (for adjustments)
 export interface RepSplit {

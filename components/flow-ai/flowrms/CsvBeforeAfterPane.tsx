@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, memo } from 'react';
-import { Maximize2, FileSpreadsheet, EyeOff, Eye } from 'lucide-react';
+import { Maximize2, FileSpreadsheet, EyeOff, Eye, ChevronUp, ChevronDown, MessageSquare } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/flow-ai/ui/card';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Badge } from '@/components/flow-ai/ui/badge';
@@ -19,6 +19,7 @@ import dynamic from 'next/dynamic';
 import type { SelectionData } from '@/components/flow-ai/DataGrid';
 import { compareCsvData, transformCsvToObjects, getChangeStats } from '@/lib/flow-ai/csv-comparison';
 import { cn } from '@/lib/flow-ai/cn';
+import { ChatPromptComposer } from '@/components/flow-ai/flowrms/ChatPromptComposer';
 
 // Dynamically import the web component to avoid SSR issues
 const CsvGridWC = dynamic(() => import('@/components/flow-ai/CsvGridWC').then(mod => ({ default: mod.default })), { 
@@ -33,6 +34,14 @@ export interface CsvBeforeAfterPaneProps {
   onSelectionChange?: (selection: SelectionData, closeDialog?: () => void) => void;
   disableInteractions?: boolean;
   layout?: 'side-by-side' | 'stacked';
+  /** Props for showing the prompt composer inside fullscreen dialogs */
+  fullscreenPrompt?: {
+    onSubmit: (value: string) => void;
+    value?: string;
+    onChange?: (value: string) => void;
+    isLoading?: boolean;
+    statusMessage?: string | null;
+  };
 }
 
 // Generate columns from CSV data - memoized function
@@ -67,9 +76,12 @@ const CsvBeforeAfterPaneComponent = ({
   onSelectionChange,
   disableInteractions = false,
   layout = 'side-by-side',
+  fullscreenPrompt,
 }: CsvBeforeAfterPaneProps) => {
   const [isBeforeFullscreen, setIsBeforeFullscreen] = useState(false);
   const [isAfterFullscreen, setIsAfterFullscreen] = useState(false);
+  const [isBeforePromptVisible, setIsBeforePromptVisible] = useState(true);
+  const [isAfterPromptVisible, setIsAfterPromptVisible] = useState(true);
 
   // State for hiding empty rows
   const [hideEmptyRows, setHideEmptyRows] = useState(false);
@@ -201,7 +213,7 @@ const CsvBeforeAfterPaneComponent = ({
                   Fullscreen
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full">
+              <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full flex flex-col">
                 <ContextMenuProvider>
                   <DialogHeader>
                     <DialogTitle>Before (Original CSV) - Fullscreen View</DialogTitle>
@@ -226,11 +238,35 @@ const CsvBeforeAfterPaneComponent = ({
                               : (selection: SelectionData) =>
                                   handleBeforeSelectionChange(selection, () => setIsBeforeFullscreen(false))
                           }
-                          height={"calc(70vh - 60px)"}
+                          height={fullscreenPrompt && isBeforePromptVisible ? "calc(70vh - 280px)" : "calc(70vh - 60px)"}
                         />
                       </div>
                     </div>
                   </div>
+                  {fullscreenPrompt && (
+                    <div className="flex-none border-t">
+                      <button
+                        type="button"
+                        onClick={() => setIsBeforePromptVisible(prev => !prev)}
+                        className="flex items-center gap-2 w-full px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span className="font-medium">Prompt</span>
+                        {isBeforePromptVisible ? <ChevronDown className="w-3.5 h-3.5 ml-auto" /> : <ChevronUp className="w-3.5 h-3.5 ml-auto" />}
+                      </button>
+                      {isBeforePromptVisible && (
+                        <div className="px-0 pb-2">
+                          <ChatPromptComposer
+                            onSubmit={fullscreenPrompt.onSubmit}
+                            value={fullscreenPrompt.value}
+                            onChange={fullscreenPrompt.onChange}
+                            isLoading={fullscreenPrompt.isLoading}
+                            statusMessage={fullscreenPrompt.statusMessage}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </ContextMenuProvider>
               </DialogContent>
             </Dialog>
@@ -307,7 +343,7 @@ const CsvBeforeAfterPaneComponent = ({
                     Fullscreen
                   </Button>
                 </DialogTrigger>
-              <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full">
+              <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full flex flex-col">
                 <ContextMenuProvider>
                   <DialogHeader>
                     <DialogTitle>After (Processed CSV) - Fullscreen View</DialogTitle>
@@ -317,9 +353,9 @@ const CsvBeforeAfterPaneComponent = ({
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2 pl-2 border-l border-gray-300">
-                          <Checkbox 
-                            id="hide-empty-fullscreen" 
-                            checked={hideEmptyRows} 
+                          <Checkbox
+                            id="hide-empty-fullscreen"
+                            checked={hideEmptyRows}
                             onCheckedChange={(checked) => setHideEmptyRows(checked === true)}
                           />
                           <Label htmlFor="hide-empty-fullscreen" className="text-xs flex items-center gap-1 cursor-pointer">
@@ -354,11 +390,35 @@ const CsvBeforeAfterPaneComponent = ({
                           enableInteractions={false}
                           showRowNumbers={true}
                           onSelectionChange={(selection: SelectionData) => handleAfterSelectionChange(selection, () => setIsAfterFullscreen(false))}
-                          height={"calc(70vh - 60px)"}
+                          height={fullscreenPrompt && isAfterPromptVisible ? "calc(70vh - 280px)" : "calc(70vh - 60px)"}
                         />
                       </div>
                     </div>
                   </div>
+                  {fullscreenPrompt && (
+                    <div className="flex-none border-t">
+                      <button
+                        type="button"
+                        onClick={() => setIsAfterPromptVisible(prev => !prev)}
+                        className="flex items-center gap-2 w-full px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span className="font-medium">Prompt</span>
+                        {isAfterPromptVisible ? <ChevronDown className="w-3.5 h-3.5 ml-auto" /> : <ChevronUp className="w-3.5 h-3.5 ml-auto" />}
+                      </button>
+                      {isAfterPromptVisible && (
+                        <div className="px-0 pb-2">
+                          <ChatPromptComposer
+                            onSubmit={fullscreenPrompt.onSubmit}
+                            value={fullscreenPrompt.value}
+                            onChange={fullscreenPrompt.onChange}
+                            isLoading={fullscreenPrompt.isLoading}
+                            statusMessage={fullscreenPrompt.statusMessage}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </ContextMenuProvider>
               </DialogContent>
             </Dialog>

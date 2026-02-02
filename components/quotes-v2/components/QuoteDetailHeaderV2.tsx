@@ -9,6 +9,8 @@ import { useCreateCRMJob, useCRMJobStatuses } from '../../hooks/useCRMApi';
 import type { JobInput } from '../../lib/crm-graphql';
 import { searchUsers } from '../../quotes/api/quotesApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
+import { useQuoteSettings } from '@/contexts/UserSettingsContext';
+import type { OutsideRepSource } from '@/components/lib/graphql/settings';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
@@ -187,6 +189,10 @@ export function QuoteDetailHeaderV2({
   // Bill to same as sold to
   const [billToSameAsSoldTo, setBillToSameAsSoldTo] = useState(false);
 
+  // Outside rep auto-populate loading state
+  const [isPopulatingOutsideReps, setIsPopulatingOutsideReps] = useState(false);
+  const [outsideRepPopulateSource, setOutsideRepPopulateSource] = useState<string | null>(null);
+
   // User search state
   const [insideRepSearchTerm, setInsideRepSearchTerm] = useState('');
   const [outsideRepSearchTerm, setOutsideRepSearchTerm] = useState('');
@@ -244,6 +250,69 @@ export function QuoteDetailHeaderV2({
   // Ref to skip useEffect when auto-populating reps (prevents race condition)
   const skipOutsideRepsEffectRef = useRef(false);
   const skipInsideRepsEffectRef = useRef(false);
+
+  // Outside rep source setting - read from tenant settings directly since personal settings mask it
+  const { tenantSettings: quoteTenantSettings } = useQuoteSettings();
+  const outsideRepSource: OutsideRepSource = quoteTenantSettings?.outsideRepSource || settings?.outsideRepSource || 'end_user';
+
+  // Source labels for the loading indicator
+  const outsideRepSourceLabel: Record<string, string> = {
+    'sold_to': 'Sold To',
+    'bill_to': 'Bill To',
+    'end_user': 'End User',
+  };
+
+  // Reusable helper to auto-populate outside reps from a given customer ID
+  const autoPopulateOutsideRepsFromCustomer = useCallback(async (customerId: string, sourceOverride?: string) => {
+    if (!customerId) return;
+    const sourceLabel = outsideRepSourceLabel[sourceOverride || outsideRepSource] || 'Customer';
+    setIsPopulatingOutsideReps(true);
+    setOutsideRepPopulateSource(sourceLabel);
+    try {
+      const reps = await fetchOutsideRepsFromCustomer(customerId);
+      if (reps.length > 0) {
+        if (settings?.outsideRepAtLineLevel) {
+          onAutoPopulateOutsideRepsToLineItems?.(reps);
+        } else {
+          const primaryRep = reps[0];
+          if (reps.length > 1) {
+            setShowOutsideSplitCommission(true);
+            setOutsideSplitReps(reps.map((r, idx) => ({
+              id: r.id,
+              userId: r.userId,
+              userName: r.userName,
+              splitRate: r.splitRate,
+              position: idx + 1,
+            })));
+            skipOutsideRepsEffectRef.current = true;
+            onQuoteChange({
+              outsideRepId: primaryRep.userId,
+              outsideRepName: primaryRep.userName,
+              outsideReps: reps.map((r, idx) => ({
+                id: '',
+                userId: r.userId,
+                splitRate: r.splitRate,
+                position: idx + 1,
+              })),
+            });
+          } else {
+            setShowOutsideSplitCommission(false);
+            setOutsideSplitReps([]);
+            onQuoteChange({
+              outsideRepId: primaryRep.userId,
+              outsideRepName: primaryRep.userName,
+              outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to auto-populate outside reps:', error);
+    } finally {
+      setIsPopulatingOutsideReps(false);
+      setOutsideRepPopulateSource(null);
+    }
+  }, [fetchOutsideRepsFromCustomer, settings?.outsideRepAtLineLevel, onAutoPopulateOutsideRepsToLineItems, onQuoteChange, outsideRepSource]);
 
   // Sync split commission state when quote.insideReps changes
   useEffect(() => {
@@ -500,61 +569,25 @@ export function QuoteDetailHeaderV2({
         endUserId: quote.soldToCustomerId,
         endUserName: quote.soldToCustomerName,
       });
-      // Auto-populate outside reps from end user (which is same as sold to)
-      const reps = await fetchOutsideRepsFromCustomer(quote.soldToCustomerId);
-      if (reps.length > 0) {
-        if (settings?.outsideRepAtLineLevel) {
-          // Per line item mode - populate all line items
-          onAutoPopulateOutsideRepsToLineItems?.(reps);
-        } else {
-          // Header level mode - populate header fields
-          const primaryRep = reps[0];
-          if (reps.length > 1) {
-            // Multiple reps - set up split commission
-            setShowOutsideSplitCommission(true);
-            setOutsideSplitReps(reps.map((r, idx) => ({
-              id: r.id,
-              userId: r.userId,
-              userName: r.userName,
-              splitRate: r.splitRate,
-              position: idx + 1,
-            })));
-            skipOutsideRepsEffectRef.current = true;
-            onQuoteChange({
-              outsideRepId: primaryRep.userId,
-              outsideRepName: primaryRep.userName,
-              outsideReps: reps.map((r, idx) => ({
-                id: '',
-                userId: r.userId,
-                splitRate: r.splitRate,
-                position: idx + 1,
-              })),
-            });
-          } else {
-            // Single rep
-            setShowOutsideSplitCommission(false);
-            setOutsideSplitReps([]);
-            onQuoteChange({
-              outsideRepId: primaryRep.userId,
-              outsideRepName: primaryRep.userName,
-              outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
-            });
-          }
-        }
+      if (outsideRepSource === 'end_user') {
+        await autoPopulateOutsideRepsFromCustomer(quote.soldToCustomerId, 'end_user');
       }
     }
-  }, [quote.soldToCustomerId, quote.soldToCustomerName, onQuoteChange, fetchOutsideRepsFromCustomer, settings?.outsideRepAtLineLevel, onAutoPopulateOutsideRepsToLineItems]);
+  }, [quote.soldToCustomerId, quote.soldToCustomerName, onQuoteChange, outsideRepSource, autoPopulateOutsideRepsFromCustomer]);
 
   // Handle bill to same as sold to checkbox
-  const handleBillToSameAsSoldTo = useCallback((checked: boolean) => {
+  const handleBillToSameAsSoldTo = useCallback(async (checked: boolean) => {
     setBillToSameAsSoldTo(checked);
     if (checked && quote.soldToCustomerId) {
       onQuoteChange({
         billToCustomerId: quote.soldToCustomerId,
         billToCustomerName: quote.soldToCustomerName,
       });
+      if (outsideRepSource === 'bill_to') {
+        await autoPopulateOutsideRepsFromCustomer(quote.soldToCustomerId, 'bill_to');
+      }
     }
-  }, [quote.soldToCustomerId, quote.soldToCustomerName, onQuoteChange]);
+  }, [quote.soldToCustomerId, quote.soldToCustomerName, onQuoteChange, outsideRepSource, autoPopulateOutsideRepsFromCustomer]);
 
   // Add rep to split commission
   const addRepToSplit = useCallback((rep: { id: string; fullName?: string; firstName?: string; lastName?: string }, isInside: boolean) => {
@@ -1215,58 +1248,23 @@ export function QuoteDetailHeaderV2({
               displayValue={quote.soldToCustomerName}
               onChange={async (id, label) => {
                 onQuoteChange({ soldToCustomerId: id, soldToCustomerName: label });
-                // If "Same as sold to" is checked, update end user too and auto-populate outside reps
+                // If "Same as sold to" is checked, update end user too
                 if (endUserSameAsSoldTo) {
                   onQuoteChange({ endUserId: id, endUserName: label });
-                  // Auto-populate outside reps from end user (which is same as sold to in this case)
-                  if (id) {
-                    const reps = await fetchOutsideRepsFromCustomer(id);
-                    if (reps.length > 0) {
-                      if (settings?.outsideRepAtLineLevel) {
-                        // Per line item mode - populate all line items
-                        onAutoPopulateOutsideRepsToLineItems?.(reps);
-                      } else {
-                        // Header level mode - populate header fields
-                        const primaryRep = reps[0];
-                        if (reps.length > 1) {
-                          // Multiple reps - set up split commission
-                          setShowOutsideSplitCommission(true);
-                          setOutsideSplitReps(reps.map((r, idx) => ({
-                            id: r.id,
-                            userId: r.userId,
-                            userName: r.userName,
-                            splitRate: r.splitRate,
-                            position: idx + 1,
-                          })));
-                          // Skip the useEffect to prevent it from overwriting our reps with names
-                          skipOutsideRepsEffectRef.current = true;
-                          onQuoteChange({
-                            outsideRepId: primaryRep.userId,
-                            outsideRepName: primaryRep.userName,
-                            outsideReps: reps.map((r, idx) => ({
-                              id: '',
-                              userId: r.userId,
-                              splitRate: r.splitRate,
-                              position: idx + 1,
-                            })),
-                          });
-                        } else {
-                          // Single rep
-                          setShowOutsideSplitCommission(false);
-                          setOutsideSplitReps([]);
-                          onQuoteChange({
-                            outsideRepId: primaryRep.userId,
-                            outsideRepName: primaryRep.userName,
-                            outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
-                          });
-                        }
-                      }
-                    }
-                  }
                 }
                 // If "Same as sold to" is checked for bill to, update bill to too
                 if (billToSameAsSoldTo) {
                   onQuoteChange({ billToCustomerId: id, billToCustomerName: label });
+                }
+                // Auto-populate outside reps based on source setting
+                if (id) {
+                  if (outsideRepSource === 'sold_to') {
+                    await autoPopulateOutsideRepsFromCustomer(id, 'sold_to');
+                  } else if (outsideRepSource === 'end_user' && endUserSameAsSoldTo) {
+                    await autoPopulateOutsideRepsFromCustomer(id, 'end_user');
+                  } else if (outsideRepSource === 'bill_to' && billToSameAsSoldTo) {
+                    await autoPopulateOutsideRepsFromCustomer(id, 'bill_to');
+                  }
                 }
               }}
               options={soldToOptions}
@@ -1294,50 +1292,8 @@ export function QuoteDetailHeaderV2({
                   displayValue={quote.endUserName || ''}
                   onChange={async (id, label) => {
                     onQuoteChange({ endUserId: id, endUserName: label });
-                    // Auto-populate outside reps from end user
-                    if (id) {
-                      const reps = await fetchOutsideRepsFromCustomer(id);
-                      if (reps.length > 0) {
-                        if (settings?.outsideRepAtLineLevel) {
-                          // Per line item mode - populate all line items
-                          onAutoPopulateOutsideRepsToLineItems?.(reps);
-                        } else {
-                          // Header level mode - populate header fields
-                          const primaryRep = reps[0];
-                          if (reps.length > 1) {
-                            // Multiple reps - set up split commission
-                            setShowOutsideSplitCommission(true);
-                            setOutsideSplitReps(reps.map((r, idx) => ({
-                              id: r.id,
-                              userId: r.userId,
-                              userName: r.userName,
-                              splitRate: r.splitRate,
-                              position: idx + 1,
-                            })));
-                            // Skip the useEffect to prevent it from overwriting our reps with names
-                            skipOutsideRepsEffectRef.current = true;
-                            onQuoteChange({
-                              outsideRepId: primaryRep.userId,
-                              outsideRepName: primaryRep.userName,
-                              outsideReps: reps.map((r, idx) => ({
-                                id: '',
-                                userId: r.userId,
-                                splitRate: r.splitRate,
-                                position: idx + 1,
-                              })),
-                            });
-                          } else {
-                            // Single rep
-                            setShowOutsideSplitCommission(false);
-                            setOutsideSplitReps([]);
-                            onQuoteChange({
-                              outsideRepId: primaryRep.userId,
-                              outsideRepName: primaryRep.userName,
-                              outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
-                            });
-                          }
-                        }
-                      }
+                    if (id && outsideRepSource === 'end_user') {
+                      await autoPopulateOutsideRepsFromCustomer(id, 'end_user');
                     }
                   }}
                   options={endUserOptions}
@@ -1359,8 +1315,18 @@ export function QuoteDetailHeaderV2({
             )}
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Outside Rep</label>
-            {/* Grey out and show "per line item" when settings enabled */}
+            <label className="block text-xs text-gray-500 mb-1">
+              Outside Rep
+              {isPopulatingOutsideReps && (
+                <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] font-normal text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded animate-pulse">
+                  <svg className="animate-spin h-2.5 w-2.5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  from {outsideRepPopulateSource}
+                </span>
+              )}
+            </label>
             {settings?.outsideRepAtLineLevel ? (
               <div className="relative">
                 <input
@@ -1465,7 +1431,12 @@ export function QuoteDetailHeaderV2({
             <SearchableDropdownV2
               value={quote.billToCustomerId}
               displayValue={quote.billToCustomerName}
-              onChange={(id, label) => onQuoteChange({ billToCustomerId: id, billToCustomerName: label })}
+              onChange={async (id, label) => {
+                onQuoteChange({ billToCustomerId: id, billToCustomerName: label });
+                if (id && outsideRepSource === 'bill_to') {
+                  await autoPopulateOutsideRepsFromCustomer(id, 'bill_to');
+                }
+              }}
               options={billToOptions}
               onSearch={handleBillToSearch}
               isLoading={isBillToLoading}

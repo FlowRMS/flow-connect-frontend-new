@@ -25,6 +25,7 @@ interface SplitRatesInputProps {
   entries: SplitRateEntry[];
   onChange: (entries: SplitRateEntry[]) => void;
   disabled?: boolean;
+  required?: boolean;
 }
 
 // Generate unique temp ID
@@ -35,6 +36,7 @@ export function SplitRatesInput({
   entries,
   onChange,
   disabled = false,
+  required = false,
 }: SplitRatesInputProps) {
   const [activeSearchIndex, setActiveSearchIndex] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -249,7 +251,12 @@ export function SplitRatesInput({
             )}
           </div>
           <div>
-            <h4 className={`text-sm font-semibold ${colors.text}`}>{title}</h4>
+            <div className="flex items-center gap-1.5">
+              <h4 className={`text-sm font-semibold ${colors.text}`}>{title}</h4>
+              {required && (
+                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-600 rounded">Required</span>
+              )}
+            </div>
             {/* Show total only for Outside Reps */}
             {!isInside && (
               <p className="text-xs text-gray-500">
@@ -275,14 +282,16 @@ export function SplitRatesInput({
 
       {/* Entries */}
       {entries.length === 0 ? (
-        <div className="py-6 text-center">
-          <div className={`w-12 h-12 mx-auto ${colors.iconBg} rounded-full flex items-center justify-center mb-3`}>
-            <svg className={`w-6 h-6 ${colors.iconText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className={`py-6 text-center ${required ? 'border border-dashed border-red-300 rounded-lg bg-red-50/50' : ''}`}>
+          <div className={`w-12 h-12 mx-auto ${required ? 'bg-red-100' : colors.iconBg} rounded-full flex items-center justify-center mb-3`}>
+            <svg className={`w-6 h-6 ${required ? 'text-red-500' : colors.iconText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
             </svg>
           </div>
-          <p className="text-sm text-gray-500">No {title.toLowerCase()} added yet</p>
-          <p className="text-xs text-gray-400 mt-1">Click "Add Rep" to add a representative</p>
+          <p className={`text-sm ${required ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+            {required ? `At least one ${title.toLowerCase().replace(' reps', ' rep')} is required` : `No ${title.toLowerCase()} added yet`}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Click &quot;Add Rep&quot; to add a representative</p>
         </div>
       ) : (
         <div className="space-y-2">

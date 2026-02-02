@@ -19,7 +19,6 @@ const ALL_COMMISSION_COLUMNS: ColumnKey[] = [
   'expectedCommission',
   'paidCommission',
   'balance',
-  'paid',
 ];
 
 // Create default column config from constants

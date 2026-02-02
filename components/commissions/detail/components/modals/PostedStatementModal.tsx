@@ -230,23 +230,23 @@ export function PostedStatementModal({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-[var(--primary)]">
-                        Expected Commission
+                        Commission Amount
                       </span>
                       <span className="text-sm text-[var(--foreground)]">
-                        {formatCurrency(summaryTotals.expectedTotal)}
+                        {formatCurrency(parseFloat(header?.commissionAmount || '0'))}
                       </span>
                     </div>
                     <div className="flex justify-between pt-2 border-t border-[var(--border)]">
                       <span className="text-sm text-[var(--primary)]">Balance</span>
                       <span
                         className={`text-sm font-medium ${
-                          summaryTotals.paidTotal - summaryTotals.expectedTotal >= 0
+                          summaryTotals.paidTotal - parseFloat(header?.commissionAmount || '0') >= 0
                             ? 'text-green-600'
                             : 'text-red-500'
                         }`}
                       >
                         {formatCurrency(
-                          summaryTotals.paidTotal - summaryTotals.expectedTotal
+                          summaryTotals.paidTotal - parseFloat(header?.commissionAmount || '0')
                         )}
                       </span>
                     </div>

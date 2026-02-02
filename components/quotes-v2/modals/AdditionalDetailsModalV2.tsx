@@ -6,6 +6,7 @@ import { SearchableDropdownV2 } from '../components/SearchableDropdownV2';
 import { useCustomerSearch, useUserSearch } from '../../quotes/api/useQuotesApi';
 import { fetchUserById } from '../../lib/api/search';
 import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
+import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 
 // Commission split rep interface
 interface CommissionSplitRep {
@@ -49,6 +50,7 @@ export function AdditionalDetailsModalV2({
 
   // Auto-populate reps hook
   const { fetchOutsideRepsFromCustomer } = useAutoPopulateReps();
+  const { tenantSettings: quoteTenantSettings } = useQuoteSettings();
 
   // Search states
   const [endUserSearchTerm, setEndUserSearchTerm] = useState('');
@@ -355,8 +357,9 @@ export function AdditionalDetailsModalV2({
                       endUserName: label,
                     });
                     // Auto-populate outside reps from end user when both end user per line item
-                    // AND outside rep per line item are enabled
-                    if (id && settings?.outsideRepAtLineLevel) {
+                    // AND outside rep per line item are enabled AND end user is the source
+                    const outsideRepSource = quoteTenantSettings?.outsideRepSource || settings?.outsideRepSource || 'end_user';
+                    if (id && settings?.outsideRepAtLineLevel && outsideRepSource === 'end_user') {
                       const reps = await fetchOutsideRepsFromCustomer(id);
                       if (reps.length > 0) {
                         // Convert to the format expected by this modal

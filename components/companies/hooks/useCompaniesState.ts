@@ -19,8 +19,8 @@ export function useCompaniesState(
 
   // Company selection and editing
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  // Start in view mode - user clicks Edit to enable editing
-  const [isEditing, setIsEditing] = useState(false);
+  // Always editable - no need to click Edit
+  const [isEditing, setIsEditing] = useState(true);
   const [editFormData, setEditFormData] = useState<Partial<Company>>({});
 
   // Auto-initialize editFormData when selectedCompany changes
@@ -45,6 +45,8 @@ export function useCompaniesState(
         standardCommissionRate: selectedCompany.standardCommissionRate,
         warehouseCommissionRate: selectedCompany.warehouseCommissionRate,
       });
+      // Always enable editing when a company is selected
+      setIsEditing(true);
     } else {
       setEditFormData({});
     }
@@ -166,10 +168,30 @@ export function useCompaniesState(
     }
   };
 
-  // Handle canceling edit
+  // Handle canceling edit - revert form data but stay editable
   const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditFormData({});
+    if (selectedCompany) {
+      setEditFormData({
+        name: selectedCompany.name,
+        phone: selectedCompany.phone,
+        website: selectedCompany.website,
+        companyTypeId: selectedCompany.companyTypeId,
+        companyTypeName: selectedCompany.companyTypeName,
+        tags: selectedCompany.tags,
+        parentCompanyId: selectedCompany.parentCompanyId,
+        parentCompanyName: selectedCompany.parentCompanyName,
+        grandparentCompanyId: selectedCompany.grandparentCompanyId,
+        grandparentCompanyName: selectedCompany.grandparentCompanyName,
+        hierarchyRole: selectedCompany.hierarchyRole,
+        addresses: selectedCompany.addresses,
+        manufacturerInfo: selectedCompany.manufacturerInfo,
+        salesReps: selectedCompany.salesReps,
+        standardCommissionRate: selectedCompany.standardCommissionRate,
+        warehouseCommissionRate: selectedCompany.warehouseCommissionRate,
+      });
+    } else {
+      setEditFormData({});
+    }
   };
 
   return {

@@ -192,21 +192,6 @@ export function LineItemsTableHeader({
             </span>
           </th>
         )}
-        {visibleColumns.has('paid') && (
-          <th
-            className={`px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] ${isPinned('paid') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
-            style={getPinnedColumnStyle('paid', true)}
-          >
-            <div className="flex items-center justify-center gap-1">
-              {COLUMN_LABELS.paid}
-              {isPinned('paid') && (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
-                  <path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6a1 1 0 00-1-1h-4a1 1 0 00-1 1v4.76z" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              )}
-            </div>
-          </th>
-        )}
         {/* Actions column header (only when not posted) */}
         {status !== 'posted' && showActionsColumn && (
           <th className="px-2 py-3 text-center text-sm font-medium text-[var(--foreground)] w-12">

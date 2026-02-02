@@ -457,7 +457,7 @@ Always excludes MANUFACTURER companies (shown at `/manufacturers` instead):
   selectedType, setSelectedType,
   companies, filteredCompanies,
   selectedCompany, setSelectedCompany,
-  isEditing, setIsEditing,
+  isEditing, setIsEditing, // Detail page is always in edit mode (no Edit button needed)
   editFormData, setEditFormData,
   deleteConfirmId, setDeleteConfirmId,
   activeFilters, setActiveFilters,
