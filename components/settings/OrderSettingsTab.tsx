@@ -211,6 +211,55 @@ export function OrderSettingsTab() {
         </div>
       </div>
 
+      {/* Outside Rep Population Source - Tenant Only */}
+      <div className={`bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 ${scope === 'my' ? 'opacity-50' : ''}`}>
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Outside Rep Population Source</h3>
+          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Tenant Only</span>
+        </div>
+        {scope === 'my' ? (
+          <p className="text-xs text-[var(--muted-foreground)]">
+            This is a tenant-wide setting. Switch to Tenant Settings to configure.
+          </p>
+        ) : (
+          <>
+            <p className="text-xs text-[var(--muted-foreground)] mb-3">Choose which customer&apos;s outside reps auto-populate when selected</p>
+            <div className="flex items-center gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="orderOutsideRepSource"
+                  checked={(localSettings.outsideRepSource || 'end_user') === 'end_user'}
+                  onChange={() => handleSettingChange('outsideRepSource', 'end_user')}
+                  className="w-4 h-4 text-[var(--primary)] focus:ring-[var(--primary)]"
+                />
+                <span className="text-sm text-[var(--foreground)]">End User</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="orderOutsideRepSource"
+                  checked={localSettings.outsideRepSource === 'sold_to'}
+                  onChange={() => handleSettingChange('outsideRepSource', 'sold_to')}
+                  className="w-4 h-4 text-[var(--primary)] focus:ring-[var(--primary)]"
+                />
+                <span className="text-sm text-[var(--foreground)]">Sold To Customer</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="orderOutsideRepSource"
+                  checked={localSettings.outsideRepSource === 'bill_to'}
+                  onChange={() => handleSettingChange('outsideRepSource', 'bill_to')}
+                  className="w-4 h-4 text-[var(--primary)] focus:ring-[var(--primary)]"
+                />
+                <span className="text-sm text-[var(--foreground)]">Bill To Customer</span>
+              </label>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Column Configuration */}
       <div>
         <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">Default Column Configuration</h3>

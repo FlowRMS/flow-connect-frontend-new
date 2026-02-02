@@ -24,6 +24,8 @@ export type SettingKey =
 // Setting Value Types
 // ============================================================================
 
+export type OutsideRepSource = 'end_user' | 'sold_to' | 'bill_to';
+
 export interface QuoteSettingsValue {
   columnConfig: ColumnConfig[];
   specifyEndUserPerLine: boolean;
@@ -31,6 +33,7 @@ export interface QuoteSettingsValue {
   insideRepAtLineLevel: boolean;
   factoryPerLineItem: boolean;
   customerPartNumberSource: 'sold_to' | 'end_user';
+  outsideRepSource?: OutsideRepSource;
   savedView?: SavedViewState;
 }
 
@@ -67,6 +70,7 @@ export interface OrderSettingsValue {
   showEndUserPerLine: boolean;
   showOutsideRepPerLine: boolean;
   showInsideRepPerLine: boolean;
+  outsideRepSource?: OutsideRepSource;
   savedView?: SavedViewState;
 }
 

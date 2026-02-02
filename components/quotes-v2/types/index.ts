@@ -292,6 +292,7 @@ export interface QuoteSettingsV2 {
   insideRepAtLineLevel: boolean;
   factoryPerLineItem: boolean;
   customerPartNumberSource: 'sold_to' | 'end_user';
+  outsideRepSource?: 'end_user' | 'sold_to' | 'bill_to';
   priceLevels: PriceLevelV2[];
 }
 

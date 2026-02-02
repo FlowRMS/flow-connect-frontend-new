@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import RequestShipmentModal from './modals/RequestShipmentModal';
 import AddInventoryItemModal from './modals/AddInventoryItemModal';
@@ -25,6 +26,7 @@ import { useInventoryPersistence } from './inventory/hooks/useInventoryPersisten
 import { ShipmentRequestStatus } from '@/lib/types/warehouse';
 
 export default function WarehouseInventoryContent() {
+  const router = useRouter();
   const { selectedWarehouse, isWorkerView, isManagerView } = useWarehouse();
 
   // Tab state
@@ -142,7 +144,15 @@ export default function WarehouseInventoryContent() {
       <InventoryHeader
         onRequestClick={() => shipmentRequestsState.setShowRequestModal(true)}
         onExportClick={handleExportInventory}
-        onImportClick={() => inventoryState.setShowImportModal(true)}
+        onImportClick={() => {
+          if (selectedWarehouse) {
+            sessionStorage.setItem('warehouse_inventory_return', JSON.stringify({
+              warehouseId: selectedWarehouse.id,
+              returnPath: '/warehouse/inventory',
+            }));
+          }
+          router.push('/flow-ai/upload?type=deliveries&source=inventory');
+        }}
         onRefresh={triggerRefresh}
       />
 

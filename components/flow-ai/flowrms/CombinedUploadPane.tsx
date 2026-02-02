@@ -20,6 +20,7 @@ import {
   Users,
   Building2,
   Package,
+  Truck,
   LucideIcon
 } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
@@ -35,7 +36,7 @@ interface UploadedContextFile {
   file: File;
 }
 
-export type DocumentType = 'quotes' | 'orders' | 'order_acknowledgements' | 'invoices' | 'checks' | 'statements' | 'products' | 'factories' | 'customers';
+export type DocumentType = 'quotes' | 'orders' | 'order_acknowledgements' | 'invoices' | 'checks' | 'statements' | 'products' | 'factories' | 'customers' | 'deliveries';
 
 interface CombinedUploadPaneProps {
   onDocumentUploaded: (documentId: string, documentType: string, instructions?: string, contextFileIds?: string[]) => void;
@@ -44,7 +45,7 @@ interface CombinedUploadPaneProps {
 }
 type ContextSourceMode = 'upload' | 'localStorage';
 
-const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: LucideIcon }> = [
+const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: LucideIcon; comingSoon?: boolean }> = [
   { value: 'quotes', label: 'Quote', icon: FileText },
   { value: 'orders', label: 'Order', icon: ClipboardList },
   { value: 'order_acknowledgements', label: 'Order Acknowledgement', icon: FileCheck },
@@ -54,7 +55,8 @@ const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: L
   { value: 'products', label: 'Products', icon: Package },
   { value: 'factories', label: 'Factories', icon: Building2 },
   { value: 'customers', label: 'Customers', icon: Users },
-];
+  { value: 'deliveries', label: 'Packing Slip / Delivery', icon: Truck, comingSoon: true },
+] as const;
 
 // Map Flow AI document types to CRM DocumentEntityType for file uploads
 const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType => {
@@ -77,6 +79,8 @@ const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType =
       return 'FACTORIES';
     case 'customers':
       return 'CUSTOMERS';
+    case 'deliveries':
+      return 'DELIVERIES';
     default:
       return 'UNDEFINED';
   }
@@ -428,21 +432,25 @@ export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploade
                 {DOCUMENT_TYPE_OPTIONS.map((option) => {
                   const IconComponent = option.icon;
                   const isSelected = selectedDocumentType === option.value;
+                  const isDisabled = isUploading || option.comingSoon;
                   return (
                     <button
                       key={option.value}
                       type="button"
-                      onClick={() => !isUploading && setSelectedDocumentType(option.value)}
-                      disabled={isUploading}
+                      onClick={() => !isDisabled && setSelectedDocumentType(option.value)}
+                      disabled={isDisabled}
                       className={`
-                        flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all duration-200
+                        relative flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all duration-200
                         ${isSelected
                           ? 'border-primary bg-primary/5 shadow-md'
                           : 'border-border/50 bg-card hover:border-primary/30 hover:bg-muted/30'
                         }
-                        ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                        ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                       `}
                     >
+                      {option.comingSoon && (
+                        <span className="absolute top-1 right-1 text-[9px] font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">SOON</span>
+                      )}
                       <IconComponent className={`w-6 h-6 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
                       <span className={`text-xs font-medium text-center leading-tight ${isSelected ? 'text-primary' : 'text-foreground'}`}>
                         {option.label}
