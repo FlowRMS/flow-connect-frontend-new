@@ -131,7 +131,12 @@ export function SidebarFolderTree({
                   type="text"
                   value={editingFolderName}
                   onChange={(e) => setEditingFolderName(e.target.value)}
-                  onBlur={handleSaveRename}
+                  onBlur={() => {
+                    // Cancel editing on blur - user must press Enter to save
+                    // This prevents conflicts when modal is open
+                    setEditingFolderId(null);
+                    setEditingFolderName('');
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSaveRename();
                     if (e.key === 'Escape') {
