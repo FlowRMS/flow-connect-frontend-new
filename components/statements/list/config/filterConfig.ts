@@ -4,6 +4,7 @@
  */
 
 import type { FilterOption } from '../../../advancedFilters/types';
+import { ColumnFilterTypeEnum } from '../../../advancedFilters/types';
 
 /**
  * Get sort options for the SortButton component
@@ -28,28 +29,28 @@ export function getStatementFilterOptions(): FilterOption[] {
     {
       id: 'statement-number',
       label: 'Statement Number',
-      type: 'text' as const,
+      type: ColumnFilterTypeEnum.text,
       columnName: 'statementNumber',
       available: true,
     },
     {
       id: 'factory-name',
       label: 'Factory Name',
-      type: 'text' as const,
+      type: ColumnFilterTypeEnum.text,
       columnName: 'factoryName',
       available: true,
     },
     {
       id: 'statement-date',
       label: 'Statement Date',
-      type: 'date' as const,
+      type: ColumnFilterTypeEnum.date,
       columnName: 'entityDate',
       available: true,
     },
     {
       id: 'total',
       label: 'Total',
-      type: 'number' as const,
+      type: ColumnFilterTypeEnum.number,
       columnName: 'total',
       available: true,
       numberFormat: 'currency' as const,
@@ -57,7 +58,7 @@ export function getStatementFilterOptions(): FilterOption[] {
     {
       id: 'commission',
       label: 'Commission',
-      type: 'number' as const,
+      type: ColumnFilterTypeEnum.number,
       columnName: 'commission',
       available: true,
       numberFormat: 'currency' as const,
@@ -65,7 +66,7 @@ export function getStatementFilterOptions(): FilterOption[] {
     {
       id: 'created-date',
       label: 'Created Date',
-      type: 'date' as const,
+      type: ColumnFilterTypeEnum.date,
       columnName: 'createdAt',
       available: true,
     },
