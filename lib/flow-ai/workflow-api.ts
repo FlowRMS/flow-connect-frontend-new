@@ -8,6 +8,7 @@ import {
   Q_GET_WORKFLOW_GALLERY,
   Q_GET_ALL_EXECUTIONS,
   Q_GET_EXECUTION_BY_ID,
+  Q_GET_PRICING_TEMPLATES,
   M_SAVE_WORKFLOW,
   M_UPDATE_WORKFLOW,
   M_DELETE_WORKFLOW,
@@ -37,6 +38,7 @@ export interface Workflow {
   pseudo_code?: string;
   status: string;
   is_public?: boolean;
+  template_type?: string;
   created_at: string;
   updated_at?: string;
   created_by?: string;
@@ -290,6 +292,22 @@ class WorkflowAPI {
     };
   }
 
+  async getPricingTemplates(): Promise<Workflow[]> {
+    const client = apolloClient;
+    const { data } = await client.query<{
+      pricingTemplates: GraphQLWorkflow[];
+    }>({
+      query: Q_GET_PRICING_TEMPLATES,
+      fetchPolicy: 'network-only',
+    });
+
+    if (!data?.pricingTemplates) {
+      throw new WorkflowAPIError('PRICING_TEMPLATES_FETCH_FAILED', 'Failed to fetch pricing templates');
+    }
+
+    return data.pricingTemplates.map(transformWorkflow);
+  }
+
   async listWorkflows(
     page: number = 1,
     pageSize: number = 20
@@ -345,6 +363,7 @@ class WorkflowAPI {
     description?: string;
     pseudoCode?: string;
     isPublic?: boolean;
+    templateType?: string;
   }): Promise<Workflow> {
     const client = apolloClient;
     const { data } = await client.mutate<{
@@ -359,6 +378,7 @@ class WorkflowAPI {
         description: opts.description,
         pseudoCode: opts.pseudoCode,
         isPublic: opts.isPublic ?? false,
+        templateType: opts.templateType ?? 'workflow',
       },
     });
 
@@ -377,6 +397,7 @@ class WorkflowAPI {
     description?: string;
     pseudoCode?: string;
     isPublic?: boolean;
+    templateType?: string;
   }): Promise<Workflow> {
     return this.saveWorkflow(opts);
   }
@@ -397,6 +418,7 @@ class WorkflowAPI {
         generatedCode: payload.generated_code,
         pseudoCode: payload.pseudo_code,
         isPublic: payload.is_public,
+        templateType: payload.template_type,
       },
     });
 

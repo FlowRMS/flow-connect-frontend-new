@@ -31,6 +31,7 @@ export function useCreateWorkflow() {
   // Dialog state
   const [showVisibilityDialog, setShowVisibilityDialog] = useState(false);
   const [savingVisibility, setSavingVisibility] = useState(false);
+  const [pendingTemplateType, setPendingTemplateType] = useState<'workflow' | 'pricing_template'>('workflow');
 
   const isPolling = pollingExecutionId !== null;
   const isBusy = loadingStep !== null || isPolling;
@@ -223,7 +224,7 @@ export function useCreateWorkflow() {
   }, [maxCompletedStep]);
 
   // Save workflow
-  const handleSaveWorkflow = useCallback(() => {
+  const handleSaveWorkflow = useCallback((templateType: 'workflow' | 'pricing_template') => {
     if (!pipelineResult?.nodes?.node2 || !pipelineResult.nodes.node3) {
       toast.error('Run up to Node 3 (plan + code) before saving.');
       return;
@@ -232,6 +233,7 @@ export function useCreateWorkflow() {
       toast.error('Please enter a workflow name.');
       return;
     }
+    setPendingTemplateType(templateType);
     setShowVisibilityDialog(true);
   }, [pipelineResult, workflowName]);
 
@@ -240,6 +242,7 @@ export function useCreateWorkflow() {
 
     setSavingVisibility(true);
     try {
+      const isPricingTemplate = pendingTemplateType === 'pricing_template';
       const saved = await workflowAPI.saveWorkflowFromPipeline({
         name: workflowName.trim(),
         description: description.trim() || undefined,
@@ -248,13 +251,20 @@ export function useCreateWorkflow() {
         generatedCode: pipelineResult.nodes.node3.code,
         pseudoCode: pipelineResult.nodes.node3.pseudo_code,
         isPublic,
+        templateType: pendingTemplateType,
       });
-      toast.success(
-        isPublic
-          ? 'Workflow saved as public. Redirecting to workflow details...'
-          : 'Workflow saved as private. Redirecting to workflow details...'
-      );
-      router.push(`/flow-ai/workflows/${saved.id}`);
+
+      if (isPricingTemplate) {
+        toast.success('Pricing template saved. Redirecting to Upload...');
+        router.push('/flow-ai/upload');
+      } else {
+        toast.success(
+          isPublic
+            ? 'Workflow saved as public. Redirecting to workflow details...'
+            : 'Workflow saved as private. Redirecting to workflow details...'
+        );
+        router.push(`/flow-ai/workflows/${saved.id}`);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       toast.error(message || 'Failed to save workflow.');
@@ -262,7 +272,7 @@ export function useCreateWorkflow() {
       setSavingVisibility(false);
       setShowVisibilityDialog(false);
     }
-  }, [pipelineResult, workflowName, description, prompt, router]);
+  }, [pipelineResult, workflowName, description, prompt, router, pendingTemplateType]);
 
   // Polling effect
   useEffect(() => {

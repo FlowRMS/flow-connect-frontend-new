@@ -28,6 +28,7 @@ import { Textarea } from '@/components/flow-ai/ui/textarea';
 import { Badge } from '@/components/flow-ai/ui/badge';
 import { uploadFile, type DocumentEntityType } from '@/components/lib/graphql/files';
 import { toast } from 'sonner';
+import { PricingTemplateModal } from './PricingTemplateModal';
 
 interface UploadedContextFile {
   id: string;
@@ -35,11 +36,12 @@ interface UploadedContextFile {
   file: File;
 }
 
-export type DocumentType = 'quotes' | 'orders' | 'order_acknowledgements' | 'invoices' | 'checks' | 'statements' | 'products' | 'factories' | 'customers';
+export type DocumentType = 'quotes' | 'orders' | 'order_acknowledgements' | 'invoices' | 'checks' | 'statements' | 'products' | 'factories' | 'customers' | 'pricing';
 
 interface CombinedUploadPaneProps {
   onDocumentUploaded: (documentId: string, documentType: string, instructions?: string, contextFileIds?: string[]) => void;
   onBatchDocumentsUploaded?: (documentIds: string[], documentType: string, instructions?: string, contextFileIds?: string[]) => void;
+  onPricingTemplateSelected?: (templateId: string, fileIds: string[]) => void;
   initialDocumentType?: DocumentType;
 }
 type ContextSourceMode = 'upload' | 'localStorage';
@@ -52,6 +54,7 @@ const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: L
   { value: 'statements', label: 'Statements', icon: DollarSign },
   { value: 'checks', label: 'Checks', icon: Receipt },
   { value: 'products', label: 'Products', icon: Package },
+  { value: 'pricing', label: 'Pricing', icon: DollarSign },
   { value: 'factories', label: 'Factories', icon: Building2 },
   { value: 'customers', label: 'Customers', icon: Users },
 ];
@@ -73,6 +76,8 @@ const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType =
       return 'CHECKS';
     case 'products':
       return 'PRODUCTS';
+    case 'pricing':
+      return 'PRODUCTS';
     case 'factories':
       return 'FACTORIES';
     case 'customers':
@@ -82,7 +87,7 @@ const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType =
   }
 };
 
-export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploaded, initialDocumentType }: CombinedUploadPaneProps) {
+export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploaded, onPricingTemplateSelected, initialDocumentType }: CombinedUploadPaneProps) {
   // Document upload state
   const [selectedDocumentType, setSelectedDocumentType] = useState<DocumentType>(initialDocumentType || 'invoices');
   const [isUploading, setIsUploading] = useState(false);
@@ -100,6 +105,9 @@ export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploade
   const [contextSourceMode, setContextSourceMode] = useState<ContextSourceMode>('upload');
   const [localStorageContextIds, setLocalStorageContextIds] = useState<string[]>([]);
   const contextFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pricing template modal state
+  const [showPricingTemplateModal, setShowPricingTemplateModal] = useState(false);
 
   // Load reference document IDs from localStorage
   useEffect(() => {
@@ -331,6 +339,16 @@ export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploade
       return;
     }
 
+    // Handle pricing document type specially - show template selection modal
+    if (selectedDocumentType === 'pricing') {
+      if (!onPricingTemplateSelected) {
+        toast.error('Pricing template processing is not configured');
+        return;
+      }
+      setShowPricingTemplateModal(true);
+      return;
+    }
+
     let contextFileIds: string[] | undefined = undefined;
 
     if (contextSourceMode === 'upload' && uploadedContextFiles.length > 0) {
@@ -357,6 +375,21 @@ export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploade
         contextFileIds
       );
     }
+  };
+
+  const handlePricingTemplateConfirm = (templateId: string) => {
+    const allDocuments = uploadedDocument
+      ? [uploadedDocument, ...uploadedDocuments]
+      : uploadedDocuments;
+
+    if (allDocuments.length === 0) {
+      toast.error('Please upload a document first');
+      return;
+    }
+
+    const fileIds = allDocuments.map(d => d.id);
+    onPricingTemplateSelected?.(templateId, fileIds);
+    setShowPricingTemplateModal(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -734,6 +767,12 @@ export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploade
           </div>
         </CardContent>
       </Card>
+
+      <PricingTemplateModal
+        open={showPricingTemplateModal}
+        onOpenChange={setShowPricingTemplateModal}
+        onConfirm={handlePricingTemplateConfirm}
+      />
     </div>
   );
 }

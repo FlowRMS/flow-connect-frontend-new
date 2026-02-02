@@ -45,6 +45,8 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     [workflow]
   );
 
+  const isPricingTemplate = workflow?.template_type === 'pricing_template';
+
   const pipelineFiles = usePipelineFiles();
   const pipelineExecution = usePipelineExecution({
     prompt,
@@ -84,6 +86,57 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
     toast.success('Result CSV downloaded.');
   }, [pipelineExecution.pipelineResult, autoDownloadedCsv]);
 
+  const handleDownloadCsv = (data: unknown) => {
+    const rows = extractTabularData(data);
+    if (!rows.length) {
+      toast.error('No data to download');
+      return;
+    }
+    const csv = jsonToCsv(rows);
+    if (csv) {
+      downloadCsv('workflow-result.csv', csv);
+      toast.success('CSV downloaded');
+    }
+  };
+
+  // Helper to extract tabular data from various result formats
+  function extractTabularData(raw: unknown): Record<string, unknown>[] {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.filter(item => typeof item === 'object' && item !== null);
+
+    const obj = raw as Record<string, unknown>;
+    const possibleArrayProps = [
+      'data', 'rows', 'result', 'results', 'items', 'records',
+      'preview_rows', 'customer_price_list', 'products',
+    ];
+
+    for (const prop of possibleArrayProps) {
+      if (Array.isArray(obj[prop])) {
+        return (obj[prop] as unknown[]).filter(item => typeof item === 'object' && item !== null) as Record<string, unknown>[];
+      }
+    }
+
+    // Check inside nodes.node4.result structure
+    const nodes = obj.nodes as Record<string, unknown> | undefined;
+    if (nodes?.node4) {
+      const node4 = nodes.node4 as Record<string, unknown>;
+      const node4Result = node4.result;
+      if (Array.isArray(node4Result)) {
+        return node4Result.filter(item => typeof item === 'object' && item !== null);
+      }
+      if (node4Result && typeof node4Result === 'object') {
+        const resultObj = node4Result as Record<string, unknown>;
+        for (const prop of possibleArrayProps) {
+          if (Array.isArray(resultObj[prop])) {
+            return (resultObj[prop] as unknown[]).filter(item => typeof item === 'object' && item !== null) as Record<string, unknown>[];
+          }
+        }
+      }
+    }
+
+    return [];
+  }
+
   // Template mode: simplified view for workflows with saved code
   if (hasSavedCode) {
     return (
@@ -94,9 +147,10 @@ export function PipelineRunner({ workflow, onSave }: PipelineRunnerProps) {
         loadingStep={pipelineExecution.loadingStep}
         pipelineResult={pipelineExecution.pipelineResult}
         isNavigatingToImport={productImport.isNavigatingToImport}
+        isPricingTemplate={isPricingTemplate}
         onRunWithSavedCode={pipelineExecution.runWithSavedCode}
         onNavigateToImport={productImport.handleNavigateToImport}
-        onDownloadJson={productImport.downloadProductImportJson}
+        onDownloadCsv={handleDownloadCsv}
       />
     );
   }

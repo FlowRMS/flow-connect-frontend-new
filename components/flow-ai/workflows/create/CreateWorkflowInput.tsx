@@ -1,7 +1,13 @@
 'use client';
 
-import { Loader2, PlayCircle, Save, FileText, Upload } from 'lucide-react';
+import { Loader2, PlayCircle, Save, FileText, Upload, ChevronDown, FolderOpen, DollarSign } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/flow-ai/ui/dropdown-menu';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/flow-ai/ui/card';
 import { Textarea } from '@/components/flow-ai/ui/textarea';
 import { Input } from '@/components/flow-ai/ui/input';
@@ -25,7 +31,7 @@ export interface CreateWorkflowInputProps {
   canSave: boolean;
   onStartFromNode1: () => void;
   onRunThisStep: () => void;
-  onSaveWorkflow: () => void;
+  onSaveWorkflow: (templateType: 'workflow' | 'pricing_template') => void;
 }
 
 export function CreateWorkflowInput({
@@ -177,16 +183,30 @@ export function CreateWorkflowInput({
             )}
           </Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={!canSave || isBusy}
-            onClick={onSaveWorkflow}
-          >
-            <Save className="w-4 h-4 mr-2" />
-            Save Workflow (from plan + code)
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={!canSave || isBusy}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Save...
+                <ChevronDown className="w-4 h-4 ml-auto" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => onSaveWorkflow('workflow')}>
+                <FolderOpen className="w-4 h-4 mr-2" />
+                Save as Workflow
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onSaveWorkflow('pricing_template')}>
+                <DollarSign className="w-4 h-4 mr-2" />
+                Save as Pricing Template
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardContent>
     </Card>
