@@ -309,9 +309,9 @@ export function useListExport<T = Record<string, unknown>>(
     return `${context.entityType}-export-${dateStamp}`;
   }, [customFilename, context.entityType]);
 
-  // Export function
-  const exportToExcel = useCallback(async () => {
-    if (context.data.length === 0) {
+  // Core export logic (shared between exportToExcel and exportData)
+  const doExport = useCallback(async (rows: Record<string, unknown>[]) => {
+    if (rows.length === 0) {
       console.warn(`No ${context.entityType} data to export`);
       return;
     }
@@ -325,7 +325,7 @@ export function useListExport<T = Record<string, unknown>>(
       await exportGridXlsxWithHeaders({
         filename,
         columns: exportColumns,
-        rows: context.data as Record<string, unknown>[],
+        rows,
         sheetName: customSheetName || context.entityType,
         filters,
         dateRange: context.quickDateRange,
@@ -338,7 +338,9 @@ export function useListExport<T = Record<string, unknown>>(
       throw error;
     }
   }, [
-    context,
+    context.entityType,
+    context.quickDateRange,
+    context.reportTitle,
     exportColumns,
     filename,
     customSheetName,
@@ -348,11 +350,22 @@ export function useListExport<T = Record<string, unknown>>(
     includeHeaderInfo,
   ]);
 
+  // Export using context data (currently loaded)
+  const exportToExcel = useCallback(async () => {
+    await doExport(context.data as Record<string, unknown>[]);
+  }, [context.data, doExport]);
+
+  // Export with externally provided data (e.g. fetched-all data)
+  const exportData = useCallback(async (rows: Record<string, unknown>[]) => {
+    await doExport(rows);
+  }, [doExport]);
+
   // Check if export is possible
   const canExport = context.data.length > 0 && exportColumns.length > 0;
 
   return {
     exportToExcel,
+    exportData,
     canExport,
   };
 }

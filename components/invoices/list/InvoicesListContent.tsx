@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
 import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
@@ -28,9 +28,11 @@ import { InvoicesEmptyState } from './components/table';
 import { useInvoiceSettings } from '@/contexts/UserSettingsContext';
 import type { SavedViewState } from '@/components/lib/graphql/settings';
 import { ExportExcelButton, useEntityExport } from '@/components/shared/excel-export';
+import { mapDataForExport } from '@/components/shared/excel-export/useListExport';
 import { INVOICE_TABLE_COLUMNS } from './config/columnConfig';
 import { getQuickDateRange } from './utils';
 import type { QuickDatePreset } from './types';
+import { fetchInvoicesWithPagination } from '@/components/lib/graphql/invoices';
 
 export default function InvoicesListContent() {
   const state = useInvoicesListState();
@@ -157,6 +159,30 @@ export default function InvoicesListContent() {
     },
   });
 
+  // Fetch ALL records for export (not just loaded via infinite scroll)
+  const fetchAllInvoicesForExport = useCallback(async () => {
+    const quickFilters: { operator: 'GTE' | 'LTE'; columnName: string; value?: string }[] = [];
+    if (state.quickDatePreset !== 'all') {
+      const { start, end } = getQuickDateRange(state.quickDatePreset as QuickDatePreset);
+      if (start && end) {
+        const columnName = state.quickDateField === 'entryDate' ? 'createdAt' : 'entityDate';
+        const fmt = (d: Date) => columnName === 'entityDate'
+          ? d.toISOString().split('T')[0]
+          : `${d.toISOString().split('T')[0]} ${d.toTimeString().split(' ')[0]}`;
+        quickFilters.push({ columnName, operator: 'GTE' as const, value: fmt(start) });
+        quickFilters.push({ columnName, operator: 'LTE' as const, value: fmt(end) });
+      }
+    }
+    const allFilters = [...quickFilters, ...state.serverFilters];
+
+    const initial = await fetchInvoicesWithPagination(allFilters, sorting, { limit: 1, offset: 0 });
+    const total = initial.total;
+    if (total === 0) return [];
+
+    const result = await fetchInvoicesWithPagination(allFilters, sorting, { limit: total, offset: 0 });
+    return mapDataForExport(result.records as unknown as Record<string, unknown>[], INVOICE_TABLE_COLUMNS);
+  }, [state.quickDatePreset, state.quickDateField, state.serverFilters, sorting]);
+
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
       {/* Main Content */}
@@ -282,6 +308,7 @@ export default function InvoicesListContent() {
             <ExportExcelButton
               context={exportContext}
               options={{}}
+              fetchAllData={fetchAllInvoicesForExport}
             />
           </div>
         </div>

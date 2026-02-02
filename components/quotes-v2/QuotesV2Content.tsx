@@ -28,8 +28,10 @@ import type { SavedViewState } from '@/components/lib/graphql/settings';
 import { SortMenu } from '@/components/shared/sorting/components/SortMenu';
 import { QUOTE_SORT_CONFIGS, DEFAULT_QUOTE_SORT } from './config/sortConfig';
 import { ExportExcelButton, useEntityExport } from '@/components/shared/excel-export';
+import { mapDataForExport } from '@/components/shared/excel-export/useListExport';
 import { QUOTE_TABLE_COLUMNS } from './list/config/columnConfig';
 import { getQuickDateRange } from './list/utils';
+import { fetchQuotesWithPagination } from '../quotes/api/quotesApi';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
@@ -610,6 +612,16 @@ export function QuotesV2Content() {
     },
   });
 
+  // Fetch ALL records for export (not just loaded via infinite scroll)
+  const fetchAllQuotesForExport = useCallback(async () => {
+    const initial = await fetchQuotesWithPagination(filters, orderBy, { limit: 1, offset: 0 });
+    const total = initial.total;
+    if (total === 0) return [];
+
+    const result = await fetchQuotesWithPagination(filters, orderBy, { limit: total, offset: 0 });
+    return mapDataForExport(result.records as unknown as Record<string, unknown>[], QUOTE_TABLE_COLUMNS);
+  }, [filters, orderBy]);
+
   const handleQuoteClick = useCallback((quote: QuoteV2) => {
     router.push(`/quotes-v2/${quote.id}`);
   }, [router]);
@@ -878,6 +890,7 @@ export function QuotesV2Content() {
             <ExportExcelButton
               context={exportContext}
               options={{}}
+              fetchAllData={fetchAllQuotesForExport}
             />
           </div>
         </div>

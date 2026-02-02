@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
@@ -22,8 +22,10 @@ import { getStatementFilterOptions, getStatementSortOptions } from './config/fil
 import { STATEMENT_TABLE_COLUMNS } from './config/columnConfig';
 import { getQuickDateRange } from './utils';
 import { ExportExcelButton, useEntityExport } from '@/components/shared/excel-export';
+import { mapDataForExport } from '@/components/shared/excel-export/useListExport';
 import type { QuickDatePreset } from '../types';
 import type { RefObject } from 'react';
+import { fetchStatementsWithPagination } from '@/components/statements/api/statementsApi';
 
 // Quick date presets
 const QUICK_DATE_PRESETS = [
@@ -144,6 +146,30 @@ export default function StatementsListContent() {
     },
   });
 
+  // Fetch ALL records for export (not just loaded via infinite scroll)
+  const fetchAllStatementsForExport = useCallback(async () => {
+    const quickFilters: { operator: 'GTE' | 'LTE'; columnName: string; value?: string }[] = [];
+    if (quickDatePreset !== 'all') {
+      const { start, end } = getQuickDateRange(quickDatePreset as QuickDatePreset);
+      if (start && end) {
+        const columnName = quickDateField === 'createdAt' ? 'createdAt' : 'entityDate';
+        const fmt = (d: Date) => columnName === 'entityDate'
+          ? d.toISOString().split('T')[0]
+          : `${d.toISOString().split('T')[0]} ${d.toTimeString().split(' ')[0]}`;
+        quickFilters.push({ columnName, operator: 'GTE' as const, value: fmt(start) });
+        quickFilters.push({ columnName, operator: 'LTE' as const, value: fmt(end) });
+      }
+    }
+    const allFilters = [...quickFilters, ...serverFilters];
+
+    const initial = await fetchStatementsWithPagination(allFilters, serverOrderBy, { limit: 1, offset: 0 });
+    const total = initial.total;
+    if (total === 0) return [];
+
+    const result = await fetchStatementsWithPagination(allFilters, serverOrderBy, { limit: total, offset: 0 });
+    return mapDataForExport(result.records as unknown as Record<string, unknown>[], STATEMENT_TABLE_COLUMNS);
+  }, [quickDatePreset, quickDateField, serverFilters, serverOrderBy]);
+
   // Calculate totals
   const totals = useMemo(() => {
     const total = statements.reduce((sum, s) => sum + (s.total || 0), 0);
@@ -263,7 +289,7 @@ export default function StatementsListContent() {
           </div>
 
           {/* Export to Excel */}
-          <ExportExcelButton context={exportContext} options={{}} />
+          <ExportExcelButton context={exportContext} options={{}} fetchAllData={fetchAllStatementsForExport} />
 
           {/* Spacer */}
           <div className="flex-1" />

@@ -17,6 +17,8 @@ interface ExportExcelButtonProps<T = Record<string, unknown>> {
   size?: 'sm' | 'md' | 'lg';
   showIcon?: boolean;
   disabled?: boolean;
+  /** Fetch ALL records for export (overrides context.data with full dataset) */
+  fetchAllData?: () => Promise<Record<string, unknown>[]>;
 }
 
 export function ExportExcelButton<T = Record<string, unknown>>({
@@ -27,23 +29,29 @@ export function ExportExcelButton<T = Record<string, unknown>>({
   size = 'md',
   showIcon = true,
   disabled: externalDisabled,
+  fetchAllData,
 }: ExportExcelButtonProps<T>) {
   const [isExporting, setIsExporting] = useState(false);
-  const { exportToExcel, canExport } = useListExport(context, options);
+  const { exportToExcel, exportData, canExport } = useListExport(context, options);
 
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      await exportToExcel();
+      if (fetchAllData) {
+        // Fetch all records then export with full dataset
+        const allData = await fetchAllData();
+        await exportData(allData);
+      } else {
+        await exportToExcel();
+      }
     } catch (error) {
       console.error('Export failed:', error);
-      // You could add a toast notification here
     } finally {
       setIsExporting(false);
     }
   };
 
-  const disabled = externalDisabled || !canExport || isExporting;
+  const disabled = externalDisabled || (!canExport && !fetchAllData) || isExporting;
 
   // Size classes
   const sizeClasses = {
