@@ -512,10 +512,6 @@ const INVOICE_SEARCH = `
       createdAt
       createdById
       balanceId
-      order {
-        id
-        orderNumber
-      }
     }
   }
 `;

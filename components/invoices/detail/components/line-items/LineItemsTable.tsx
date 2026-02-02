@@ -773,7 +773,10 @@ export function LineItemsTable({
                     {visibleColumns.has('sellTotal') && (
                       <td className="px-3 py-2 text-sm text-right font-medium">
                         <div className="flex flex-col items-end">
-                          <span>{formatCurrency(item.amount - (item.discount || 0))}</span>
+                          <span>
+                            {formatCurrency(item.amount - (item.discount || 0))}
+                            {item._fcSellTotal && <span className="text-[10px] text-orange-500 font-bold ml-1 cursor-help" title="Frontend calculated — backend subtotal was 0">*</span>}
+                          </span>
                           {(item.discount || 0) > 0 && (
                             <>
                               <span className="text-xs text-gray-400 line-through">{formatCurrency(item.amount)}</span>
