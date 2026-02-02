@@ -126,31 +126,8 @@ export function SidebarFolderTree({
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[var(--muted-foreground)] flex-shrink-0">
                 <path d="M3 5a2 2 0 012-2h3.172a2 2 0 011.414.586l.828.828a2 2 0 001.414.586H15a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"/>
               </svg>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editingFolderName}
-                  onChange={(e) => setEditingFolderName(e.target.value)}
-                  onBlur={() => {
-                    // Cancel editing on blur - user must press Enter to save
-                    // This prevents conflicts when modal is open
-                    setEditingFolderId(null);
-                    setEditingFolderName('');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveRename();
-                    if (e.key === 'Escape') {
-                      setEditingFolderId(null);
-                      setEditingFolderName('');
-                    }
-                  }}
-                  autoFocus
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex-1 px-1 py-0.5 text-sm border border-[var(--primary)] rounded bg-[var(--background)] focus:outline-none"
-                />
-              ) : (
-                <span className="flex-1 truncate text-left">{folder.name}</span>
-              )}
+              {/* Sidebar is read-only for folder names - editing happens in the modal */}
+              <span className="flex-1 truncate text-left">{folder.name}</span>
               {count !== null && count > 0 && !isEditing && (
                 <span className="text-xs text-[var(--muted-foreground)]">{count}</span>
               )}
