@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import RequestShipmentModal from './modals/RequestShipmentModal';
 import AddInventoryItemModal from './modals/AddInventoryItemModal';
@@ -20,13 +19,12 @@ import BackordersTable from './inventory/BackordersTable';
 import { useInventoryState } from './inventory/hooks/useInventoryState';
 import { useShipmentRequestsState } from './inventory/hooks/useShipmentRequestsState';
 import { useBackordersState } from './inventory/hooks/useBackordersState';
-import { useInventoryStatusesQuery, useExportInventoryMutation, useImportInventoryMutation } from './inventory/api/useInventoryApi';
+import { useInventoryStatusesQuery } from './inventory/api/useInventoryApi';
 import { useShipmentRequestStatusesQuery } from './inventory/api/useShipmentRequestsApi';
 import { useInventoryPersistence } from './inventory/hooks/useInventoryPersistence';
 import { ShipmentRequestStatus } from '@/lib/types/warehouse';
 
 export default function WarehouseInventoryContent() {
-  const router = useRouter();
   const { selectedWarehouse, isWorkerView, isManagerView } = useWarehouse();
 
   // Tab state
@@ -43,11 +41,9 @@ export default function WarehouseInventoryContent() {
   );
   const backordersState = useBackordersState(setActiveTab);
 
-  // Additional Queries & Mutations
+  // Additional Queries
   const { data: statusOptionsData } = useShipmentRequestStatusesQuery();
   const { data: inventoryStatusOptionsData } = useInventoryStatusesQuery();
-  const [exportInventory] = useExportInventoryMutation();
-  const [importInventory] = useImportInventoryMutation();
 
   // Persistence Hook
   const { saveProductProfile } = useInventoryPersistence();
@@ -105,54 +101,10 @@ export default function WarehouseInventoryContent() {
     shipmentRequestsState.setShowRequestModal(true);
   }, [backordersState.backorderItems, shipmentRequestsState]);
 
-  // Export/Import Handlers
-  const handleExportInventory = async () => {
-    if (!selectedWarehouse?.id) return;
-    try {
-      toast.info('Generating export...');
-      const { data } = await exportInventory({
-        variables: { warehouseId: selectedWarehouse.id }
-      });
-
-      if (data?.exportInventory) {
-        const byteCharacters = atob(data.exportInventory);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'text/csv' });
-
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const date = new Date().toISOString().split('T')[0];
-        a.download = `inventory_export_${selectedWarehouse.name}_${date}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        toast.success('Export downloaded');
-      }
-    } catch (error: any) {
-      toast.error('Export failed: ' + error.message);
-    }
-  };
-
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex flex-col">
       <InventoryHeader
         onRequestClick={() => shipmentRequestsState.setShowRequestModal(true)}
-        onExportClick={handleExportInventory}
-        onImportClick={() => {
-          if (selectedWarehouse) {
-            sessionStorage.setItem('warehouse_inventory_return', JSON.stringify({
-              warehouseId: selectedWarehouse.id,
-              returnPath: '/warehouse/inventory',
-            }));
-          }
-          router.push('/flow-ai/upload?type=deliveries&source=inventory');
-        }}
         onRefresh={triggerRefresh}
       />
 
