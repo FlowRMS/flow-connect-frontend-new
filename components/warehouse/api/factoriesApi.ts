@@ -38,6 +38,11 @@ export interface FactorySplitRateInput {
   position: number;
 }
 
+export interface FactoryParent {
+  id: string;
+  title: string;
+}
+
 export interface Factory {
   id: string;
   title: string;
@@ -60,6 +65,7 @@ export interface Factory {
   createdAt?: string;
   isParent: boolean;
   parentId?: string;
+  parent?: FactoryParent;
 }
 
 export interface FactoryLandingPage {
@@ -249,6 +255,10 @@ const FIND_FACTORY_BY_ID = `
       title
       isParent
       parentId
+      parent {
+        id
+        title
+      }
     }
   }
 `;
