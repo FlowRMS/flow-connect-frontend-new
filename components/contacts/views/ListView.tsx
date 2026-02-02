@@ -12,6 +12,8 @@ import { ContactsEmptyState } from './ContactsEmptyState';
 import { ContactsTableHeader } from './ContactsTableHeader';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { getContactFilterOptions } from '../config/filterConfig';
+import { PicklistValue } from '@/lib/picklists/components';
+import { PicklistKey } from '@/lib/picklists/enums';
 
 
 interface ListViewProps {
@@ -116,7 +118,16 @@ export default function ListView({
                         <span className="text-sm text-gray-900 truncate block">{contact.company}</span>
                       </td>
                       <td className="px-3 py-3">
-                        <span className="text-sm text-gray-900 truncate block">{contact.role}</span>
+                        {contact.role ? (
+                          <PicklistValue
+                            picklistKey={PicklistKey.CONTACT_ROLES}
+                            value={contact.role}
+                            variant="badge"
+                            showColor={true}
+                          />
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1 flex-wrap">
