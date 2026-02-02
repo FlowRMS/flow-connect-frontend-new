@@ -48,15 +48,25 @@ export function FolderTreeItem({
     };
   }, []);
 
-  const handleBlur = () => {
+  const handleBlur = (e: React.FocusEvent) => {
+    // Check if the new focus target is within the same folder item
+    // If clicking on action buttons within the same row, don't cancel
+    const relatedTarget = e.relatedTarget as HTMLElement | null;
+    if (relatedTarget?.closest('[data-folder-actions]')) {
+      return;
+    }
+
     // Clear any existing timeout
     if (blurTimeoutRef.current) {
       clearTimeout(blurTimeoutRef.current);
     }
-    // Add delay to allow for intentional interactions (clicking buttons, etc.)
+
+    // On blur, cancel editing without auto-saving
+    // User must press Enter to save changes
     blurTimeoutRef.current = setTimeout(() => {
-      handleSaveRename();
-    }, 200);
+      setEditingFolderId(null);
+      setEditingFolderName('');
+    }, 150);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -160,7 +170,7 @@ export function FolderTreeItem({
 
         {/* Folder actions */}
         {!isFolderEditing && (
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" data-folder-actions>
             <button
               onClick={(e) => {
                 e.stopPropagation();
