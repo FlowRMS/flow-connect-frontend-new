@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   useManufacturersWithSpecSheets,
   useSpecSheetSearch,
@@ -8,6 +8,12 @@ import { useSpecSheetsFolders } from './useSpecSheetsFolders';
 import { useSpecSheetContextMenu } from './useSpecSheetContextMenu';
 import { useSpecSheetMultiSelect } from './useSpecSheetMultiSelect';
 import { showInfoToast, showSuccessToast } from '../../lib/toast';
+import {
+  getMySetting,
+  saveMySetting,
+  parseSettingValue,
+  type SpecSheetsSettingsValue,
+} from '../../lib/graphql/settings';
 
 const MANUFACTURER_ORDER_KEY = 'specsheets-manufacturer-order';
 
@@ -36,6 +42,7 @@ export function useSpecSheetsContent() {
   const [draggedManufacturerIndex, setDraggedManufacturerIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [manufacturerOrder, setManufacturerOrder] = useState<string[]>([]);
+  const hasLoadedSettingsRef = useRef(false);
 
   // API Hooks
   const {
@@ -44,16 +51,38 @@ export function useSpecSheetsContent() {
     error: manufacturersError
   } = useManufacturersWithSpecSheets();
 
-  // Load manufacturer order from localStorage
+  // Load manufacturer order from backend settings (with localStorage fallback)
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(MANUFACTURER_ORDER_KEY);
-      if (saved) {
-        setManufacturerOrder(JSON.parse(saved));
+    if (hasLoadedSettingsRef.current) return;
+    hasLoadedSettingsRef.current = true;
+
+    const loadSettings = async () => {
+      try {
+        // Try to load from backend first
+        const setting = await getMySetting('SPEC_SHEETS_SETTINGS');
+        const parsed = parseSettingValue<SpecSheetsSettingsValue>(setting);
+        if (parsed?.manufacturerOrder && parsed.manufacturerOrder.length > 0) {
+          setManufacturerOrder(parsed.manufacturerOrder);
+          // Sync to localStorage for consistency
+          localStorage.setItem(MANUFACTURER_ORDER_KEY, JSON.stringify(parsed.manufacturerOrder));
+          return;
+        }
+      } catch {
+        // Backend failed, fall through to localStorage
       }
-    } catch {
-      // Ignore localStorage errors
-    }
+
+      // Fallback to localStorage
+      try {
+        const saved = localStorage.getItem(MANUFACTURER_ORDER_KEY);
+        if (saved) {
+          setManufacturerOrder(JSON.parse(saved));
+        }
+      } catch {
+        // Ignore localStorage errors
+      }
+    };
+
+    loadSettings();
   }, []);
 
   // Sort manufacturers according to saved order
@@ -185,15 +214,28 @@ export function useSpecSheetsContent() {
     const [removed] = newOrder.splice(draggedManufacturerIndex, 1);
     newOrder.splice(targetIndex, 0, removed);
 
-    // Save the new order to localStorage
+    // Save the new order
     const orderIds = newOrder.map(m => m.id);
+
+    // Update state immediately for responsive UI
+    setManufacturerOrder(orderIds);
+
+    // Save to localStorage for immediate persistence
     try {
       localStorage.setItem(MANUFACTURER_ORDER_KEY, JSON.stringify(orderIds));
-      setManufacturerOrder(orderIds);
-      showSuccessToast('Manufacturer order updated');
     } catch {
       // Ignore localStorage errors
     }
+
+    // Save to backend for cross-device persistence
+    saveMySetting('SPEC_SHEETS_SETTINGS', { manufacturerOrder: orderIds })
+      .then(() => {
+        showSuccessToast('Manufacturer order saved');
+      })
+      .catch(() => {
+        // Backend save failed, but localStorage succeeded
+        showSuccessToast('Manufacturer order updated locally');
+      });
 
     setDraggedManufacturerIndex(null);
     setDragOverIndex(null);

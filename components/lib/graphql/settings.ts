@@ -18,7 +18,8 @@ export type SettingKey =
   | 'CHAT_SETTINGS'
   | 'SIDEBAR_SETTINGS'
   | 'FLOW_AI_SETTINGS'
-  | 'PICKLIST_SETTINGS';
+  | 'PICKLIST_SETTINGS'
+  | 'SPEC_SHEETS_SETTINGS';
 
 // ============================================================================
 // Setting Value Types
@@ -164,6 +165,11 @@ export interface PicklistSettingsValue {
   // Future picklists can be added here
 }
 
+// Spec Sheets preferences (manufacturer order, view preferences)
+export interface SpecSheetsSettingsValue {
+  manufacturerOrder?: string[]; // Array of manufacturer IDs in display order
+}
+
 export type SettingValue =
   | QuoteSettingsValue
   | OrderSettingsValue
@@ -172,7 +178,8 @@ export type SettingValue =
   | ChatSettingsValue
   | SidebarSettingsValue
   | FlowAISettingsValue
-  | PicklistSettingsValue;
+  | PicklistSettingsValue
+  | SpecSheetsSettingsValue;
 
 // ============================================================================
 // Setting Response Types
