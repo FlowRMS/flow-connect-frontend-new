@@ -40,10 +40,12 @@ export function SpecSheetPreviewPanel({
     setPdfLoading(false);
   }, []);
 
-  const onPageLoadSuccess = useCallback(({ originalWidth, originalHeight }: { width: number; height: number; originalWidth: number; originalHeight: number }) => {
-    // Use original (unscaled) dimensions - react-pdf's width/height are already scaled
-    setPageSize({ width: originalWidth, height: originalHeight });
-  }, []);
+  const onPageLoadSuccess = useCallback(({ width, height, originalWidth, originalHeight }: { width: number; height: number; originalWidth?: number; originalHeight?: number }) => {
+    // Use original (unscaled) dimensions if available, otherwise calculate from scaled dimensions
+    const w = originalWidth ?? width / zoom;
+    const h = originalHeight ?? height / zoom;
+    setPageSize({ width: w, height: h });
+  }, [zoom]);
 
   // Filter regions for current page
   const pageRegions = useMemo(() => {

@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   fetchSpecSheet,
   fetchSpecSheetsByFactory,
@@ -232,6 +233,18 @@ export function useDeleteHighlightVersion() {
       queryClient.invalidateQueries({
         queryKey: specSheetQueryKeys.highlightVersions(specSheetId)
       });
+    },
+    onError: (error) => {
+      // Check if error is due to foreign key constraint (highlight version in use)
+      if (error.message?.includes('foreign key') || error.message?.includes('still referenced')) {
+        toast.error('Cannot delete highlight version', {
+          description: 'This highlight version is being used in one or more submittals. Remove it from all submittals first.',
+        });
+      } else {
+        toast.error('Failed to delete highlight version', {
+          description: error.message,
+        });
+      }
     },
   });
 }
