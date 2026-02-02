@@ -24,6 +24,7 @@ import {
   ViewModeToggle,
   LoadingState,
   ErrorState,
+  PreOpportunitiesEmptyState,
   PlusCircleIcon,
 } from './pre-opportunities';
 
@@ -42,11 +43,13 @@ export default function PreOpportunitiesContent() {
     setActiveId,
     activeFilters,
     clientSortColumns,
+    serverOrderBy,
     uniqueEntityNumbers,
     uniqueStatuses,
     uniqueCreatedBy,
     handleFiltersChange,
     handleMultiSortChange,
+    clearAllFilters,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -71,6 +74,11 @@ export default function PreOpportunitiesContent() {
   ), [uniqueEntityNumbers, uniqueStatuses, uniqueCreatedBy]);
 
   const preOppSortOptions = useMemo(() => getPreOppSortOptions(), []);
+
+  // Check if there are any filters or sorts applied
+  const hasFilters = useMemo(() => {
+    return activeFilters.length > 0 || (serverOrderBy && serverOrderBy.length > 0);
+  }, [activeFilters, serverOrderBy]);
 
   const handleOpenCreateModal = useCallback(() => {
     setIsCreateModalOpen(true);
@@ -175,6 +183,8 @@ export default function PreOpportunitiesContent() {
         <div className="px-3 sm:px-6 pb-6">
           {isLoading && preOpps.length === 0 ? (
             <LoadingState />
+          ) : !isLoading && preOpps.length === 0 ? (
+            <PreOpportunitiesEmptyState hasFilters={hasFilters} onClearFilters={clearAllFilters} />
           ) : viewMode === 'kanban' ? (
             <KanbanView
               preOpps={preOpps}
