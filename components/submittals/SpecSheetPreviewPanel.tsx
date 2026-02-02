@@ -40,8 +40,9 @@ export function SpecSheetPreviewPanel({
     setPdfLoading(false);
   }, []);
 
-  const onPageLoadSuccess = useCallback(({ width, height }: { width: number; height: number }) => {
-    setPageSize({ width, height });
+  const onPageLoadSuccess = useCallback(({ originalWidth, originalHeight }: { width: number; height: number; originalWidth: number; originalHeight: number }) => {
+    // Use original (unscaled) dimensions - react-pdf's width/height are already scaled
+    setPageSize({ width: originalWidth, height: originalHeight });
   }, []);
 
   // Filter regions for current page

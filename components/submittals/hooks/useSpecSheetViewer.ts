@@ -62,8 +62,9 @@ export function useSpecSheetViewer({ specSheet }: UseSpecSheetViewerParams) {
     console.error('PDF load error:', error); setPdfError('Failed to load PDF'); setPdfLoading(false);
   }, []);
 
-  const onPageLoadSuccess = useCallback((page: { width: number; height: number }) => {
-    setPageSize({ width: page.width, height: page.height });
+  const onPageLoadSuccess = useCallback((page: { width: number; height: number; originalWidth: number; originalHeight: number }) => {
+    // Use original (unscaled) dimensions - react-pdf's width/height are already scaled
+    setPageSize({ width: page.originalWidth, height: page.originalHeight });
   }, []);
 
   // Version management
