@@ -19,6 +19,10 @@ import { BulkDeleteModal } from '@/components/shared/modals/BulkDeleteModal';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
 import SortButton from '@/components/SortButton';
 import { getStatementFilterOptions, getStatementSortOptions } from './config/filterConfig';
+import { STATEMENT_TABLE_COLUMNS } from './config/columnConfig';
+import { getQuickDateRange } from './utils';
+import { ExportExcelButton, useEntityExport } from '@/components/shared/excel-export';
+import type { QuickDatePreset } from '../types';
 import type { RefObject } from 'react';
 
 // Quick date presets
@@ -66,6 +70,7 @@ export default function StatementsListContent() {
   const {
     // Data
     statements,
+    allStatementsData,
     selectedStatement,
     setSelectedStatement,
     isLoadingDetails,
@@ -95,10 +100,13 @@ export default function StatementsListContent() {
 
     // Advanced filters
     activeFilters,
+    columnFilters,
     handleServerFiltersChange,
     statementFilterOptions,
+    serverFilters,
 
     // Sorting
+    serverOrderBy,
     handleSortChange,
 
     // Selection
@@ -118,6 +126,23 @@ export default function StatementsListContent() {
     setShowBulkDeleteModal,
     handleBulkDeleteSuccess,
   } = useStatementsListState();
+
+  // Excel export hook
+  const { context: exportContext } = useEntityExport({
+    data: allStatementsData as unknown as Record<string, unknown>[],
+    activeFilters,
+    columnFilters,
+    quickDatePreset,
+    quickDateField,
+    sorting: serverOrderBy,
+    searchQuery,
+    config: {
+      entityType: 'statements',
+      columns: STATEMENT_TABLE_COLUMNS,
+      getQuickDateRange: (preset: string) => getQuickDateRange(preset as QuickDatePreset),
+      reportTitle: 'Statements Export',
+    },
+  });
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -236,6 +261,9 @@ export default function StatementsListContent() {
               ))}
             </select>
           </div>
+
+          {/* Export to Excel */}
+          <ExportExcelButton context={exportContext} options={{}} />
 
           {/* Spacer */}
           <div className="flex-1" />

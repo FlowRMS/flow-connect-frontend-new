@@ -452,6 +452,7 @@ export function useStatementsListState() {
   return {
     // Statements data
     statements,
+    allStatementsData,
     selectedStatement: selectedStatementDetails || null,
     selectedStatementId,
     setSelectedStatement,
@@ -495,6 +496,7 @@ export function useStatementsListState() {
     // Sorting
     sortField,
     sortDirection,
+    serverOrderBy,
     handleSortChange,
 
     // Selection

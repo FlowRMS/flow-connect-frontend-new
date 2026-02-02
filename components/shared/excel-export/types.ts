@@ -9,7 +9,7 @@ import type { ActiveFilter } from '@/components/advancedFilters/types';
 /**
  * Entity types that support Excel export
  */
-export type ExportableEntityType = 'orders' | 'invoices' | 'quotes';
+export type ExportableEntityType = 'orders' | 'invoices' | 'quotes' | 'statements';
 
 /**
  * Export type for formatting in Excel

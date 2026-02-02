@@ -11,8 +11,6 @@ import type { ColumnConfig } from '../types';
  * Will be extended later for table rendering, sorts, and filters
  */
 
-import type { ColumnConfig } from '../types';
-
 export const QUOTE_TABLE_COLUMNS: ColumnConfig[] = [
   { id: 'quoteNumber', label: 'Quote Number', exportType: 'text' },
   { id: 'soldToCustomerName', label: 'Customer', exportType: 'text' },
