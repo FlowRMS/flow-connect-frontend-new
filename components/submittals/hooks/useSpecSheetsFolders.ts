@@ -1,20 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import {
-  useFoldersByFactory,
-  useCreateFolder,
-  useRenameFolder,
-  useDeleteFolder,
-  useMoveFolder,
-} from '../api/useSpecSheetsApi';
+import { useFoldersByFactory } from '../api/useSpecSheetsApi';
 import type { SpecSheetFolder } from '../../../lib/types/submittals';
 import { fetchFoldersByFactory as fetchFoldersApi, type FolderResponse } from '../../lib/graphql/spec-sheets';
-import { showConfirmToast, showSuccessToast, showErrorToast } from '../../lib/toast';
 import { convertToSpecSheetFolders } from './folderUtils';
-
-interface Manufacturer {
-  id: string;
-  name: string;
-}
+import { useFolderCRUD } from './spec-sheets-folders/useFolderCRUD';
+import { useFolderDragDrop } from './spec-sheets-folders/useFolderDragDrop';
+import { useFolderHelpers } from './spec-sheets-folders/useFolderHelpers';
+import type { Manufacturer, FolderContextMenu } from './spec-sheets-folders/types';
 
 interface UseSpecSheetsFoldersParams {
   selectedManufacturerId: string | null;
@@ -25,39 +17,29 @@ export function useSpecSheetsFolders({
   selectedManufacturerId,
   manufacturers,
 }: UseSpecSheetsFoldersParams) {
+  // UI state
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [expandedManufacturers, setExpandedManufacturers] = useState<Set<string>>(new Set());
+  const [contextMenu, setContextMenu] = useState<FolderContextMenu | null>(null);
+
+  // All manufacturers folders cache
   const [allManufacturerFolders, setAllManufacturerFolders] = useState<Record<string, FolderResponse[]>>({});
   const [isLoadingAllFolders, setIsLoadingAllFolders] = useState(false);
   const hasLoadedFoldersRef = useRef(false);
-
-  const [contextMenu, setContextMenu] = useState<{ folder: SpecSheetFolder; position: { x: number; y: number } } | null>(null);
-  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
-  const [editingFolderName, setEditingFolderName] = useState('');
-  const [editingFolderManufacturer, setEditingFolderManufacturer] = useState<string>('');
-  const [showAddFolderModal, setShowAddFolderModal] = useState(false);
-  const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
-  const [newFolderManufacturer, setNewFolderManufacturer] = useState<string>('');
-  const [newFolderManufacturerId, setNewFolderManufacturerId] = useState<string>('');
-  const [newFolderName, setNewFolderName] = useState('');
-  const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null);
-  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
-  const [folderError, setFolderError] = useState<string | null>(null);
-  const [expandedManufacturers, setExpandedManufacturers] = useState<Set<string>>(new Set());
-
-  const { data: foldersData, isLoading: isLoadingFolders } = useFoldersByFactory(selectedManufacturerId);
-
-  const createFolderMutation = useCreateFolder();
-  const renameFolderMutation = useRenameFolder();
-  const deleteFolderMutation = useDeleteFolder();
-  const moveFolderMutation = useMoveFolder();
-
-  const isSavingFolder = renameFolderMutation.isPending || deleteFolderMutation.isPending || moveFolderMutation.isPending;
-  const isCreatingFolder = createFolderMutation.isPending;
-
-  // Track manufacturer IDs to prevent refetching on array reference changes
   const manufacturerIdsRef = useRef<string>('');
 
+  // Fetch folders for selected manufacturer
+  const { data: foldersData, isLoading: isLoadingFolders } = useFoldersByFactory(selectedManufacturerId);
+
+  // Convert API folders to SpecSheetFolder array
+  const folders: SpecSheetFolder[] = useMemo(() => {
+    if (!foldersData) return [];
+    const selectedMfr = manufacturers.find(m => m.id === selectedManufacturerId);
+    return convertToSpecSheetFolders(foldersData, selectedMfr?.name || '');
+  }, [foldersData, selectedManufacturerId, manufacturers]);
+
+  // Load all manufacturer folders
   const loadAllManufacturerFolders = async (force = false) => {
     if (!manufacturers || manufacturers.length === 0) return;
     if (isLoadingAllFolders) return;
@@ -71,10 +53,8 @@ export function useSpecSheetsFolders({
       await Promise.all(
         manufacturers.map(async (m) => {
           try {
-            const folders = await fetchFoldersApi(m.id);
-            foldersMap[m.id] = folders;
-          } catch (error) {
-            console.error(`Failed to fetch folders for manufacturer ${m.id}:`, error);
+            foldersMap[m.id] = await fetchFoldersApi(m.id);
+          } catch {
             foldersMap[m.id] = [];
           }
         })
@@ -89,284 +69,48 @@ export function useSpecSheetsFolders({
 
   useEffect(() => {
     if (!manufacturers || manufacturers.length === 0) return;
-
     const currentIds = manufacturers.map(m => m.id).sort().join(',');
-    // Only load if IDs actually changed or never loaded
     if (!hasLoadedFoldersRef.current || manufacturerIdsRef.current !== currentIds) {
       loadAllManufacturerFolders();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manufacturers.length]);
 
-  const findManufacturerIdByName = (name: string): string | null => {
-    const found = manufacturers.find(m => m.name === name);
-    return found?.id || null;
-  };
+  // Helpers
+  const helpers = useFolderHelpers({
+    manufacturers,
+    allManufacturerFolders,
+    folders,
+  });
 
-  // Convert API folders to SpecSheetFolder array with hierarchy built from parentId
-  const folders: SpecSheetFolder[] = useMemo(() => {
-    if (!foldersData) return [];
-    const selectedMfr = manufacturers.find(m => m.id === selectedManufacturerId);
-    const manufacturerName = selectedMfr?.name || '';
-    return convertToSpecSheetFolders(foldersData, manufacturerName);
-  }, [foldersData, selectedManufacturerId, manufacturers]);
+  // CRUD operations
+  const crud = useFolderCRUD({
+    folders,
+    selectedManufacturerId,
+    selectedFolderId,
+    setSelectedFolderId,
+    findManufacturerIdByName: helpers.findManufacturerIdByName,
+    setExpandedFolders,
+    setExpandedManufacturers,
+    loadAllManufacturerFolders,
+  });
 
-  const getFolderPath = (folderId: string): string | null => {
-    const folder = folders.find(f => f.id === folderId);
-    return folder?.folderPath || null;
-  };
+  // Drag & drop
+  const dragDrop = useFolderDragDrop({
+    folders,
+    findManufacturerIdByName: helpers.findManufacturerIdByName,
+    setFolderError: crud.setFolderError,
+    loadAllManufacturerFolders,
+  });
 
+  // Context menu handler
   const handleFolderContextMenu = (e: React.MouseEvent, folder: SpecSheetFolder) => {
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({ folder, position: { x: e.clientX, y: e.clientY } });
   };
 
-  const handleRenameFolder = (folder: SpecSheetFolder) => {
-    setEditingFolderId(folder.id);
-    setEditingFolderName(folder.name);
-    setEditingFolderManufacturer(folder.manufacturer || '');
-  };
-
-  const handleSaveRename = async () => {
-    if (!editingFolderId || !editingFolderName.trim()) {
-      setEditingFolderId(null);
-      setEditingFolderName('');
-      setEditingFolderManufacturer('');
-      return;
-    }
-
-    // Get factoryId from the stored manufacturer name, or fall back to selectedManufacturerId
-    const factoryId = editingFolderManufacturer
-      ? findManufacturerIdByName(editingFolderManufacturer)
-      : selectedManufacturerId;
-
-    if (!factoryId) {
-      setFolderError('Could not determine manufacturer for folder rename');
-      setEditingFolderId(null);
-      setEditingFolderName('');
-      setEditingFolderManufacturer('');
-      return;
-    }
-
-    setFolderError(null);
-    try {
-      await renameFolderMutation.mutateAsync({
-        factoryId,
-        folderId: editingFolderId,
-        newName: editingFolderName.trim()
-      });
-      loadAllManufacturerFolders(true);
-      showSuccessToast('Folder renamed successfully');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to rename folder';
-      setFolderError(errorMessage);
-      showErrorToast('Failed to rename folder', { description: errorMessage });
-    } finally {
-      setEditingFolderId(null);
-      setEditingFolderName('');
-      setEditingFolderManufacturer('');
-    }
-  };
-
-  const handleDeleteFolder = async (folder: SpecSheetFolder) => {
-    // Check for subfolders first
-    const hasSubfolders = folders.some(f => f.parentId === folder.id);
-
-    if (hasSubfolders) {
-      showErrorToast('Cannot delete folder', {
-        description: 'This folder contains subfolders. Delete them first.',
-      });
-      return;
-    }
-
-    // Check if folder has direct spec sheets
-    if ((folder.specSheetCount || 0) > 0) {
-      showErrorToast('Cannot delete folder', {
-        description: 'This folder contains spec sheets. Move or delete them first.',
-      });
-      return;
-    }
-
-    const confirmed = await showConfirmToast(`Delete folder "${folder.name}"?`, {
-      confirmLabel: 'Delete',
-    });
-
-    if (confirmed) {
-      setFolderError(null);
-      // Find factoryId from manufacturer name
-      const factoryId = findManufacturerIdByName(folder.manufacturer || '') || selectedManufacturerId;
-      if (!factoryId) {
-        showErrorToast('Failed to delete folder', { description: 'Could not determine manufacturer' });
-        return;
-      }
-      try {
-        // New API uses factoryId and folderId
-        await deleteFolderMutation.mutateAsync({ factoryId, folderId: folder.id });
-        if (selectedFolderId === folder.id) setSelectedFolderId(null);
-        loadAllManufacturerFolders(true);
-        showSuccessToast('Folder deleted');
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to delete folder';
-        setFolderError(errorMessage);
-        showErrorToast('Failed to delete folder', { description: errorMessage });
-      }
-    }
-  };
-
-  const handleAddSubfolder = (parentFolder: SpecSheetFolder) => {
-    setNewFolderParentId(parentFolder.id);
-    setNewFolderManufacturer(parentFolder.manufacturer || '');
-    // Find the manufacturer ID from the parent folder's manufacturer name
-    const mfrId = findManufacturerIdByName(parentFolder.manufacturer || '');
-    setNewFolderManufacturerId(mfrId || selectedManufacturerId || '');
-    setNewFolderName('');
-    setShowAddFolderModal(true);
-  };
-
-  const handleAddRootFolder = (manufacturer: string, manufacturerId?: string) => {
-    setNewFolderParentId(null);
-    setNewFolderManufacturer(manufacturer);
-    const id = manufacturerId || findManufacturerIdByName(manufacturer);
-    setNewFolderManufacturerId(id || '');
-    setNewFolderName('');
-    setShowAddFolderModal(true);
-  };
-
-  const handleCreateFolder = async () => {
-    if (!newFolderName.trim() || !newFolderManufacturerId) return;
-    setFolderError(null);
-    try {
-      // New API uses factoryId, parentFolderId, and folderName
-      await createFolderMutation.mutateAsync({
-        factoryId: newFolderManufacturerId,
-        parentFolderId: newFolderParentId,
-        folderName: newFolderName.trim()
-      });
-      setShowAddFolderModal(false);
-      setNewFolderName('');
-      if (newFolderParentId) setExpandedFolders(prev => new Set([...prev, newFolderParentId!]));
-      if (newFolderManufacturer) setExpandedManufacturers(prev => new Set([...prev, newFolderManufacturer]));
-      loadAllManufacturerFolders(true);
-    } catch (error) {
-      setFolderError(error instanceof Error ? error.message : 'Failed to create folder');
-    }
-  };
-
-  const handleFolderDragStart = (e: React.DragEvent, folderId: string) => {
-    e.stopPropagation();
-    setDraggedFolderId(folderId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleFolderDragOver = (e: React.DragEvent, folderId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (draggedFolderId && draggedFolderId !== folderId) {
-      const isChild = (parentId: string, childId: string): boolean => {
-        const children = folders.filter(f => f.parentId === parentId);
-        if (children.some(c => c.id === childId)) return true;
-        return children.some(c => isChild(c.id, childId));
-      };
-      if (!isChild(draggedFolderId, folderId)) setDragOverFolderId(folderId);
-    }
-  };
-
-  const handleFolderDragLeave = (e: React.DragEvent) => {
-    e.stopPropagation();
-    setDragOverFolderId(null);
-  };
-
-  const handleFolderDrop = async (e: React.DragEvent, targetFolderId: string | null, targetManufacturer?: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!draggedFolderId || draggedFolderId === targetFolderId) {
-      setDraggedFolderId(null);
-      setDragOverFolderId(null);
-      return;
-    }
-
-    if (!targetManufacturer) {
-      setFolderError('Could not determine target manufacturer');
-      setDraggedFolderId(null);
-      setDragOverFolderId(null);
-      return;
-    }
-
-    // Find the factoryId from manufacturer name
-    const factoryId = findManufacturerIdByName(targetManufacturer);
-    if (!factoryId) {
-      setFolderError('Could not determine manufacturer for folder move');
-      setDraggedFolderId(null);
-      setDragOverFolderId(null);
-      return;
-    }
-
-    setFolderError(null);
-    try {
-      await moveFolderMutation.mutateAsync({
-        factoryId,
-        folderId: draggedFolderId,
-        newParentId: targetFolderId,
-      });
-      loadAllManufacturerFolders(true);
-      showSuccessToast('Folder moved successfully');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to move folder';
-      setFolderError(errorMessage);
-      showErrorToast('Failed to move folder', { description: errorMessage });
-    } finally {
-      setDraggedFolderId(null);
-      setDragOverFolderId(null);
-    }
-  };
-
-  const handleFolderDragEnd = () => {
-    setDraggedFolderId(null);
-    setDragOverFolderId(null);
-  };
-
-  // Get root folders (parentId === null) for a manufacturer
-  const getAllFoldersForManufacturer = (manufacturerName: string): SpecSheetFolder[] => {
-    const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
-    if (!manufacturerData) return [];
-    const apiFolders = allManufacturerFolders[manufacturerData.id] || [];
-    if (apiFolders.length === 0) return [];
-
-    const allFolders = convertToSpecSheetFolders(apiFolders, manufacturerName);
-    // Return only root folders (no parent)
-    return allFolders.filter(f => f.parentId === null);
-  };
-
-  const getFoldersForManufacturer = (manufacturer: string) => getAllFoldersForManufacturer(manufacturer);
-
-  const getChildFoldersFromAll = (parentId: string, manufacturerName: string): SpecSheetFolder[] => {
-    const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
-    if (!manufacturerData) return [];
-    const apiFolders = allManufacturerFolders[manufacturerData.id] || [];
-    if (apiFolders.length === 0) return [];
-
-    const allFolders = convertToSpecSheetFolders(apiFolders, manufacturerName);
-    return allFolders.filter(f => f.parentId === parentId);
-  };
-
-  const getFolderCountForManufacturer = (manufacturerName: string): number => {
-    const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
-    if (!manufacturerData) return 0;
-    return (allManufacturerFolders[manufacturerData.id] || []).length;
-  };
-
-  const getFolderSpecSheetCount = (folderId: string, manufacturerName: string): number => {
-    const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
-    if (!manufacturerData) return 0;
-    const apiFolders = allManufacturerFolders[manufacturerData.id] || [];
-    const folder = apiFolders.find(f => f.id === folderId);
-    return folder?.specSheetCount || 0;
-  };
-
-  const getChildFoldersLocal = (parentId: string) => folders.filter(f => f.parentId === parentId);
-
+  // Toggle handlers
   const toggleFolder = (folderId: string) => {
     setExpandedFolders(prev => {
       const next = new Set(prev);
@@ -385,11 +129,6 @@ export function useSpecSheetsFolders({
     });
   };
 
-  const getFolderCount = (folderId: string): number => {
-    const folder = folders.find(f => f.id === folderId);
-    return folder?.specSheetCount || 0;
-  };
-
   return {
     // State
     expandedFolders,
@@ -398,49 +137,49 @@ export function useSpecSheetsFolders({
     expandedManufacturers,
     contextMenu,
     setContextMenu,
-    editingFolderId,
-    setEditingFolderId,
-    editingFolderName,
-    setEditingFolderName,
-    showAddFolderModal,
-    setShowAddFolderModal,
-    newFolderParentId,
-    newFolderManufacturer,
-    newFolderName,
-    setNewFolderName,
-    draggedFolderId,
-    dragOverFolderId,
-    setDragOverFolderId,
-    folderError,
-    setFolderError,
     folders,
-    isSavingFolder,
-    isCreatingFolder,
     isLoadingFolders,
     isLoadingAllFolders,
 
-    // Handlers
+    // CRUD state & handlers
+    editingFolderId: crud.editingFolderId,
+    setEditingFolderId: crud.setEditingFolderId,
+    editingFolderName: crud.editingFolderName,
+    setEditingFolderName: crud.setEditingFolderName,
+    showAddFolderModal: crud.showAddFolderModal,
+    setShowAddFolderModal: crud.setShowAddFolderModal,
+    newFolderParentId: crud.newFolderParentId,
+    newFolderManufacturer: crud.newFolderManufacturer,
+    newFolderName: crud.newFolderName,
+    setNewFolderName: crud.setNewFolderName,
+    folderError: crud.folderError,
+    setFolderError: crud.setFolderError,
+    isSavingFolder: crud.isSavingFolder || dragDrop.isMovingFolder,
+    isCreatingFolder: crud.isCreatingFolder,
+    handleRenameFolder: crud.handleRenameFolder,
+    handleSaveRename: crud.handleSaveRename,
+    handleDeleteFolder: crud.handleDeleteFolder,
+    handleAddSubfolder: crud.handleAddSubfolder,
+    handleAddRootFolder: crud.handleAddRootFolder,
+    handleCreateFolder: crud.handleCreateFolder,
+
+    // Drag & drop state & handlers
+    draggedFolderId: dragDrop.draggedFolderId,
+    dragOverFolderId: dragDrop.dragOverFolderId,
+    setDragOverFolderId: dragDrop.setDragOverFolderId,
+    handleFolderDragStart: dragDrop.handleFolderDragStart,
+    handleFolderDragOver: dragDrop.handleFolderDragOver,
+    handleFolderDragLeave: dragDrop.handleFolderDragLeave,
+    handleFolderDrop: dragDrop.handleFolderDrop,
+    handleFolderDragEnd: dragDrop.handleFolderDragEnd,
+
+    // Helpers
+    ...helpers,
+
+    // Other handlers
     toggleFolder,
     toggleManufacturer,
     handleFolderContextMenu,
-    handleRenameFolder,
-    handleSaveRename,
-    handleDeleteFolder,
-    handleAddSubfolder,
-    handleAddRootFolder,
-    handleCreateFolder,
-    handleFolderDragStart,
-    handleFolderDragOver,
-    handleFolderDragLeave,
-    handleFolderDrop,
-    handleFolderDragEnd,
-    getFoldersForManufacturer,
-    getAllFoldersForManufacturer,
-    getChildFoldersFromAll,
-    getFolderCountForManufacturer,
-    getFolderSpecSheetCount,
-    getChildFoldersLocal,
-    getFolderCount,
     loadAllManufacturerFolders,
   };
 }
