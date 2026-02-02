@@ -143,6 +143,7 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
         overallDiscountRate: undefined,
         paymentTerms: undefined,
         leadTime: undefined,
+        isParent: sr.isParent ?? false,
       }));
 
       // Apply published filter to search results
