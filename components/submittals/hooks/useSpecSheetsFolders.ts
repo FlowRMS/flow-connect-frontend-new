@@ -34,6 +34,7 @@ export function useSpecSheetsFolders({
   const [contextMenu, setContextMenu] = useState<{ folder: SpecSheetFolder; position: { x: number; y: number } } | null>(null);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState('');
+  const [editingFolderManufacturer, setEditingFolderManufacturer] = useState<string>('');
   const [showAddFolderModal, setShowAddFolderModal] = useState(false);
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
   const [newFolderManufacturer, setNewFolderManufacturer] = useState<string>('');
@@ -124,28 +125,47 @@ export function useSpecSheetsFolders({
   const handleRenameFolder = (folder: SpecSheetFolder) => {
     setEditingFolderId(folder.id);
     setEditingFolderName(folder.name);
+    setEditingFolderManufacturer(folder.manufacturer || '');
   };
 
   const handleSaveRename = async () => {
-    if (!editingFolderId || !editingFolderName.trim() || !selectedManufacturerId) {
+    if (!editingFolderId || !editingFolderName.trim()) {
       setEditingFolderId(null);
       setEditingFolderName('');
+      setEditingFolderManufacturer('');
       return;
     }
+
+    // Get factoryId from the stored manufacturer name, or fall back to selectedManufacturerId
+    const factoryId = editingFolderManufacturer
+      ? findManufacturerIdByName(editingFolderManufacturer)
+      : selectedManufacturerId;
+
+    if (!factoryId) {
+      setFolderError('Could not determine manufacturer for folder rename');
+      setEditingFolderId(null);
+      setEditingFolderName('');
+      setEditingFolderManufacturer('');
+      return;
+    }
+
     setFolderError(null);
     try {
-      // New API uses factoryId, folderId and newName
       await renameFolderMutation.mutateAsync({
-        factoryId: selectedManufacturerId,
+        factoryId,
         folderId: editingFolderId,
         newName: editingFolderName.trim()
       });
       loadAllManufacturerFolders(true);
+      showSuccessToast('Folder renamed successfully');
     } catch (error) {
-      setFolderError(error instanceof Error ? error.message : 'Failed to rename folder');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to rename folder';
+      setFolderError(errorMessage);
+      showErrorToast('Failed to rename folder', { description: errorMessage });
     } finally {
       setEditingFolderId(null);
       setEditingFolderName('');
+      setEditingFolderManufacturer('');
     }
   };
 
