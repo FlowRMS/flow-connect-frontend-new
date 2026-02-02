@@ -35,13 +35,52 @@ function getDefaultValueByType(exportType: ExportType): unknown {
     case 'number':
       return 0;
     case 'date':
-      return '';
-    case 'percentage':
-      return 0;
+    case 'array':
     case 'text':
     default:
       return '';
+    case 'percentage':
+      return 0;
   }
+}
+
+/**
+ * Format array value for export
+ * Handles both string arrays and object arrays (extracts fullName for salesReps)
+ */
+function formatArrayForExport(value: unknown, columnId: string): string {
+  if (!value) {
+    return '';
+  }
+
+  if (!Array.isArray(value)) {
+    // If it's not an array, try to convert it
+    return String(value);
+  }
+
+  if (value.length === 0) {
+    return '';
+  }
+
+  // Special case: salesReps is array of objects with fullName
+  if (columnId === 'salesReps') {
+    const formatted = value
+      .map((rep: { fullName?: string; avgSplitRate?: number; total?: number }) => {
+        if (!rep || typeof rep !== 'object') return '';
+        // Extract fullName if available
+        const name = rep.fullName || '';
+        return name;
+      })
+      .filter(Boolean)
+      .join(', ');
+    return formatted || ''; // Ensure we return empty string, not undefined
+  }
+
+  // Default: array of strings/values
+  return value
+    .map(item => item != null ? String(item) : '')
+    .filter(Boolean)
+    .join(', ');
 }
 
 /**
@@ -65,6 +104,11 @@ function mapDataUsingConfig<T extends Record<string, unknown>>(
       // Handle special cases
       if (col.id === 'visible' && typeof value === 'boolean') {
         result[col.id] = value !== false;
+      } else if (exportType === 'array') {
+        // Format array fields as comma-separated strings
+        // Always ensure it's a string, never a number or undefined
+        const formatted = formatArrayForExport(value, col.id);
+        result[col.id] = formatted || '';
       } else {
         result[col.id] = value ?? getDefaultValueByType(exportType);
       }

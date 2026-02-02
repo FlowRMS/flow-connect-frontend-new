@@ -137,10 +137,12 @@ export function useEntityExport<T extends Record<string, unknown>>({
   // Convert sorting to export format
   const exportSorting = useMemo(() => {
     if (!sorting || sorting.length === 0) return undefined;
-    return sorting.map(sort => ({
-      prop: sort.columnName,
-      order: sort.direction.toLowerCase() as 'asc' | 'desc',
-    }));
+    return sorting
+      .filter(sort => sort.columnName && sort.direction) // Filter out invalid sorts
+      .map(sort => ({
+        prop: sort.columnName,
+        order: sort.direction.toLowerCase() as 'asc' | 'desc',
+      }));
   }, [sorting]);
 
   // Build export context

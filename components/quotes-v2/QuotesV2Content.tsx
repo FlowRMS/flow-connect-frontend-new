@@ -27,6 +27,9 @@ import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 import type { SavedViewState } from '@/components/lib/graphql/settings';
 import { SortMenu } from '@/components/shared/sorting/components/SortMenu';
 import { QUOTE_SORT_CONFIGS, DEFAULT_QUOTE_SORT } from './config/sortConfig';
+import { ExportExcelButton, useEntityExport } from '@/components/shared/excel-export';
+import { QUOTE_TABLE_COLUMNS } from './list/config/columnConfig';
+import { getQuickDateRange } from './list/utils';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
@@ -588,6 +591,24 @@ export function QuotesV2Content() {
     return `$${numAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
 
+  // Excel export hook
+  // orderBy already has the correct format (columnName, direction) for useEntityExport
+  const { context: exportContext } = useEntityExport({
+    data: allQuotesData as unknown as Record<string, unknown>[],
+    activeFilters: activeFilters,
+    columnFilters: columnFilters,
+    quickDatePreset: quickFilter,
+    quickDateField: quickDateField,
+    sorting: orderBy, // orderBy already has columnName and direction
+    searchQuery: searchQuery,
+    config: {
+      entityType: 'quotes',
+      columns: QUOTE_TABLE_COLUMNS,
+      getQuickDateRange: (preset: string) => getQuickDateRange(preset as QuickFilter),
+      reportTitle: 'Quotes Export',
+    },
+  });
+
   const handleQuoteClick = useCallback((quote: QuoteV2) => {
     router.push(`/quotes-v2/${quote.id}`);
   }, [router]);
@@ -849,6 +870,14 @@ export function QuotesV2Content() {
                 </div>
               </>
             )}
+          </div>
+
+          {/* Export Button */}
+          <div className="ml-auto">
+            <ExportExcelButton
+              context={exportContext}
+              options={{}}
+            />
           </div>
         </div>
 

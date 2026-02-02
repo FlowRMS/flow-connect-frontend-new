@@ -2,22 +2,20 @@
  * Excel Export Types
  * Common types for list export functionality
  * 
- * Initially focused on Orders, but designed to be scalable
  */
 
 import type { ActiveFilter } from '@/components/advancedFilters/types';
 
 /**
  * Entity types that support Excel export
- * Starting with 'orders', ready to add: 'statements', 'quotes'
  */
-export type ExportableEntityType = 'orders' | 'invoices';
+export type ExportableEntityType = 'orders' | 'invoices' | 'quotes';
 
 /**
  * Export type for formatting in Excel
  * Single source of truth for export column types
  */
-export type ExportType = 'currency' | 'date' | 'percentage' | 'text' | 'number';
+export type ExportType = 'currency' | 'date' | 'percentage' | 'text' | 'number' | 'array';
 
 /**
  * Configuration for export columns
@@ -85,15 +83,6 @@ export interface ExportOptions {
 /**
  * Mapper function type
  * Transforms entity data to exportable format
- * 
- * @example
- * const ordersMapper: EntityMapper<Order> = (orders: Order[]) => {
- *   return orders.map(order => ({
- *     orderNumber: order.orderNumber,
- *     total: order.total,
- *     // ... map other fields
- *   }));
- * };
  */
 export type EntityMapper<T = Record<string, unknown>> = (
   data: T[]
