@@ -7,14 +7,14 @@ interface UseFolderDragDropParams {
   folders: SpecSheetFolder[];
   findManufacturerIdByName: (name: string) => string | null;
   setFolderError: (error: string | null) => void;
-  loadAllManufacturerFolders: (force?: boolean) => Promise<void>;
+  reloadManufacturerFolders: (manufacturerId: string) => Promise<void>;
 }
 
 export function useFolderDragDrop({
   folders,
   findManufacturerIdByName,
   setFolderError,
-  loadAllManufacturerFolders,
+  reloadManufacturerFolders,
 }: UseFolderDragDropParams) {
   const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export function useFolderDragDrop({
         folderId: draggedFolderId,
         newParentId: targetFolderId,
       });
-      loadAllManufacturerFolders(true);
+      await reloadManufacturerFolders(factoryId);
       showSuccessToast('Folder moved successfully');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to move folder';

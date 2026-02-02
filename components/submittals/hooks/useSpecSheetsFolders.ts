@@ -67,6 +67,19 @@ export function useSpecSheetsFolders({
     }
   };
 
+  // Reload folders for a single manufacturer (more efficient than reloading all)
+  const reloadManufacturerFolders = async (manufacturerId: string) => {
+    try {
+      const folders = await fetchFoldersApi(manufacturerId);
+      setAllManufacturerFolders(prev => ({
+        ...prev,
+        [manufacturerId]: folders,
+      }));
+    } catch {
+      // Keep existing data on error
+    }
+  };
+
   useEffect(() => {
     if (!manufacturers || manufacturers.length === 0) return;
     const currentIds = manufacturers.map(m => m.id).sort().join(',');
@@ -81,6 +94,7 @@ export function useSpecSheetsFolders({
     manufacturers,
     allManufacturerFolders,
     folders,
+    selectedManufacturerId,
   });
 
   // CRUD operations
@@ -92,7 +106,7 @@ export function useSpecSheetsFolders({
     findManufacturerIdByName: helpers.findManufacturerIdByName,
     setExpandedFolders,
     setExpandedManufacturers,
-    loadAllManufacturerFolders,
+    reloadManufacturerFolders,
   });
 
   // Drag & drop
@@ -100,7 +114,7 @@ export function useSpecSheetsFolders({
     folders,
     findManufacturerIdByName: helpers.findManufacturerIdByName,
     setFolderError: crud.setFolderError,
-    loadAllManufacturerFolders,
+    reloadManufacturerFolders,
   });
 
   // Context menu handler

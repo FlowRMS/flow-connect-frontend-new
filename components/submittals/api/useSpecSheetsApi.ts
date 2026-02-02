@@ -198,6 +198,8 @@ export function useCreateHighlightVersion() {
       queryClient.invalidateQueries({
         queryKey: specSheetQueryKeys.highlightVersions(data.specSheetId)
       });
+      // Invalidate spec sheet queries to update highlightCount in sidebar filters
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.all });
     },
   });
 }
@@ -233,6 +235,8 @@ export function useDeleteHighlightVersion() {
       queryClient.invalidateQueries({
         queryKey: specSheetQueryKeys.highlightVersions(specSheetId)
       });
+      // Invalidate spec sheet queries to update highlightCount in sidebar filters
+      queryClient.invalidateQueries({ queryKey: specSheetQueryKeys.all });
     },
     onError: (error) => {
       // Check if error is due to foreign key constraint (highlight version in use)

@@ -15,7 +15,7 @@ interface UseFolderCRUDParams {
   findManufacturerIdByName: (name: string) => string | null;
   setExpandedFolders: React.Dispatch<React.SetStateAction<Set<string>>>;
   setExpandedManufacturers: React.Dispatch<React.SetStateAction<Set<string>>>;
-  loadAllManufacturerFolders: (force?: boolean) => Promise<void>;
+  reloadManufacturerFolders: (manufacturerId: string) => Promise<void>;
 }
 
 export function useFolderCRUD({
@@ -26,7 +26,7 @@ export function useFolderCRUD({
   findManufacturerIdByName,
   setExpandedFolders,
   setExpandedManufacturers,
-  loadAllManufacturerFolders,
+  reloadManufacturerFolders,
 }: UseFolderCRUDParams) {
   // Editing state
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
@@ -80,7 +80,7 @@ export function useFolderCRUD({
         folderId: editingFolderId,
         newName: editingFolderName.trim(),
       });
-      loadAllManufacturerFolders(true);
+      await reloadManufacturerFolders(factoryId);
       showSuccessToast('Folder renamed successfully');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to rename folder';
@@ -124,7 +124,7 @@ export function useFolderCRUD({
       try {
         await deleteFolderMutation.mutateAsync({ factoryId, folderId: folder.id });
         if (selectedFolderId === folder.id) setSelectedFolderId(null);
-        loadAllManufacturerFolders(true);
+        await reloadManufacturerFolders(factoryId);
         showSuccessToast('Folder deleted');
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to delete folder';
@@ -165,7 +165,7 @@ export function useFolderCRUD({
       setNewFolderName('');
       if (newFolderParentId) setExpandedFolders(prev => new Set([...prev, newFolderParentId!]));
       if (newFolderManufacturer) setExpandedManufacturers(prev => new Set([...prev, newFolderManufacturer]));
-      loadAllManufacturerFolders(true);
+      await reloadManufacturerFolders(newFolderManufacturerId);
     } catch (error) {
       setFolderError(error instanceof Error ? error.message : 'Failed to create folder');
     }

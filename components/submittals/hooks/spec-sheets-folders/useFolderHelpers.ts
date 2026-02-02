@@ -8,12 +8,14 @@ interface UseFolderHelpersParams {
   manufacturers: Manufacturer[];
   allManufacturerFolders: Record<string, FolderResponse[]>;
   folders: SpecSheetFolder[];
+  selectedManufacturerId: string | null;
 }
 
 export function useFolderHelpers({
   manufacturers,
   allManufacturerFolders,
   folders,
+  selectedManufacturerId,
 }: UseFolderHelpersParams) {
   const findManufacturerIdByName = useCallback(
     (name: string): string | null => {
@@ -36,12 +38,18 @@ export function useFolderHelpers({
       const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
       if (!manufacturerData) return [];
       const apiFolders = allManufacturerFolders[manufacturerData.id] || [];
+
+      // If no folders in cache but this is the selected manufacturer, use individual fetch data
+      if (apiFolders.length === 0 && manufacturerData.id === selectedManufacturerId && folders.length > 0) {
+        return folders.filter(f => f.parentId === null);
+      }
+
       if (apiFolders.length === 0) return [];
 
       const allFolders = convertToSpecSheetFolders(apiFolders, manufacturerName);
       return allFolders.filter(f => f.parentId === null);
     },
-    [manufacturers, allManufacturerFolders]
+    [manufacturers, allManufacturerFolders, selectedManufacturerId, folders]
   );
 
   const getChildFoldersFromAll = useCallback(
@@ -49,12 +57,18 @@ export function useFolderHelpers({
       const manufacturerData = manufacturers.find(m => m.name === manufacturerName);
       if (!manufacturerData) return [];
       const apiFolders = allManufacturerFolders[manufacturerData.id] || [];
+
+      // If no folders in cache but this is the selected manufacturer, use individual fetch data
+      if (apiFolders.length === 0 && manufacturerData.id === selectedManufacturerId && folders.length > 0) {
+        return folders.filter(f => f.parentId === parentId);
+      }
+
       if (apiFolders.length === 0) return [];
 
       const allFolders = convertToSpecSheetFolders(apiFolders, manufacturerName);
       return allFolders.filter(f => f.parentId === parentId);
     },
-    [manufacturers, allManufacturerFolders]
+    [manufacturers, allManufacturerFolders, selectedManufacturerId, folders]
   );
 
   const getFolderCountForManufacturer = useCallback(

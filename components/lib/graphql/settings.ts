@@ -17,9 +17,10 @@ export type SettingKey =
   | 'CHECKS_SETTINGS'
   | 'CHAT_SETTINGS'
   | 'SIDEBAR_SETTINGS'
-  | 'FLOW_AI_SETTINGS'
   | 'PICKLIST_SETTINGS'
-  | 'SPEC_SHEETS_SETTINGS';
+  | 'NOTIFICATION_SETTINGS'
+  | 'SPEC_SHEETS_SETTINGS'
+  | 'FLOW_AI_SETTINGS';
 
 // ============================================================================
 // Setting Value Types
