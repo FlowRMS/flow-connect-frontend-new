@@ -26,6 +26,7 @@ interface ListViewProps {
   isLoading?: boolean;
   // For empty state
   hasFilters?: boolean;
+  onClearFilters?: () => void;
   // Column filters
   onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
   filterOptions?: ReturnType<typeof getContactFilterOptions>;
@@ -40,6 +41,7 @@ export default function ListView({
   fetchNextPage,
   isLoading = false,
   hasFilters = false,
+  onClearFilters,
   onColumnFiltersChange,
   filterOptions = getContactFilterOptions(),
   columnFilters: parentColumnFilters,
@@ -65,7 +67,10 @@ export default function ListView({
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
       {!isLoading && contacts.length === 0 ? (
         // Empty state - show message
-        <ContactsEmptyState hasFilters={hasFilters || hasColumnFilters} />
+        <ContactsEmptyState 
+          hasFilters={hasFilters || hasColumnFilters} 
+          onClearFilters={onClearFilters}
+        />
       ) : (
         <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           <div 

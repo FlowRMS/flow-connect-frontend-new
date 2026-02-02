@@ -468,7 +468,8 @@ export default function ContactsContent() {
             isFetchingNextPage={state.isFetchingNextPage}
             fetchNextPage={state.fetchNextPage}
             isLoading={state.isLoading}
-            hasFilters={state.activeFilters.length > 0}
+            hasFilters={state.activeFilters.length > 0 || Object.keys(state.columnFilters).length > 0 || state.searchQuery.length >= 2}
+            onClearFilters={state.clearAllFilters}
             onColumnFiltersChange={state.handleColumnFiltersChange}
             filterOptions={contactFilterOptions}
             columnFilters={state.columnFilters}
