@@ -338,6 +338,7 @@ export interface Contact {
   email?: string | null;
   phone?: string | null;
   role?: string | null;
+  roleDetail?: string | null;
   notes?: string | null;
   tags?: string | string[] | null;
   territory?: string | null;
@@ -351,6 +352,7 @@ export interface ContactInput {
   email?: string;
   phone?: string;
   role?: string;
+  roleDetail?: string;
   companyId?: string;
   notes?: string;
   tags?: string;
@@ -363,6 +365,7 @@ export interface UpdateContactInput {
   email?: string;
   phone?: string;
   role?: string;
+  roleDetail?: string;
   companyId?: string;
   notes?: string;
   tags?: string;
@@ -376,6 +379,7 @@ export interface ContactLandingPage {
   email?: string;
   phone?: string;
   role?: string;
+  roleDetail?: string;
   companyName?: string;
   createdBy?: string;
   createdAt?: string;

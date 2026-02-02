@@ -74,6 +74,7 @@ export function useContactsState() {
         email: selectedContact.email,
         phone: selectedContact.phone,
         role: selectedContact.role,
+        roleDetail: selectedContact.roleDetail,
         company: selectedContact.company,
         companyId: selectedContact.companyId,
         territory: selectedContact.territory,
@@ -381,6 +382,7 @@ export function useContactsState() {
           email: editFormData.email,
           phone: editFormData.phone,
           role: editFormData.role,
+          roleDetail: editFormData.roleDetail,
           tags: tagsToSend,
         },
       });
@@ -399,6 +401,7 @@ export function useContactsState() {
         email: editFormData.email || selectedContact.email,
         phone: editFormData.phone || selectedContact.phone,
         role: editFormData.role || selectedContact.role,
+        roleDetail: editFormData.roleDetail || selectedContact.roleDetail,
         tags: updatedTags,
       });
 
