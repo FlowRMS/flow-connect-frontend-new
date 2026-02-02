@@ -361,7 +361,7 @@ export default function OrdersListContent() {
 
           {/* Empty State - shown outside table when no data */}
           {!isLoading && state.filteredOrders.length === 0 && (
-            <OrdersEmptyState hasFilters={hasFilters} />
+            <OrdersEmptyState hasFilters={hasFilters} onClearFilters={state.clearAllFilters} />
           )}
 
           {/* Loading indicator for infinite scroll */}

@@ -1,5 +1,4 @@
 import React from 'react';
-import Link from 'next/link';
 import WarehouseSelector from '../WarehouseSelector';
 import { useWarehouse } from '../WarehouseContext';
 
@@ -8,12 +7,10 @@ import { useState } from 'react';
 
 interface InventoryHeaderProps {
     onRequestClick: () => void;
-    onExportClick: () => void;
-    onImportClick: () => void;
     onRefresh?: () => void;
 }
 
-export default function InventoryHeader({ onRequestClick, onExportClick, onImportClick, onRefresh }: InventoryHeaderProps) {
+export default function InventoryHeader({ onRequestClick, onRefresh }: InventoryHeaderProps) {
     const { isManagerView } = useWarehouse();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
@@ -28,7 +25,7 @@ export default function InventoryHeader({ onRequestClick, onExportClick, onImpor
                 </div>
                 <div className="flex items-center gap-3">
                     <WarehouseSelector />
-                    {/* Export/Import/Request buttons only visible to managers */}
+                    {/* Manager-only buttons */}
                     {isManagerView && (
                         <>
                             <button
@@ -39,28 +36,6 @@ export default function InventoryHeader({ onRequestClick, onExportClick, onImpor
                                     <path d="M12 5v14M5 12h14" />
                                 </svg>
                                 Create Inventory
-                            </button>
-                            <button
-                                onClick={onExportClick}
-                                className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                            >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                                    <polyline points="7 10 12 15 17 10" />
-                                    <line x1="12" y1="15" x2="12" y2="3" />
-                                </svg>
-                                Export
-                            </button>
-                            <button
-                                onClick={onImportClick}
-                                className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                            >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                                    <polyline points="17 8 12 3 7 8" />
-                                    <line x1="12" y1="3" x2="12" y2="15" />
-                                </svg>
-                                Import
                             </button>
                             <button
                                 onClick={onRequestClick}

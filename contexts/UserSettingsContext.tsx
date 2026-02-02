@@ -319,7 +319,9 @@ export function useQuoteSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: QuoteSettingsValue, scope: SettingScope) => saveSetting('QUOTE_SETTINGS', value, scope),
+    async (value: QuoteSettingsValue, scope: SettingScope) => {
+      return saveSetting('QUOTE_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -354,7 +356,9 @@ export function useOrderSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: OrderSettingsValue, scope: SettingScope) => saveSetting('ORDER_SETTINGS', value, scope),
+    async (value: OrderSettingsValue, scope: SettingScope) => {
+      return saveSetting('ORDER_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -389,7 +393,9 @@ export function useInvoiceSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: InvoiceSettingsValue, scope: SettingScope) => saveSetting('INVOICE_SETTINGS', value, scope),
+    async (value: InvoiceSettingsValue, scope: SettingScope) => {
+      return saveSetting('INVOICE_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -424,7 +430,9 @@ export function useCommissionSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: CommissionSettingsValue, scope: SettingScope) => saveSetting('CHECKS_SETTINGS', value, scope),
+    async (value: CommissionSettingsValue, scope: SettingScope) => {
+      return saveSetting('CHECKS_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -459,7 +467,9 @@ export function useChatSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: ChatSettingsValue, scope: SettingScope) => saveSetting('CHAT_SETTINGS', value, scope),
+    async (value: ChatSettingsValue, scope: SettingScope) => {
+      return saveSetting('CHAT_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -494,7 +504,9 @@ export function useSidebarSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: SidebarSettingsValue, scope: SettingScope) => saveSetting('SIDEBAR_SETTINGS', value, scope),
+    async (value: SidebarSettingsValue, scope: SettingScope) => {
+      return saveSetting('SIDEBAR_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -529,7 +541,9 @@ export function useFlowAISettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: FlowAISettingsValue, scope: SettingScope) => saveSetting('FLOW_AI_SETTINGS', value, scope),
+    async (value: FlowAISettingsValue, scope: SettingScope) => {
+      return saveSetting('FLOW_AI_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 

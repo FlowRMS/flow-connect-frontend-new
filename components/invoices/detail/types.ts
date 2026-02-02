@@ -55,6 +55,8 @@ export interface InvoiceLineItem {
   // Optional fields for warehouse/consignment tracking
   isWarehouseConsignment?: boolean;
   inventoryOnHand?: number;
+  // Frontend-calculated flag: true when backend sent subtotal as 0 and we fell back to calculated value
+  _fcSellTotal?: boolean;
   // Document-specific product flag (adhoc products created for this invoice)
   isQuoteLevelProduct?: boolean;
 }

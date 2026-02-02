@@ -1443,35 +1443,34 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   const handlePackingSlipImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPackingSlipImage(reader.result as string);
-        setPackingSlipFile(file);
-        setPackingSlipInputMode('scan');
-        // Simulate OCR processing + persist document
-        void processPackingSlipImage(file);
-      };
-      reader.readAsDataURL(file);
+      // Store delivery context for returning after AI processing
+      if (shipment) {
+        sessionStorage.setItem('warehouse_delivery_return', JSON.stringify({
+          deliveryId: shipment.id,
+          returnPath: `/warehouse/deliveries/${shipment.id}`,
+        }));
+      }
+      // Navigate to AI uploader with deliveries type pre-selected
+      router.push('/flow-ai/upload?type=deliveries&source=packing_slip');
     }
   };
 
   const handleCameraCapture = () => {
+    // Store delivery context for returning after AI processing
+    if (shipment) {
+      sessionStorage.setItem('warehouse_delivery_return', JSON.stringify({
+        deliveryId: shipment.id,
+        returnPath: `/warehouse/deliveries/${shipment.id}`,
+      }));
+    }
+
+    // Open camera capture, then navigate to AI uploader
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     input.capture = 'environment';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setPackingSlipImage(reader.result as string);
-          setPackingSlipFile(file);
-          setPackingSlipInputMode('scan');
-          void processPackingSlipImage(file);
-        };
-        reader.readAsDataURL(file);
-      }
+    input.onchange = () => {
+      router.push('/flow-ai/upload?type=deliveries&source=packing_slip');
     };
     input.click();
   };

@@ -5,6 +5,7 @@ import type { QuoteV2, QuotePipelineStage } from '../types';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { ColumnFilterTypeEnum } from '@/components/advancedFilters/types';
 import { getQuoteFilterOptions } from '../config/filterConfig';
 import { QuotesTableSkeleton } from '../components/QuotesTableSkeleton';
 import { SortIndicator } from '@/components/shared/sorting/components/SortIndicator';
@@ -146,6 +147,7 @@ export function ListViewV2({
     quoteDate: 'quote-date',
     expirationDate: 'expiration-date',
     published: 'published',
+    endUsers: 'end-users',
   };
   
   // Handle column filter change - now receives ActiveFilter[]
@@ -231,22 +233,22 @@ export function ListViewV2({
     const filterOption = filterOptions.find(f => f.id === filterId);
     if (!filterOption || !filterOption.columnName) return null;
     
-    // Ensure type is preserved correctly
-    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean';
-    
     // Get filters for this column (ActiveFilter[])
     const columnFiltersForThisColumn = columnFilters[columnKey] || [];
     
     return (
       <ColumnFilter
-        type={filterType}
+        type={filterOption.type}
         columnName={filterOption.columnName}
         value={columnFiltersForThisColumn}
         onChange={(filters) => handleColumnFilterChange(columnKey, filters)}
         options={filterOption.options}
-        placeholder={filterOption.type === 'text' || filterOption.type === 'number' 
+        placeholder={
+          filterOption.type === ColumnFilterTypeEnum.text ||
+          filterOption.type === ColumnFilterTypeEnum.number
           ? `Filter ${filterOption.label.toLowerCase()}...` 
-          : undefined}
+          : undefined
+        }
         isOpen={openFilter === columnKey}
         onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
         filterOption={filterOption}
@@ -323,6 +325,30 @@ export function ListViewV2({
                   )}
                 </div>
               </th>
+              {/* End Users - next to Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onSortChange?.('endUsers')}
+                  >
+                    End Users
+                  </span>
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('endUsers')}
+                  </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator 
+                        columnId="endUsers" 
+                        activeSort={activeSort}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
+                </div>
+              </th>
               {/* Part Numbers - moved after Customer */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
                 <span className="whitespace-nowrap">Part Numbers</span>
@@ -351,10 +377,6 @@ export function ListViewV2({
                     </div>
                   )}
                 </div>
-              </th>
-              {/* End Users - moved after Customer */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
-                <span className="whitespace-nowrap">End Users</span>
               </th>
               {/* Categories - moved after Customer */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
@@ -625,6 +647,13 @@ export function ListViewV2({
                       {quote.soldToCustomerName || '-'}
                     </span>
                   </td>
+                  {/* End Users - next to Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.endUsers || []}
+                      type="endUser"
+                    />
+                  </td>
                   {/* Part Numbers - moved after Customer */}
                   <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                     <ListPreviewHoverCard
@@ -644,13 +673,6 @@ export function ListViewV2({
                     <ListPreviewHoverCard
                       items={quote.factories || []}
                       type="factory"
-                    />
-                  </td>
-                  {/* End Users - moved after Customer */}
-                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    <ListPreviewHoverCard
-                      items={quote.endUsers || []}
-                      type="endUser"
                     />
                   </td>
                   {/* Categories - moved after Customer */}

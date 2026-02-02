@@ -27,6 +27,8 @@ const getDocumentTypeFromPath = (pathname: string): string | null => {
   if (pathname.startsWith('/products')) return 'products';
   if (pathname.startsWith('/customers')) return 'customers';
   if (pathname.startsWith('/manufacturers') || pathname.startsWith('/factories')) return 'factories';
+  if (pathname.startsWith('/warehouse/deliveries')) return 'deliveries';
+  if (pathname.startsWith('/warehouse/inventory')) return 'deliveries';
   return null;
 };
 

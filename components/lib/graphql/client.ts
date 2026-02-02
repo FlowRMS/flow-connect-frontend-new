@@ -278,13 +278,39 @@ export async function crmGraphQLMultipartRequest<T = unknown>(
     throw new Error('User not authorized on this tenancy.');
   }
 
-  // Check for signature expired error in GraphQL response
+  // Check for signature expired error in GraphQL response - retry with fresh token
   if (result.errors?.some(error =>
     error.message?.toLowerCase().includes('signature has expired') ||
     error.message?.toLowerCase().includes('unauthorized')
   )) {
     clearTokenCache();
-    // Redirect to sign-in to re-authenticate
+    const freshToken = await getAccessToken();
+
+    if (freshToken) {
+      headers['Authorization'] = `Bearer ${freshToken}`;
+      const retryResponse = await fetch(uploadProxyUrl, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (retryResponse.ok) {
+        const retryResult = await retryResponse.json() as GraphQLResponse<T>;
+
+        if (retryResult.errors?.some(error =>
+          error.message?.toLowerCase().includes('signature has expired') ||
+          error.message?.toLowerCase().includes('unauthorized')
+        )) {
+          if (typeof window !== 'undefined') {
+            window.location.href = '/sign-in';
+          }
+          throw new Error('Session expired. Please sign in again.');
+        }
+
+        return retryResult;
+      }
+    }
+
     if (typeof window !== 'undefined') {
       window.location.href = '/sign-in';
     }
@@ -371,15 +397,45 @@ export async function crmGraphQLRequest<T = unknown>(
     throw new Error('User not authorized on this tenancy.');
   }
 
-  // Check for signature expired error in GraphQL response
+  // Check for signature expired error in GraphQL response - retry with fresh token
   if (result.errors?.some(error =>
     error.message?.toLowerCase().includes('signature has expired') ||
     error.message?.toLowerCase().includes('unauthorized')
   )) {
-    // Clear the cached token
     clearTokenCache();
+    const freshToken = await getAccessToken();
 
-    // Redirect to sign-in to re-authenticate
+    if (freshToken) {
+      headers['Authorization'] = `Bearer ${freshToken}`;
+      const retryResponse = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: options.query,
+          variables: options.variables,
+          operationName: options.operationName,
+        }),
+      });
+
+      if (retryResponse.ok) {
+        const retryResult = await retryResponse.json() as GraphQLResponse<T>;
+
+        // If retry also has auth errors, only then redirect
+        if (retryResult.errors?.some(error =>
+          error.message?.toLowerCase().includes('signature has expired') ||
+          error.message?.toLowerCase().includes('unauthorized')
+        )) {
+          if (typeof window !== 'undefined') {
+            window.location.href = '/sign-in';
+          }
+          throw new Error('Session expired. Please sign in again.');
+        }
+
+        return retryResult;
+      }
+    }
+
+    // Fresh token unavailable or retry failed, redirect as last resort
     if (typeof window !== 'undefined') {
       window.location.href = '/sign-in';
     }

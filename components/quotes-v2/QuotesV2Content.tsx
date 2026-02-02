@@ -99,6 +99,7 @@ export function QuotesV2Content() {
     quoteDate: 'quote-date',
     expirationDate: 'expiration-date',
     published: 'published',
+    endUsers: 'end-users',
   }), []);
 
   // We initialize with empty arrays to avoid dependency issues
@@ -268,10 +269,10 @@ export function QuotesV2Content() {
     return sortState.toOrderBy();
   }, [sortState]);
 
-  // Combine all filters (uses columnFiltersToAPIState which will be updated when columnFiltersToAPI is computed)
+  // Combine quick filters with server filters (serverFilters already contains synced column filters)
   const filters = useMemo<QuoteLandingPageFilter[]>(() => {
-    return [...quickFilters, ...serverFilters, ...columnFiltersToAPIState];
-  }, [quickFilters, serverFilters, columnFiltersToAPIState]);
+    return [...quickFilters, ...serverFilters];
+  }, [quickFilters, serverFilters]);
 
   // Check if there are any active filters
   const hasActiveFilters = useMemo(() => {

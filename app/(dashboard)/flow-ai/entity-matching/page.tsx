@@ -34,6 +34,11 @@ const ALL_STEPS: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'e
 function getVisibleSteps(documentType: string | null): EntityStep[] {
   const normalizedDocType = documentType?.toUpperCase();
 
+  // For DELIVERIES: Only show factories and products (packing slip matching)
+  if (normalizedDocType === 'DELIVERIES') {
+    return ['factories', 'products'];
+  }
+
   // For CHECKS: Show all tabs (orders, invoices, credits, adjustments all visible)
   if (normalizedDocType === 'CHECKS') {
     return ALL_STEPS;

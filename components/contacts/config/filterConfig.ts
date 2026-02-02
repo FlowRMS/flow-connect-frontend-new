@@ -4,6 +4,7 @@
  */
 
 import type { FilterOption } from '../../advancedFilters/types';
+import { ColumnFilterTypeEnum } from '../../advancedFilters/types';
 import { CONTACT_ROLES } from '../constants';
 
 /**
@@ -15,28 +16,28 @@ export function getContactFilterOptions(): FilterOption[] {
     { 
       id: 'first-name', 
       label: 'First Name', 
-      type: 'text' as const, 
+      type: ColumnFilterTypeEnum.text, 
       columnName: 'firstName', 
       available: true 
     },
     { 
       id: 'last-name', 
       label: 'Last Name', 
-      type: 'text' as const, 
+      type: ColumnFilterTypeEnum.text, 
       columnName: 'lastName', 
       available: true 
     },
     { 
       id: 'company', 
       label: 'Company', 
-      type: 'company' as const, 
+      type: ColumnFilterTypeEnum.company, 
       columnName: 'companyName', 
       available: true 
     },
     { 
       id: 'role', 
       label: 'Role', 
-      type: 'dropdown' as const, 
+      type: ColumnFilterTypeEnum.dropdown, 
       columnName: 'role', 
       available: true, 
       options: [...CONTACT_ROLES] 
@@ -44,14 +45,14 @@ export function getContactFilterOptions(): FilterOption[] {
     { 
       id: 'created-by', 
       label: 'Created By', 
-      type: 'text' as const, 
+      type: ColumnFilterTypeEnum.text, 
       columnName: 'createdBy', 
       available: true 
     },
     { 
       id: 'created-at', 
       label: 'Created At', 
-      type: 'date' as const, 
+      type: ColumnFilterTypeEnum.date, 
       columnName: 'createdAt', 
       available: true 
     },
