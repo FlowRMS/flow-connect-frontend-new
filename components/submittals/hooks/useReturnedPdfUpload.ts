@@ -182,6 +182,7 @@ export function useReturnedPdfUpload({
           fileName: selectedFile.name,
           fileUrl: fileUrl,
           fileSize: selectedFile.size,
+          fileId: uploadedFile.id,  // Store file ID for fresh presigned URL generation
           returnedByStakeholderId: selectedStakeholder.contactId,
           receivedDate: receivedDate,
           notes: notes || undefined,

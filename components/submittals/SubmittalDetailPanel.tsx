@@ -152,8 +152,22 @@ export default function SubmittalDetailPanel({
                 submittal={submittal}
                 onSendEmail={(revision) => revisionWorkflow.setEmailDialogRevision(revision)}
                 onUploadReturned={(revision) => revisionWorkflow.setUploadDialogRevision(revision)}
-                onViewPdf={(url, name) => {
-                  console.log('View PDF:', url, name);
+                onViewPdf={async (url, name, fileId) => {
+                  console.log('View PDF:', url, name, fileId);
+                  // If we have a fileId, get a fresh presigned URL
+                  if (fileId) {
+                    try {
+                      const { getFilePresignedUrl } = await import('../lib/graphql/files');
+                      const freshUrl = await getFilePresignedUrl(fileId);
+                      if (freshUrl) {
+                        window.open(freshUrl, '_blank');
+                        return;
+                      }
+                    } catch (err) {
+                      console.error('Error getting presigned URL:', err);
+                    }
+                  }
+                  // Fallback to stored URL
                   window.open(url, '_blank');
                 }}
                 onResubmit={(revision, returnedPdf) => revisionWorkflow.handleResubmit(revision, returnedPdf)}

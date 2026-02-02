@@ -14,7 +14,7 @@ interface RevisionTimelineProps {
   submittal: Submittal;
   onSendEmail?: (revision: SubmittalRevision) => void;
   onUploadReturned?: (revision: SubmittalRevision) => void;
-  onViewPdf?: (url: string, name: string) => void;
+  onViewPdf?: (url: string, name: string, fileId?: string) => void;
   onResubmit?: (revision: SubmittalRevision, returnedPdf: ReturnedPdf) => void;
   onViewAnalysis?: (returnedPdf: ReturnedPdf) => void;
 }
@@ -280,7 +280,7 @@ export default function RevisionTimeline({
                             </div>
                           </div>
                           <button
-                            onClick={() => onViewPdf?.(returnedPdf.fileUrl, returnedPdf.fileName)}
+                            onClick={() => onViewPdf?.(returnedPdf.fileUrl, returnedPdf.fileName, returnedPdf.fileId)}
                             className="px-3 py-1.5 text-sm text-[var(--foreground)] bg-[var(--background)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
                           >
                             View PDF

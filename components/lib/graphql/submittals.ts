@@ -134,6 +134,7 @@ export interface SubmittalReturnedPdfResponse {
   revisionId: string;
   fileName: string;
   fileUrl: string;
+  fileId: string | null;
   fileSize: number;
   returnedByStakeholderId: string | null;
   receivedDate: string | null;
@@ -207,6 +208,7 @@ export interface CreateSubmittalInput {
   status?: SubmittalStatusGQL;
   transmittalPurpose?: TransmittalPurposeGQL;
   description?: string;
+  config?: SubmittalConfigInput;
 }
 
 export interface SubmittalConfigInput {
@@ -309,6 +311,7 @@ export interface AddReturnedPdfInput {
   fileName: string;
   fileUrl: string;
   fileSize?: number;
+  fileId?: string;  // Reference to files table for presigned URL generation
   returnedByStakeholderId?: string;
   receivedDate?: string; // ISO date string (YYYY-MM-DD)
   notes?: string;
@@ -443,6 +446,7 @@ const SUBMITTAL_RETURNED_PDF_FRAGMENT = `
     revisionId
     fileName
     fileUrl
+    fileId
     fileSize
     returnedByStakeholderId
     receivedDate

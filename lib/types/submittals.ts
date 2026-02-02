@@ -223,6 +223,7 @@ export interface ReturnedPdf {
   revisionNumber: number;
   fileName: string;
   fileUrl: string;
+  fileId?: string;  // Reference to files table for fresh presigned URL generation
   fileSize: number;
   uploadedAt: string;
   uploadedBy: string;

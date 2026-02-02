@@ -295,6 +295,7 @@ export function mapReturnedPdfResponse(
     revisionNumber,
     fileName: response.fileName,
     fileUrl: response.fileUrl,
+    fileId: response.fileId || undefined,
     fileSize: response.fileSize,
     uploadedAt: response.createdAt,
     uploadedBy: response.createdBy?.fullName || 'Unknown',
