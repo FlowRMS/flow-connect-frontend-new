@@ -109,10 +109,8 @@ export function useManufacturersWithSpecSheets() {
 
   // TODO: Filter to only factories that have spec sheets
   // For now, return all factories (FactoryLandingPage uses 'title' for name)
-  // DEV ONLY: Limit to 10 manufacturers for development - DO NOT COMMIT
-  const DEV_LIMIT = 10;
   return {
-    data: factories?.map(f => ({ id: f.id, name: f.title })).slice(0, DEV_LIMIT) || [],
+    data: factories?.map(f => ({ id: f.id, name: f.title })) || [],
     isLoading,
     error,
   };
