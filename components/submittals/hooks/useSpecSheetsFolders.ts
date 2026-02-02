@@ -4,6 +4,7 @@ import {
   useCreateFolder,
   useRenameFolder,
   useDeleteFolder,
+  useMoveFolder,
 } from '../api/useSpecSheetsApi';
 import type { SpecSheetFolder } from '../../../lib/types/submittals';
 import { fetchFoldersByFactory as fetchFoldersApi, type FolderResponse } from '../../lib/graphql/spec-sheets';
@@ -48,8 +49,9 @@ export function useSpecSheetsFolders({
   const createFolderMutation = useCreateFolder();
   const renameFolderMutation = useRenameFolder();
   const deleteFolderMutation = useDeleteFolder();
+  const moveFolderMutation = useMoveFolder();
 
-  const isSavingFolder = renameFolderMutation.isPending || deleteFolderMutation.isPending;
+  const isSavingFolder = renameFolderMutation.isPending || deleteFolderMutation.isPending || moveFolderMutation.isPending;
   const isCreatingFolder = createFolderMutation.isPending;
 
   // Track manufacturer IDs to prevent refetching on array reference changes
@@ -255,12 +257,49 @@ export function useSpecSheetsFolders({
     setDragOverFolderId(null);
   };
 
-  const handleFolderDrop = (e: React.DragEvent) => {
+  const handleFolderDrop = async (e: React.DragEvent, targetFolderId: string | null, targetManufacturer?: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setFolderError('Moving folders is not yet supported');
-    setDraggedFolderId(null);
-    setDragOverFolderId(null);
+
+    if (!draggedFolderId || draggedFolderId === targetFolderId) {
+      setDraggedFolderId(null);
+      setDragOverFolderId(null);
+      return;
+    }
+
+    if (!targetManufacturer) {
+      setFolderError('Could not determine target manufacturer');
+      setDraggedFolderId(null);
+      setDragOverFolderId(null);
+      return;
+    }
+
+    // Find the factoryId from manufacturer name
+    const factoryId = findManufacturerIdByName(targetManufacturer);
+    if (!factoryId) {
+      setFolderError('Could not determine manufacturer for folder move');
+      setDraggedFolderId(null);
+      setDragOverFolderId(null);
+      return;
+    }
+
+    setFolderError(null);
+    try {
+      await moveFolderMutation.mutateAsync({
+        factoryId,
+        folderId: draggedFolderId,
+        newParentId: targetFolderId,
+      });
+      loadAllManufacturerFolders(true);
+      showSuccessToast('Folder moved successfully');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to move folder';
+      setFolderError(errorMessage);
+      showErrorToast('Failed to move folder', { description: errorMessage });
+    } finally {
+      setDraggedFolderId(null);
+      setDragOverFolderId(null);
+    }
   };
 
   const handleFolderDragEnd = () => {
