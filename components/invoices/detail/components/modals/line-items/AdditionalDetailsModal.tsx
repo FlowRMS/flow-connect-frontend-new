@@ -53,6 +53,9 @@ export function AdditionalDetailsModal({
     note: '',
   });
 
+  // Raw string state for discount inputs to allow typing decimals (e.g. "5.")
+  const [rawInputs, setRawInputs] = useState<Record<string, string>>({});
+
   // Outside rep state for line item level
   const [outsideSplitReps, setOutsideSplitReps] = useState<CommissionSplitRep[]>([]);
   // Inside rep state for line item level
@@ -487,13 +490,12 @@ export function AdditionalDetailsModal({
                 <input
                   type="text"
                   inputMode="decimal"
-                  value={formData.discountPercent || ''}
+                  value={rawInputs.discountPercent ?? (formData.discountPercent || '')}
                   onChange={(e) => {
                     const value = e.target.value.replace(/^0+(?=\d)/, '');
-                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                      e.target.value = value;
-                    }
-                    const lineDiscountPct = parseFloat(e.target.value) || 0;
+                    if (value !== '' && !/^\d*\.?\d*$/.test(value)) return;
+                    setRawInputs(prev => ({ ...prev, discountPercent: value }));
+                    const lineDiscountPct = parseFloat(value) || 0;
                     // Calculate like API does:
                     // 1. Line discount $ = subtotal (total/amount) × lineDiscountPercent
                     const sellTotal = lineItem?.total || lineItem?.amount || 0;
@@ -521,6 +523,7 @@ export function AdditionalDetailsModal({
                       commissionDiscount: newCommissionDiscountAmount,
                     });
                   }}
+                  onBlur={() => setRawInputs(prev => { const { discountPercent, ...rest } = prev; return rest; })}
                   className="w-20 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-right"
                   placeholder="0"
                 />
@@ -530,13 +533,12 @@ export function AdditionalDetailsModal({
                 <input
                   type="text"
                   inputMode="decimal"
-                  value={formData.discountAmount || ''}
+                  value={rawInputs.discountAmount ?? (formData.discountAmount || '')}
                   onChange={(e) => {
                     const value = e.target.value.replace(/^0+(?=\d)/, '');
-                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                      e.target.value = value;
-                    }
-                    const dollarAmount = parseFloat(e.target.value) || 0;
+                    if (value !== '' && !/^\d*\.?\d*$/.test(value)) return;
+                    setRawInputs(prev => ({ ...prev, discountAmount: value }));
+                    const dollarAmount = parseFloat(value) || 0;
                     const sellTotal = lineItem?.total || lineItem?.amount || 0;
                     // Calculate percentage from dollar amount
                     const lineDiscountPct = sellTotal > 0 ? (dollarAmount / sellTotal) * 100 : 0;
@@ -561,6 +563,7 @@ export function AdditionalDetailsModal({
                       commissionDiscount: newCommissionDiscountAmount,
                     });
                   }}
+                  onBlur={() => setRawInputs(prev => { const { discountAmount, ...rest } = prev; return rest; })}
                   className="w-24 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-right"
                   placeholder="0"
                 />
@@ -574,13 +577,12 @@ export function AdditionalDetailsModal({
                 <input
                   type="text"
                   inputMode="decimal"
-                  value={formData.commissionDiscountPercent || ''}
+                  value={rawInputs.commissionDiscountPercent ?? (formData.commissionDiscountPercent || '')}
                   onChange={(e) => {
                     const value = e.target.value.replace(/^0+(?=\d)/, '');
-                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                      e.target.value = value;
-                    }
-                    const commDiscountPct = parseFloat(e.target.value) || 0;
+                    if (value !== '' && !/^\d*\.?\d*$/.test(value)) return;
+                    setRawInputs(prev => ({ ...prev, commissionDiscountPercent: value }));
+                    const commDiscountPct = parseFloat(value) || 0;
                     // Calculate commission on DISCOUNTED total like API does
                     const sellTotal = lineItem?.total || lineItem?.amount || 0;
                     const lineDiscountPct = formData.discountPercent || 0;
@@ -602,6 +604,7 @@ export function AdditionalDetailsModal({
                       commissionDiscount: commissionDiscountAmount,
                     });
                   }}
+                  onBlur={() => setRawInputs(prev => { const { commissionDiscountPercent, ...rest } = prev; return rest; })}
                   className="w-20 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-right"
                   placeholder="0"
                 />
@@ -611,13 +614,12 @@ export function AdditionalDetailsModal({
                 <input
                   type="text"
                   inputMode="decimal"
-                  value={formData.commissionDiscountAmount || ''}
+                  value={rawInputs.commissionDiscountAmount ?? (formData.commissionDiscountAmount || '')}
                   onChange={(e) => {
                     const value = e.target.value.replace(/^0+(?=\d)/, '');
-                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                      e.target.value = value;
-                    }
-                    const dollarAmount = parseFloat(e.target.value) || 0;
+                    if (value !== '' && !/^\d*\.?\d*$/.test(value)) return;
+                    setRawInputs(prev => ({ ...prev, commissionDiscountAmount: value }));
+                    const dollarAmount = parseFloat(value) || 0;
                     // Calculate commission on DISCOUNTED total
                     const sellTotal = lineItem?.total || lineItem?.amount || 0;
                     const lineDiscountPct = formData.discountPercent || 0;
@@ -638,6 +640,7 @@ export function AdditionalDetailsModal({
                       commissionDiscount: dollarAmount,
                     });
                   }}
+                  onBlur={() => setRawInputs(prev => { const { commissionDiscountAmount, ...rest } = prev; return rest; })}
                   className="w-24 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-right"
                   placeholder="0"
                 />

@@ -54,10 +54,10 @@ export default function CreateCustomerPage() {
   );
 
   const hasInsideReps = insideRepEntries.length > 0;
-  const hasOutsideReps = outsideRepEntries.length > 0;
+  const hasOutsideReps = outsideRepEntries.some(e => e.userId && e.splitRate);
   const isInsideValid = !hasInsideReps || Math.abs(insideTotal - 100) < 0.1;
   const isOutsideValid = !hasOutsideReps || Math.abs(outsideTotal - 100) < 0.1;
-  const isValidSplitRate = isInsideValid && isOutsideValid;
+  const isValidSplitRate = isInsideValid && isOutsideValid && hasOutsideReps;
 
   // Scroll spy effect
   useEffect(() => {
@@ -105,7 +105,9 @@ export default function CreateCustomerPage() {
       newErrors.companyName = 'Company name is required';
     }
 
-    if (!isValidSplitRate) {
+    if (!hasOutsideReps) {
+      newErrors.splitRates = 'At least one Outside Rep is required';
+    } else if (!isInsideValid || !isOutsideValid) {
       if (!isInsideValid && !isOutsideValid) {
         newErrors.splitRates = 'Both Inside Reps and Outside Reps must each total exactly 100%';
       } else if (!isInsideValid) {
@@ -266,6 +268,25 @@ export default function CreateCustomerPage() {
 
       {/* Scrollable Content */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 space-y-8">
+
+        {/* Outside Rep Required Warning */}
+        {!hasOutsideReps && (
+          <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-red-800">Outside Rep Required</p>
+              <p className="text-xs text-red-600">This customer must have at least one outside rep assigned before saving.</p>
+            </div>
+            <button
+              onClick={() => scrollToSection('outside-reps')}
+              className="ml-auto px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors whitespace-nowrap"
+            >
+              Go to Outside Reps
+            </button>
+          </div>
+        )}
 
         {/* ============ OVERVIEW SECTION ============ */}
         <div ref={el => { sectionRefs.current['overview'] = el; }} id="section-overview">
@@ -452,6 +473,7 @@ export default function CreateCustomerPage() {
               entries={outsideRepEntries}
               onChange={setOutsideRepEntries}
               disabled={createCustomer.isPending}
+              required
             />
 
             {errors.splitRates && (

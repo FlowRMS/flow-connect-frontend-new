@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import './AdvancedFilters.css';
 import type { FilterOperator, ActiveFilter, ActiveSort, FilterOption, AdvancedFiltersProps } from './types';
+import { ColumnFilterTypeEnum } from './types';
 import { parseDateString, formatDateToISO, formatDateToBackend } from './utils';
 import { ActiveFilters } from './components/ActiveFilters';
 import { TextFilter } from './components/filter-types/TextFilter';
@@ -17,6 +18,8 @@ import { FactoryFilter } from './components/filter-types/FactoryFilter';
 import { CategoryFilter } from './components/filter-types/CategoryFilter';
 import { CompanyFilter } from './components/filter-types/CompanyFilter';
 import { CompanyTypeFilter } from './components/filter-types/CompanyTypeFilter';
+import { PicklistFilter, PicklistKey } from '@/lib/picklists';
+import { CustomerFilter } from './components/filter-types/CustomerFilter';
 
 // Re-export types for backward compatibility
 export type { FilterOperator, ActiveFilter, ActiveSort, FilterOption };
@@ -93,7 +96,7 @@ export default function AdvancedFilters({
         // Find existing filters for this column (date filters use two: GTE and LTE)
         const existingFilters = localFilters.filter(f => f.columnName === option.columnName);
         
-        if (option.type === 'boolean') {
+        if (option.type === ColumnFilterTypeEnum.boolean) {
           // For boolean filters, check if there's an active filter
           const booleanFilter = existingFilters.find(f => f.operator === 'EQ');
           if (booleanFilter && booleanFilter.value) {
@@ -101,7 +104,7 @@ export default function AdvancedFilters({
           } else {
             setBooleanValue('all');
           }
-        } else if (option.type === 'date') {
+        } else if (option.type === ColumnFilterTypeEnum.date) {
           // For date filters, look for GTE (start) and LTE (end) filters
           const startFilter = existingFilters.find(f => f.operator === 'GTE');
           const endFilter = existingFilters.find(f => f.operator === 'LTE');
@@ -120,7 +123,7 @@ export default function AdvancedFilters({
           
           setFilterValue('');
           setSelectedValues([]);
-        } else if (option.type === 'month') {
+        } else if (option.type === ColumnFilterTypeEnum.month) {
           // For month filters, look for GTE filter (start of month)
           // We use the GTE filter value to determine the selected month/year
           const startFilter = existingFilters.find(f => f.operator === 'GTE');
@@ -139,14 +142,26 @@ export default function AdvancedFilters({
           
           setFilterValue('');
           setSelectedValues([]);
-        } else if (option.type === 'factory' || option.type === 'category' || option.type === 'company' || option.type === 'companyType') {
+        } else if (
+          option.type === ColumnFilterTypeEnum.factory ||
+          option.type === ColumnFilterTypeEnum.category ||
+          option.type === ColumnFilterTypeEnum.company ||
+          option.type === ColumnFilterTypeEnum.companyType ||
+          option.type === ColumnFilterTypeEnum.picklist
+        ) {
           // For factory/category/company/companyType filters, look for IN operator with values
           const existingFilter = existingFilters.find(f => f.operator === 'IN' && f.values);
           if (existingFilter && existingFilter.values) {
             setSelectedValues(existingFilter.values);
             setFilterValue('');
           } else {
-            setSelectedValues([]);
+            // Also check for ILIKE single-value company filter
+            const ilikeFilter = existingFilters.find(f => f.operator === 'ILIKE' && f.value);
+            if (ilikeFilter && ilikeFilter.value) {
+              setSelectedValues([ilikeFilter.value]);
+            } else {
+              setSelectedValues([]);
+            }
             setFilterValue('');
           }
         } else if (existingFilters.length > 0) {
@@ -156,7 +171,7 @@ export default function AdvancedFilters({
             setFilterValue('');
           } else if (existingFilter.value) {
             // For dropdown filters, set selectedValues
-            if (option.type === 'dropdown') {
+            if (option.type === ColumnFilterTypeEnum.dropdown) {
               setSelectedValues([existingFilter.value]);
             } else {
               // For text and number filters, set filterValue
@@ -164,7 +179,7 @@ export default function AdvancedFilters({
               setSelectedValues([]);
             }
             // If it's a number filter, also set the operator
-            if (option.type === 'number' && ['EQ', 'GT', 'GTE', 'LT', 'LTE'].includes(existingFilter.operator)) {
+            if (option.type === ColumnFilterTypeEnum.number && ['EQ', 'GT', 'GTE', 'LT', 'LTE'].includes(existingFilter.operator)) {
               setNumberOperator(existingFilter.operator);
             }
           } else {
@@ -177,7 +192,7 @@ export default function AdvancedFilters({
           setDateRangeStart(null);
           setDateRangeEnd(null);
           // Reset to default operator for number filters
-          if (option.type === 'number') {
+          if (option.type === ColumnFilterTypeEnum.number) {
             setNumberOperator('EQ');
           }
         }
@@ -205,16 +220,16 @@ export default function AdvancedFilters({
       setExpandedFilterId(option.id);
       setFilterValue('');
       // Reset number operator to default when opening a number filter
-      if (option.type === 'number') {
+      if (option.type === ColumnFilterTypeEnum.number) {
         setNumberOperator('EQ');
       }
       // Reset date range when opening a date filter
-      if (option.type === 'date') {
+      if (option.type === ColumnFilterTypeEnum.date) {
         setDateRangeStart(null);
         setDateRangeEnd(null);
       }
       // Reset month/year when opening a month filter
-      if (option.type === 'month') {
+      if (option.type === ColumnFilterTypeEnum.month) {
         // Don't reset if there's already a filter for this column
         const existingFilters = localFilters.filter(f => f.columnName === option.columnName);
         if (existingFilters.length === 0) {
@@ -259,12 +274,23 @@ export default function AdvancedFilters({
     let newFilters = localFilters.filter(f => f.columnName !== option.columnName);
     
     if (selectedValues.length > 0) {
-      newFilters.push({
-        columnName: option.columnName,
-        operator: 'IN',
-        values: selectedValues,
-        // Note: Don't set value for IN operator - API expects only values array
-      });
+      // Check if multiSelect is false (defaults to true if not specified)
+      if (option.multiSelect === false) {
+        // Single-select: use EQ operator with single value
+        newFilters.push({
+          columnName: option.columnName,
+          operator: 'EQ',
+          value: selectedValues[0],
+        });
+      } else {
+        // Multi-select: use IN operator with array
+        newFilters.push({
+          columnName: option.columnName,
+          operator: 'IN',
+          values: selectedValues,
+          // Note: Don't set value for IN operator - API expects only values array
+        });
+      }
     }
     
     setLocalFilters(newFilters);
@@ -280,12 +306,48 @@ export default function AdvancedFilters({
     setIsExpanded(false);
   };
 
+  const handleApplyCompanyFilter = (option: FilterOption) => {
+    if (!option.columnName) return;
+
+    let newFilters = localFilters.filter(f => f.columnName !== option.columnName);
+
+    if (selectedValues.length === 1) {
+      // Use ILIKE for single company selection - much faster on the backend
+      newFilters.push({
+        columnName: option.columnName,
+        operator: 'ILIKE',
+        value: selectedValues[0],
+      });
+    } else if (selectedValues.length > 1) {
+      newFilters.push({
+        columnName: option.columnName,
+        operator: 'IN',
+        values: selectedValues,
+      });
+    }
+
+    setLocalFilters(newFilters);
+
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    } else if (onFilterChange) {
+      onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
+    }
+    setExpandedFilterId(null);
+    setIsExpanded(false);
+  };
+
   const toggleValue = (value: string) => {
     if (selectedValues.includes(value)) {
       setSelectedValues(selectedValues.filter(v => v !== value));
     } else {
       setSelectedValues([...selectedValues, value]);
     }
+  };
+
+  // For single-select mode: replace the selected value instead of toggling
+  const selectSingleValue = (value: string) => {
+    setSelectedValues([value]);
   };
 
   const handleApplyNumberFilter = (option: FilterOption, value: string) => {
@@ -437,12 +499,18 @@ export default function AdvancedFilters({
     if (columnName) {
       // Clear specific filter (for date and month filters, this removes both GTE and LTE)
       const option = filterOptions.find(o => o.columnName === columnName);
-      const isDateOrMonthFilter = option?.type === 'date' || option?.type === 'month';
+      const isDateOrMonthFilter =
+        option?.type === ColumnFilterTypeEnum.date || option?.type === ColumnFilterTypeEnum.month;
       
       const newFilters = localFilters.filter(f => {
+        // Keep filters for other columns
         if (f.columnName !== columnName) return true;
-        if (isDateOrMonthFilter && (f.operator === 'GTE' || f.operator === 'LTE')) return false;
-        return true;
+        // For date/month filters, remove GTE and LTE operators
+        if (isDateOrMonthFilter) {
+          return !(f.operator === 'GTE' || f.operator === 'LTE');
+        }
+        // For all other filter types, remove the filter
+        return false;
       });
       setLocalFilters(newFilters);
       if (onFiltersChange) {
@@ -450,6 +518,7 @@ export default function AdvancedFilters({
       } else if (onFilterChange) {
         onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
       }
+      // Keep modal open when removing individual filters
     } else {
       // Clear all filters
       setLocalFilters([]);
@@ -458,13 +527,14 @@ export default function AdvancedFilters({
       } else if (onFilterChange) {
         onFilterChange(undefined);
       }
+      // Close modal only when clearing ALL filters
+      setFilterValue('');
+      setExpandedFilterId(null);
+      setDateRangeStart(null);
+      setDateRangeEnd(null);
+      setBooleanValue(null);
+      setIsExpanded(false);
     }
-    setFilterValue('');
-    setExpandedFilterId(null);
-    setDateRangeStart(null);
-    setDateRangeEnd(null);
-    setBooleanValue(null);
-    setIsExpanded(false);
   };
 
   const activeFilterCount = localFilters.length;
@@ -612,11 +682,16 @@ export default function AdvancedFilters({
                           sideOffset={4}
                           className="z-[10000] bg-white rounded-lg shadow-xl overflow-hidden"
                           style={{ 
-                            width: option.type === 'date' ? '320px' : option.type === 'month' ? '240px' : 'var(--radix-popover-trigger-width)' 
+                            width:
+                              option.type === ColumnFilterTypeEnum.date
+                                ? '320px'
+                                : option.type === ColumnFilterTypeEnum.month
+                                  ? '240px'
+                                  : 'var(--radix-popover-trigger-width)' 
                           }}
                           onOpenAutoFocus={(e) => e.preventDefault()}
                         >
-                        {option.type === 'number' ? (
+                        {option.type === ColumnFilterTypeEnum.number ? (
                           <NumberFilter
                             option={option}
                             filterValue={filterValue}
@@ -625,7 +700,7 @@ export default function AdvancedFilters({
                             onOperatorChange={setNumberOperator}
                             onApply={handleApplyNumberFilter}
                           />
-                        ) : option.type === 'date' ? (
+                        ) : option.type === ColumnFilterTypeEnum.date ? (
                           <DateRangeFilter
                             option={option}
                             dateRangeStart={dateRangeStart}
@@ -636,14 +711,14 @@ export default function AdvancedFilters({
                             }}
                             onApply={handleApplyDateRangeFilter}
                           />
-                        ) : option.type === 'month' ? (
+                        ) : option.type === ColumnFilterTypeEnum.month ? (
                           <MonthYearFilter
                             option={option}
                             selectedMonthYear={selectedMonthYear}
                             onMonthYearChange={setSelectedMonthYear}
                             onApply={handleApplyMonthYearFilter}
                           />
-                        ) : option.type === 'dropdown' ? (
+                        ) : option.type === ColumnFilterTypeEnum.dropdown ? (
                           <DropdownFilter
                             option={option}
                             filterValue={filterValue}
@@ -652,7 +727,7 @@ export default function AdvancedFilters({
                             onToggleValue={toggleValue}
                             onApply={handleApplyMultiSelect}
                           />
-                        ) : option.type === 'boolean' ? (
+                        ) : option.type === ColumnFilterTypeEnum.boolean ? (
                           <BooleanFilter
                             option={option}
                             selectedValue={booleanValue}
@@ -666,7 +741,7 @@ export default function AdvancedFilters({
                             }}
                             hasActiveFilter={localFilters.some(f => f.columnName === option.columnName)}
                           />
-                        ) : option.type === 'factory' ? (
+                        ) : option.type === ColumnFilterTypeEnum.factory ? (
                           <FactoryFilter
                             option={option}
                             selectedValues={selectedValues}
@@ -678,7 +753,7 @@ export default function AdvancedFilters({
                             }}
                             hasActiveFilter={selectedValues.length > 0}
                           />
-                        ) : option.type === 'category' ? (
+                        ) : option.type === ColumnFilterTypeEnum.category ? (
                           <CategoryFilter
                             option={option}
                             selectedValues={selectedValues}
@@ -691,19 +766,19 @@ export default function AdvancedFilters({
                             hasActiveFilter={selectedValues.length > 0}
                             factoryId={undefined}
                           />
-                        ) : option.type === 'company' ? (
+                        ) : option.type === ColumnFilterTypeEnum.company ? (
                           <CompanyFilter
                             option={option}
                             selectedValues={selectedValues}
                             onToggleValue={toggleValue}
-                            onApply={handleApplyMultiSelect}
+                            onApply={handleApplyCompanyFilter}
                             onClear={() => {
                               setSelectedValues([]);
                               handleClearFilter(option.columnName);
                             }}
                             hasActiveFilter={selectedValues.length > 0}
                           />
-                        ) : option.type === 'companyType' ? (
+                        ) : option.type === ColumnFilterTypeEnum.companyType ? (
                           <CompanyTypeFilter
                             option={option}
                             selectedValues={selectedValues}
@@ -714,6 +789,32 @@ export default function AdvancedFilters({
                               handleClearFilter(option.columnName);
                             }}
                             hasActiveFilter={selectedValues.length > 0}
+                          />
+                        ) : option.type === ColumnFilterTypeEnum.customer ? (
+                          <CustomerFilter
+                            option={option}
+                            selectedValues={selectedValues}
+                            onToggleValue={toggleValue}
+                            onApply={handleApplyMultiSelect}
+                            onClear={() => {
+                              setSelectedValues([]);
+                              handleClearFilter(option.columnName);
+                            }}
+                            hasActiveFilter={selectedValues.length > 0}
+                          />
+                        ) : option.type === ColumnFilterTypeEnum.picklist && option.picklistKey ? (
+                          <PicklistFilter
+                            picklistKey={option.picklistKey as PicklistKey}
+                            selectedValues={selectedValues}
+                            onToggleValue={toggleValue}
+                            onSelectValue={selectSingleValue}
+                            onApply={() => handleApplyMultiSelect(option)}
+                            onClear={() => {
+                              setSelectedValues([]);
+                              handleClearFilter(option.columnName);
+                            }}
+                            hasActiveFilter={selectedValues.length > 0}
+                            multiSelect={option.multiSelect !== false}
                           />
                         ) : (
                           <TextFilter
