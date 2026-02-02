@@ -54,7 +54,24 @@ export const PICKLIST_DEFINITIONS: Record<PicklistKey, PicklistDefinition> = {
     ],
   },
 
-  // Add more picklist definitions here as needed...
+  [PicklistKey.CONTACT_ROLES]: {
+    key: PicklistKey.CONTACT_ROLES,
+    title: 'Contact Roles',
+    description: 'Manage contact role values used throughout the CRM.',
+    helpText: 'Default values cannot be deleted but can be disabled, renamed, or reordered.',
+    allowCustomValues: true,
+    allowDisable: true,
+    allowColors: true,
+    allowReorder: true,
+    defaultItems: [
+      { key: 'GC', label: 'GC', sortOrder: 0, enabled: true, isDefault: true, color: PicklistColor.BLUE },
+      { key: 'EC', label: 'EC', sortOrder: 1, enabled: true, isDefault: true, color: PicklistColor.GREEN },
+      { key: 'ARCHITECT', label: 'Architect', sortOrder: 2, enabled: true, isDefault: true, color: PicklistColor.PURPLE },
+      { key: 'ENGINEER', label: 'Engineer', sortOrder: 3, enabled: true, isDefault: true, color: PicklistColor.ORANGE },
+      { key: 'DISTRIBUTOR', label: 'Distributor', sortOrder: 4, enabled: true, isDefault: true, color: PicklistColor.TEAL },
+      { key: 'OWNER', label: 'Owner', sortOrder: 5, enabled: true, isDefault: true, color: PicklistColor.AMBER },
+    ],
+  },
 };
 
 // ============================================================================

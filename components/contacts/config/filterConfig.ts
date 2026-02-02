@@ -5,7 +5,6 @@
 
 import type { FilterOption } from '../../advancedFilters/types';
 import { ColumnFilterTypeEnum } from '../../advancedFilters/types';
-import { CONTACT_ROLES } from '../constants';
 
 /**
  * Get filter options for the AdvancedFilters component
@@ -34,13 +33,14 @@ export function getContactFilterOptions(): FilterOption[] {
       columnName: 'companyName', 
       available: true 
     },
-    { 
-      id: 'role', 
-      label: 'Role', 
-      type: ColumnFilterTypeEnum.dropdown, 
-      columnName: 'role', 
-      available: true, 
-      options: [...CONTACT_ROLES] 
+    {
+      id: 'role',
+      label: 'Role',
+      type: ColumnFilterTypeEnum.picklist,
+      columnName: 'role',
+      available: true,
+      picklistKey: 'contactRoles',
+      multiSelect: true,
     },
     { 
       id: 'created-by', 

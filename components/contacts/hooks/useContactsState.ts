@@ -317,6 +317,15 @@ export function useContactsState() {
     }
   }, [syncColumnToAdvanced]);
 
+  // Clear all filters (both advanced and column filters)
+  const clearAllFilters = useCallback(() => {
+    setActiveFilters([]);
+    setActiveFilter(undefined);
+    setColumnFilters({});
+    setServerFilters([]);
+    setSearchQuery('');
+  }, []);
+
   // Handle sort change (single - backward compatibility)
   const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
     if (sort) {
@@ -497,6 +506,7 @@ export function useContactsState() {
     handleFilterChange,
     handleFiltersChange,
     handleColumnFiltersChange,
+    clearAllFilters,
     handleSortChange,
     handleMultiSortChange,
     handleStartEdit,

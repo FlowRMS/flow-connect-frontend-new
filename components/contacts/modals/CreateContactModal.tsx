@@ -5,18 +5,19 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useCreateCRMContact, useCRMCompanyLandingPages } from '../../hooks/useCRMApi';
-import { CONTACT_ROLES } from '../constants';
 import type { ContactInput } from '../../lib/crm-graphql';
 import { contactToasts } from '../../lib/toast';
+import { usePicklist } from '@/lib/picklists';
+import { PicklistKey } from '@/lib/picklists/enums';
 
 // Portaled Custom Select Component
 interface CustomSelectProps {
   value: string;
   onChange: (value: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; color?: string }[];
   placeholder?: string;
   disabled?: boolean;
   icon?: React.ReactNode;
@@ -92,7 +93,13 @@ function CustomSelect({ value, onChange, options, placeholder, disabled, icon }:
               ${value === option.value ? 'bg-blue-50' : ''}
             `}
           >
-            <span className={`${value === option.value ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+            <span className={`flex items-center gap-2 ${value === option.value ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+              {option.color && (
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: option.color }}
+                />
+              )}
               {option.label}
             </span>
             {value === option.value && (
@@ -124,7 +131,15 @@ function CustomSelect({ value, onChange, options, placeholder, disabled, icon }:
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {icon && <span className="text-gray-400 flex-shrink-0">{icon}</span>}
           {selectedOption ? (
-            <span className="text-gray-900 truncate">{selectedOption.label}</span>
+            <span className="text-gray-900 truncate flex items-center gap-2">
+              {selectedOption.color && (
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: selectedOption.color }}
+                />
+              )}
+              {selectedOption.label}
+            </span>
           ) : (
             <span className="text-gray-400">{placeholder || 'Select...'}</span>
           )}
@@ -362,6 +377,12 @@ export default function CreateContactModal({ isOpen, onClose, onSuccess }: Creat
 
   const createContactMutation = useCreateCRMContact();
   const { data: companies, isLoading: companiesLoading } = useCRMCompanyLandingPages();
+  const { enabledItems: roleItems } = usePicklist(PicklistKey.CONTACT_ROLES);
+
+  const roleOptions = useMemo(() => [
+    { value: '', label: 'Select a role...' },
+    ...roleItems.map(item => ({ value: item.key, label: item.label, color: item.color }))
+  ], [roleItems]);
 
   if (!isOpen) return null;
 
@@ -407,11 +428,6 @@ export default function CreateContactModal({ isOpen, onClose, onSuccess }: Creat
 
   const labelClass = "flex items-center gap-2 text-sm font-medium text-gray-700 mb-2";
   const inputClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
-
-  const roleOptions = [
-    { value: '', label: 'Select a role...' },
-    ...CONTACT_ROLES.map(role => ({ value: role, label: role }))
-  ];
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4" onClick={handleClose}>
