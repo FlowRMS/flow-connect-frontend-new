@@ -31,6 +31,7 @@ import type {
   RelatedEntityNote,
   RelatedEntityJob,
   RelatedEntityCustomer,
+  RelatedEntityFactory,
 } from '../lib/crm-graphql';
 import { AddLinkModal } from './AddLinkModal';
 import { linkToasts } from '../lib/toast';
@@ -50,10 +51,10 @@ export type ViewMode = 'cards' | 'table';
 // ============================================================================
 
 // Category types for filtering (user-facing)
-export type EntityCategory = 'contacts' | 'companies' | 'pre-opportunities' | 'tasks' | 'notes' | 'quotes' | 'orders' | 'invoices' | 'checks' | 'jobs' | 'files' | 'customers';
+export type EntityCategory = 'contacts' | 'companies' | 'pre-opportunities' | 'tasks' | 'notes' | 'quotes' | 'orders' | 'invoices' | 'checks' | 'jobs' | 'files' | 'customers' | 'factories';
 
 // API entity types for linking
-export type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'JOB' | 'FILE' | 'CUSTOMER';
+export type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'JOB' | 'FILE' | 'CUSTOMER' | 'FACTORY';
 
 // Source entity types - what entity is hosting this connected entities section
 export type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE' | 'FACTORY' | 'CUSTOMER';
@@ -120,6 +121,7 @@ export interface ConnectedEntitiesSectionProps {
   onJobClick?: (job: RelatedEntityJob) => void;
   onFileClick?: (file: FileResponse) => void;
   onCustomerClick?: (customer: RelatedEntityCustomer) => void;
+  onFactoryClick?: (factory: RelatedEntityFactory) => void;
 }
 
 // Default categories - all available
@@ -127,6 +129,7 @@ const ALL_CATEGORIES: EntityCategory[] = [
   'contacts',
   'companies',
   'customers',
+  'factories',
   'pre-opportunities',
   'tasks',
   'notes',
@@ -255,6 +258,7 @@ export function ConnectedEntitiesSection({
   onJobClick,
   onFileClick,
   onCustomerClick,
+  onFactoryClick,
 }: ConnectedEntitiesSectionProps) {
   const router = useRouter();
 
@@ -313,6 +317,7 @@ export function ConnectedEntitiesSection({
     const companiesCount = relatedEntities?.companies?.length || 0;
     const contactsCount = relatedEntities?.contacts?.length || 0;
     const customersCount = relatedEntities?.customers?.length || 0;
+    const factoriesCount = relatedEntities?.factories?.length || 0;
     const preOppsCount = relatedEntities?.preOpportunities?.length || 0;
     const quotesCount = relatedEntities?.quotes?.length || 0;
     const ordersCount = relatedEntities?.orders?.length || 0;
@@ -327,6 +332,7 @@ export function ConnectedEntitiesSection({
       companies: companiesCount,
       contacts: contactsCount,
       customers: customersCount,
+      factories: factoriesCount,
       'pre-opportunities': preOppsCount,
       quotes: quotesCount,
       orders: ordersCount,
@@ -336,7 +342,7 @@ export function ConnectedEntitiesSection({
       notes: notesCount,
       jobs: jobsCount,
       files: filesCount,
-      total: companiesCount + contactsCount + customersCount + preOppsCount + quotesCount + ordersCount + invoicesCount + checksCount + tasksCount + notesCount + jobsCount + filesCount,
+      total: companiesCount + contactsCount + customersCount + factoriesCount + preOppsCount + quotesCount + ordersCount + invoicesCount + checksCount + tasksCount + notesCount + jobsCount + filesCount,
     };
   }, [relatedEntities, linkedFiles]);
 
@@ -372,6 +378,7 @@ export function ConnectedEntitiesSection({
         COMPANY: 'Company',
         CONTACT: 'Contact',
         CUSTOMER: 'Customer',
+        FACTORY: 'Factory',
         TASK: 'Task',
         NOTE: 'Note',
         PRE_OPPORTUNITY: 'Pre-Opportunity',
@@ -498,6 +505,16 @@ export function ConnectedEntitiesSection({
     }
   };
 
+  // Handle factory click - navigate to factory/manufacturer page
+  const handleFactoryClick = (factory: RelatedEntityFactory) => {
+    if (onFactoryClick) {
+      onFactoryClick(factory);
+    } else {
+      // Navigate to warehouse manufacturer profiles
+      router.push(`/warehouse/manufacturer-profiles/${factory.id}/edit`);
+    }
+  };
+
   // Handle file click - open file or download
   const handleFileClick = async (file: FileResponse) => {
     if (onFileClick) {
@@ -534,6 +551,9 @@ export function ConnectedEntitiesSection({
         break;
       case 'customers':
         handleCustomerClick(entity as RelatedEntityCustomer);
+        break;
+      case 'factories':
+        handleFactoryClick(entity as RelatedEntityFactory);
         break;
       case 'pre-opportunities':
         handlePreOpportunityClick(entity as RelatedEntityPreOpportunity);
@@ -667,6 +687,18 @@ export function ConnectedEntitiesSection({
                 Customers ({totals.customers})
               </button>
             )}
+            {isCategoryEnabled('factories') && (
+              <button
+                onClick={() => toggleCategory('factories')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  visibleCategories.includes('factories')
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
+                }`}
+              >
+                Manufacturers ({totals.factories})
+              </button>
+            )}
             {isCategoryEnabled('pre-opportunities') && (
               <button
                 onClick={() => toggleCategory('pre-opportunities')}
@@ -784,6 +816,7 @@ export function ConnectedEntitiesSection({
             contacts={relatedEntities?.contacts || []}
             companies={relatedEntities?.companies || []}
             customers={relatedEntities?.customers || []}
+            factories={relatedEntities?.factories || []}
             preOpportunities={relatedEntities?.preOpportunities || []}
             quotes={relatedEntities?.quotes || []}
             orders={relatedEntities?.orders || []}
@@ -1080,6 +1113,103 @@ export function ConnectedEntitiesSection({
                           className="mt-2 text-sm text-[var(--primary)] hover:underline"
                         >
                           + Add a customer
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Factories */}
+            {isCategoryEnabled('factories') && visibleCategories.includes('factories') && (
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                <EntityGridHeader
+                  title="Manufacturers"
+                  entityType="FACTORY"
+                  hasEntities={Boolean(relatedEntities?.factories && relatedEntities.factories.length > 0)}
+                  onAddLink={openAddLinkModal}
+                  readOnly={isCategoryReadOnly('factories')}
+                />
+                <div className="p-4">
+                  {relatedEntities?.factories && relatedEntities.factories.length > 0 ? (
+                    <div className="flex flex-wrap gap-3">
+                    {relatedEntities.factories.map((factory: RelatedEntityFactory) => (
+                      <div
+                        key={factory.id}
+                        className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors group"
+                      >
+                        <div
+                          className="flex items-center gap-3 flex-1 cursor-pointer"
+                          onClick={() => handleFactoryClick(factory)}
+                        >
+                          {/* Factory Icon */}
+                          <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center text-white flex-shrink-0">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <h4 className="font-medium text-[var(--foreground)] truncate">{factory.title || 'Unnamed Factory'}</h4>
+                              {factory.published === false && (
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium flex-shrink-0">
+                                  Unpublished
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-[var(--muted-foreground)]">
+                              {factory.accountNumber && (
+                                <span className="flex items-center gap-1.5">
+                                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                  </svg>
+                                  {factory.accountNumber}
+                                </span>
+                              )}
+                              {factory.email && (
+                                <span className="flex items-center gap-1.5 truncate">
+                                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                  </svg>
+                                  {factory.email}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {!isCategoryReadOnly('factories') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnlink('FACTORY', factory.id);
+                            }}
+                            disabled={deleteLinkMutation.isPending}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0 ml-2"
+                            title="Unlink factory"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-[var(--muted-foreground)]">
+                      <div className="w-12 h-12 mx-auto mb-3 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-500">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                      <p className="text-sm">No manufacturers linked</p>
+                      {!isCategoryReadOnly('factories') && (
+                        <button
+                          onClick={() => openAddLinkModal('FACTORY')}
+                          className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                        >
+                          + Add a manufacturer
                         </button>
                       )}
                     </div>
