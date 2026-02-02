@@ -1,19 +1,10 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React from 'react';
 import type {
   Submittal,
   SubmittalStatus,
-  SpecSheetMatchStatus,
-  SubmittalConfig,
-  SpecSheet,
 } from '../../lib/types/submittals';
-import { defaultSubmittalConfig } from '../../lib/types/submittals';
-import {
-  useSpecSheetSearchWithFactoryNames,
-  useManufacturersWithSpecSheets,
-  useHighlightVersions,
-} from './api/useSpecSheetsApi';
 import RevisionTimeline from './RevisionTimeline';
 import SendSubmittalEmailDialog from './SendSubmittalEmailDialog';
 import ReturnedPdfUpload from './ReturnedPdfUpload';
@@ -25,10 +16,9 @@ import { SubmittalDetailHeader } from './SubmittalDetailHeader';
 import { SubmittalMetaPanel } from './SubmittalMetaPanel';
 import { ItemsTabContent } from './ItemsTabContent';
 import { SubmittalSettingsTab } from './SubmittalSettingsTab';
-import { useRevisionWorkflow } from './hooks/useRevisionWorkflow';
-import { useSubmittalSettings, StakeholdersTabContent } from './submittal-detail';
-import { useSpecSheetHandlers } from './hooks/useSpecSheetHandlers';
+import { StakeholdersTabContent } from './submittal-detail';
 import SpecSheetUploadModal from './SpecSheetUploadModal';
+import { useSubmittalDetailPanel, type TabId } from './hooks/useSubmittalDetailPanel';
 
 interface SubmittalDetailPanelProps {
   submittal: Submittal;
@@ -54,8 +44,6 @@ interface SubmittalDetailPanelProps {
   onTabChanged?: () => void;
 }
 
-type TabId = 'items' | 'stakeholders' | 'revisions' | 'settings';
-
 export default function SubmittalDetailPanel({
   submittal,
   onClose,
@@ -79,153 +67,29 @@ export default function SubmittalDetailPanel({
   forceActiveTab,
   onTabChanged,
 }: SubmittalDetailPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('items');
-
-  useEffect(() => {
-    if (forceActiveTab) {
-      setActiveTab(forceActiveTab);
-      onTabChanged?.();
-    }
-  }, [forceActiveTab, onTabChanged]);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [showSpecSheetPicker, setShowSpecSheetPicker] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [specSheetSearch, setSpecSheetSearch] = useState('');
-  const [showConfigModal, setShowConfigModal] = useState(false);
-  const [editingConfig, setEditingConfig] = useState<SubmittalConfig>(
-    submittal.config || { ...defaultSubmittalConfig }
-  );
-
-  // Revision workflow hook
-  const {
-    emailDialogRevision,
-    setEmailDialogRevision,
-    uploadDialogRevision,
-    setUploadDialogRevision,
-    analysisReturnedPdf,
-    setAnalysisReturnedPdf,
-    handleSendEmail,
-    handleUploadReturned,
-    handleUpdateChange,
-    handleAddChange,
-    handleDeleteChange,
-    handleResubmit,
-  } = useRevisionWorkflow({ submittal, onUpdate, onResubmit });
-
-  // Settings hook
-  const settings = useSubmittalSettings({ submittal, onUpdate });
-
-  // Spec sheet picker state
-  const [specSheetManufacturerId, setSpecSheetManufacturerId] = useState<string | null>(null);
-  const [showHighlightPicker, setShowHighlightPicker] = useState(false);
-  const [selectedSpecSheetForHighlight, setSelectedSpecSheetForHighlight] = useState<string | null>(null);
-
-  // API hooks for spec sheets
-  const { data: manufacturers = [], isLoading: isLoadingManufacturers } = useManufacturersWithSpecSheets();
-  const { data: specSheetsFromApi, isLoading: isLoadingSpecSheets } = useSpecSheetSearchWithFactoryNames({
-    factoryId: specSheetManufacturerId || undefined,
-    searchTerm: specSheetSearch || undefined,
-    publishedOnly: false,
-    limit: 50,
-  }, showSpecSheetPicker);
-
-  // Get highlight versions for the selected item's spec sheet
-  const selectedItem = useMemo(() => {
-    if (!selectedItemId) return null;
-    return submittal.items.find(i => i.id === selectedItemId) || null;
-  }, [selectedItemId, submittal.items]);
-
-  const { data: highlightVersions = [], isLoading: isLoadingHighlightVersions } = useHighlightVersions(
-    selectedSpecSheetForHighlight || selectedItem?.specSheetId || null
-  );
-
-  // Auto-select first manufacturer when picker opens
-  useEffect(() => {
-    if (showSpecSheetPicker && !specSheetManufacturerId && manufacturers.length > 0) {
-      setSpecSheetManufacturerId(manufacturers[0].id);
-    }
-  }, [showSpecSheetPicker, specSheetManufacturerId, manufacturers]);
-
-  const updateEditingConfig = (key: keyof SubmittalConfig, value: boolean) => {
-    setEditingConfig(prev => ({ ...prev, [key]: value }));
-  };
-
-  const handleSaveConfig = () => {
-    onUpdate?.({ config: editingConfig });
-    setShowConfigModal(false);
-  };
-
-  // Stats for the submittal
-  const stats = useMemo(() => {
-    const total = submittal.items.length;
-    const ready = submittal.items.filter(i => i.matchStatus === 'matched_with_highlight').length;
-    const needsHighlight = submittal.items.filter(i => i.matchStatus === 'matched_no_highlight').length;
-    const missing = submittal.items.filter(i => i.matchStatus === 'no_match').length;
-    return { total, ready, needsHighlight, missing };
-  }, [submittal.items]);
-
-  // Spec sheets from API (already filtered by search and manufacturer)
-  const filteredSpecSheets: SpecSheet[] = specSheetsFromApi || [];
-
-  // Matching spec sheet for selected item (from API data or search results)
-  const selectedItemSpecSheet = useMemo(() => {
-    if (!selectedItem?.specSheetId) return null;
-    // First, try to use the spec sheet data that comes with the item from the API
-    if (selectedItem.specSheet) {
-      const specSheet = selectedItem.specSheet as SpecSheet;
-      // Resolve manufacturer from factoryId if not already set
-      if (!specSheet.manufacturer && specSheet.factoryId) {
-        const factory = manufacturers.find(m => m.id === specSheet.factoryId);
-        return { ...specSheet, manufacturer: factory?.name || '' };
-      }
-      return specSheet;
-    }
-    // Fallback to searching in filtered spec sheets (from picker)
-    const fromCurrent = filteredSpecSheets.find(s => s.id === selectedItem.specSheetId);
-    if (fromCurrent) return fromCurrent;
-    return null;
-  }, [selectedItem?.specSheetId, selectedItem?.specSheet, filteredSpecSheets, manufacturers]);
-
-  const tabs: { id: TabId; label: string; count?: number }[] = [
-    { id: 'items', label: 'Items', count: submittal.items.length },
-    { id: 'stakeholders', label: 'Stakeholders' },
-    { id: 'revisions', label: 'Revisions', count: submittal.revisions.length },
-    { id: 'settings', label: 'Settings' },
-  ];
-
-  // Spec sheet handlers hook
-  const {
-    handleAttachSpecSheet,
-    handleAttachHighlightVersion,
-    handleSkipHighlightVersion,
-    handleRemoveSpecSheet,
-    handleEditHighlights,
-  } = useSpecSheetHandlers({
+  const panel = useSubmittalDetailPanel({
     submittal,
-    selectedItemId,
-    selectedSpecSheetForHighlight,
     onUpdate,
-    setShowSpecSheetPicker,
-    setShowHighlightPicker,
-    setSelectedSpecSheetForHighlight,
+    onResubmit,
+    forceActiveTab,
+    onTabChanged,
   });
+
+  const { revisionWorkflow, settings, specSheetHandlers } = panel;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-[var(--card)] rounded-lg shadow-2xl w-[95vw] h-[95vh] max-w-[1400px] flex flex-col overflow-hidden">
         <SubmittalDetailHeader
           submittal={submittal}
-          onOpenConfig={() => {
-            setEditingConfig(submittal.config || { ...defaultSubmittalConfig });
-            setShowConfigModal(true);
-          }}
+          onOpenConfig={panel.handleOpenConfig}
           onPrint={onPrint}
           onClose={onClose}
         />
 
         <SubmittalMetaPanel
           submittal={submittal}
-          stats={stats}
+          stats={panel.stats}
           onUpdateArchitect={onUpdateArchitect}
           onUpdateEngineer={onUpdateEngineer}
           onUpdateBidDate={onUpdateBidDate}
@@ -233,12 +97,12 @@ export default function SubmittalDetailPanel({
 
         {/* Tabs */}
         <div className="flex border-b border-[var(--border)]">
-          {tabs.map(tab => (
+          {panel.tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => panel.setActiveTab(tab.id)}
               className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.id
+                panel.activeTab === tab.id
                   ? 'border-[var(--primary)] text-[var(--primary)]'
                   : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
               }`}
@@ -253,25 +117,25 @@ export default function SubmittalDetailPanel({
 
         {/* Content */}
         <div className="flex-1 overflow-hidden flex">
-          {activeTab === 'items' && (
+          {panel.activeTab === 'items' && (
             <ItemsTabContent
               items={submittal.items}
-              selectedItemId={selectedItemId}
-              setSelectedItemId={setSelectedItemId}
-              selectedItem={selectedItem}
-              selectedItemSpecSheet={selectedItemSpecSheet}
-              onBrowseLibrary={() => setShowSpecSheetPicker(true)}
-              onRemoveSpecSheet={onRemoveItemSpecSheet || handleRemoveSpecSheet}
-              onEditHighlights={() => handleEditHighlights(selectedItem?.specSheetId)}
+              selectedItemId={panel.selectedItemId}
+              setSelectedItemId={panel.setSelectedItemId}
+              selectedItem={panel.selectedItem}
+              selectedItemSpecSheet={panel.selectedItemSpecSheet}
+              onBrowseLibrary={() => panel.setShowSpecSheetPicker(true)}
+              onRemoveSpecSheet={onRemoveItemSpecSheet || specSheetHandlers.handleRemoveSpecSheet}
+              onEditHighlights={() => specSheetHandlers.handleEditHighlights(panel.selectedItem?.specSheetId)}
               onAddItem={onAddItem}
               onDeleteItem={onDeleteItem}
               onEditItem={onEditItem}
               isEditingItem={isEditingItem}
-              onUploadNew={() => setShowUploadModal(true)}
+              onUploadNew={() => panel.setShowUploadModal(true)}
             />
           )}
 
-          {activeTab === 'stakeholders' && (
+          {panel.activeTab === 'stakeholders' && (
             <StakeholdersTabContent
               customers={submittal.customers}
               engineers={submittal.engineers}
@@ -282,23 +146,23 @@ export default function SubmittalDetailPanel({
             />
           )}
 
-          {activeTab === 'revisions' && (
+          {panel.activeTab === 'revisions' && (
             <div className="flex-1 overflow-y-auto p-6">
               <RevisionTimeline
                 submittal={submittal}
-                onSendEmail={(revision) => setEmailDialogRevision(revision)}
-                onUploadReturned={(revision) => setUploadDialogRevision(revision)}
+                onSendEmail={(revision) => revisionWorkflow.setEmailDialogRevision(revision)}
+                onUploadReturned={(revision) => revisionWorkflow.setUploadDialogRevision(revision)}
                 onViewPdf={(url, name) => {
                   console.log('View PDF:', url, name);
                   window.open(url, '_blank');
                 }}
-                onResubmit={(revision, returnedPdf) => handleResubmit(revision, returnedPdf)}
-                onViewAnalysis={(returnedPdf) => setAnalysisReturnedPdf(returnedPdf)}
+                onResubmit={(revision, returnedPdf) => revisionWorkflow.handleResubmit(revision, returnedPdf)}
+                onViewAnalysis={(returnedPdf) => revisionWorkflow.setAnalysisReturnedPdf(returnedPdf)}
               />
             </div>
           )}
 
-          {activeTab === 'settings' && (
+          {panel.activeTab === 'settings' && (
             <SubmittalSettingsTab
               editingJobName={settings.editingJobName}
               setEditingJobName={settings.setEditingJobName}
@@ -320,106 +184,100 @@ export default function SubmittalDetailPanel({
         </div>
 
         <SpecSheetPickerModal
-          isOpen={showSpecSheetPicker}
-          onClose={() => setShowSpecSheetPicker(false)}
-          specSheetSearch={specSheetSearch}
-          setSpecSheetSearch={setSpecSheetSearch}
-          specSheetManufacturerId={specSheetManufacturerId}
-          setSpecSheetManufacturerId={setSpecSheetManufacturerId}
-          manufacturers={manufacturers}
-          isLoadingManufacturers={isLoadingManufacturers}
-          filteredSpecSheets={filteredSpecSheets}
-          isLoadingSpecSheets={isLoadingSpecSheets}
-          onSelectSpecSheet={handleAttachSpecSheet}
+          isOpen={panel.showSpecSheetPicker}
+          onClose={() => panel.setShowSpecSheetPicker(false)}
+          specSheetSearch={panel.specSheetSearch}
+          setSpecSheetSearch={panel.setSpecSheetSearch}
+          specSheetManufacturerId={panel.specSheetManufacturerId}
+          setSpecSheetManufacturerId={panel.setSpecSheetManufacturerId}
+          manufacturers={panel.manufacturers}
+          isLoadingManufacturers={panel.isLoadingManufacturers}
+          filteredSpecSheets={panel.filteredSpecSheets}
+          isLoadingSpecSheets={panel.isLoadingSpecSheets}
+          onSelectSpecSheet={specSheetHandlers.handleAttachSpecSheet}
         />
 
         <HighlightVersionPickerModal
-          isOpen={showHighlightPicker}
-          onClose={handleSkipHighlightVersion}
-          highlightVersions={highlightVersions}
-          isLoading={isLoadingHighlightVersions}
-          onSelectVersion={handleAttachHighlightVersion}
-          onSkip={handleSkipHighlightVersion}
+          isOpen={panel.showHighlightPicker}
+          onClose={specSheetHandlers.handleSkipHighlightVersion}
+          highlightVersions={panel.highlightVersions}
+          isLoading={panel.isLoadingHighlightVersions}
+          onSelectVersion={specSheetHandlers.handleAttachHighlightVersion}
+          onSkip={specSheetHandlers.handleSkipHighlightVersion}
         />
 
-        {showConfigModal && (
+        {panel.showConfigModal && (
           <SubmittalConfigModal
-            editingConfig={editingConfig}
-            updateEditingConfig={updateEditingConfig}
-            onSave={handleSaveConfig}
-            onClose={() => setShowConfigModal(false)}
+            editingConfig={panel.editingConfig}
+            updateEditingConfig={panel.updateEditingConfig}
+            onSave={panel.handleSaveConfig}
+            onClose={() => panel.setShowConfigModal(false)}
           />
         )}
 
-        {emailDialogRevision && (
+        {revisionWorkflow.emailDialogRevision && (
           <SendSubmittalEmailDialog
             submittal={submittal}
-            revision={emailDialogRevision}
-            onClose={() => setEmailDialogRevision(null)}
-            onSend={handleSendEmail}
-            onSkip={() => setEmailDialogRevision(null)}
+            revision={revisionWorkflow.emailDialogRevision}
+            onClose={() => revisionWorkflow.setEmailDialogRevision(null)}
+            onSend={revisionWorkflow.handleSendEmail}
+            onSkip={() => revisionWorkflow.setEmailDialogRevision(null)}
           />
         )}
 
-        {uploadDialogRevision && (
+        {revisionWorkflow.uploadDialogRevision && (
           <ReturnedPdfUpload
             submittal={submittal}
-            revision={uploadDialogRevision}
-            onClose={() => setUploadDialogRevision(null)}
+            revision={revisionWorkflow.uploadDialogRevision}
+            onClose={() => revisionWorkflow.setUploadDialogRevision(null)}
             onSuccess={(returnedPdf) => {
-              // Add the returned PDF to the revision's local state
               if (onUpdate) {
                 const updatedRevisions = submittal.revisions.map(rev => {
-                  if (rev.revisionNumber === uploadDialogRevision.revisionNumber) {
-                    return {
-                      ...rev,
-                      returnedPdfs: [...rev.returnedPdfs, returnedPdf],
-                    };
+                  if (rev.revisionNumber === revisionWorkflow.uploadDialogRevision?.revisionNumber) {
+                    return { ...rev, returnedPdfs: [...rev.returnedPdfs, returnedPdf] };
                   }
                   return rev;
                 });
                 onUpdate({ revisions: updatedRevisions });
               }
-              setUploadDialogRevision(null);
-              // If there's change analysis, open the analysis panel
+              revisionWorkflow.setUploadDialogRevision(null);
               if (returnedPdf.changeAnalysis) {
-                setAnalysisReturnedPdf(returnedPdf);
+                revisionWorkflow.setAnalysisReturnedPdf(returnedPdf);
               }
             }}
           />
         )}
 
-        {analysisReturnedPdf && (
+        {revisionWorkflow.analysisReturnedPdf && (
           <ChangeAnalysisPanel
-            returnedPdf={analysisReturnedPdf}
+            returnedPdf={revisionWorkflow.analysisReturnedPdf}
             submittalItems={submittal.items}
-            onClose={() => setAnalysisReturnedPdf(null)}
+            onClose={() => revisionWorkflow.setAnalysisReturnedPdf(null)}
             onResubmit={() => {
               const revision = submittal.revisions.find(r =>
-                r.returnedPdfs.some(p => p.id === analysisReturnedPdf.id)
+                r.returnedPdfs.some(p => p.id === revisionWorkflow.analysisReturnedPdf?.id)
               );
-              if (revision) {
-                handleResubmit(revision, analysisReturnedPdf);
+              if (revision && revisionWorkflow.analysisReturnedPdf) {
+                revisionWorkflow.handleResubmit(revision, revisionWorkflow.analysisReturnedPdf);
               }
-              setAnalysisReturnedPdf(null);
+              revisionWorkflow.setAnalysisReturnedPdf(null);
             }}
             onApplyStatus={async (status) => {
               await onApplyStatus?.(status);
-              setAnalysisReturnedPdf(null);
+              revisionWorkflow.setAnalysisReturnedPdf(null);
             }}
-            onUpdateChange={handleUpdateChange}
-            onAddChange={handleAddChange}
-            onDeleteChange={handleDeleteChange}
+            onUpdateChange={revisionWorkflow.handleUpdateChange}
+            onAddChange={revisionWorkflow.handleAddChange}
+            onDeleteChange={revisionWorkflow.handleDeleteChange}
           />
         )}
 
-        {showUploadModal && (
+        {panel.showUploadModal && (
           <SpecSheetUploadModal
-            onClose={() => setShowUploadModal(false)}
+            onClose={() => panel.setShowUploadModal(false)}
             onSuccess={() => {
-              setShowUploadModal(false);
-              // After upload, open the spec sheet picker to select the newly uploaded sheet
-              setShowSpecSheetPicker(true);
+              panel.setShowUploadModal(false);
+              panel.setShowSpecSheetPicker(true);
             }}
           />
         )}

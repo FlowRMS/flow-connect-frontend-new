@@ -1,25 +1,16 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React from 'react';
 import type {
   Submittal,
   SubmittalRevision,
-  SubmittalStakeholder,
   ReturnedPdf,
 } from '../../lib/types/submittals';
-import { uploadFileWithProgress, getFilePresignedUrl } from '../lib/graphql/files';
 import {
-  useAddReturnedPdf,
-  useAddChangeAnalysis,
-  type ChangeAnalysisSourceGQL,
-  type OverallChangeStatusGQL,
-  type ItemChangeStatusGQL,
-} from './api/useSubmittalsApi';
-import { mapReturnedPdfResponse } from './types/submittal-transforms';
-
-// Maximum file size in bytes (100MB)
-const MAX_FILE_SIZE_MB = 100;
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+  useReturnedPdfUpload,
+  formatFileSize,
+  MAX_FILE_SIZE_MB_EXPORT as MAX_FILE_SIZE_MB,
+} from './hooks/useReturnedPdfUpload';
 
 interface ReturnedPdfUploadProps {
   submittal: Submittal;
@@ -28,232 +19,42 @@ interface ReturnedPdfUploadProps {
   onSuccess?: (returnedPdf: ReturnedPdf) => void;
 }
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-// Simulated AI analysis - will be replaced with actual AI service when available
-function simulateAIAnalysis(submittal: Submittal): {
-  analyzedBy: ChangeAnalysisSourceGQL;
-  overallStatus: OverallChangeStatusGQL;
-  summary: string;
-  itemChanges: Array<{
-    itemId?: string;
-    fixtureType: string;
-    catalogNumber: string;
-    manufacturer: string;
-    status: ItemChangeStatusGQL;
-    notes?: string[];
-    pageReferences?: number[];
-  }>;
-} {
-  // Randomly select some items to have changes
-  const itemsWithChanges = submittal.items
-    .filter(() => Math.random() > 0.5)
-    .slice(0, 3);
-
-  const statuses: ItemChangeStatusGQL[] = [
-    'APPROVED_AS_NOTED',
-    'REVISE',
-    'REJECTED',
-  ];
-
-  const itemChanges = itemsWithChanges.map((item, idx) => ({
-    itemId: item.id,
-    fixtureType: item.fixtureType,
-    catalogNumber: item.catalogNumber,
-    manufacturer: item.manufacturer,
-    status: statuses[idx % statuses.length],
-    notes: [
-      idx === 0 ? 'Verify mounting height requirements' :
-      idx === 1 ? 'Change finish color per architect request' :
-      'Check lead time availability',
-    ],
-    pageReferences: [Math.floor(Math.random() * 20) + 1],
-  }));
-
-  const hasRejected = itemChanges.some(c => c.status === 'REJECTED');
-  const hasRevise = itemChanges.some(c => c.status === 'REVISE');
-  const overallStatus: OverallChangeStatusGQL = hasRejected
-    ? 'REJECTED'
-    : hasRevise
-    ? 'REVISE_AND_RESUBMIT'
-    : itemChanges.length > 0
-    ? 'APPROVED_AS_NOTED'
-    : 'APPROVED';
-
-  return {
-    analyzedBy: 'AI' as ChangeAnalysisSourceGQL,
-    overallStatus,
-    summary: itemChanges.length > 0
-      ? `${itemChanges.length} items require attention. Please review the marked changes.`
-      : 'No changes detected. Document appears to be approved.',
-    itemChanges,
-  };
-}
-
 export default function ReturnedPdfUpload({
   submittal,
   revision,
   onClose,
   onSuccess,
 }: ReturnedPdfUploadProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedStakeholder, setSelectedStakeholder] = useState<SubmittalStakeholder | null>(null);
-  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
-  const [analyzeWithAI, setAnalyzeWithAI] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const addReturnedPdfMutation = useAddReturnedPdf();
-  const addChangeAnalysisMutation = useAddChangeAnalysis();
-
-  // All stakeholders who might return a document
-  const stakeholders = [
-    ...submittal.engineers,
-    ...submittal.architects,
-    ...submittal.customers,
-  ];
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-
-    const files = Array.from(e.dataTransfer.files);
-    const pdfFile = files.find(f => f.type === 'application/pdf');
-    if (pdfFile) {
-      // Validate file size
-      if (pdfFile.size > MAX_FILE_SIZE_BYTES) {
-        setError(`File too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Your file is ${(pdfFile.size / (1024 * 1024)).toFixed(1)}MB.`);
-        return;
-      }
-      setSelectedFile(pdfFile);
-      setError(null);
-    }
-  }, []);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      // Validate file size
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        setError(`File too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
-        e.target.value = ''; // Clear the input
-        return;
-      }
-      setSelectedFile(file);
-      setError(null);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile || !selectedStakeholder) return;
-
-    setUploading(true);
-    setUploadProgress(0);
-    setError(null);
-
-    try {
-      // 1. Upload the file to storage with progress tracking
-      const uploadedFile = await uploadFileWithProgress({
-        file: selectedFile,
-        fileName: selectedFile.name,
-        folderPath: `submittals/${submittal.id}/returned`,
-        onProgress: (progress) => setUploadProgress(progress),
-      });
-
-      // 2. Get the presigned URL for the file
-      const fileUrl = await getFilePresignedUrl(uploadedFile.id);
-      if (!fileUrl) {
-        throw new Error('Failed to get file URL');
-      }
-
-      // 3. Add the returned PDF to the revision
-      if (!revision.id) {
-        throw new Error('Revision ID is required');
-      }
-      const returnedPdf = await addReturnedPdfMutation.mutateAsync({
-        submittalId: submittal.id,
-        input: {
-          revisionId: revision.id,
-          fileName: selectedFile.name,
-          fileUrl: fileUrl,
-          fileSize: selectedFile.size,
-          returnedByStakeholderId: selectedStakeholder.contactId,
-          receivedDate: receivedDate,
-          notes: notes || undefined,
-        },
-      });
-
-      // 4. If AI analysis is enabled, add change analysis
-      let analysisResponse = null;
-      if (analyzeWithAI) {
-        setAnalyzing(true);
-
-        // Simulate AI analysis delay (will be replaced with real AI service)
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        const analysisResult = simulateAIAnalysis(submittal);
-
-        analysisResponse = await addChangeAnalysisMutation.mutateAsync({
-          submittalId: submittal.id,
-          input: {
-            returnedPdfId: returnedPdf.id,
-            analyzedBy: analysisResult.analyzedBy,
-            overallStatus: analysisResult.overallStatus,
-            summary: analysisResult.summary,
-            itemChanges: analysisResult.itemChanges,
-          },
-        });
-
-        setAnalyzing(false);
-      }
-
-      // Build the full returned PDF response for the parent
-      const fullResponse = {
-        ...returnedPdf,
-        changeAnalysis: analysisResponse,
-      };
-      const mappedReturnedPdf = mapReturnedPdfResponse(fullResponse, revision.revisionNumber);
-
-      // Success - notify parent with the result, then close
-      onSuccess?.(mappedReturnedPdf);
-      onClose();
-    } catch (err) {
-      console.error('Error uploading returned PDF:', err);
-      setError(err instanceof Error ? err.message : 'Failed to upload file');
-      setUploading(false);
-      setAnalyzing(false);
-    }
-  };
-
-  const isValid = selectedFile && selectedStakeholder && receivedDate;
+  const {
+    isDragging,
+    selectedFile,
+    selectedStakeholder,
+    setSelectedStakeholder,
+    receivedDate,
+    setReceivedDate,
+    notes,
+    setNotes,
+    analyzeWithAI,
+    setAnalyzeWithAI,
+    uploading,
+    uploadProgress,
+    analyzing,
+    error,
+    fileInputRef,
+    stakeholders,
+    isValid,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleFileSelect,
+    handleUpload,
+    clearFile,
+  } = useReturnedPdfUpload({ submittal, revision, onClose, onSuccess });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
-      {/* Modal */}
       <div className="relative bg-[var(--card)] rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
@@ -268,10 +69,7 @@ export default function ReturnedPdfUpload({
               <p className="text-xs text-[var(--muted-foreground)]">Revision {revision.revisionNumber}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
-          >
+          <button onClick={onClose} className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
             </svg>
@@ -280,7 +78,6 @@ export default function ReturnedPdfUpload({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* Error Message */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
               {error}
@@ -324,10 +121,7 @@ export default function ReturnedPdfUpload({
                   <p className="text-xs text-[var(--muted-foreground)]">{formatFileSize(selectedFile.size)}</p>
                 </div>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedFile(null);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); clearFile(); }}
                   className="p-1.5 hover:bg-red-100 rounded-lg transition-colors text-red-600"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -401,7 +195,7 @@ export default function ReturnedPdfUpload({
             />
           </div>
 
-          {/* AI Analysis Toggle - Coming Soon */}
+          {/* AI Analysis Toggle */}
           <div className="bg-[var(--muted)]/30 rounded-lg p-4">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
