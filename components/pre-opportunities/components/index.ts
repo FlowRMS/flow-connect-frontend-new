@@ -6,6 +6,7 @@
 export { ViewModeToggle } from './ViewModeToggle';
 export { LoadingState } from './LoadingState';
 export { ErrorState } from './ErrorState';
+export { PreOpportunitiesEmptyState } from './PreOpportunitiesEmptyState';
 export { SearchableDropdown } from './SearchableDropdown';
 export { LineItemEditor } from './LineItemEditor';
 export {

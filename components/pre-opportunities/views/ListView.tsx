@@ -6,20 +6,12 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import type { PreOpportunityLandingPage, PreOpportunityStatus } from '../types';
-import { formatCurrency, formatDate, getStatusLabel, getOwnerInitials, getOwnerColor } from '../utils';
+import { formatCurrency, formatDate, getOwnerInitials, getOwnerColor } from '../utils';
 import { useDeleteCRMPreOpportunity } from '../../hooks/useCRMApi';
 import { preOpportunityToasts } from '../../lib/toast';
 import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
-
-// Status color mapping - Jobs style
-const STATUS_COLORS: Record<PreOpportunityStatus, { bg: string; text: string; dot: string }> = {
-  'QUALIFIED': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
-  'NEGOTIATION': { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
-  'FOLLOW_UP': { bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' },
-  'WAITING_ON_FACTORY': { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
-  'LOST': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
-  'WON': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
-};
+import { PicklistValue } from '@/lib/picklists/components';
+import { PicklistKey } from '@/lib/picklists/enums';
 
 interface ListViewProps {
   preOpps: PreOpportunityLandingPage[];
@@ -54,15 +46,6 @@ export function ListView({ preOpps, onRefresh }: ListViewProps) {
   const handleDeleteCancel = () => {
     setShowDeleteModal(false);
     setPreOppToDelete(null);
-  };
-
-  const getStatusColor = (status: PreOpportunityStatus) => {
-    const colors = STATUS_COLORS[status] || STATUS_COLORS.QUALIFIED;
-    return `${colors.bg} ${colors.text}`;
-  };
-
-  const getStatusDotColor = (status: PreOpportunityStatus) => {
-    return STATUS_COLORS[status]?.dot || 'bg-blue-500';
   };
 
 
@@ -135,10 +118,13 @@ export function ListView({ preOpps, onRefresh }: ListViewProps) {
 
                     {/* Status */}
                     <div className="col-span-2 flex items-center">
-                      <span className={`inline-flex items-center gap-1 md:gap-1.5 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium ${getStatusColor(preOpp.status)}`}>
-                        <span className={`w-1.5 md:w-2 h-1.5 md:h-2 rounded-full flex-shrink-0 ${getStatusDotColor(preOpp.status)}`}></span>
-                        <span className="truncate">{getStatusLabel(preOpp.status)}</span>
-                      </span>
+                      <PicklistValue
+                        picklistKey={PicklistKey.PRE_OPPORTUNITY_STATUS}
+                        value={preOpp.status}
+                        variant="badge"
+                        showColor={true}
+                        className="text-[10px] md:text-xs"
+                      />
                     </div>
 
                     {/* Total Value */}

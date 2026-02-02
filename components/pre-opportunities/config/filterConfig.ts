@@ -3,7 +3,8 @@
  * Note: columnName should match the PreOpportunityLandingPage type field names
  */
 
-import type { FilterOption, SortOption } from '../../lib/filter-utils';
+import { SortOption } from '@/components/lib/filter-utils';
+import { ColumnFilterTypeEnum, FilterOption } from '../../advancedFilters/types';
 
 export function getPreOppFilterOptions(
   uniqueEntityNumbers: string[],
@@ -22,10 +23,11 @@ export function getPreOppFilterOptions(
     {
       id: 'status',
       label: 'Status',
-      type: 'dropdown',
+      type: ColumnFilterTypeEnum.picklist,
       columnName: 'status',
       available: true,
-      options: uniqueStatuses
+      picklistKey: 'preOpportunityStatus',
+      multiSelect: true
     },
     {
       id: 'created-by',
