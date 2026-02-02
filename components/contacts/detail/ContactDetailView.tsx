@@ -5,7 +5,8 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { CONTACT_ROLES } from '../constants';
+import { usePicklist } from '@/lib/picklists';
+import { PicklistKey } from '@/lib/picklists/enums';
 import { getInitials, getAvatarColor } from '../utils';
 import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
@@ -59,6 +60,8 @@ function RoleSelect({ value, onChange, disabled }: RoleSelectProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const { enabledItems, getLabelByKey, getColorByKey } = usePicklist(PicklistKey.CONTACT_ROLES);
+
   useEffect(() => {
     setPortalTarget(document.body);
   }, []);
@@ -67,7 +70,7 @@ function RoleSelect({ value, onChange, disabled }: RoleSelectProps) {
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownHeight = Math.min(CONTACT_ROLES.length * 44 + 8, 250);
+      const dropdownHeight = Math.min(enabledItems.length * 44 + 8, 250);
 
       if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
         setPosition({
@@ -83,7 +86,7 @@ function RoleSelect({ value, onChange, disabled }: RoleSelectProps) {
         });
       }
     }
-  }, [isOpen]);
+  }, [isOpen, enabledItems.length]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -116,24 +119,30 @@ function RoleSelect({ value, onChange, disabled }: RoleSelectProps) {
         >
           Select Role...
         </button>
-        {CONTACT_ROLES.map((role) => (
+        {enabledItems.map((item) => (
           <button
-            key={role}
+            key={item.key}
             type="button"
             onClick={() => {
-              onChange(role);
+              onChange(item.key);
               setIsOpen(false);
             }}
             className={`
               w-full px-4 py-2.5 text-left text-sm flex items-center justify-between
               transition-colors hover:bg-gray-50
-              ${value === role ? 'bg-blue-50' : ''}
+              ${value === item.key ? 'bg-blue-50' : ''}
             `}
           >
-            <span className={`${value === role ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-              {role}
+            <span className={`flex items-center gap-2 ${value === item.key ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+              {item.color && (
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: item.color }}
+                />
+              )}
+              {item.label}
             </span>
-            {value === role && (
+            {value === item.key && (
               <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
@@ -164,7 +173,15 @@ function RoleSelect({ value, onChange, disabled }: RoleSelectProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
           {value ? (
-            <span className="text-gray-900 truncate">{value}</span>
+            <span className="text-gray-900 truncate flex items-center gap-2">
+              {getColorByKey(value) && (
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: getColorByKey(value) }}
+                />
+              )}
+              {getLabelByKey(value)}
+            </span>
           ) : (
             <span className="text-gray-400">Select Role...</span>
           )}
@@ -1157,7 +1174,7 @@ export default function ContactDetailView({
             entityId={contact.id}
             sourceEntityType="CONTACT"
             title="Connected Entities"
-            enabledCategories={['companies', 'customers', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+            enabledCategories={['companies', 'customers', 'factories', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
             onCompanyClick={onCompanyClick}
             onJobClick={onJobClick}
           />
