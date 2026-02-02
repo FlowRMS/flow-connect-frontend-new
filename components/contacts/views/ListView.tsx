@@ -119,6 +119,11 @@ export default function ListView({
                         <span className="text-sm text-gray-900 truncate block">{contact.role}</span>
                       </td>
                       <td className="px-3 py-3">
+                        <span className="text-sm text-gray-600 truncate block max-w-[200px]" title={contact.roleDetail || ''}>
+                          {contact.roleDetail || '-'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
                         <div className="flex items-center gap-1 flex-wrap">
                           {contact.tags.slice(0, 1).map((tag, idx) => (
                             <span
