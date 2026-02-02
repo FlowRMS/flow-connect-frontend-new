@@ -84,9 +84,12 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
     const commissionRate = parseFloat(detail.commissionRate || '0');
 
-    // Use API values if available, otherwise calculate
+    // Use API subtotal if available and non-zero, otherwise calculate from inputs
+    // Backend may send subtotal as "0.0000" incorrectly (e.g. for imported invoices), so fall back to calculated value
     const calculatedSellTotal = quantity * unitPrice / divisor;
-    const sellTotal = detail.subtotal ? parseFloat(String(detail.subtotal)) : calculatedSellTotal;
+    const apiSubtotal = detail.subtotal ? parseFloat(String(detail.subtotal)) : 0;
+    const isFrontendCalculated = apiSubtotal === 0 && calculatedSellTotal > 0;
+    const sellTotal = isFrontendCalculated ? calculatedSellTotal : apiSubtotal || calculatedSellTotal;
     // Use API commission if available, otherwise calculate
     const commissionAmount = detail.commission ? parseFloat(String(detail.commission)) : (sellTotal * (commissionRate / 100));
 
@@ -105,6 +108,7 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     divisor,
     total: sellTotal,
     amount: sellTotal,
+    _fcSellTotal: isFrontendCalculated,
     commissionPercent: commissionRate,
     commissionRate: commissionRate,
     commission: commissionAmount,
@@ -245,9 +249,11 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
   const divisor = parseFloat(detail.divisionFactor || '1');
   const commissionRate = parseFloat(detail.commissionRate || '0');
 
-  // Use API values if available, otherwise calculate
+  // Use API subtotal if available and non-zero, otherwise calculate from inputs
   const calculatedTotal = quantity * unitPrice / divisor;
-  const total = detail.subtotal ? parseFloat(String(detail.subtotal)) : calculatedTotal;
+  const apiSubtotal = detail.subtotal ? parseFloat(String(detail.subtotal)) : 0;
+  const isFrontendCalculated = apiSubtotal === 0 && calculatedTotal > 0;
+  const total = isFrontendCalculated ? calculatedTotal : apiSubtotal || calculatedTotal;
   // Use API commission if available, otherwise calculate
   const commissionAmount = detail.commission ? parseFloat(String(detail.commission)) : (total * (commissionRate / 100));
 
@@ -261,6 +267,7 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
     quantity,
     unitPrice,
     amount: total,
+    _fcSellTotal: isFrontendCalculated,
     commissionRate,
     commissionAmount,
     // Extended fields

@@ -730,6 +730,14 @@ earnAmount = commissionAmount + overageAmount
 - `showInsideRepPerLine`: Different inside reps per line
 - `showEndUserPerLine`: Different end users per line
 
+### Outside Rep Population Source
+- `outsideRepSource`: Tenant-wide setting controlling which customer's outside reps auto-populate
+  - `'end_user'` (default): Outside reps are fetched from the End User customer
+  - `'sold_to'`: Outside reps are fetched from the Sold To Customer
+  - `'bill_to'`: Outside reps are fetched from the Bill To Customer
+- Configurable in: Order detail Settings tab, central Settings page (Order Settings)
+- Stored in `ORDER_SETTINGS` via `saveTenantSetting`
+
 ### Adhoc vs Catalog Products
 - **Catalog**: productId references catalog, auto-fills from product
 - **Adhoc**: productNameAdhoc/productDescriptionAdhoc, custom pricing
@@ -749,3 +757,15 @@ earnAmount = commissionAmount + overageAmount
 ### Pinned Columns
 - Some columns stay visible during scroll
 - Part # typically pinned
+
+---
+
+## Known Issues & Temporary Fixes
+
+### TEMP FIX: Imported orders have zero subtotal (backend bug)
+- **File**: `components/orders/detail/hooks/useOrderDetailState.ts` — `transformApiOrderToUiOrder()`
+- **Problem**: The backend sends `subtotal: "0.0000"` on line item details for orders with `creationType: "IMPORT"`. Manually created orders (`creationType: "MANUAL"`) return correct subtotals.
+- **Frontend workaround**: When the API subtotal is `0` but `unitPrice * quantity / divisor` produces a non-zero value, the frontend falls back to the calculated value. If both are `0`, it stays `0` (legitimate zero-priced item).
+- **Root cause**: Backend order import pipeline does not compute/store `subtotal` on line item details or the balance object.
+- **Action needed**: Jamal to fix the import pipeline so subtotal is computed correctly. Once fixed, the frontend workaround can be removed (it will be harmless either way).
+- **Date added**: 2026-02-02

@@ -34,6 +34,10 @@ interface PDFControlsProps {
   onCenterLogoUpload: (file: File) => void;
   onCenterLogoRemove: () => void;
   onShowCenterLogoToggle: () => void;
+  centerLogoSize: number;
+  onCenterLogoSizeChange: (size: number) => void;
+  centerLogoPosition: number;
+  onCenterLogoPositionChange: (position: number) => void;
   isUploadingCenterLogo?: boolean;
 }
 
@@ -61,6 +65,10 @@ export function PDFControls({
   onCenterLogoUpload,
   onCenterLogoRemove,
   onShowCenterLogoToggle,
+  centerLogoSize,
+  onCenterLogoSizeChange,
+  centerLogoPosition,
+  onCenterLogoPositionChange,
   isUploadingCenterLogo,
 }: PDFControlsProps) {
   const [activeSection, setActiveSection] = useState<SectionType>('fields');
@@ -737,6 +745,47 @@ export function PDFControls({
                           disabled={isUploadingCenterLogo}
                         />
                       </label>
+                    )}
+
+                    {/* Center Logo Size Slider */}
+                    {centerLogo && (
+                      <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">Logo Size</span>
+                          <span className="text-sm font-semibold text-blue-600">{centerLogoSize}mm</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={15}
+                          max={60}
+                          value={centerLogoSize}
+                          onChange={(e) => onCenterLogoSizeChange(Number(e.target.value))}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>Small</span>
+                          <span>Large</span>
+                        </div>
+
+                        {/* Horizontal Position Slider */}
+                        <div className="flex items-center justify-between mb-2 mt-4">
+                          <span className="text-sm font-medium text-gray-700">Horizontal Position</span>
+                          <span className="text-sm font-semibold text-blue-600">{centerLogoPosition}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={10}
+                          max={90}
+                          value={centerLogoPosition}
+                          onChange={(e) => onCenterLogoPositionChange(Number(e.target.value))}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>Left</span>
+                          <span>Center</span>
+                          <span>Right</span>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}

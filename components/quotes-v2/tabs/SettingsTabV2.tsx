@@ -1,7 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { QuoteSettingsV2, PriceLevelV2 } from '../types';
+import { useQuoteSettings } from '@/contexts/UserSettingsContext';
+import type { OutsideRepSource } from '@/components/lib/graphql/settings';
+import { showSuccessToast, showErrorToast } from '@/components/lib/toast';
 
 interface SettingsTabV2Props {
   settings: QuoteSettingsV2;
@@ -9,6 +12,51 @@ interface SettingsTabV2Props {
 }
 
 export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props) {
+  const { settings: quoteSettings, tenantSettings, saveSettings } = useQuoteSettings();
+  const [outsideRepSource, setOutsideRepSource] = useState<OutsideRepSource>('end_user');
+  const [isSavingRepSource, setIsSavingRepSource] = useState(false);
+
+  // Sync outsideRepSource from tenant settings
+  useEffect(() => {
+    const tenantSource = (tenantSettings as any)?.outsideRepSource;
+    if (tenantSource) {
+      setOutsideRepSource(tenantSource);
+    } else if (quoteSettings?.outsideRepSource) {
+      setOutsideRepSource(quoteSettings.outsideRepSource);
+    }
+  }, [quoteSettings, tenantSettings]);
+
+  // Also keep local settings in sync so the auto-populate logic reads the correct value
+  useEffect(() => {
+    if (settings.outsideRepSource !== outsideRepSource) {
+      onSettingsChange({ ...settings, outsideRepSource });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outsideRepSource]);
+
+  // Save outsideRepSource directly to tenant settings
+  const handleOutsideRepSourceChange = async (value: OutsideRepSource) => {
+    setOutsideRepSource(value);
+    onSettingsChange({ ...settings, outsideRepSource: value });
+    setIsSavingRepSource(true);
+    try {
+      const currentTenantSettings = tenantSettings || quoteSettings || {};
+      const success = await saveSettings(
+        { ...currentTenantSettings, outsideRepSource: value } as any,
+        'tenant'
+      );
+      if (success) {
+        showSuccessToast('Outside rep source saved');
+      } else {
+        showErrorToast('Failed to save outside rep source');
+      }
+    } catch {
+      showErrorToast('Failed to save outside rep source');
+    } finally {
+      setIsSavingRepSource(false);
+    }
+  };
+
   const handleToggle = (key: keyof QuoteSettingsV2) => {
     if (typeof settings[key] === 'boolean') {
       onSettingsChange({ ...settings, [key]: !settings[key] });
@@ -124,6 +172,53 @@ export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props
                 <p className="text-xs text-gray-500">{settings.factoryPerLineItem ? 'Set manufacturer on each line item' : 'Set manufacturer in header for all lines'}</p>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Outside Rep Population Source - Tenant Wide */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-3">
+            <h4 className="text-sm font-medium text-gray-900">Outside Rep Population Source</h4>
+            <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Tenant Wide</span>
+            {isSavingRepSource && (
+              <span className="text-xs text-gray-400">Saving...</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mb-3">Choose which customer&apos;s outside reps auto-populate when selected</p>
+          <div className="flex items-center gap-6">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="outsideRepSource"
+                checked={outsideRepSource === 'end_user'}
+                onChange={() => handleOutsideRepSourceChange('end_user')}
+                disabled={isSavingRepSource}
+                className="accent-indigo-600"
+              />
+              <span className="text-sm text-gray-700">End User</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="outsideRepSource"
+                checked={outsideRepSource === 'sold_to'}
+                onChange={() => handleOutsideRepSourceChange('sold_to')}
+                disabled={isSavingRepSource}
+                className="accent-indigo-600"
+              />
+              <span className="text-sm text-gray-700">Sold To Customer</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="outsideRepSource"
+                checked={outsideRepSource === 'bill_to'}
+                onChange={() => handleOutsideRepSourceChange('bill_to')}
+                disabled={isSavingRepSource}
+                className="accent-indigo-600"
+              />
+              <span className="text-sm text-gray-700">Bill To Customer</span>
+            </label>
           </div>
         </div>
 

@@ -30,7 +30,9 @@
       "Bash(npm run lint)",
       "Bash(npx next build)",
       "Bash(taskkill:*)",
-      "Bash(timeout /t 2 /nobreak)"
+      "Bash(timeout /t 2 /nobreak)",
+      "Read(//c/Users/ksubh/Desktop/**)",
+      "Bash(npx next build:*)"
     ],
     "deny": [],
     "ask": []

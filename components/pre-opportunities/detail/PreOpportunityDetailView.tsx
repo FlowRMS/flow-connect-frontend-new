@@ -5,13 +5,17 @@
  */
 
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { PreOpportunityDetailHeader } from './PreOpportunityDetailHeader';
 import { PreOpportunityDetailsForm, type EditFormData } from './PreOpportunityDetailsForm';
 import { FactoryGroupedLineItemsView } from './FactoryGroupedLineItemsView';
 import { PreOpportunitySummary } from './PreOpportunitySummary';
 import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import { CreateQuoteFromPreOppModal } from '../modals/CreateQuoteFromPreOppModal';
+import { createLink } from '../../lib/graphql/entity-links';
+import { updatePreOpportunity } from '../../lib/graphql/pre-opportunities';
 import type { PreOpportunity, PreOpportunityDetailInput } from '../types';
+import type { Quote } from '../../quotes/api/quotesApi';
 
 interface PreOpportunityDetailViewProps {
   preOpp: PreOpportunity;
@@ -26,6 +30,7 @@ interface PreOpportunityDetailViewProps {
   onDelete: () => void;
   onEditChange: (field: keyof EditFormData, value: string) => void;
   onLineItemsChange?: (items: PreOpportunityDetailInput[]) => void;
+  onRefetch?: () => void;
 }
 
 export function PreOpportunityDetailView({
@@ -41,9 +46,55 @@ export function PreOpportunityDetailView({
   onDelete,
   onEditChange,
   onLineItemsChange,
+  onRefetch,
 }: PreOpportunityDetailViewProps) {
+  const queryClient = useQueryClient();
   // Modal states
   const [showCreateQuoteModal, setShowCreateQuoteModal] = useState(false);
+
+  const handleQuoteCreated = async (quote: Quote) => {
+    try {
+      // Create link between pre-opportunity and the new quote
+      await createLink({
+        sourceEntityType: 'PRE_OPPORTUNITY',
+        sourceEntityId: preOpp.id,
+        targetEntityType: 'QUOTE',
+        targetEntityId: quote.id,
+      });
+    } catch (err) {
+      console.error('Failed to create link between pre-opportunity and quote:', err);
+    }
+
+    try {
+      // Update pre-opportunity status to WON
+      await updatePreOpportunity({
+        id: preOpp.id,
+        entityNumber: preOpp.entityNumber,
+        entityDate: preOpp.entityDate,
+        soldToCustomerId: preOpp.soldToCustomerId,
+        status: 'WON',
+        details: preOpp.details?.map(d => ({
+          id: d.id,
+          itemNumber: d.itemNumber,
+          productId: d.productId,
+          factoryId: d.factoryId || '',
+          quantity: d.quantity,
+          unitPrice: d.unitPrice,
+          discountRate: d.discountRate,
+          leadTime: d.leadTime,
+          endUserId: d.endUserId || preOpp.soldToCustomerId,
+        })),
+      });
+    } catch (err) {
+      console.error('Failed to update pre-opportunity status to WON:', err);
+    }
+
+    // Invalidate related entities cache so ConnectedEntitiesSection updates
+    queryClient.invalidateQueries({ queryKey: ['crm', 'relatedEntities'] });
+
+    // Refetch to show updated data
+    onRefetch?.();
+  };
 
   return (
     <main className="flex-1 overflow-y-auto bg-gray-50 p-3 md:p-6">
@@ -103,6 +154,7 @@ export function PreOpportunityDetailView({
         preOpportunityNumber={preOpp.entityNumber}
         lineItems={preOpp.details}
         onClose={() => setShowCreateQuoteModal(false)}
+        onSuccess={handleQuoteCreated}
       />
     </main>
   );
