@@ -4,7 +4,9 @@
  */
 
 import type { CommissionCheck } from '@/lib/types/rms';
-import type { QuickDatePreset } from './types';
+
+// Re-export shared getQuickDateRange for backwards compatibility
+export { getQuickDateRange } from '@/components/shared/utils/dateUtils';
 
 /**
  * Format a number as currency (USD) with full precision (up to 4 decimal places)
@@ -34,7 +36,7 @@ export const formatDate = (dateString: string): string => {
  * Handles both formats: "YYYY-MM" (e.g., "2025-01") and "YYYY-MM-DD" (e.g., "2025-01-01")
  * Example: "2025-01" -> "Jan 2025", "2025-12-01" -> "Dec 2025"
  * Returns "-" if null/undefined
- * 
+ *
  * Note: Parses the date string manually to avoid timezone issues
  */
 export const formatMonth = (monthString: string | null | undefined): string => {
@@ -60,46 +62,6 @@ export const formatMonth = (monthString: string | null | undefined): string => {
 
   const monthName = date.toLocaleDateString('en-US', { month: 'short' });
   return `${monthName} ${year}`;
-};
-
-/**
- * Get date range for quick date filter presets
- */
-export const getQuickDateRange = (
-  preset: QuickDatePreset
-): { start: Date | null; end: Date | null } => {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  switch (preset) {
-    case 'today':
-      return {
-        start: today,
-        end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1),
-      };
-    case 'this_week': {
-      const dayOfWeek = today.getDay();
-      const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - dayOfWeek);
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-      endOfWeek.setHours(23, 59, 59, 999);
-      return { start: startOfWeek, end: endOfWeek };
-    }
-    case 'last_week': {
-      const dayOfWeek = today.getDay();
-      const startOfThisWeek = new Date(today);
-      startOfThisWeek.setDate(today.getDate() - dayOfWeek);
-      const startOfLastWeek = new Date(startOfThisWeek);
-      startOfLastWeek.setDate(startOfThisWeek.getDate() - 7);
-      const endOfLastWeek = new Date(startOfLastWeek);
-      endOfLastWeek.setDate(startOfLastWeek.getDate() + 6);
-      endOfLastWeek.setHours(23, 59, 59, 999);
-      return { start: startOfLastWeek, end: endOfLastWeek };
-    }
-    default:
-      return { start: null, end: null };
-  }
 };
 
 /**
