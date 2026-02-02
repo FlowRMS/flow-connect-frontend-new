@@ -3,8 +3,8 @@
  * Note: columnName should match the PreOpportunityLandingPage type field names
  */
 
-import type { FilterOption, SortOption } from '../../lib/filter-utils';
-import { ColumnFilterTypeEnum } from '../../advancedFilters/types';
+import { SortOption } from '@/components/lib/filter-utils';
+import { ColumnFilterTypeEnum, FilterOption } from '../../advancedFilters/types';
 
 export function getPreOppFilterOptions(
   uniqueEntityNumbers: string[],
