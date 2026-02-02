@@ -35,9 +35,17 @@ export function FolderTreeItem({
   const isFolderDragging = draggedFolderId === folder.id;
   const isFolderDragOver = dragOverFolderId === folder.id;
 
-  // Ref to track blur timeout and prevent immediate saves
+  // Refs to track blur timeout and edit start time
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const editStartTimeRef = useRef<number>(0);
+
+  // Track when edit mode starts to ignore early blur events
+  useEffect(() => {
+    if (isFolderEditing) {
+      editStartTimeRef.current = Date.now();
+    }
+  }, [isFolderEditing]);
 
   // Clear timeout on unmount
   useEffect(() => {
@@ -49,8 +57,18 @@ export function FolderTreeItem({
   }, []);
 
   const handleBlur = (e: React.FocusEvent) => {
+    // Ignore blur events that happen too quickly after edit mode starts
+    // This prevents race conditions during initial render
+    const timeSinceEditStart = Date.now() - editStartTimeRef.current;
+    if (timeSinceEditStart < 300) {
+      // Re-focus the input if blur happened too early
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
+      return;
+    }
+
     // Check if the new focus target is within the same folder item
-    // If clicking on action buttons within the same row, don't cancel
     const relatedTarget = e.relatedTarget as HTMLElement | null;
     if (relatedTarget?.closest('[data-folder-actions]')) {
       return;
