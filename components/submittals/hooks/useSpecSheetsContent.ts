@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   useManufacturersWithSpecSheets,
   useSpecSheetSearch,
@@ -7,7 +7,9 @@ import type { SpecSheet, SpecSheetCategory } from '../../../lib/types/submittals
 import { useSpecSheetsFolders } from './useSpecSheetsFolders';
 import { useSpecSheetContextMenu } from './useSpecSheetContextMenu';
 import { useSpecSheetMultiSelect } from './useSpecSheetMultiSelect';
-import { showInfoToast } from '../../lib/toast';
+import { showInfoToast, showSuccessToast } from '../../lib/toast';
+
+const MANUFACTURER_ORDER_KEY = 'specsheets-manufacturer-order';
 
 export type HighlightFilter = 'all' | 'highlighted' | 'not_highlighted';
 
@@ -33,13 +35,40 @@ export function useSpecSheetsContent() {
   const [editingManufacturerName, setEditingManufacturerName] = useState('');
   const [draggedManufacturerIndex, setDraggedManufacturerIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [manufacturerOrder, setManufacturerOrder] = useState<string[]>([]);
 
   // API Hooks
   const {
-    data: manufacturers = [],
+    data: manufacturersData = [],
     isLoading: isLoadingManufacturers,
     error: manufacturersError
   } = useManufacturersWithSpecSheets();
+
+  // Load manufacturer order from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(MANUFACTURER_ORDER_KEY);
+      if (saved) {
+        setManufacturerOrder(JSON.parse(saved));
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, []);
+
+  // Sort manufacturers according to saved order
+  const manufacturers = useMemo(() => {
+    if (manufacturerOrder.length === 0) return manufacturersData;
+
+    const orderMap = new Map(manufacturerOrder.map((id, index) => [id, index]));
+    return [...manufacturersData].sort((a, b) => {
+      const orderA = orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+      const orderB = orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+      if (orderA !== orderB) return orderA - orderB;
+      // Fall back to alphabetical for new manufacturers not in saved order
+      return a.name.localeCompare(b.name);
+    });
+  }, [manufacturersData, manufacturerOrder]);
 
   const searchManufacturerId = searchQuery ? undefined : selectedManufacturerId;
 
@@ -143,7 +172,33 @@ export function useSpecSheetsContent() {
   const handleDragStart = (index: number) => setDraggedManufacturerIndex(index);
   const handleDragOver = (e: React.DragEvent, index: number) => { e.preventDefault(); setDragOverIndex(index); };
   const handleDragLeave = () => setDragOverIndex(null);
-  const handleDrop = () => { setDraggedManufacturerIndex(null); setDragOverIndex(null); };
+
+  const handleDrop = useCallback((targetIndex: number) => {
+    if (draggedManufacturerIndex === null || draggedManufacturerIndex === targetIndex) {
+      setDraggedManufacturerIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    // Reorder manufacturers
+    const newOrder = [...manufacturers];
+    const [removed] = newOrder.splice(draggedManufacturerIndex, 1);
+    newOrder.splice(targetIndex, 0, removed);
+
+    // Save the new order to localStorage
+    const orderIds = newOrder.map(m => m.id);
+    try {
+      localStorage.setItem(MANUFACTURER_ORDER_KEY, JSON.stringify(orderIds));
+      setManufacturerOrder(orderIds);
+      showSuccessToast('Manufacturer order updated');
+    } catch {
+      // Ignore localStorage errors
+    }
+
+    setDraggedManufacturerIndex(null);
+    setDragOverIndex(null);
+  }, [draggedManufacturerIndex, manufacturers]);
+
   const handleDragEnd = () => { setDraggedManufacturerIndex(null); setDragOverIndex(null); };
   const handleRenameManufacturer = () => showInfoToast('Manufacturer Management', { description: 'To rename a manufacturer, please use the Manufacturers page in Settings.' });
   const handleSaveManufacturerRename = () => { setEditingManufacturerIndex(null); setEditingManufacturerName(''); };
