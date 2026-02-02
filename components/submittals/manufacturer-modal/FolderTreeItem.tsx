@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import type { FolderTreeItemProps } from './types';
 
 export function FolderTreeItem({
@@ -34,6 +34,48 @@ export function FolderTreeItem({
   const specSheetCount = hasChildren && isFolderExpanded ? null : getFolderSpecSheetCount(folder.id, manufacturer);
   const isFolderDragging = draggedFolderId === folder.id;
   const isFolderDragOver = dragOverFolderId === folder.id;
+
+  // Ref to track blur timeout and prevent immediate saves
+  const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Clear timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleBlur = () => {
+    // Clear any existing timeout
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+    }
+    // Add delay to allow for intentional interactions (clicking buttons, etc.)
+    blurTimeoutRef.current = setTimeout(() => {
+      handleSaveRename();
+    }, 200);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      // Clear blur timeout since we're saving explicitly
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+      handleSaveRename();
+    }
+    if (e.key === 'Escape') {
+      // Clear blur timeout since we're canceling
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+      setEditingFolderId(null);
+      setEditingFolderName('');
+    }
+  };
 
   return (
     <div>
@@ -91,17 +133,12 @@ export function FolderTreeItem({
         {/* Folder name / edit input */}
         {isFolderEditing ? (
           <input
+            ref={inputRef}
             type="text"
             value={editingFolderName}
             onChange={(e) => setEditingFolderName(e.target.value)}
-            onBlur={handleSaveRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSaveRename();
-              if (e.key === 'Escape') {
-                setEditingFolderId(null);
-                setEditingFolderName('');
-              }
-            }}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
             autoFocus
             onClick={(e) => e.stopPropagation()}
             className="flex-1 px-2 py-0.5 text-sm border border-[var(--primary)] rounded bg-[var(--background)] focus:outline-none"
