@@ -5,13 +5,13 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { CONTACT_ROLES } from '../constants';
+import { usePicklist } from '@/lib/picklists';
+import { PicklistKey } from '@/lib/picklists/enums';
 import { getInitials, getAvatarColor } from '../utils';
 import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import type { Contact } from '../types';
 import type { RelatedEntityCompany, RelatedEntityJob } from '../../lib/crm-graphql';
-import type { CompanyLandingPage } from '../../lib/graphql/types';
 import {
   GoogleMapsAddressModal,
   type Address,
@@ -23,7 +23,6 @@ import {
   useDeleteAddress,
 } from '../../hooks/useAddressApi';
 import { toast } from 'sonner';
-import { useCRMCompanyLandingPages } from '../../hooks/useCRMApi';
 
 type TabId = 'overview' | 'sales-reps' | 'addresses' | 'emails' | 'meetings' | 'connected-entities';
 
@@ -34,6 +33,7 @@ interface ContactDetailViewProps {
   isDeleting: boolean;
   editFormData: Partial<Contact>;
   deleteConfirmId: string | null;
+  hasLocalEdits: boolean;
   onBack: () => void;
   onEdit: () => void;
   onSave: () => void;
@@ -59,6 +59,8 @@ function RoleSelect({ value, onChange, disabled }: RoleSelectProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const { enabledItems, getLabelByKey, getColorByKey } = usePicklist(PicklistKey.CONTACT_ROLES);
+
   useEffect(() => {
     setPortalTarget(document.body);
   }, []);
@@ -67,7 +69,7 @@ function RoleSelect({ value, onChange, disabled }: RoleSelectProps) {
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownHeight = Math.min(CONTACT_ROLES.length * 44 + 8, 250);
+      const dropdownHeight = Math.min(enabledItems.length * 44 + 8, 250);
 
       if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
         setPosition({
@@ -83,7 +85,7 @@ function RoleSelect({ value, onChange, disabled }: RoleSelectProps) {
         });
       }
     }
-  }, [isOpen]);
+  }, [isOpen, enabledItems.length]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -116,24 +118,30 @@ function RoleSelect({ value, onChange, disabled }: RoleSelectProps) {
         >
           Select Role...
         </button>
-        {CONTACT_ROLES.map((role) => (
+        {enabledItems.map((item) => (
           <button
-            key={role}
+            key={item.key}
             type="button"
             onClick={() => {
-              onChange(role);
+              onChange(item.key);
               setIsOpen(false);
             }}
             className={`
               w-full px-4 py-2.5 text-left text-sm flex items-center justify-between
               transition-colors hover:bg-gray-50
-              ${value === role ? 'bg-blue-50' : ''}
+              ${value === item.key ? 'bg-blue-50' : ''}
             `}
           >
-            <span className={`${value === role ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-              {role}
+            <span className={`flex items-center gap-2 ${value === item.key ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+              {item.color && (
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: item.color }}
+                />
+              )}
+              {item.label}
             </span>
-            {value === role && (
+            {value === item.key && (
               <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
@@ -164,224 +172,17 @@ function RoleSelect({ value, onChange, disabled }: RoleSelectProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
           {value ? (
-            <span className="text-gray-900 truncate">{value}</span>
+            <span className="text-gray-900 truncate flex items-center gap-2">
+              {getColorByKey(value) && (
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: getColorByKey(value) }}
+                />
+              )}
+              {getLabelByKey(value)}
+            </span>
           ) : (
             <span className="text-gray-400">Select Role...</span>
-          )}
-        </div>
-        {!disabled && (
-          <svg
-            className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        )}
-      </button>
-      {dropdownContent}
-    </div>
-  );
-}
-
-// Searchable Company Select Component
-interface CompanySearchSelectProps {
-  value: string; // company name
-  companyId?: string; // company id
-  onChange: (companyId: string, companyName: string) => void;
-  disabled?: boolean;
-}
-
-function CompanySearchSelect({ value, companyId, onChange, disabled }: CompanySearchSelectProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Fetch companies from API using landing pages endpoint
-  const { data: companies = [], isLoading } = useCRMCompanyLandingPages();
-
-  // Filter companies based on search term
-  const filteredCompanies = useMemo(() => {
-    if (!searchTerm.trim()) return companies;
-    const search = searchTerm.toLowerCase();
-    return companies.filter(company =>
-      company.name.toLowerCase().includes(search)
-    );
-  }, [companies, searchTerm]);
-
-  useEffect(() => {
-    setPortalTarget(document.body);
-  }, []);
-
-  useEffect(() => {
-    if (isOpen && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const dropdownHeight = 350;
-      const spaceBelow = window.innerHeight - rect.bottom;
-
-      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
-        setPosition({
-          top: rect.top + window.scrollY - dropdownHeight - 4,
-          left: rect.left + window.scrollX,
-          width: rect.width,
-        });
-      } else {
-        setPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-          width: rect.width,
-        });
-      }
-    }
-  }, [isOpen]);
-
-  // Focus search input when dropdown opens
-  useEffect(() => {
-    if (isOpen && searchInputRef.current) {
-      setTimeout(() => searchInputRef.current?.focus(), 0);
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const isInsideTrigger = triggerRef.current?.contains(target);
-      const isInsideDropdown = dropdownRef.current?.contains(target);
-
-      if (!isInsideTrigger && !isInsideDropdown) {
-        setIsOpen(false);
-        setSearchTerm('');
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSelect = (company: CompanyLandingPage) => {
-    onChange(company.id, company.name);
-    setIsOpen(false);
-    setSearchTerm('');
-  };
-
-  const handleClear = () => {
-    onChange('', '');
-    setIsOpen(false);
-    setSearchTerm('');
-  };
-
-  const dropdownContent = isOpen && portalTarget && createPortal(
-    <div
-      ref={dropdownRef}
-      className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
-      style={{ top: position.top, left: position.left, width: position.width }}
-    >
-      {/* Search Input */}
-      <div className="p-3 border-b border-gray-100">
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search companies..."
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-      </div>
-
-      {/* Options List */}
-      <div className="max-h-[250px] overflow-y-auto py-1">
-        {isLoading ? (
-          <div className="px-4 py-8 text-center text-gray-500 text-sm">
-            <svg className="animate-spin h-5 w-5 mx-auto mb-2 text-gray-400" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-            </svg>
-            Loading companies...
-          </div>
-        ) : filteredCompanies.length === 0 ? (
-          <div className="px-4 py-8 text-center text-gray-500 text-sm">
-            {searchTerm ? 'No companies found' : 'No companies available'}
-          </div>
-        ) : (
-          <>
-            {/* Clear option */}
-            <button
-              type="button"
-              onClick={handleClear}
-              className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors text-gray-500"
-            >
-              Clear selection
-            </button>
-            {filteredCompanies.map((company) => (
-              <button
-                key={company.id}
-                type="button"
-                onClick={() => handleSelect(company)}
-                className={`
-                  w-full px-4 py-2.5 text-left text-sm flex items-center gap-3
-                  transition-colors hover:bg-gray-50
-                  ${companyId === company.id ? 'bg-blue-50' : ''}
-                `}
-              >
-                {/* Company Avatar */}
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  {company.name.substring(0, 2).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className={`block truncate ${companyId === company.id ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-                    {company.name}
-                  </span>
-                  {company.companyType?.name && (
-                    <span className="text-xs text-gray-400">
-                      {company.companyType.name}
-                    </span>
-                  )}
-                </div>
-                {companyId === company.id && (
-                  <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            ))}
-          </>
-        )}
-      </div>
-    </div>,
-    portalTarget
-  );
-
-  return (
-    <div className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        disabled={disabled}
-        className={`
-          w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-left
-          flex items-center justify-between gap-2 transition-all
-          ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'hover:border-blue-300 hover:shadow-sm cursor-pointer'}
-          ${isOpen ? 'ring-2 ring-blue-500 border-transparent shadow-sm' : ''}
-        `}
-      >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-          </svg>
-          {value ? (
-            <span className="text-gray-900 truncate">{value}</span>
-          ) : (
-            <span className="text-gray-400">Select company...</span>
           )}
         </div>
         {!disabled && (
@@ -407,6 +208,7 @@ export default function ContactDetailView({
   isDeleting,
   editFormData,
   deleteConfirmId,
+  hasLocalEdits,
   onBack,
   onEdit,
   onSave,
@@ -636,44 +438,29 @@ export default function ContactDetailView({
               </svg>
               Delete
             </button>
-            {isEditing ? (
-              <>
-                <button
-                  onClick={onCancel}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={onSave}
-                  disabled={isSaving}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isSaving ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                      </svg>
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={onEdit}
-                className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M11 4H4a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 010 3l-9 9L6 15l.5-3.5 9-9a2.121 2.121 0 013 0z" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Edit Contact
-              </button>
-            )}
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onSave}
+              disabled={isSaving || !hasLocalEdits}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isSaving ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -829,29 +616,6 @@ export default function ContactDetailView({
                   />
                 </div>
 
-                {/* Company */}
-                <div>
-                  <label className={labelClass}>
-                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    Company
-                  </label>
-                  {isEditing ? (
-                    <CompanySearchSelect
-                      value={editFormData.company ?? contact.company ?? ''}
-                      companyId={editFormData.companyId ?? contact.companyId}
-                      onChange={(companyId, companyName) => {
-                        onFieldChange('companyId', companyId);
-                        onFieldChange('company', companyName);
-                      }}
-                    />
-                  ) : (
-                    <div className={readOnlyClass}>
-                      {contact.company || '-'}
-                    </div>
-                  )}
-                </div>
 
               </div>
 
@@ -1157,7 +921,7 @@ export default function ContactDetailView({
             entityId={contact.id}
             sourceEntityType="CONTACT"
             title="Connected Entities"
-            enabledCategories={['companies', 'customers', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+            enabledCategories={['companies', 'customers', 'factories', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
             onCompanyClick={onCompanyClick}
             onJobClick={onJobClick}
           />

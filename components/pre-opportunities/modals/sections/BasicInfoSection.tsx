@@ -9,6 +9,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { PreOpportunityStatus } from '../../types';
 import { formatLocalDate } from '../../../lib/date-utils';
 import { StyledDatePicker } from '../../../shared/StyledDatePicker';
+import { usePicklist } from '@/lib/picklists/usePicklist';
+import { PicklistKey } from '@/lib/picklists/enums';
 
 interface BasicInfoSectionProps {
   entityNumber: string;
@@ -21,16 +23,6 @@ interface BasicInfoSectionProps {
   setExpDate: (value: string) => void;
 }
 
-// Status color mapping
-const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  'QUALIFIED': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
-  'NEGOTIATION': { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
-  'FOLLOW_UP': { bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' },
-  'WAITING_ON_FACTORY': { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
-  'LOST': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
-  'WON': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
-};
-
 // Custom styled status dropdown
 function StatusSelect({ 
   value, 
@@ -41,6 +33,7 @@ function StatusSelect({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { enabledItems, getItemByKey } = usePicklist(PicklistKey.PRE_OPPORTUNITY_STATUS);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -52,16 +45,7 @@ function StatusSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const options: { value: PreOpportunityStatus; label: string }[] = [
-    { value: 'QUALIFIED', label: 'Qualified' },
-    { value: 'NEGOTIATION', label: 'Negotiation' },
-    { value: 'FOLLOW_UP', label: 'Follow Up' },
-    { value: 'WAITING_ON_FACTORY', label: 'Waiting on Factory' },
-    { value: 'LOST', label: 'Lost' },
-    { value: 'WON', label: 'Won' },
-  ];
-
-  const selectedOption = options.find(opt => opt.value === value);
+  const selectedItem = getItemByKey(value);
 
   return (
     <div ref={dropdownRef} className="relative">
@@ -76,10 +60,15 @@ function StatusSelect({
         `}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          {selectedOption ? (
+          {selectedItem ? (
             <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[value].dot}`} />
-              <span className="text-gray-900">{selectedOption.label}</span>
+              {selectedItem.color && (
+                <span 
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0" 
+                  style={{ backgroundColor: selectedItem.color }}
+                />
+              )}
+              <span className="text-gray-900">{selectedItem.label}</span>
             </div>
           ) : (
             <span className="text-gray-400">Select status...</span>
@@ -98,25 +87,30 @@ function StatusSelect({
       {isOpen && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
           <div className="py-1">
-            {options.map((option) => (
+            {enabledItems.map((item) => (
               <button
-                key={option.value}
+                key={item.key}
                 type="button"
                 onClick={() => {
-                  onChange(option.value);
+                  onChange(item.key as PreOpportunityStatus);
                   setIsOpen(false);
                 }}
                 className={`
                   w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
                   transition-colors hover:bg-gray-50
-                  ${value === option.value ? 'bg-blue-50' : ''}
+                  ${value === item.key ? 'bg-blue-50' : ''}
                 `}
               >
-                <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[option.value].dot} flex-shrink-0`} />
-                <span className={`${value === option.value ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-                  {option.label}
+                {item.color && (
+                  <span 
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0" 
+                    style={{ backgroundColor: item.color }}
+                  />
+                )}
+                <span className={`${value === item.key ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                  {item.label}
                 </span>
-                {value === option.value && (
+                {value === item.key && (
                   <svg className="w-4 h-4 text-blue-600 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                   </svg>

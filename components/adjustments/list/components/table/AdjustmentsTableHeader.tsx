@@ -8,6 +8,7 @@
 import React, { useState, useCallback } from 'react';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { ColumnFilterTypeEnum } from '@/components/advancedFilters/types';
 import { getAdjustmentFilterOptions } from '../../config/filterConfig';
 
 interface AdjustmentsTableHeaderProps {
@@ -74,22 +75,22 @@ export function AdjustmentsTableHeader({
       return null;
     }
     
-    // Ensure type is preserved correctly
-    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean';
-    
     // Get filters for this column (ActiveFilter[])
     const columnFiltersForThisColumn = columnFilters[columnKey] || [];
     
     return (
       <ColumnFilter
-        type={filterType}
+        type={filterOption.type}
         columnName={filterOption.columnName}
         value={columnFiltersForThisColumn}
         onChange={(filters) => handleColumnFilterChange(columnKey, filters)}
         options={filterOption.options}
-        placeholder={filterOption.type === 'text' || filterOption.type === 'number' 
-          ? `Filter ${filterOption.label.toLowerCase()}...` 
-          : undefined}
+        placeholder={
+          filterOption.type === ColumnFilterTypeEnum.text ||
+          filterOption.type === ColumnFilterTypeEnum.number
+            ? `Filter ${filterOption.label.toLowerCase()}...`
+            : undefined
+        }
         isOpen={openFilter === columnKey}
         onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
         filterOption={filterOption}

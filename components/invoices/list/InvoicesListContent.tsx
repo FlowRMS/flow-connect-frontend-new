@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
 import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
@@ -27,10 +27,22 @@ import { BulkDeleteModal, BulkActionsToolbar, SaveViewButton } from '../../share
 import { InvoicesEmptyState } from './components/table';
 import { useInvoiceSettings } from '@/contexts/UserSettingsContext';
 import type { SavedViewState } from '@/components/lib/graphql/settings';
+import { ExportExcelButton, useEntityExport } from '@/components/shared/excel-export';
+import { mapDataForExport } from '@/components/shared/excel-export/useListExport';
+import { INVOICE_TABLE_COLUMNS } from './config/columnConfig';
+import { getQuickDateRange } from './utils';
+import type { QuickDatePreset } from './types';
+import { fetchInvoicesWithPagination } from '@/components/lib/graphql/invoices';
 
 export default function InvoicesListContent() {
   const state = useInvoicesListState();
   const { settings: invoiceSettings, saveSettings: saveInvoiceSettings, isLoading: isSettingsLoading } = useInvoiceSettings();
+
+  // Check if there are any filters applied
+  const hasFilters = state.activeFilters.length > 0 || 
+                     state.quickDatePreset !== 'all' || 
+                     Object.keys(state.columnFilters || {}).length > 0 ||
+                     (state.searchQuery?.length >= 2);
 
   // Get current view state for saving
   const getCurrentViewState = (): SavedViewState => ({
@@ -123,6 +135,53 @@ export default function InvoicesListContent() {
         direction: state.sortDirection.toUpperCase() as 'ASC' | 'DESC',
       }
     : undefined;
+
+  // Excel export hook
+  // Convert activeSort to sorting array format for useEntityExport
+  const sorting = activeSort ? [{
+    columnName: activeSort.columnName,
+    direction: activeSort.direction,
+  }] : undefined;
+
+  const { context: exportContext } = useEntityExport({
+    data: state.allInvoicesData as unknown as Record<string, unknown>[],
+    activeFilters: state.activeFilters,
+    columnFilters: state.columnFilters,
+    quickDatePreset: state.quickDatePreset,
+    quickDateField: state.quickDateField,
+    sorting,
+    searchQuery: state.searchQuery,
+    config: {
+      entityType: 'invoices',
+      columns: INVOICE_TABLE_COLUMNS,
+      getQuickDateRange: (preset: string) => getQuickDateRange(preset as QuickDatePreset),
+      reportTitle: 'Invoices Export',
+    },
+  });
+
+  // Fetch ALL records for export (not just loaded via infinite scroll)
+  const fetchAllInvoicesForExport = useCallback(async () => {
+    const quickFilters: { operator: 'GTE' | 'LTE'; columnName: string; value?: string }[] = [];
+    if (state.quickDatePreset !== 'all') {
+      const { start, end } = getQuickDateRange(state.quickDatePreset as QuickDatePreset);
+      if (start && end) {
+        const columnName = state.quickDateField === 'entryDate' ? 'createdAt' : 'entityDate';
+        const fmt = (d: Date) => columnName === 'entityDate'
+          ? d.toISOString().split('T')[0]
+          : `${d.toISOString().split('T')[0]} ${d.toTimeString().split(' ')[0]}`;
+        quickFilters.push({ columnName, operator: 'GTE' as const, value: fmt(start) });
+        quickFilters.push({ columnName, operator: 'LTE' as const, value: fmt(end) });
+      }
+    }
+    const allFilters = [...quickFilters, ...state.serverFilters];
+
+    const initial = await fetchInvoicesWithPagination(allFilters, sorting, { limit: 1, offset: 0 });
+    const total = initial.total;
+    if (total === 0) return [];
+
+    const result = await fetchInvoicesWithPagination(allFilters, sorting, { limit: total, offset: 0 });
+    return mapDataForExport(result.records as unknown as Record<string, unknown>[], INVOICE_TABLE_COLUMNS);
+  }, [state.quickDatePreset, state.quickDateField, state.serverFilters, sorting]);
 
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
@@ -236,8 +295,8 @@ export default function InvoicesListContent() {
             </motion.div>
           </div>
 
-          {/* Quick Date Filter */}
-          <div className="mt-4">
+          {/* Quick Date Filter and Export Button */}
+          <div className="mt-4 flex items-center justify-between">
             <QuickDateFilter
               quickDatePreset={state.quickDatePreset}
               setQuickDatePreset={state.setQuickDatePreset}
@@ -245,6 +304,11 @@ export default function InvoicesListContent() {
               setQuickDateField={state.setQuickDateField}
               showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
               setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
+            />
+            <ExportExcelButton
+              context={exportContext}
+              options={{}}
+              fetchAllData={fetchAllInvoicesForExport}
             />
           </div>
         </div>
@@ -310,7 +374,7 @@ export default function InvoicesListContent() {
 
           {/* Empty State - shown outside table when no data */}
           {!state.isLoading && state.filteredInvoices.length === 0 && (
-            <InvoicesEmptyState />
+            <InvoicesEmptyState hasFilters={hasFilters} onClearFilters={state.clearAllFilters} />
           )}
 
           {/* Loading more indicator */}

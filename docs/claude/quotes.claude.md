@@ -64,6 +64,7 @@ interface Quote {
   // Identification
   id: string;
   quoteNumber: string;                     // Required, unique
+  name?: string;                           // Optional quote name/title
 
   // Customer Information
   soldToCustomerId: string;                // Required
@@ -455,6 +456,7 @@ useQuoteSearchV2(searchTerm, limit?)       // Debounced search
 
 ### QuoteDetailHeaderV2
 - Quote Number (editable)
+- Name (optional, editable)
 - Status/Pipeline Stage badges
 - Sold To / Bill To / End User (searchable)
 - Job association
@@ -514,6 +516,7 @@ interface QuoteSettingsV2 {
   insideRepAtLineLevel: boolean;
   factoryPerLineItem: boolean;
   customerPartNumberSource: 'sold_to' | 'end_user';
+  outsideRepSource?: 'end_user' | 'sold_to' | 'bill_to';
   priceLevels: PriceLevelV2[];
 }
 
@@ -524,8 +527,20 @@ interface QuoteSettingsV2 {
   insideRepAtLineLevel: false,
   factoryPerLineItem: true,
   customerPartNumberSource: 'sold_to',
+  outsideRepSource: 'end_user',
   priceLevels: [{ id: 'l1', name: 'L1', percent: 0, description: '' }, ...]
 }
+```
+
+### Outside Rep Population Source
+- `outsideRepSource`: Tenant-wide setting controlling which customer's outside reps auto-populate
+  - `'end_user'` (default): Outside reps are fetched from the End User customer
+  - `'sold_to'`: Outside reps are fetched from the Sold To Customer
+  - `'bill_to'`: Outside reps are fetched from the Bill To Customer
+- Configurable in: Quote detail Settings tab, central Settings page (Quote Settings)
+- Stored in `QUOTE_SETTINGS` via `saveTenantSetting`
+
+```
 ```
 
 ### Column Configuration

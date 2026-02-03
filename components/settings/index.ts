@@ -4,5 +4,5 @@ export { ColumnConfigEditor } from './ColumnConfigEditor';
 export { QuoteSettingsTab } from './QuoteSettingsTab';
 export { OrderSettingsTab } from './OrderSettingsTab';
 export { InvoiceSettingsTab } from './InvoiceSettingsTab';
+export { PreOpportunitySettingsTab } from './PreOpportunitySettingsTab';
 export { ChatSettingsTab } from './ChatSettingsTab';
-export { PicklistValuesTab } from './PicklistValuesTab';

@@ -18,6 +18,7 @@ import type {
   RelatedEntityNote,
   RelatedEntityJob,
   RelatedEntityCustomer,
+  RelatedEntityFactory,
 } from '../lib/crm-graphql';
 import type { FileResponse } from '../lib/graphql/files';
 import { formatFileSize } from '../lib/graphql/files';
@@ -46,6 +47,7 @@ interface ConnectedEntitiesTableViewProps {
   contacts: RelatedEntityContact[];
   companies: RelatedEntityCompany[];
   customers: RelatedEntityCustomer[];
+  factories: RelatedEntityFactory[];
   preOpportunities: RelatedEntityPreOpportunity[];
   quotes: RelatedEntityQuote[];
   orders: RelatedEntityOrder[];
@@ -90,6 +92,7 @@ function getTypeColor(type: EntityCategory): string {
     contacts: 'bg-blue-500',
     companies: 'bg-emerald-500',
     customers: 'bg-violet-500',
+    factories: 'bg-purple-500',
     'pre-opportunities': 'bg-sky-500',
     quotes: 'bg-indigo-500',
     orders: 'bg-cyan-500',
@@ -108,6 +111,7 @@ function getTypeLabel(type: EntityCategory): string {
     contacts: 'Contact',
     companies: 'Company',
     customers: 'Customer',
+    factories: 'Manufacturer',
     'pre-opportunities': 'Pre-Opp',
     quotes: 'Quote',
     orders: 'Order',
@@ -144,6 +148,14 @@ function getTypeIcon(type: EntityCategory): React.ReactNode {
           <circle cx="9" cy="7" r="4" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 0 0-3-3.87" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      );
+    case 'factories':
+      return (
+        <svg {...iconProps}>
+          <path d="M2 20h20M4 20V10l8-6 8 6v10"/>
+          <path d="M9 20v-6h6v6"/>
+          <path d="M9 10h.01M15 10h.01"/>
         </svg>
       );
     case 'pre-opportunities':
@@ -222,6 +234,7 @@ export function ConnectedEntitiesTableView({
   contacts,
   companies,
   customers,
+  factories,
   preOpportunities,
   quotes,
   orders,
@@ -292,6 +305,24 @@ export function ConnectedEntitiesTableView({
           status: customer.isParent ? 'Parent' : undefined,
           statusColor: customer.isParent ? 'bg-violet-100 text-violet-700' : undefined,
           rawEntity: customer,
+        });
+      });
+    }
+
+    // Factories
+    if (visibleCategories.includes('factories')) {
+      factories.forEach(factory => {
+        entities.push({
+          id: factory.id,
+          type: 'factories',
+          linkType: 'FACTORY',
+          hoverCardType: 'factory',
+          name: factory.title || 'Unnamed Factory',
+          subtext: factory.accountNumber,
+          status: factory.published === false ? 'Unpublished' : undefined,
+          statusColor: factory.published === false ? 'bg-gray-100 text-gray-700' : undefined,
+          secondaryInfo: factory.email,
+          rawEntity: factory,
         });
       });
     }
@@ -456,7 +487,7 @@ export function ConnectedEntitiesTableView({
     }
 
     return entities;
-  }, [contacts, companies, preOpportunities, quotes, orders, invoices, checks, tasks, notes, jobs, files, visibleCategories]);
+  }, [contacts, companies, customers, factories, preOpportunities, quotes, orders, invoices, checks, tasks, notes, jobs, files, visibleCategories]);
 
   // Sort entities
   const sortedEntities = useMemo(() => {

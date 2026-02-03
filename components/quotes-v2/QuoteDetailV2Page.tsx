@@ -427,6 +427,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       expDate: quote.expirationDate || undefined,
       freightTerms: quote.freightTerms || undefined,
       jobId: quote.jobId || undefined,
+      name: quote.name || undefined,
       paymentTerms: quote.paymentTerms || undefined,
       reviseDate: quote.revisedDate || undefined,
       // Settings for per-line-item configuration

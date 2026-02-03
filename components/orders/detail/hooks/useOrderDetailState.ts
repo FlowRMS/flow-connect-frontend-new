@@ -97,8 +97,12 @@ export function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
     const commissionRate = parseFloat(detail.commissionRate || '0');
 
-    // Use API subtotal if available, otherwise calculate from inputs
-    const extendedPrice = detail.subtotal ? parseFloat(String(detail.subtotal)) : (quantity * unitPrice / divisor);
+    // Use API subtotal if available and non-zero, otherwise calculate from inputs
+    // Backend may send subtotal as "0.0000" incorrectly (e.g. for imported orders), so fall back to calculated value
+    const apiSubtotal = detail.subtotal ? parseFloat(String(detail.subtotal)) : 0;
+    const calculatedPrice = quantity * unitPrice / divisor;
+    const isFrontendCalculated = apiSubtotal === 0 && calculatedPrice > 0;
+    const extendedPrice = isFrontendCalculated ? calculatedPrice : apiSubtotal || calculatedPrice;
 
     // Use API commission value if available, otherwise calculate
     // API sends: commission (before discount), totalLineCommission (after discount)
@@ -117,6 +121,7 @@ export function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     quantity,
     unitPrice,
     extendedPrice,
+    _fcSellTotal: isFrontendCalculated,
     commissionRate, // Keep as whole percentage (e.g., 8 for 8%)
     commissionAmount,
     quantityShipped: detail.shippingBalance || 0,

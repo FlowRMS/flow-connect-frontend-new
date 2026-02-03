@@ -4,7 +4,7 @@
  */
 
 // Components
-export { ViewModeToggle, LoadingState, ErrorState } from './components';
+export { ViewModeToggle, LoadingState, ErrorState, PreOpportunitiesEmptyState } from './components';
 export {
   BoardIcon,
   ListIcon,

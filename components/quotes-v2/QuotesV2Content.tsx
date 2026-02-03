@@ -27,6 +27,11 @@ import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 import type { SavedViewState } from '@/components/lib/graphql/settings';
 import { SortMenu } from '@/components/shared/sorting/components/SortMenu';
 import { QUOTE_SORT_CONFIGS, DEFAULT_QUOTE_SORT } from './config/sortConfig';
+import { ExportExcelButton, useEntityExport } from '@/components/shared/excel-export';
+import { mapDataForExport } from '@/components/shared/excel-export/useListExport';
+import { QUOTE_TABLE_COLUMNS } from './list/config/columnConfig';
+import { getQuickDateRange } from './list/utils';
+import { fetchQuotesWithPagination } from '../quotes/api/quotesApi';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
@@ -96,6 +101,7 @@ export function QuotesV2Content() {
     quoteDate: 'quote-date',
     expirationDate: 'expiration-date',
     published: 'published',
+    endUsers: 'end-users',
   }), []);
 
   // We initialize with empty arrays to avoid dependency issues
@@ -265,10 +271,10 @@ export function QuotesV2Content() {
     return sortState.toOrderBy();
   }, [sortState]);
 
-  // Combine all filters (uses columnFiltersToAPIState which will be updated when columnFiltersToAPI is computed)
+  // Combine quick filters with server filters (serverFilters already contains synced column filters)
   const filters = useMemo<QuoteLandingPageFilter[]>(() => {
-    return [...quickFilters, ...serverFilters, ...columnFiltersToAPIState];
-  }, [quickFilters, serverFilters, columnFiltersToAPIState]);
+    return [...quickFilters, ...serverFilters];
+  }, [quickFilters, serverFilters]);
 
   // Check if there are any active filters
   const hasActiveFilters = useMemo(() => {
@@ -588,6 +594,34 @@ export function QuotesV2Content() {
     return `$${numAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
 
+  // Excel export hook
+  // orderBy already has the correct format (columnName, direction) for useEntityExport
+  const { context: exportContext } = useEntityExport({
+    data: allQuotesData as unknown as Record<string, unknown>[],
+    activeFilters: activeFilters,
+    columnFilters: columnFilters,
+    quickDatePreset: quickFilter,
+    quickDateField: quickDateField,
+    sorting: orderBy, // orderBy already has columnName and direction
+    searchQuery: searchQuery,
+    config: {
+      entityType: 'quotes',
+      columns: QUOTE_TABLE_COLUMNS,
+      getQuickDateRange: (preset: string) => getQuickDateRange(preset as QuickFilter),
+      reportTitle: 'Quotes Export',
+    },
+  });
+
+  // Fetch ALL records for export (not just loaded via infinite scroll)
+  const fetchAllQuotesForExport = useCallback(async () => {
+    const initial = await fetchQuotesWithPagination(filters, orderBy, { limit: 1, offset: 0 });
+    const total = initial.total;
+    if (total === 0) return [];
+
+    const result = await fetchQuotesWithPagination(filters, orderBy, { limit: total, offset: 0 });
+    return mapDataForExport(result.records as unknown as Record<string, unknown>[], QUOTE_TABLE_COLUMNS);
+  }, [filters, orderBy]);
+
   const handleQuoteClick = useCallback((quote: QuoteV2) => {
     router.push(`/quotes-v2/${quote.id}`);
   }, [router]);
@@ -849,6 +883,15 @@ export function QuotesV2Content() {
                 </div>
               </>
             )}
+          </div>
+
+          {/* Export Button */}
+          <div className="ml-auto">
+            <ExportExcelButton
+              context={exportContext}
+              options={{}}
+              fetchAllData={fetchAllQuotesForExport}
+            />
           </div>
         </div>
 

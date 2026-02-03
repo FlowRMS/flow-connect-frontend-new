@@ -36,6 +36,8 @@ interface PDFControlsProps {
   onShowCenterLogoToggle: () => void;
   centerLogoSize: number;
   onCenterLogoSizeChange: (size: number) => void;
+  centerLogoPosition: number;
+  onCenterLogoPositionChange: (position: number) => void;
   isUploadingCenterLogo?: boolean;
 }
 
@@ -65,6 +67,8 @@ export function PDFControls({
   onShowCenterLogoToggle,
   centerLogoSize,
   onCenterLogoSizeChange,
+  centerLogoPosition,
+  onCenterLogoPositionChange,
   isUploadingCenterLogo,
 }: PDFControlsProps) {
   const [activeSection, setActiveSection] = useState<SectionType>('fields');
@@ -761,6 +765,25 @@ export function PDFControls({
                         <div className="flex justify-between text-xs text-gray-400 mt-1">
                           <span>Small</span>
                           <span>Large</span>
+                        </div>
+
+                        {/* Horizontal Position Slider */}
+                        <div className="flex items-center justify-between mb-2 mt-4">
+                          <span className="text-sm font-medium text-gray-700">Horizontal Position</span>
+                          <span className="text-sm font-semibold text-blue-600">{centerLogoPosition}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={10}
+                          max={90}
+                          value={centerLogoPosition}
+                          onChange={(e) => onCenterLogoPositionChange(Number(e.target.value))}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>Left</span>
+                          <span>Center</span>
+                          <span>Right</span>
                         </div>
                       </div>
                     )}

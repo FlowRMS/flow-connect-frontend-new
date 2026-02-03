@@ -2,7 +2,7 @@
 
 import { useState, Suspense, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ChevronRight, Loader2, Sparkles, CheckCircle2, Info, Search, Plus, HelpCircle, Ban, ChevronDown, SkipForward, FileText } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Loader2, Sparkles, CheckCircle2, Info, Search, Plus, HelpCircle, Ban, ChevronDown, SkipForward, FileText, ExternalLink, RefreshCw, AlertTriangle, Warehouse, Package } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Badge } from '@/components/flow-ai/ui/badge';
 import { Checkbox } from '@/components/flow-ai/ui/checkbox';
@@ -34,6 +34,12 @@ const ALL_STEPS: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'e
 function getVisibleSteps(documentType: string | null): EntityStep[] {
   const normalizedDocType = documentType?.toUpperCase();
 
+  // For DELIVERIES: Same as ORDERS/QUOTES - show factories, customers, bill-to, end users, products
+  // (hide orders, invoices, credits, adjustments)
+  if (normalizedDocType === 'DELIVERIES') {
+    return ALL_STEPS.filter(step => !FACTORY_DEPENDENT_TABS.includes(step));
+  }
+
   // For CHECKS: Show all tabs (orders, invoices, credits, adjustments all visible)
   if (normalizedDocType === 'CHECKS') {
     return ALL_STEPS;
@@ -54,6 +60,7 @@ function getVisibleSteps(documentType: string | null): EntityStep[] {
 }
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import { Q_GET_PENDING, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
+import { fetchCustomerById } from '@/components/customers/api/customersApi';
 
 export default function EntityMatchingPage() {
   return (
@@ -176,6 +183,16 @@ function EntityMatchingContent() {
   // State for workflow triggering (new flow)
   const [isProcessingWorkflow, setIsProcessingWorkflow] = useState(false);
 
+  // State for outside rep validation modal
+  const [showOutsideRepModal, setShowOutsideRepModal] = useState(false);
+  const [missingOutsideRepEntities, setMissingOutsideRepEntities] = useState<Array<{
+    id: string;
+    name: string;
+    tab: 'Sold To Customer' | 'Bill To Customer' | 'End User';
+    customerId: string;
+  }>>([]);
+  const [isCheckingOutsideReps, setIsCheckingOutsideReps] = useState(false);
+
   // State for document type (CHECKS, INVOICES, etc.)
   const [documentType, setDocumentType] = useState<string | null>(null);
 
@@ -269,6 +286,9 @@ function EntityMatchingContent() {
     setDisplayLimit(ITEMS_PER_PAGE);
   }, [currentStep]);
 
+  // Check if this is a delivery/packing slip document
+  const isDelivery = documentType?.toUpperCase() === 'DELIVERIES';
+
   // Compute visible steps based on document type
   const visibleSteps = useMemo(() => getVisibleSteps(documentType), [documentType]);
 
@@ -299,6 +319,99 @@ function EntityMatchingContent() {
   // Removed auto-skip logic - user must manually click "Complete & Continue" button
   // even when all entities are automatically matched or no entities exist
 
+  // Check outside reps for all matched customers, bill-to customers, and end users
+  const checkOutsideReps = async (): Promise<boolean> => {
+    const entitiesToCheck: Array<{
+      id: string;
+      name: string;
+      tab: 'Sold To Customer' | 'Bill To Customer' | 'End User';
+      customerId: string;
+    }> = [];
+
+    // Helper: collect matched entities (CONFIRMED, AUTO_MATCHED, or CREATED_NEW with bestMatchId)
+    const isMatched = (e: PendingEntity) =>
+      (e.confirmationStatus === 'CONFIRMED' || e.confirmationStatus === 'AUTO_MATCHED') && e.bestMatchId;
+
+    // Sold To Customers - always required
+    for (const e of customers) {
+      if (isMatched(e)) {
+        entitiesToCheck.push({
+          id: e.id,
+          name: e.bestMatchName || e.displayName,
+          tab: 'Sold To Customer',
+          customerId: e.bestMatchId!,
+        });
+      }
+    }
+
+    // Bill To Customers - only if not skipped (user actually selected/approved a match)
+    for (const e of billToCustomers) {
+      if (isMatched(e)) {
+        entitiesToCheck.push({
+          id: e.id,
+          name: e.bestMatchName || e.displayName,
+          tab: 'Bill To Customer',
+          customerId: e.bestMatchId!,
+        });
+      }
+    }
+
+    // End Users - always required
+    for (const e of endUsers) {
+      if (isMatched(e)) {
+        entitiesToCheck.push({
+          id: e.id,
+          name: e.bestMatchName || e.displayName,
+          tab: 'End User',
+          customerId: e.bestMatchId!,
+        });
+      }
+    }
+
+    if (entitiesToCheck.length === 0) return true;
+
+    setIsCheckingOutsideReps(true);
+    try {
+      // Deduplicate by customerId to avoid fetching same customer multiple times
+      const uniqueCustomerIds = [...new Set(entitiesToCheck.map(e => e.customerId))];
+      const customerDataMap = new Map<string, boolean>();
+
+      await Promise.all(
+        uniqueCustomerIds.map(async (customerId) => {
+          try {
+            const customer = await fetchCustomerById(customerId);
+            const hasOutsideRep = (customer?.outsideReps && customer.outsideReps.length > 0) || false;
+            customerDataMap.set(customerId, hasOutsideRep);
+          } catch (err) {
+            console.error(`Failed to fetch customer ${customerId}:`, err);
+            // Treat fetch failure as missing outside rep to be safe
+            customerDataMap.set(customerId, false);
+          }
+        })
+      );
+
+      const missing = entitiesToCheck.filter(e => !customerDataMap.get(e.customerId));
+
+      if (missing.length > 0) {
+        // Deduplicate by customerId for display (same customer might appear in multiple tabs)
+        const seen = new Set<string>();
+        const uniqueMissing = missing.filter(e => {
+          const key = `${e.customerId}-${e.tab}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setMissingOutsideRepEntities(uniqueMissing);
+        setShowOutsideRepModal(true);
+        return false;
+      }
+
+      return true;
+    } finally {
+      setIsCheckingOutsideReps(false);
+    }
+  };
+
   const handleCompleteMatching = async () => {
     if (!pendingId) {
       toast.error('No pending ID found');
@@ -308,6 +421,13 @@ function EntityMatchingContent() {
     setIsProcessingWorkflow(true);
 
     try {
+      // First check outside reps for all matched customers
+      const outsideRepsValid = await checkOutsideReps();
+      if (!outsideRepsValid) {
+        setIsProcessingWorkflow(false);
+        return;
+      }
+
       // Call executeDocumentWorkflow mutation
       console.log('📄 Executing document workflow for pendingId:', pendingId);
       toast.info('Processing document...');
@@ -340,6 +460,16 @@ function EntityMatchingContent() {
       console.error('Error in handleCompleteMatching:', error);
       toast.error('Failed to process document. Please try again.');
       setIsProcessingWorkflow(false);
+    }
+  };
+
+  // Re-check outside reps after user says they've added them
+  const handleOutsideRepAdded = async () => {
+    const valid = await checkOutsideReps();
+    if (valid) {
+      setShowOutsideRepModal(false);
+      setMissingOutsideRepEntities([]);
+      toast.success('All outside reps verified! You can now complete the matching.');
     }
   };
 
@@ -983,8 +1113,8 @@ function EntityMatchingContent() {
                       )}
                       Approve
                     </Button>
-                    {/* Products: Add Skip and Document Specific Product buttons */}
-                    {getCurrentEntityType() === 'PRODUCTS' && (
+                    {/* Products: Add Skip and Document Specific Product buttons (hidden for DELIVERIES) */}
+                    {getCurrentEntityType() === 'PRODUCTS' && !isDelivery && (
                       <>
                         <Button
                           variant="outline"
@@ -1026,8 +1156,8 @@ function EntityMatchingContent() {
                 )}
               </div>
             )}
-            {/* Create New button - hidden for locked entities and for Orders/Invoices/Credits/Adjustments */}
-            {!isLocked && getCurrentEntityType() !== 'ORDERS' && getCurrentEntityType() !== 'INVOICES' && getCurrentEntityType() !== 'CREDITS' && getCurrentEntityType() !== 'ADJUSTMENTS' && (
+            {/* Create New button - hidden for locked entities, Orders/Invoices/Credits/Adjustments, and DELIVERIES */}
+            {!isLocked && !isDelivery && getCurrentEntityType() !== 'ORDERS' && getCurrentEntityType() !== 'INVOICES' && getCurrentEntityType() !== 'CREDITS' && getCurrentEntityType() !== 'ADJUSTMENTS' && (
               <Popover
                 open={createNewPopoverOpen === entity.id}
                 onOpenChange={(open) => {
@@ -1241,25 +1371,40 @@ function EntityMatchingContent() {
           <div className="flex items-start justify-between">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Sparkles className="w-6 h-6 text-[#5048E6]" />
+                <div className={`p-2 rounded-lg ${isDelivery ? 'bg-amber-100' : 'bg-primary/10'}`}>
+                  <Sparkles className={`w-6 h-6 ${isDelivery ? 'text-amber-600' : 'text-[#5048E6]'}`} />
                 </div>
-                <h1 className="text-3xl font-bold">Validate & Match Entities</h1>
+                <h1 className="text-3xl font-bold">{isDelivery ? 'Validate & Match Delivery' : 'Validate & Match Entities'}</h1>
               </div>
               <p className="text-muted-foreground text-lg">
-                Review AI-generated matches for factories, customers, end users, and products from your uploaded {isFromSpreadsheet ? 'spreadsheet' : 'document'}.
+                {isDelivery
+                  ? 'Review AI-generated matches for factories, customers, end users, and products from your uploaded packing slip.'
+                  : `Review AI-generated matches for factories, customers, end users, and products from your uploaded ${isFromSpreadsheet ? 'spreadsheet' : 'document'}.`
+                }
               </p>
               <p className="text-sm text-muted-foreground/80 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-green-600" />
                 Auto-matched entities are already approved - no action needed unless you want to change the match.
               </p>
+              {isDelivery && (
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 border border-amber-300 rounded-full">
+                    <Warehouse className="w-3.5 h-3.5 text-amber-700" />
+                    <span className="text-xs font-semibold text-amber-700">Warehouse Mode</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full">
+                    <Package className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="text-xs font-medium text-amber-600">Packing Slip / Delivery</span>
+                  </div>
+                </div>
+              )}
             </div>
             {/* Complete & Continue button - shown when all entities are validated */}
             {allValidated && (
               <Button
                 size="lg"
                 onClick={handleCompleteMatching}
-                disabled={isProcessingWorkflow || factoryEntitiesLoading}
+                disabled={isProcessingWorkflow || factoryEntitiesLoading || isCheckingOutsideReps}
                 className="gap-2 bg-green-600 hover:bg-green-700"
               >
                 {isProcessingWorkflow ? (
@@ -1322,6 +1467,7 @@ function EntityMatchingContent() {
           onBulkDocSpecific={handleBulkDocSpecific}
           isLoading={bulkConfirmLoading}
           currentEntityType={getCurrentEntityType()}
+          isDelivery={isDelivery}
         />
 
         {/* Entities List - Show spreadsheet in Create New Mode */}
@@ -1398,15 +1544,17 @@ function EntityMatchingContent() {
                   )}
                   {selectedCount > 1 ? 'Bulk Approve Matches' : 'Approve Match'}
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBulkCreatePane(true)}
-                  disabled={bulkConfirmLoading}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  {selectedCount > 1 ? 'Bulk Create New' : 'Create New'}
-                </Button>
+                {!isDelivery && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBulkCreatePane(true)}
+                    disabled={bulkConfirmLoading}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    {selectedCount > 1 ? 'Bulk Create New' : 'Create New'}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1455,6 +1603,7 @@ function EntityMatchingContent() {
             disabled={
               (isLastStep && !allValidated) ||
               isProcessingWorkflow ||
+              isCheckingOutsideReps ||
               // Only disable for factory loading if trying to go to a factory-dependent step or completing
               (factoryEntitiesLoading && (isLastStep || FACTORY_DEPENDENT_TABS.includes(getNextStep(currentStep) as EntityStep)))
             }
@@ -1733,6 +1882,73 @@ function EntityMatchingContent() {
         onSearchFactories={searchFactories}
         repRequirements={getRepRequirements()}
       />
+
+      {/* Missing Outside Rep Modal */}
+      <Dialog open={showOutsideRepModal} onOpenChange={setShowOutsideRepModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+              </div>
+              <div>
+                <DialogTitle>Missing Outside Rep</DialogTitle>
+                <DialogDescription>
+                  The following customers do not have an outside rep assigned. You must add an outside rep before continuing.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-3 py-4 max-h-[400px] overflow-y-auto">
+            {missingOutsideRepEntities.map((entity) => (
+              <div
+                key={`${entity.customerId}-${entity.tab}`}
+                className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {entity.tab}
+                    </Badge>
+                    <span className="font-medium text-sm">{entity.name}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">No outside rep assigned</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs shrink-0"
+                  onClick={() => {
+                    window.open(`/customers/${entity.customerId}/edit`, '_blank');
+                  }}
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Go to Customer
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowOutsideRepModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleOutsideRepAdded}
+              disabled={isCheckingOutsideReps}
+              className="gap-2"
+            >
+              {isCheckingOutsideReps ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              I&apos;ve Added the Outside Rep
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

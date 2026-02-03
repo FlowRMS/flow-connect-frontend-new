@@ -70,6 +70,7 @@ export interface PDFBuilderState {
   centerLogo: string | null;
   showCenterLogo: boolean;
   centerLogoSize: number; // Size in mm for PDF export (default 35)
+  centerLogoPosition: number; // Horizontal position as percentage (0=left, 50=center, 100=right)
   // Notes
   headerNote: string;
   footerNote: string;

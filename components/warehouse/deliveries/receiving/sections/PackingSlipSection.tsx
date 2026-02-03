@@ -98,7 +98,7 @@ export default function PackingSlipSection({
                 </svg>
                 <span className="text-sm font-medium text-blue-700">Upload Image</span>
                 <span className="text-xs text-[var(--muted-foreground)]">From device</span>
-                <input type="file" accept="image/*" onChange={onImageUpload} className="hidden" />
+                <input type="file" accept="image/*,.pdf,.xlsx,.xls,.csv" onChange={onImageUpload} className="hidden" />
               </label>
 
               <button

@@ -97,6 +97,23 @@ export function CreateOrderFromQuoteModal({
     }
   }, [isOpen, initialSelectedItemIds, lineItems]);
 
+  // Derive factory from selected line items (for per-line-item manufacturer quotes)
+  const selectedFactory = useMemo(() => {
+    const selectedItems = lineItems.filter(item => selectedItemIds.has(item.id));
+    if (selectedItems.length === 0) return { id: initialFactoryId, name: initialFactoryName, mixed: false };
+
+    const factoryIds = new Set(selectedItems.map(item => item.manufacturerId).filter(Boolean));
+    if (factoryIds.size <= 1) {
+      const firstSelected = selectedItems[0];
+      return {
+        id: firstSelected?.manufacturerId || initialFactoryId,
+        name: firstSelected?.manufacturerName || initialFactoryName,
+        mixed: false,
+      };
+    }
+    return { id: '', name: '', mixed: true };
+  }, [lineItems, selectedItemIds, initialFactoryId, initialFactoryName]);
+
   // Calculate totals for selected items using overridden values (minus line discounts)
   const selectedTotal = useMemo(() => {
     return lineItems
@@ -155,6 +172,10 @@ export function CreateOrderFromQuoteModal({
       setError('Please select at least one line item');
       return;
     }
+    if (selectedFactory.mixed) {
+      setError('Selected line items belong to different manufacturers. Please select items from a single manufacturer only.');
+      return;
+    }
     setError(null);
     setStep('input');
   };
@@ -188,7 +209,7 @@ export function CreateOrderFromQuoteModal({
       const order = await createOrderMutation.mutateAsync({
         quoteId,
         orderNumber: orderNumber.trim(),
-        factoryId: initialFactoryId,
+        factoryId: selectedFactory.id || initialFactoryId,
         dueDate,
         quoteDetailsInputs,
       });
@@ -524,14 +545,14 @@ export function CreateOrderFromQuoteModal({
                 />
               </div>
 
-              {/* Factory - Read-only display from quote */}
-              {initialFactoryName && (
+              {/* Factory - Read-only display derived from selected line items */}
+              {(selectedFactory.name || initialFactoryName) && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Factory
                   </label>
                   <div className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-700">
-                    {initialFactoryName}
+                    {selectedFactory.name || initialFactoryName}
                   </div>
                 </div>
               )}

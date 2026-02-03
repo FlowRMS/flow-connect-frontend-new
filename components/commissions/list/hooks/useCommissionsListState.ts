@@ -180,10 +180,10 @@ export function useCommissionsListState() {
     setColumnFiltersToAPIState(columnFiltersToAPI);
   }, [columnFiltersToAPI]);
 
-  // Combine quick filters with server filters and column filters
+  // Combine quick filters with server filters (serverFilters already contains synced column filters)
   const filters = useMemo(() => {
-    return [...quickFilters, ...serverFilters, ...columnFiltersToAPIState];
-  }, [quickFilters, serverFilters, columnFiltersToAPIState]);
+    return [...quickFilters, ...serverFilters];
+  }, [quickFilters, serverFilters]);
 
   // Build orderBy from sort state
   const orderBy = useMemo<CheckLandingPageOrderBy[]>(() => {
