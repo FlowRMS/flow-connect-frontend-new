@@ -176,9 +176,20 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         insideRepAtLineLevel: savedQuoteSettings.insideRepAtLineLevel ?? prev.insideRepAtLineLevel,
         factoryPerLineItem: savedQuoteSettings.factoryPerLineItem ?? prev.factoryPerLineItem,
         customerPartNumberSource: savedQuoteSettings.customerPartNumberSource ?? prev.customerPartNumberSource,
+        priceLevels: savedQuoteSettings.priceLevels ?? prev.priceLevels,
       }));
     }
   }, [isNew, settingsInitialized, savedQuoteSettings]);
+
+  // Always sync priceLevels from tenant settings (priceLevels are global, not per-quote)
+  useEffect(() => {
+    if (settingsInitialized && savedQuoteSettings?.priceLevels) {
+      setSettings(prev => ({
+        ...prev,
+        priceLevels: savedQuoteSettings.priceLevels,
+      }));
+    }
+  }, [settingsInitialized, savedQuoteSettings?.priceLevels]);
 
 
   // Modal states

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { QuoteSettingsV2, PriceLevelV2 } from '../types';
 import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 import type { OutsideRepSource, QuoteSettingsValue } from '@/components/lib/graphql/settings';
@@ -17,6 +17,19 @@ export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props
   const [outsideRepSource, setOutsideRepSource] = useState<OutsideRepSource>('end_user');
   const [isSavingRepSource, setIsSavingRepSource] = useState(false);
   const [isSavingPriceLevels, setIsSavingPriceLevels] = useState(false);
+
+  // Debounce refs for price levels
+  const savePriceLevelsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingPriceLevelsRef = useRef<PriceLevelV2[] | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (savePriceLevelsTimeoutRef.current) {
+        clearTimeout(savePriceLevelsTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Sync outsideRepSource from tenant settings
   useEffect(() => {
@@ -87,8 +100,8 @@ export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props
     savePriceLevelsToBackend(newLevels);
   };
 
-  // Save price levels to backend (tenant settings)
-  const savePriceLevelsToBackend = useCallback(async (priceLevels: PriceLevelV2[]) => {
+  // Save price levels to backend (tenant settings) - actual API call
+  const doSavePriceLevelsToBackend = useCallback(async (priceLevels: PriceLevelV2[]) => {
     setIsSavingPriceLevels(true);
     try {
       const currentTenantSettings = tenantSettings || quoteSettings || {};
@@ -119,6 +132,25 @@ export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props
       setIsSavingPriceLevels(false);
     }
   }, [tenantSettings, quoteSettings, saveSettings]);
+
+  // Debounced save - waits 800ms after last change before saving
+  const savePriceLevelsToBackend = useCallback((priceLevels: PriceLevelV2[]) => {
+    // Store latest price levels
+    pendingPriceLevelsRef.current = priceLevels;
+
+    // Clear existing timeout
+    if (savePriceLevelsTimeoutRef.current) {
+      clearTimeout(savePriceLevelsTimeoutRef.current);
+    }
+
+    // Set new timeout
+    savePriceLevelsTimeoutRef.current = setTimeout(() => {
+      if (pendingPriceLevelsRef.current) {
+        doSavePriceLevelsToBackend(pendingPriceLevelsRef.current);
+        pendingPriceLevelsRef.current = null;
+      }
+    }, 800);
+  }, [doSavePriceLevelsToBackend]);
 
   // Handle price level change with debounced save
   const handlePriceLevelChangeWithSave = (index: number, updates: Partial<PriceLevelV2>) => {
