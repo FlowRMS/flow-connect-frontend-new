@@ -64,6 +64,7 @@ interface Quote {
   // Identification
   id: string;
   quoteNumber: string;                     // Required, unique
+  name?: string;                           // Optional quote name/title
 
   // Customer Information
   soldToCustomerId: string;                // Required
@@ -455,6 +456,7 @@ useQuoteSearchV2(searchTerm, limit?)       // Debounced search
 
 ### QuoteDetailHeaderV2
 - Quote Number (editable)
+- Name (optional, editable)
 - Status/Pipeline Stage badges
 - Sold To / Bill To / End User (searchable)
 - Job association

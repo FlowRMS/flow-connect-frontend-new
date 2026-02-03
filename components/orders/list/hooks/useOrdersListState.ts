@@ -692,6 +692,7 @@ export function useOrdersListState() {
   return {
     // Orders data
     orders,
+    allOrdersData, // Raw OrderLandingPage[] data for export
     setOrders,
     // Loading and error state
     isLoading,

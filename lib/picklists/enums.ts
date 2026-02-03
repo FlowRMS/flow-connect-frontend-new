@@ -9,7 +9,8 @@
 
 export enum PicklistKey {
   ORDER_TYPES = 'orderTypes',
-  // Add more picklists here as needed...
+  PRE_OPPORTUNITY_STATUS = 'preOpportunityStatus',
+  CONTACT_ROLES = 'contactRoles',
 }
 
 // ============================================================================

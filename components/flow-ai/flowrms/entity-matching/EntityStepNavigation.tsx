@@ -49,6 +49,7 @@ export function EntityStepNavigation({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const isDelivery = documentType?.toUpperCase() === 'DELIVERIES';
 
   const allSteps = [
     { key: 'factories' as EntityStep, label: 'Factories', count: factoriesCount },
@@ -65,6 +66,11 @@ export function EntityStepNavigation({
   // Determine which tabs to show based on document type
   const steps = useMemo(() => {
     const normalizedDocType = documentType?.toUpperCase();
+
+    // For DELIVERIES: Same as ORDERS/QUOTES - show factories, customers, bill-to, end users, products
+    if (normalizedDocType === 'DELIVERIES') {
+      return allSteps.filter(step => !FACTORY_DEPENDENT_TABS.includes(step.key));
+    }
 
     // For CHECKS: Show all tabs (orders, invoices, credits, adjustments all visible)
     if (normalizedDocType === 'CHECKS') {
@@ -175,8 +181,12 @@ export function EntityStepNavigation({
                     disabled
                       ? 'border-gray-200 bg-gray-100 cursor-not-allowed opacity-60'
                       : isActive
-                        ? 'border-primary bg-primary/5'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        ? isDelivery
+                          ? 'border-amber-400 bg-amber-50'
+                          : 'border-primary bg-primary/5'
+                        : isDelivery
+                          ? 'border-gray-200 hover:border-amber-300 hover:bg-amber-50/50'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   <div className="flex items-center justify-center gap-1.5 mb-1.5">
@@ -187,7 +197,7 @@ export function EntityStepNavigation({
                       disabled
                         ? 'text-gray-400'
                         : isActive
-                          ? 'text-primary'
+                          ? isDelivery ? 'text-amber-700' : 'text-primary'
                           : 'text-gray-700'
                     }`}>
                       {step.label}
@@ -206,7 +216,7 @@ export function EntityStepNavigation({
                     <div className="flex items-center justify-center gap-1.5">
                       <Badge
                         variant="secondary"
-                        className={`text-xs ${isActive ? 'bg-primary/10 text-primary' : ''}`}
+                        className={`text-xs ${isActive ? (isDelivery ? 'bg-amber-100 text-amber-700' : 'bg-primary/10 text-primary') : ''}`}
                       >
                         {step.count}
                       </Badge>

@@ -3,12 +3,13 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
-import type { ViewMode, PreOpportunityStatus, PreOpportunityLandingPage } from '../types';
+import type { ViewMode, PreOpportunityStatus, PreOpportunityLandingPage, PreOppStage } from '../types';
 import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
 import { sortPreOpps, getUniqueValues } from '../utils';
-import { DEFAULT_STAGES } from '../constants';
 import { useCRMPreOpportunityLandingPagesInfinite } from '../../hooks/useCRMApi';
+import { usePicklist } from '@/lib/picklists/usePicklist';
+import { PicklistKey } from '@/lib/picklists/enums';
 
 // ============================================================================
 // Main Hook
@@ -123,8 +124,19 @@ export function usePreOppsState() {
     return sorted;
   }, [rawPreOpps, clientSortColumn, clientSortDirection, clientSortColumns, serverOrderBy]);
 
-  // Get stages
-  const stages = DEFAULT_STAGES;
+  // Get stages from picklist configuration (respects admin-configured order)
+  const { items: picklistItems } = usePicklist(PicklistKey.PRE_OPPORTUNITY_STATUS);
+  const stages = useMemo<PreOppStage[]>(() => {
+    // Only include enabled items, sorted by sortOrder
+    return picklistItems
+      .filter(item => item.enabled)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(item => ({
+        name: item.key as PreOpportunityStatus,
+        displayName: item.label,
+        color: item.color || '#6B7280',
+      }));
+  }, [picklistItems]);
 
   // Get counts by status (from filtered data)
   const statusCounts = useMemo(() => {
@@ -191,6 +203,17 @@ export function usePreOppsState() {
     setServerOrderBy(toServerOrderBy(sorts));
   }, [toServerOrderBy]);
 
+  // Clear all filters and sorts
+  const clearAllFilters = useCallback(() => {
+    setActiveFilter(undefined);
+    setActiveFilters([]);
+    setServerFilters([]);
+    setClientSortColumn(undefined);
+    setClientSortDirection('ASC');
+    setClientSortColumns([]);
+    setServerOrderBy([]);
+  }, []);
+
   return {
     // View state
     viewMode,
@@ -228,12 +251,14 @@ export function usePreOppsState() {
     setClientSortDirection,
     clientSortColumns,
     setClientSortColumns,
+    serverOrderBy,
 
     // Handlers
     handleFilterChange,
     handleFiltersChange,
     handleSortChange,
     handleMultiSortChange,
+    clearAllFilters,
 
     // Unique values for filters (from ALL data)
     uniqueEntityNumbers,

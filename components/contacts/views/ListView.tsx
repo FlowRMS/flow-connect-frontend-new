@@ -12,6 +12,8 @@ import { ContactsEmptyState } from './ContactsEmptyState';
 import { ContactsTableHeader } from './ContactsTableHeader';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { getContactFilterOptions } from '../config/filterConfig';
+import { PicklistValue } from '@/lib/picklists/components';
+import { PicklistKey } from '@/lib/picklists/enums';
 
 
 interface ListViewProps {
@@ -24,6 +26,7 @@ interface ListViewProps {
   isLoading?: boolean;
   // For empty state
   hasFilters?: boolean;
+  onClearFilters?: () => void;
   // Column filters
   onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
   filterOptions?: ReturnType<typeof getContactFilterOptions>;
@@ -38,6 +41,7 @@ export default function ListView({
   fetchNextPage,
   isLoading = false,
   hasFilters = false,
+  onClearFilters,
   onColumnFiltersChange,
   filterOptions = getContactFilterOptions(),
   columnFilters: parentColumnFilters,
@@ -63,7 +67,10 @@ export default function ListView({
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
       {!isLoading && contacts.length === 0 ? (
         // Empty state - show message
-        <ContactsEmptyState hasFilters={hasFilters || hasColumnFilters} />
+        <ContactsEmptyState 
+          hasFilters={hasFilters || hasColumnFilters} 
+          onClearFilters={onClearFilters}
+        />
       ) : (
         <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           <div 
@@ -116,7 +123,16 @@ export default function ListView({
                         <span className="text-sm text-gray-900 truncate block">{contact.company}</span>
                       </td>
                       <td className="px-3 py-3">
-                        <span className="text-sm text-gray-900 truncate block">{contact.role}</span>
+                        {contact.role ? (
+                          <PicklistValue
+                            picklistKey={PicklistKey.CONTACT_ROLES}
+                            value={contact.role}
+                            variant="badge"
+                            showColor={true}
+                          />
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-3 py-3">
                         <span className="text-sm text-gray-600 truncate block max-w-[200px]" title={contact.roleDetail || ''}>

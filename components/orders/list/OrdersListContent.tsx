@@ -31,6 +31,12 @@ import { SaveViewButton } from '@/components/shared';
 import { orderQueryKeys } from '../api/useOrdersApi';
 import { useOrderSettings } from '@/contexts/UserSettingsContext';
 import type { SavedViewState } from '@/components/lib/graphql/settings';
+import { ExportExcelButton, useEntityExport } from '@/components/shared/excel-export';
+import { mapDataForExport } from '@/components/shared/excel-export/useListExport';
+import { ORDER_TABLE_COLUMNS } from './config/columnConfig';
+import { getQuickDateRange } from './utils';
+import type { QuickDatePreset } from './types';
+import { fetchOrdersWithPagination } from '@/components/lib/graphql/orders';
 
 export default function OrdersListContent() {
   const router = useRouter();
@@ -123,10 +129,53 @@ export default function OrdersListContent() {
     }));
   }, [state.serverOrderBy]);
 
+  // Excel export hook
+  const { context: exportContext } = useEntityExport({
+    data: state.allOrdersData as unknown as Record<string, unknown>[],
+    activeFilters: state.activeFilters,
+    columnFilters: state.columnFilters,
+    quickDatePreset: state.quickDatePreset,
+    quickDateField: state.quickDateField,
+    sorting: state.serverOrderBy,
+    searchQuery: state.searchQuery,
+    config: {
+      entityType: 'orders',
+      columns: ORDER_TABLE_COLUMNS,
+      getQuickDateRange: (preset: string) => getQuickDateRange(preset as QuickDatePreset),
+      reportTitle: 'Orders Export',
+    },
+  });
+
+  // Fetch ALL records for export (not just loaded via infinite scroll)
+  const fetchAllOrdersForExport = useCallback(async () => {
+    // Build the same filters used by the landing page query
+    const quickFilters: { operator: 'GTE' | 'LTE'; columnName: string; value?: string }[] = [];
+    if (state.quickDatePreset !== 'all') {
+      const { start, end } = getQuickDateRange(state.quickDatePreset as QuickDatePreset);
+      if (start && end) {
+        const columnName = state.quickDateField === 'createdAt' ? 'createdAt' : 'entityDate';
+        const fmt = (d: Date) => columnName === 'entityDate'
+          ? d.toISOString().split('T')[0]
+          : `${d.toISOString().split('T')[0]} ${d.toTimeString().split(' ')[0]}`;
+        quickFilters.push({ columnName, operator: 'GTE' as const, value: fmt(start) });
+        quickFilters.push({ columnName, operator: 'LTE' as const, value: fmt(end) });
+      }
+    }
+    const allFilters = [...quickFilters, ...state.serverFilters];
+
+    // Fetch total, then all records in one request
+    const initial = await fetchOrdersWithPagination(allFilters, state.serverOrderBy, { limit: 1, offset: 0 });
+    const total = initial.total;
+    if (total === 0) return [];
+
+    const result = await fetchOrdersWithPagination(allFilters, state.serverOrderBy, { limit: total, offset: 0 });
+    return mapDataForExport(result.records as unknown as Record<string, unknown>[], ORDER_TABLE_COLUMNS);
+  }, [state.quickDatePreset, state.quickDateField, state.serverFilters, state.serverOrderBy]);
+
   // Handler for column sort click - only allows one sort at a time (replaces previous)
   const handleColumnSort = useCallback((columnName: string) => {
     // Check if this column is already the active sort
-    const currentSort = activeSorts.find(s => s.columnName === columnName);
+    const currentSort = activeSorts.find((s: { columnName: string; direction: string }) => s.columnName === columnName);
     
     if (currentSort) {
       // Column is already sorted - toggle direction (replace with new direction)
@@ -293,8 +342,8 @@ export default function OrdersListContent() {
             </motion.div>
           </div>
 
-          {/* Quick Date Filter */}
-          <div className="mt-4">
+          {/* Quick Date Filter and Export Button */}
+          <div className="mt-4 flex items-center justify-between">
             <QuickDateFilter
               quickDatePreset={state.quickDatePreset}
               setQuickDatePreset={state.setQuickDatePreset}
@@ -302,6 +351,11 @@ export default function OrdersListContent() {
               setQuickDateField={state.setQuickDateField}
               showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
               setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
+            />
+            <ExportExcelButton
+              context={exportContext}
+              options={{}}
+              fetchAllData={fetchAllOrdersForExport}
             />
           </div>
         </div>

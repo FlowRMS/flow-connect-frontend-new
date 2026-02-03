@@ -8,6 +8,8 @@ import SidebarSettings from './SidebarSettings';
 import { QuoteSettingsTab } from './settings/QuoteSettingsTab';
 import { OrderSettingsTab } from './settings/OrderSettingsTab';
 import { InvoiceSettingsTab } from './settings/InvoiceSettingsTab';
+import { PreOpportunitySettingsTab } from './settings/PreOpportunitySettingsTab';
+import { ContactSettingsTab } from './settings/ContactSettingsTab';
 import { CommissionSettingsTab } from './settings/CommissionSettingsTab';
 import { ChatSettingsTab } from './settings/ChatSettingsTab';
 import {
@@ -113,7 +115,7 @@ type ActivityRule = {
 };
 
 
-type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'commission-settings' | 'chat-settings';
+type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories' | 'quote-settings' | 'order-settings' | 'invoice-settings' | 'pre-opportunity-settings' | 'commission-settings' | 'chat-settings' | 'contact-settings';
 
 interface TabItem {
   id: TabType;
@@ -121,7 +123,7 @@ interface TabItem {
   children?: TabItem[];
 }
 
-const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'commission-settings', 'chat-settings'];
+const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories', 'quote-settings', 'order-settings', 'invoice-settings', 'pre-opportunity-settings', 'commission-settings', 'chat-settings', 'contact-settings'];
 
 export default function SettingsContent() {
   const searchParams = useSearchParams();
@@ -262,6 +264,8 @@ export default function SettingsContent() {
         { id: 'quote-settings', label: 'Quote Settings' },
         { id: 'order-settings', label: 'Order Settings' },
         { id: 'invoice-settings', label: 'Invoice Settings' },
+        { id: 'pre-opportunity-settings', label: 'Pre Opportunity Settings' },
+        { id: 'contact-settings', label: 'Contact Settings' },
       ],
     },
     {
@@ -610,6 +614,16 @@ export default function SettingsContent() {
       {/* Invoice Settings Tab */}
       {activeTab === 'invoice-settings' && (
         <InvoiceSettingsTab />
+      )}
+
+      {/* Pre-Opportunity Settings Tab */}
+      {activeTab === 'pre-opportunity-settings' && (
+        <PreOpportunitySettingsTab />
+      )}
+
+      {/* Contact Settings Tab */}
+      {activeTab === 'contact-settings' && (
+        <ContactSettingsTab />
       )}
 
       {/* Commission Settings Tab */}

@@ -22,6 +22,7 @@ interface EntityFilterControlsProps {
   onBulkDocSpecific?: () => void;
   isLoading?: boolean;
   currentEntityType?: PendingEntityType;
+  isDelivery?: boolean;
 }
 
 export function EntityFilterControls({
@@ -40,7 +41,8 @@ export function EntityFilterControls({
   onBulkSetForCreation,
   onBulkDocSpecific,
   isLoading = false,
-  currentEntityType
+  currentEntityType,
+  isDelivery = false
 }: EntityFilterControlsProps) {
   // Orders, Invoices, Credits, and Adjustments have different UI - no approve or create new, only skip and set for creation
   const isOrdersOrInvoices = currentEntityType === 'ORDERS' || currentEntityType === 'INVOICES' || currentEntityType === 'CREDITS' || currentEntityType === 'ADJUSTMENTS';
@@ -118,8 +120,8 @@ export function EntityFilterControls({
               <Ban className="w-3 h-3 mr-1" />
               Rejected
             </Button>
-            {/* Doc Specific - Products only */}
-            {isProducts && (
+            {/* Doc Specific - Products only (hidden for Deliveries) */}
+            {isProducts && !isDelivery && (
               <Button
                 variant={activeFilters.has('doc-specific') ? 'default' : 'outline'}
                 size="sm"
@@ -133,8 +135,8 @@ export function EntityFilterControls({
           </div>
         )}
 
-        {/* Create New Mode Toggle - Hide for Orders and Invoices */}
-        {!isOrdersOrInvoices && (
+        {/* Create New Mode Toggle - Hide for Orders, Invoices, and Deliveries */}
+        {!isOrdersOrInvoices && !isDelivery && (
           <div className="flex items-center gap-2 pl-4 border-l ml-auto">
             <Switch
               id="create-mode"
@@ -205,18 +207,20 @@ export function EntityFilterControls({
               )}
               {selectedCount > 1 ? `Bulk Approve Matches (${selectedCount})` : `Approve Match (${selectedCount})`}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onBulkCreateNew}
-              disabled={selectedCount === 0 || isLoading}
-              className="h-8 px-4"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              {selectedCount > 1 ? `Bulk Create New (${selectedCount})` : `Create New (${selectedCount})`}
-            </Button>
-            {/* Products tab: Add Bulk Skip and Bulk Doc Specific */}
-            {isProducts && onBulkSkip && (
+            {!isDelivery && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBulkCreateNew}
+                disabled={selectedCount === 0 || isLoading}
+                className="h-8 px-4"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {selectedCount > 1 ? `Bulk Create New (${selectedCount})` : `Create New (${selectedCount})`}
+              </Button>
+            )}
+            {/* Products tab: Add Bulk Skip and Bulk Doc Specific (hidden for Deliveries) */}
+            {isProducts && !isDelivery && onBulkSkip && (
               <Button
                 variant="outline"
                 size="sm"
@@ -232,7 +236,7 @@ export function EntityFilterControls({
                 {selectedCount > 1 ? `Bulk Skip (${selectedCount})` : `Skip (${selectedCount})`}
               </Button>
             )}
-            {isProducts && onBulkDocSpecific && (
+            {isProducts && !isDelivery && onBulkDocSpecific && (
               <Button
                 variant="outline"
                 size="sm"

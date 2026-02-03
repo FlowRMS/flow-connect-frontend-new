@@ -174,6 +174,7 @@ export interface Quote {
   createdById?: string;
   creationType?: QuoteCreationType;
   customerRef?: string;
+  name?: string;
   details?: QuoteDetail[];
   duplicatedFrom?: string;
   entityDate?: string;
@@ -272,6 +273,7 @@ export interface CreateQuoteInput {
   freightTerms?: string;
   id?: string;
   jobId?: string;
+  name?: string;
   paymentTerms?: string;
   reviseDate?: string;
   // Settings for per-line-item configuration
@@ -355,6 +357,7 @@ const FIND_QUOTE_BY_ID = `
     quote(id: $id) {
       id
       acceptDate
+      name
       balance {
         id
         commission

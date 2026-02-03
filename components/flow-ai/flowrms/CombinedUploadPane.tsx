@@ -55,7 +55,7 @@ const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: L
   { value: 'products', label: 'Products', icon: Package },
   { value: 'factories', label: 'Factories', icon: Building2 },
   { value: 'customers', label: 'Customers', icon: Users },
-  { value: 'deliveries', label: 'Packing Slip / Delivery', icon: Truck, comingSoon: true },
+  { value: 'deliveries', label: 'Packing Slip / Delivery', icon: Truck },
 ] as const;
 
 // Map Flow AI document types to CRM DocumentEntityType for file uploads

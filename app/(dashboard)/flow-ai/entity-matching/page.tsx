@@ -2,7 +2,7 @@
 
 import { useState, Suspense, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ChevronRight, Loader2, Sparkles, CheckCircle2, Info, Search, Plus, HelpCircle, Ban, ChevronDown, SkipForward, FileText, ExternalLink, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Loader2, Sparkles, CheckCircle2, Info, Search, Plus, HelpCircle, Ban, ChevronDown, SkipForward, FileText, ExternalLink, RefreshCw, AlertTriangle, Warehouse, Package } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Badge } from '@/components/flow-ai/ui/badge';
 import { Checkbox } from '@/components/flow-ai/ui/checkbox';
@@ -34,9 +34,10 @@ const ALL_STEPS: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'e
 function getVisibleSteps(documentType: string | null): EntityStep[] {
   const normalizedDocType = documentType?.toUpperCase();
 
-  // For DELIVERIES: Only show factories and products (packing slip matching)
+  // For DELIVERIES: Same as ORDERS/QUOTES - show factories, customers, bill-to, end users, products
+  // (hide orders, invoices, credits, adjustments)
   if (normalizedDocType === 'DELIVERIES') {
-    return ['factories', 'products'];
+    return ALL_STEPS.filter(step => !FACTORY_DEPENDENT_TABS.includes(step));
   }
 
   // For CHECKS: Show all tabs (orders, invoices, credits, adjustments all visible)
@@ -284,6 +285,9 @@ function EntityMatchingContent() {
   useEffect(() => {
     setDisplayLimit(ITEMS_PER_PAGE);
   }, [currentStep]);
+
+  // Check if this is a delivery/packing slip document
+  const isDelivery = documentType?.toUpperCase() === 'DELIVERIES';
 
   // Compute visible steps based on document type
   const visibleSteps = useMemo(() => getVisibleSteps(documentType), [documentType]);
@@ -1109,8 +1113,8 @@ function EntityMatchingContent() {
                       )}
                       Approve
                     </Button>
-                    {/* Products: Add Skip and Document Specific Product buttons */}
-                    {getCurrentEntityType() === 'PRODUCTS' && (
+                    {/* Products: Add Skip and Document Specific Product buttons (hidden for DELIVERIES) */}
+                    {getCurrentEntityType() === 'PRODUCTS' && !isDelivery && (
                       <>
                         <Button
                           variant="outline"
@@ -1152,8 +1156,8 @@ function EntityMatchingContent() {
                 )}
               </div>
             )}
-            {/* Create New button - hidden for locked entities and for Orders/Invoices/Credits/Adjustments */}
-            {!isLocked && getCurrentEntityType() !== 'ORDERS' && getCurrentEntityType() !== 'INVOICES' && getCurrentEntityType() !== 'CREDITS' && getCurrentEntityType() !== 'ADJUSTMENTS' && (
+            {/* Create New button - hidden for locked entities, Orders/Invoices/Credits/Adjustments, and DELIVERIES */}
+            {!isLocked && !isDelivery && getCurrentEntityType() !== 'ORDERS' && getCurrentEntityType() !== 'INVOICES' && getCurrentEntityType() !== 'CREDITS' && getCurrentEntityType() !== 'ADJUSTMENTS' && (
               <Popover
                 open={createNewPopoverOpen === entity.id}
                 onOpenChange={(open) => {
@@ -1367,18 +1371,33 @@ function EntityMatchingContent() {
           <div className="flex items-start justify-between">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Sparkles className="w-6 h-6 text-[#5048E6]" />
+                <div className={`p-2 rounded-lg ${isDelivery ? 'bg-amber-100' : 'bg-primary/10'}`}>
+                  <Sparkles className={`w-6 h-6 ${isDelivery ? 'text-amber-600' : 'text-[#5048E6]'}`} />
                 </div>
-                <h1 className="text-3xl font-bold">Validate & Match Entities</h1>
+                <h1 className="text-3xl font-bold">{isDelivery ? 'Validate & Match Delivery' : 'Validate & Match Entities'}</h1>
               </div>
               <p className="text-muted-foreground text-lg">
-                Review AI-generated matches for factories, customers, end users, and products from your uploaded {isFromSpreadsheet ? 'spreadsheet' : 'document'}.
+                {isDelivery
+                  ? 'Review AI-generated matches for factories, customers, end users, and products from your uploaded packing slip.'
+                  : `Review AI-generated matches for factories, customers, end users, and products from your uploaded ${isFromSpreadsheet ? 'spreadsheet' : 'document'}.`
+                }
               </p>
               <p className="text-sm text-muted-foreground/80 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-green-600" />
                 Auto-matched entities are already approved - no action needed unless you want to change the match.
               </p>
+              {isDelivery && (
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 border border-amber-300 rounded-full">
+                    <Warehouse className="w-3.5 h-3.5 text-amber-700" />
+                    <span className="text-xs font-semibold text-amber-700">Warehouse Mode</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full">
+                    <Package className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="text-xs font-medium text-amber-600">Packing Slip / Delivery</span>
+                  </div>
+                </div>
+              )}
             </div>
             {/* Complete & Continue button - shown when all entities are validated */}
             {allValidated && (
@@ -1448,6 +1467,7 @@ function EntityMatchingContent() {
           onBulkDocSpecific={handleBulkDocSpecific}
           isLoading={bulkConfirmLoading}
           currentEntityType={getCurrentEntityType()}
+          isDelivery={isDelivery}
         />
 
         {/* Entities List - Show spreadsheet in Create New Mode */}
@@ -1524,15 +1544,17 @@ function EntityMatchingContent() {
                   )}
                   {selectedCount > 1 ? 'Bulk Approve Matches' : 'Approve Match'}
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBulkCreatePane(true)}
-                  disabled={bulkConfirmLoading}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  {selectedCount > 1 ? 'Bulk Create New' : 'Create New'}
-                </Button>
+                {!isDelivery && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBulkCreatePane(true)}
+                    disabled={bulkConfirmLoading}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    {selectedCount > 1 ? 'Bulk Create New' : 'Create New'}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
