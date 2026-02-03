@@ -175,6 +175,18 @@ export function useSubmittalHandlers({
         description: newSubmittal.jobName || 'New Submittal',
         status: 'DRAFT',
         quoteId: newSubmittal.quoteIds?.[0],
+        // Include config in creation
+        config: newSubmittal.config ? {
+          includeLamps: newSubmittal.config.includeLamps,
+          includeAccessories: newSubmittal.config.includeAccessories,
+          includeCq: newSubmittal.config.includeCQ,
+          includeFromOrders: newSubmittal.config.includeFromOrders,
+          rollUpKits: newSubmittal.config.rollUpKits,
+          rollUpAccessories: newSubmittal.config.rollUpAccessories,
+          includeZeroQuantityItems: newSubmittal.config.includeZeroQuantityItems,
+          dropDescriptions: newSubmittal.config.dropDescriptions,
+          dropLineNotes: newSubmittal.config.dropLineNotes,
+        } : undefined,
       });
 
       const submittalId = createdSubmittal.id;
