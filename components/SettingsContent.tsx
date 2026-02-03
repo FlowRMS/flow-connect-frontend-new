@@ -360,87 +360,89 @@ export default function SettingsContent() {
       <div className="flex-1 overflow-y-auto m-6">
       {/* Take-Off Settings Tab */}
       {activeTab === 'takeoffs' && (
-        <div className="max-w-3xl space-y-6">
-          <h2 className="text-xl font-semibold text-[var(--foreground)]">Take-Off Settings</h2>
+        <div className="max-w-3xl flex flex-col h-full">
+          <div className="space-y-6 flex-1">
+            <h2 className="text-xl font-semibold text-[var(--foreground)]">Take-Off Settings</h2>
 
-          {/* Document Abridgment Setting - Coming Soon */}
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 opacity-50 pointer-events-none">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-medium text-[var(--foreground)]">
-                    Automatic Document Abridgment
-                  </h3>
-                  <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded uppercase">Coming Soon</span>
-                </div>
-                <p className="text-sm text-[var(--muted-foreground)]">
-                  Automatically abridge documents over 20 pages during the classification step.
-                  When enabled, large documents will be processed to include only relevant pages,
-                  reducing processing time and focusing on key information.
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-not-allowed flex-shrink-0">
-                <input
-                  type="checkbox"
-                  checked={false}
-                  disabled
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 rounded-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5"></div>
-              </label>
-            </div>
-          </div>
-
-          {/* Rep Types Configuration */}
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
-            <h3 className="font-medium text-[var(--foreground)] mb-1">Rep Types for Takeoffs</h3>
-            <p className="text-sm text-[var(--muted-foreground)] mb-4">
-              Select which rep types to include in your takeoff analysis. Choose 1-3 types.
-            </p>
-
-            <div className="space-y-3">
-              {repTypes.map((repType) => (
-                <label
-                  key={repType.id}
-                  className={`block p-4 border rounded-lg cursor-pointer transition-all ${
-                    repType.selected
-                      ? 'border-[var(--primary)] bg-[var(--primary)]/5 ring-2 ring-[var(--primary)]/20'
-                      : 'border-[var(--border)] hover:border-[var(--primary)]/50 hover:bg-[var(--muted)]/30'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={repType.selected}
-                      onChange={() => handleToggleRepType(repType.id)}
-                      className="mt-1 w-5 h-5 accent-[var(--primary)] cursor-pointer"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-semibold text-[var(--foreground)]">
-                          {repType.name} ({repType.division})
-                        </h4>
-                      </div>
-                      <p className="text-sm text-[var(--muted-foreground)]">
-                        {repType.description}
-                      </p>
-                    </div>
+            {/* Document Abridgment Setting - Coming Soon */}
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 opacity-50 pointer-events-none">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-medium text-[var(--foreground)]">
+                      Automatic Document Abridgment
+                    </h3>
+                    <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded uppercase">Coming Soon</span>
                   </div>
+                  <p className="text-sm text-[var(--muted-foreground)]">
+                    Automatically abridge documents over 20 pages during the classification step.
+                    When enabled, large documents will be processed to include only relevant pages,
+                    reducing processing time and focusing on key information.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-not-allowed flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    disabled
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 rounded-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5"></div>
                 </label>
-              ))}
+              </div>
             </div>
 
-            <p className="text-sm text-[var(--muted-foreground)] mt-4">
-              Selected: {selectedRepTypes.map(rt => `${rt.name} (${rt.division})`).join(', ') || 'None'} ({selectedCount}/3)
-            </p>
+            {/* Rep Types Configuration */}
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+              <h3 className="font-medium text-[var(--foreground)] mb-1">Rep Types for Takeoffs</h3>
+              <p className="text-sm text-[var(--muted-foreground)] mb-4">
+                Select which rep types to include in your takeoff analysis. Choose 1-3 types.
+              </p>
+
+              <div className="space-y-3">
+                {repTypes.map((repType) => (
+                  <label
+                    key={repType.id}
+                    className={`block p-4 border rounded-lg cursor-pointer transition-all ${
+                      repType.selected
+                        ? 'border-[var(--primary)] bg-[var(--primary)]/5 ring-2 ring-[var(--primary)]/20'
+                        : 'border-[var(--border)] hover:border-[var(--primary)]/50 hover:bg-[var(--muted)]/30'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={repType.selected}
+                        onChange={() => handleToggleRepType(repType.id)}
+                        className="mt-1 w-5 h-5 accent-[var(--primary)] cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-semibold text-[var(--foreground)]">
+                            {repType.name} ({repType.division})
+                          </h4>
+                        </div>
+                        <p className="text-sm text-[var(--muted-foreground)]">
+                          {repType.description}
+                        </p>
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <p className="text-sm text-[var(--muted-foreground)] mt-4">
+                Selected: {selectedRepTypes.map(rt => `${rt.name} (${rt.division})`).join(', ') || 'None'} ({selectedCount}/3)
+              </p>
+            </div>
           </div>
 
-          {/* Save Button */}
-          <div className="flex justify-end">
+          {/* Save Button - Sticky at bottom */}
+          <div className="sticky bottom-0 bg-[var(--background)] pt-4 pb-2 flex justify-end border-t border-[var(--border)] mt-6">
             <button
               onClick={handleSaveTakeoff}
               disabled={isSavingTakeoff}
-              className={`flex items-center justify-center gap-2 min-w-[100px] px-6 py-2 rounded-lg font-medium text-sm transition-all ${
+              className={`flex items-center justify-center gap-2 min-w-[120px] px-6 py-2.5 rounded-lg font-medium text-sm transition-all ${
                 isSavingTakeoff
                   ? 'bg-[var(--primary)]/70 text-white cursor-not-allowed'
                   : saved
