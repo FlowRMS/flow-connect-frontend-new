@@ -139,9 +139,13 @@ export default function SettingsContent() {
     }
   }, [tabParam]);
 
-  // Load takeoff settings from backend
+  // Track if initial load has happened to prevent re-sync after saving
+  const initialLoadDone = useRef(false);
+
+  // Load takeoff settings from backend (only on initial load, not after saves)
   useEffect(() => {
-    if (takeoffInitialized && takeoffSettings) {
+    if (takeoffInitialized && takeoffSettings && !initialLoadDone.current) {
+      initialLoadDone.current = true;
       setAutoAbridgment(takeoffSettings.autoAbridgment ?? false);
       if (takeoffSettings.repTypes && takeoffSettings.repTypes.length > 0) {
         setRepTypes(takeoffSettings.repTypes);
