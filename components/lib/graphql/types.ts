@@ -1288,6 +1288,18 @@ export interface RelatedEntityTask {
   tags?: string;
 }
 
+export interface RelatedEntityStatement {
+  id: string;
+  statementNumber: string;
+  balanceId?: string;
+  entityDate?: string;
+  factoryId?: string;
+  url?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+}
+
 export interface RelatedEntities {
   sourceType: RelatedEntitiesSourceType;
   sourceEntityId: string;
@@ -1303,5 +1315,6 @@ export interface RelatedEntities {
   preOpportunities: RelatedEntityPreOpportunity[];
   products: RelatedEntityProduct[];
   quotes: RelatedEntityQuote[];
+  statements: RelatedEntityStatement[];
   tasks: RelatedEntityTask[];
 }
