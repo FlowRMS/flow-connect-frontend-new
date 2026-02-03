@@ -104,6 +104,13 @@ export default function ContactsContent() {
     }
   }, [state.selectedContact?.id, state.isMounted, router, searchParams]);
 
+  // Ensure editing is enabled when a contact is selected (editable by default)
+  useEffect(() => {
+    if (state.selectedContact && !state.isEditing) {
+      state.setIsEditing(true);
+    }
+  }, [state.selectedContact, state.isEditing, state.setIsEditing]);
+
   // Clear editing state when contact is deselected (e.g., after discarding changes and navigating back)
   useEffect(() => {
     if (!state.selectedContact) {
@@ -248,6 +255,7 @@ export default function ContactsContent() {
         isDeleting={state.deleteContactMutation.isPending}
         editFormData={state.editFormData}
         deleteConfirmId={state.deleteConfirmId}
+        hasLocalEdits={state.hasLocalEdits}
         onBack={handleBack}
         onEdit={state.handleStartEdit}
         onSave={state.handleSaveEdit}
