@@ -135,6 +135,11 @@ export function ContactsTableHeader({
           </div>
         </th>
 
+        {/* Role Detail */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+          <span className="whitespace-nowrap">Role Detail</span>
+        </th>
+
         {/* Tags */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
           <span className="whitespace-nowrap">Tags</span>

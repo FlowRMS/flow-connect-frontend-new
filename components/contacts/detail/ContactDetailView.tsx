@@ -562,6 +562,29 @@ export default function ContactDetailView({
                   )}
                 </div>
 
+                {/* Role Detail */}
+                <div className="md:col-span-2">
+                  <label className={labelClass}>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Role Details
+                  </label>
+                  <textarea
+                    value={isEditing ? editFormData.roleDetail || '' : (contact.roleDetail || '-')}
+                    onChange={(e) => onFieldChange('roleDetail', e.target.value)}
+                    className={isEditing ? `${inputClass} min-h-[80px] resize-y` : `${readOnlyClass} min-h-[80px]`}
+                    readOnly={!isEditing}
+                    placeholder="Additional details about responsibilities, decision-making authority, etc."
+                    maxLength={1000}
+                  />
+                  {isEditing && (
+                    <p className="mt-1 text-xs text-gray-400">
+                      {(editFormData.roleDetail || '').length}/1000 characters
+                    </p>
+                  )}
+                </div>
+
                 {/* Email */}
                 <div>
                   <label className={labelClass}>
