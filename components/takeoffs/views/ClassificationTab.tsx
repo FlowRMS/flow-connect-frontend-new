@@ -218,15 +218,11 @@ export function ClassificationTab({
             Download All (ZIP)
           </button>
           <button
-            onClick={handleAbridgeAllClick}
-            disabled={isAbridgementProcessing}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-              isAbridgementProcessing
-                ? 'bg-blue-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
+            disabled
+            className="px-4 py-2 text-sm font-medium text-gray-400 bg-gray-200 rounded-lg cursor-not-allowed"
+            title="Coming soon"
           >
-            Abridge All Large Documents
+            Abridge All Large Documents (soon)
           </button>
         </div>
       </div>
@@ -534,14 +530,15 @@ export function ClassificationTab({
                         );
                       }
 
-                      // Not abridged - show Abridge button
+                      // Not abridged - show disabled Abridge button (coming soon)
                       if (doc.pages > 0) {
                         return (
                           <button
-                            onClick={() => onAbridge(doc.id)}
-                            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                            disabled
+                            className="px-3 py-1.5 text-sm font-medium text-gray-400 bg-gray-200 rounded-lg cursor-not-allowed"
+                            title="Coming soon"
                           >
-                            Abridge ({doc.pages} pages)
+                            Abridge (soon)
                           </button>
                         );
                       }
