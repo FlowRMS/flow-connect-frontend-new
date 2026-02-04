@@ -58,7 +58,11 @@ function getVisibleSteps(documentType: string | null): EntityStep[] {
     !FACTORY_DEPENDENT_TABS.includes(step)
   );
 }
-import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
+// TEMPORARY: Import both Flow AI and CRM clients
+// flowrmsApolloClient for Flow AI queries (Q_GET_PENDING)
+// crmApolloClient for CRM mutations (M_EXECUTE_DOCUMENT_WORKFLOW)
+// TO REVERT: Remove crmApolloClient import and change crmApolloClient.mutate back to flowrmsApolloClient.mutate for M_EXECUTE_DOCUMENT_WORKFLOW
+import { flowrmsApolloClient, crmApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import { Q_GET_PENDING, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
 import { fetchCustomerById } from '@/components/customers/api/customersApi';
 
@@ -429,10 +433,12 @@ function EntityMatchingContent() {
       }
 
       // Call executeDocumentWorkflow mutation
+      // TEMPORARY: Using crmApolloClient for executeDocumentWorkflow (CRM mutation needs CRM backend)
+      // TO REVERT: Change crmApolloClient.mutate back to flowrmsApolloClient.mutate
       console.log('📄 Executing document workflow for pendingId:', pendingId);
       toast.info('Processing document...');
 
-      const result = await flowrmsApolloClient.mutate<{
+      const result = await crmApolloClient.mutate<{
         executeDocumentWorkflow?: {
           message: string;
           success: boolean;

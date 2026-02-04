@@ -1734,7 +1734,7 @@ const StatementRow = React.memo(function StatementRow({ statement }: { statement
     <tr className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30">
       <td className="px-4 py-3 font-medium">
         <Link
-          href={statement.url || `/cm/statements/list/${statement.id}`}
+          href={`/statements/${statement.id}`}
           className="text-pink-600 hover:text-pink-800 hover:underline"
         >
           {statement.statementNumber || statement.id}

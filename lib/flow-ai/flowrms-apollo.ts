@@ -454,7 +454,36 @@ export const flowrmsApiSubscriptionClient = new ApolloClient({
   },
 });
 
+// ============================================================================
+// TEMPORARY: CRM Apollo Client for Flow AI module
+// Used for CRM-specific queries (findLandingPages, etc.) that need to go to
+// the CRM backend, not the Flow AI backend
+// TO REVERT: Delete this entire crmHttpLink and crmApolloClient section
+// ============================================================================
+// Use the CRM proxy route which handles WorkOS authentication
+const CRM_PROXY_URL = '/api/flowrms-api';
 
+const crmHttpLink = createHttpLink({
+  uri: CRM_PROXY_URL,
+  credentials: "include",
+});
 
-
+// CRM client for queries that need CRM backend (like findLandingPages)
+export const crmApolloClient = new ApolloClient({
+  link: from([errorLink, authLink, crmHttpLink]),
+  cache: new InMemoryCache(),
+  defaultOptions: {
+    watchQuery: {
+      fetchPolicy: "network-only",
+      errorPolicy: "all",
+    },
+    query: {
+      fetchPolicy: "network-only",
+      errorPolicy: "all",
+    },
+    mutate: {
+      errorPolicy: "all",
+    },
+  },
+});
 
