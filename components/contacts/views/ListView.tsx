@@ -77,7 +77,7 @@ export default function ListView({
           onClearFilters={onClearFilters}
         />
       ) : (
-        <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+        <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 320px)' }}>
           <div 
             ref={scrollContainerRef}
             className="overflow-auto scrollbar-always-visible flex-1"
