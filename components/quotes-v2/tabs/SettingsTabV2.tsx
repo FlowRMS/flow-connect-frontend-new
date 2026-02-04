@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { QuoteSettingsV2, PriceLevelV2 } from '../types';
 import { useQuoteSettings } from '@/contexts/UserSettingsContext';
-import type { OutsideRepSource } from '@/components/lib/graphql/settings';
+import type { OutsideRepSource, QuoteSettingsValue } from '@/components/lib/graphql/settings';
 import { showSuccessToast, showErrorToast } from '@/components/lib/toast';
+import { defaultColumnConfigV2 } from '../data/mockData';
 
 interface SettingsTabV2Props {
   settings: QuoteSettingsV2;
@@ -15,6 +16,20 @@ export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props
   const { settings: quoteSettings, tenantSettings, saveSettings } = useQuoteSettings();
   const [outsideRepSource, setOutsideRepSource] = useState<OutsideRepSource>('end_user');
   const [isSavingRepSource, setIsSavingRepSource] = useState(false);
+  const [isSavingPriceLevels, setIsSavingPriceLevels] = useState(false);
+
+  // Debounce refs for price levels
+  const savePriceLevelsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingPriceLevelsRef = useRef<PriceLevelV2[] | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (savePriceLevelsTimeoutRef.current) {
+        clearTimeout(savePriceLevelsTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Sync outsideRepSource from tenant settings
   useEffect(() => {
@@ -82,6 +97,78 @@ export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props
   const removePriceLevel = (index: number) => {
     const newLevels = settings.priceLevels.filter((_, i) => i !== index);
     onSettingsChange({ ...settings, priceLevels: newLevels });
+    savePriceLevelsToBackend(newLevels);
+  };
+
+  // Save price levels to backend (tenant settings) - actual API call
+  const doSavePriceLevelsToBackend = useCallback(async (priceLevels: PriceLevelV2[]) => {
+    setIsSavingPriceLevels(true);
+    try {
+      const currentTenantSettings = tenantSettings || quoteSettings || {};
+      const updatedSettings: QuoteSettingsValue = {
+        ...currentTenantSettings,
+        columnConfig: (currentTenantSettings as QuoteSettingsValue).columnConfig || defaultColumnConfigV2,
+        specifyEndUserPerLine: (currentTenantSettings as QuoteSettingsValue).specifyEndUserPerLine ?? true,
+        outsideRepAtLineLevel: (currentTenantSettings as QuoteSettingsValue).outsideRepAtLineLevel ?? false,
+        insideRepAtLineLevel: (currentTenantSettings as QuoteSettingsValue).insideRepAtLineLevel ?? false,
+        factoryPerLineItem: (currentTenantSettings as QuoteSettingsValue).factoryPerLineItem ?? false,
+        customerPartNumberSource: (currentTenantSettings as QuoteSettingsValue).customerPartNumberSource ?? 'sold_to',
+        priceLevels: priceLevels.map(level => ({
+          id: level.id,
+          name: level.name,
+          percent: level.percent,
+          description: level.description,
+        })),
+      };
+      const success = await saveSettings(updatedSettings, 'tenant');
+      if (success) {
+        showSuccessToast('Price levels saved');
+      } else {
+        showErrorToast('Failed to save price levels');
+      }
+    } catch {
+      showErrorToast('Failed to save price levels');
+    } finally {
+      setIsSavingPriceLevels(false);
+    }
+  }, [tenantSettings, quoteSettings, saveSettings]);
+
+  // Debounced save - waits 800ms after last change before saving
+  const savePriceLevelsToBackend = useCallback((priceLevels: PriceLevelV2[]) => {
+    // Store latest price levels
+    pendingPriceLevelsRef.current = priceLevels;
+
+    // Clear existing timeout
+    if (savePriceLevelsTimeoutRef.current) {
+      clearTimeout(savePriceLevelsTimeoutRef.current);
+    }
+
+    // Set new timeout
+    savePriceLevelsTimeoutRef.current = setTimeout(() => {
+      if (pendingPriceLevelsRef.current) {
+        doSavePriceLevelsToBackend(pendingPriceLevelsRef.current);
+        pendingPriceLevelsRef.current = null;
+      }
+    }, 800);
+  }, [doSavePriceLevelsToBackend]);
+
+  // Handle price level change with debounced save
+  const handlePriceLevelChangeWithSave = (index: number, updates: Partial<PriceLevelV2>) => {
+    handlePriceLevelChange(index, updates);
+    const newLevels = [...settings.priceLevels];
+    newLevels[index] = { ...newLevels[index], ...updates };
+    savePriceLevelsToBackend(newLevels);
+  };
+
+  const handleAddPriceLevel = () => {
+    addPriceLevel();
+    const newLevel: PriceLevelV2 = {
+      id: `l${settings.priceLevels.length + 1}`,
+      name: `L${settings.priceLevels.length + 1}`,
+      percent: 0,
+      description: '',
+    };
+    savePriceLevelsToBackend([...settings.priceLevels, newLevel]);
   };
 
   return (
@@ -249,47 +336,61 @@ export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props
           </div>
         </div>
 
-        {/* Price Levels - Coming Soon */}
-        <div className="opacity-50 pointer-events-none">
+        {/* Price Levels */}
+        <div>
           <div className="flex items-center gap-2 mb-3">
             <h4 className="text-sm font-medium text-gray-900">Price Levels</h4>
-            <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded uppercase">Coming Soon</span>
+            {isSavingPriceLevels && (
+              <span className="text-xs text-gray-400">Saving...</span>
+            )}
           </div>
+          <p className="text-xs text-gray-500 mb-3">Configure pricing tiers for different customer types</p>
           <div className="space-y-3">
             {settings.priceLevels.map((level, index) => (
               <div key={level.id} className="flex items-center gap-3">
-                <span className="w-8 text-sm font-medium text-gray-400">{level.name}</span>
+                <input
+                  type="text"
+                  value={level.name}
+                  onChange={(e) => handlePriceLevelChangeWithSave(index, { name: e.target.value })}
+                  className="w-16 px-2 py-1.5 text-sm text-center border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Name"
+                />
                 <div className="flex items-center gap-1">
                   <input
                     type="number"
                     value={level.percent}
-                    disabled
-                    className="w-16 px-2 py-1.5 text-sm text-center border border-gray-200 rounded-md bg-gray-100 text-gray-400"
+                    onChange={(e) => handlePriceLevelChangeWithSave(index, { percent: parseFloat(e.target.value) || 0 })}
+                    className="w-20 px-2 py-1.5 text-sm text-center border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="0"
+                    step="0.1"
                   />
-                  <span className="text-sm text-gray-400">%</span>
+                  <span className="text-sm text-gray-500">%</span>
                 </div>
                 <input
                   type="text"
                   value={level.description}
-                  disabled
+                  onChange={(e) => handlePriceLevelChangeWithSave(index, { description: e.target.value })}
                   placeholder="Description"
-                  className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-md bg-gray-100 text-gray-400"
+                  className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
-                <button
-                  disabled
-                  className="p-1.5 text-gray-300 rounded cursor-not-allowed"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
-                  </svg>
-                </button>
+                {settings.priceLevels.length > 1 && (
+                  <button
+                    onClick={() => removePriceLevel(index)}
+                    className="p-1.5 text-gray-400 hover:text-red-500 rounded hover:bg-gray-100 transition-colors"
+                    title="Remove price level"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
               </div>
             ))}
           </div>
 
           <button
-            disabled
-            className="mt-4 flex items-center gap-2 text-sm text-gray-400 cursor-not-allowed"
+            onClick={handleAddPriceLevel}
+            className="mt-4 flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 5v10M5 10h10" strokeLinecap="round" />

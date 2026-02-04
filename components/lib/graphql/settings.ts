@@ -29,6 +29,13 @@ export type SettingKey =
 
 export type OutsideRepSource = 'end_user' | 'sold_to' | 'bill_to';
 
+export interface PriceLevelConfig {
+  id: string;
+  name: string;
+  percent: number;
+  description: string;
+}
+
 export interface QuoteSettingsValue {
   columnConfig: ColumnConfig[];
   specifyEndUserPerLine: boolean;
@@ -38,6 +45,7 @@ export interface QuoteSettingsValue {
   customerPartNumberSource: 'sold_to' | 'end_user';
   outsideRepSource?: OutsideRepSource;
   savedView?: SavedViewState;
+  priceLevels?: PriceLevelConfig[];
 }
 
 export interface OrderColumnConfig {
