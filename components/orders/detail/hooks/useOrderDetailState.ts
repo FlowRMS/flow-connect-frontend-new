@@ -12,6 +12,7 @@ import type { TabType, LineItemAcknowledgement, LineItemCredit, ColumnKey } from
 import { mockFulfillmentOrders } from '@/lib/data/warehouse-mock';
 import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchCustomers, getProductCpnByCustomer, type Order as ApiOrder, type OrderDetail } from '../../api';
 import { fetchFactoryById } from '@/components/warehouse/api/factoriesApi';
+import { normalizeDivisor } from '@/components/lib/uom-utils';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { useOrderHeader } from './useOrderHeader';
 import { useLineItemsTable } from './useLineItemsTable';
@@ -94,7 +95,9 @@ export function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     // Parse values first so we can calculate if API values are missing
     const quantity = parseFloat(detail.quantity || '0');
     const unitPrice = parseFloat(detail.unitPrice || '0');
-    const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
+    // Normalize divisor to handle legacy data where divisionFactor < 1
+    const rawDivisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
+    const divisor = normalizeDivisor(rawDivisor);
     const commissionRate = parseFloat(detail.commissionRate || '0');
 
     // Use API subtotal if available and non-zero, otherwise calculate from inputs

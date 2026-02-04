@@ -17,6 +17,7 @@ import {
   type StatementInput,
   type StatementDetailInput,
 } from '../../api/statementsApi';
+import { normalizeDivisor } from '@/components/lib/uom-utils';
 
 // Column keys for visibility
 export type ColumnKey =
@@ -149,7 +150,8 @@ const createEmptyLineItem = (itemNumber: number): LocalLineItem => ({
 const convertToLocalLineItem = (detail: StatementDetail, index: number, existingTempId?: string): LocalLineItem => {
   const quantity = parseFloat(detail.quantity || '0') || 0;
   const unitPrice = parseFloat(detail.unitPrice || '0') || 0;
-  const divisor = parseFloat(detail.divisionFactor || '1') || 1;
+  // Normalize divisor to handle legacy data where divisionFactor < 1
+  const divisor = normalizeDivisor(parseFloat(detail.divisionFactor || '1') || 1);
   const commissionRate = parseFloat(detail.commissionRate || '0') || 0;
   const commissionDiscountRate = parseFloat(detail.commissionDiscountRate || '0') || 0;
   const discountRate = parseFloat(detail.discountRate || '0') || 0;

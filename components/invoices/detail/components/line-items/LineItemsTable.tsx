@@ -16,6 +16,7 @@ import { LineItemsTableHeader } from './LineItemsTableHeader';
 import { formatCurrency } from '../../utils';
 import { useProductSearch, useProductCpns, useProductUoms, getProductCpnByCustomer, listProductPricingTiers, getPriceForQuantity } from '@/components/orders/api';
 import type { ProductPricingTierResult } from '@/components/quotes/api/quotesApi';
+import { normalizeDivisor } from '@/components/lib/uom-utils';
 
 type EditableColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionPercent';
 
@@ -291,15 +292,19 @@ export function LineItemsTable({
     const item = invoice.lineItems.find(li => li.id === itemId);
     if (!item) return;
 
-    const divisor = uom.divisionFactor || 1;
+    // Normalize divisor to handle legacy data where divisionFactor < 1
+    const newDivisor = normalizeDivisor(uom.divisionFactor);
+    const oldDivisor = item.divisor || 1;
     const quantity = item.quantity || 1;
-    const unitPrice = item.unitPrice || 0;
-    const extendedPrice = quantity * unitPrice / divisor;
+    const oldUnitPrice = item.unitPrice || 0;
+    const unitPrice = oldUnitPrice * (newDivisor / oldDivisor);
+    const extendedPrice = quantity * unitPrice / newDivisor;
     const commissionRate = item.commissionRate ?? 8; // Stored as whole percentage
 
     updateLineItem(itemId, {
       uom: uom.title,
-      divisor: divisor,
+      divisor: newDivisor,
+      unitPrice: unitPrice,
       amount: extendedPrice,
       // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
       commissionAmount: extendedPrice * (commissionRate / 100),

@@ -19,6 +19,7 @@ import {
 } from '../../../api/useStatementsApi';
 import { fetchProductById } from '@/components/products/api/productsApi';
 import { BulkActionsBar } from './BulkActionsBar';
+import { normalizeDivisor } from '@/components/lib/uom-utils';
 
 // Types
 // Note: custPartNumber is NOT editable - it auto-populates when product is selected
@@ -394,17 +395,25 @@ export function LineItemsTable({
     const item = lineItems.find(li => li.tempId === tempId);
     if (!item) return;
 
-    const divisor = uom.divisionFactor || 1;
+    // Normalize divisor to handle legacy data where divisionFactor < 1
+    const newDivisor = normalizeDivisor(uom.divisionFactor);
+    const oldDivisor = item.divisor || 1;
     const quantity = item.quantity || 1;
-    const unitPrice = item.unitPrice || 0;
-    const extendedPrice = (quantity * unitPrice) / divisor;
+    const oldUnitPrice = item.unitPrice || 0;
+    
+    // When changing UOM, adjust unit price to maintain the same extended price
+    // This prevents the 10x pricing bug when switching between UOMs
+    // Formula: newUnitPrice = oldUnitPrice * (newDivisor / oldDivisor)
+    const unitPrice = oldUnitPrice * (newDivisor / oldDivisor);
+    const extendedPrice = (quantity * unitPrice) / newDivisor;
     const commissionRate = item.commissionRate || 0;
     const commission = extendedPrice * (commissionRate / 100);
 
     onUpdateLineItem(tempId, {
       uomId: uom.id,
       uom: uom.title,
-      divisor,
+      divisor: newDivisor,
+      unitPrice,
       extendedPrice,
       commission,
     });

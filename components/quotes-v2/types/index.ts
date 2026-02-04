@@ -10,6 +10,7 @@ import type {
   QuoteCreationType,
   QuoteDetailStatus,
 } from '../../quotes/api/quotesApi';
+import { normalizeDivisor } from '@/components/lib/uom-utils';
 
 // ============================================================================
 // Re-export API types for convenience
@@ -536,7 +537,8 @@ export function transformQuoteToQuoteV2(quote: Quote): QuoteV2 {
 export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: string): LineItemV2 {
   const quantity = detail.quantity || 0;
   const unitPrice = parseFloat(detail.unitPrice || '0');
-  const divisor = detail.uom?.divisionFactor || 1;
+  // Normalize divisor to handle legacy data where divisionFactor < 1
+  const divisor = normalizeDivisor(detail.uom?.divisionFactor);
   const commissionRate = parseFloat(detail.commissionRate || '0');
   const commissionDiscountRate = parseFloat(detail.commissionDiscountRate || '0');
   const discountRate = parseFloat(detail.discountRate || '0');

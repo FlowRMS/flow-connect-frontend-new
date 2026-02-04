@@ -16,6 +16,7 @@ import { useProductSearch, useFactorySearch, useCustomerSearch, useProductCpns, 
 import type { ProductPricingTierResult } from '@/components/quotes/api/quotesApi';
 import { fetchProductById } from '@/components/products/api/productsApi';
 import { formatCurrency } from '../../utils';
+import { normalizeDivisor } from '@/components/lib/uom-utils';
 
 // Type for available pricing options for a product
 interface PricingOptions {
@@ -444,7 +445,8 @@ export function LineItemsTable({
         uomId = fullProduct.uom?.id;
         uomTitle = fullProduct.uom?.title;
         if (fullProduct.uom?.divisionFactor) {
-          divisor = fullProduct.uom.divisionFactor;
+          // Normalize divisor to handle legacy data where divisionFactor < 1
+          divisor = normalizeDivisor(fullProduct.uom.divisionFactor);
         }
       }
 
@@ -539,16 +541,24 @@ export function LineItemsTable({
     const item = (order.lineItems || []).find(li => li.id === itemId);
     if (!item) return;
 
-    const divisor = uom.divisionFactor || 1;
+    // Normalize divisor to handle legacy data where divisionFactor < 1
+    const newDivisor = normalizeDivisor(uom.divisionFactor);
+    const oldDivisor = item.divisor || 1;
     const quantity = item.quantity || 1;
-    const unitPrice = item.unitPrice || 0;
-    const extendedPrice = quantity * unitPrice / divisor;
+    const oldUnitPrice = item.unitPrice || 0;
+    
+    // When changing UOM, adjust unit price to maintain the same extended price
+    // This prevents the 10x pricing bug when switching between UOMs
+    // Formula: newUnitPrice = oldUnitPrice * (newDivisor / oldDivisor)
+    const unitPrice = oldUnitPrice * (newDivisor / oldDivisor);
+    const extendedPrice = quantity * unitPrice / newDivisor;
     const commissionRate = item.commissionRate ?? 8; // Stored as whole percentage
 
     updateLineItem(itemId, {
       uomId: uom.id,
       uom: uom.title,
-      divisor: divisor,
+      divisor: newDivisor,
+      unitPrice: unitPrice,
       extendedPrice: extendedPrice,
       // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
       commissionAmount: extendedPrice * (commissionRate / 100),
