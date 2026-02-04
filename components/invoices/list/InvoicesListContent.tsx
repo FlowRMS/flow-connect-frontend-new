@@ -124,6 +124,7 @@ export default function InvoicesListContent() {
             invoiceNumber: 'invoiceNumber',
             status: 'status',
             invoiceDate: 'entityDate',
+            entryDate: 'createdAt',
             dueDate: 'dueDate',
             total: 'total',
             balance: 'total', // Note: balance not in API, use total as fallback

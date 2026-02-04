@@ -31,6 +31,7 @@ export function getInvoiceSortOptions() {
     { columnName: 'commission', label: 'Commission' },
     { columnName: 'orderNumber', label: 'Order Number' },
     { columnName: 'published', label: 'Published' },
+    { columnName: 'createdAt', label: 'Entry Date' },
     // Soon options
     { columnName: 'factoryName', label: 'Factory Name' }, // Soon
   ];
