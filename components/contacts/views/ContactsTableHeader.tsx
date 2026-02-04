@@ -10,18 +10,27 @@ import type { Contact } from '../types';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
 import type { ActiveFilter, ColumnFilterType } from '@/components/advancedFilters/types';
 import { getContactFilterOptions } from '../config/filterConfig';
+import { SortIndicator } from '@/components/shared/sorting/components/SortIndicator';
+import type { ActiveSort } from '@/components/shared/sorting/types';
 
 interface ContactsTableHeaderProps {
   // Column filters
   onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
   filterOptions?: ReturnType<typeof getContactFilterOptions>;
   columnFilters?: Record<string, ActiveFilter[]>;
+  // Sorting (header UI)
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
+  isFetching?: boolean;
 }
 
 export function ContactsTableHeader({
   onColumnFiltersChange,
   filterOptions = getContactFilterOptions(),
   columnFilters: parentColumnFilters,
+  activeSort,
+  onSortChange,
+  isFetching = false,
 }: ContactsTableHeaderProps) {
   const [openFilter, setOpenFilter] = useState<string | null>(null);
   
@@ -37,6 +46,18 @@ export function ContactsTableHeader({
     createdAt: 'created-at',
     createdBy: 'created-by',
   };
+
+  // Helper to get active sort for a specific column
+  const getActiveSortForColumn = useCallback(
+    (columnName: string): ActiveSort | null => {
+      if (!activeSort || activeSort.columnName !== columnName) return null;
+      return {
+        columnId: columnName,
+        direction: activeSort.direction,
+      };
+    },
+    [activeSort]
+  );
   
   // Handle column filter change - now receives ActiveFilter[]
   const handleColumnFilterChange = useCallback((columnKey: string, filters: ActiveFilter[]) => {
@@ -108,30 +129,75 @@ export function ContactsTableHeader({
         {/* Name */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Name</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-gray-700"
+              onClick={() => onSortChange?.('firstName')}
+            >
+              Name
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('name')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="firstName"
+                  activeSort={getActiveSortForColumn('firstName')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
         {/* Company */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Company</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-gray-700"
+              onClick={() => onSortChange?.('companyName')}
+            >
+              Company
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('company')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="companyName"
+                  activeSort={getActiveSortForColumn('companyName')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
         {/* Role */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Role</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-gray-700"
+              onClick={() => onSortChange?.('role')}
+            >
+              Role
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('role')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="role"
+                  activeSort={getActiveSortForColumn('role')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
@@ -140,13 +206,28 @@ export function ContactsTableHeader({
           <span className="whitespace-nowrap">Tags</span>
         </th>
 
-        {/* Created At */}
+        {/* Entry Date */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Created At</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-gray-700"
+              onClick={() => onSortChange?.('createdAt')}
+            >
+              Entry Date
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('createdAt')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="createdAt"
+                  activeSort={getActiveSortForColumn('createdAt')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
