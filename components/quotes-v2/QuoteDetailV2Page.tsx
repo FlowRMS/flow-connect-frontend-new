@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import type { QuoteV2, LineItemV2, QuoteSettingsV2, ColumnConfig, Quote } from './types';
+import type { QuoteV2, LineItemV2, QuoteSettingsV2, ColumnConfig, Quote, PriceLevelV2 } from './types';
 import {
   transformQuoteToQuoteV2,
   transformQuoteDetailToLineItemV2,
@@ -183,10 +183,10 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   // Always sync priceLevels from tenant settings (priceLevels are global, not per-quote)
   useEffect(() => {
-    if (settingsInitialized && savedQuoteSettings?.priceLevels) {
+    if (settingsInitialized && savedQuoteSettings?.priceLevels && savedQuoteSettings.priceLevels.length > 0) {
       setSettings(prev => ({
         ...prev,
-        priceLevels: savedQuoteSettings.priceLevels,
+        priceLevels: savedQuoteSettings.priceLevels as PriceLevelV2[],
       }));
     }
   }, [settingsInitialized, savedQuoteSettings?.priceLevels]);
