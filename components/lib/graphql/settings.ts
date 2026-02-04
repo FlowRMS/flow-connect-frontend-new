@@ -18,7 +18,8 @@ export type SettingKey =
   | 'CHAT_SETTINGS'
   | 'SIDEBAR_SETTINGS'
   | 'FLOW_AI_SETTINGS'
-  | 'PICKLIST_SETTINGS';
+  | 'PICKLIST_SETTINGS'
+  | 'TAKEOFF_SETTINGS';
 
 // ============================================================================
 // Setting Value Types
@@ -164,6 +165,21 @@ export interface PicklistSettingsValue {
   // Future picklists can be added here
 }
 
+// Rep type for takeoff analysis
+export interface TakeoffRepType {
+  id: string;
+  name: string;
+  division: string;
+  description: string;
+  selected: boolean;
+}
+
+// Takeoff settings stored under TAKEOFF_SETTINGS key
+export interface TakeoffSettingsValue {
+  autoAbridgment: boolean;
+  repTypes: TakeoffRepType[];
+}
+
 export type SettingValue =
   | QuoteSettingsValue
   | OrderSettingsValue
@@ -172,7 +188,8 @@ export type SettingValue =
   | ChatSettingsValue
   | SidebarSettingsValue
   | FlowAISettingsValue
-  | PicklistSettingsValue;
+  | PicklistSettingsValue
+  | TakeoffSettingsValue;
 
 // ============================================================================
 // Setting Response Types
