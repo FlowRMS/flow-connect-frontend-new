@@ -160,6 +160,18 @@ export default function InvoicesListContent() {
     },
   });
 
+  // Handler for column sort click - single-column sort (replaces previous)
+  const handleColumnSort = useCallback((columnName: string) => {
+    if (activeSort && activeSort.columnName === columnName) {
+      // Toggle direction
+      const newDirection = activeSort.direction === 'ASC' ? 'DESC' : 'ASC';
+      state.handleSortChange({ columnName, direction: newDirection });
+    } else {
+      // New sort, default ASC
+      state.handleSortChange({ columnName, direction: 'ASC' });
+    }
+  }, [activeSort, state.handleSortChange]);
+
   // Fetch ALL records for export (not just loaded via infinite scroll)
   const fetchAllInvoicesForExport = useCallback(async () => {
     const quickFilters: { operator: 'GTE' | 'LTE'; columnName: string; value?: string }[] = [];
@@ -371,6 +383,9 @@ export default function InvoicesListContent() {
             isFetchingNextPage={state.isFetchingNextPage}
             fetchNextPage={state.fetchNextPage}
             searchQuery={state.searchQuery}
+            activeSort={activeSort}
+            onSortChange={handleColumnSort}
+            isFetching={false}
           />
 
           {/* Empty State - shown outside table when no data */}
