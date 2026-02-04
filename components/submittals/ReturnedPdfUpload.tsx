@@ -1,173 +1,60 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React from 'react';
 import type {
   Submittal,
   SubmittalRevision,
-  SubmittalStakeholder,
   ReturnedPdf,
-  ChangeAnalysis,
-  ItemChange,
 } from '../../lib/types/submittals';
+import {
+  useReturnedPdfUpload,
+  formatFileSize,
+  MAX_FILE_SIZE_MB_EXPORT as MAX_FILE_SIZE_MB,
+} from './hooks/useReturnedPdfUpload';
 
 interface ReturnedPdfUploadProps {
   submittal: Submittal;
   revision: SubmittalRevision;
   onClose: () => void;
-  onUpload: (returnedPdf: Omit<ReturnedPdf, 'id' | 'uploadedAt' | 'uploadedBy'>) => void;
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-// Simulated AI analysis - would be replaced with actual AI service
-function simulateAIAnalysis(submittal: Submittal): ChangeAnalysis {
-  // Randomly select some items to have changes
-  const itemsWithChanges = submittal.items
-    .filter(() => Math.random() > 0.5)
-    .slice(0, 3);
-
-  const statuses: Array<'approved' | 'approved_as_noted' | 'revise' | 'rejected'> = [
-    'approved_as_noted',
-    'revise',
-    'rejected',
-  ];
-
-  const itemChanges: ItemChange[] = itemsWithChanges.map((item, idx) => ({
-    id: `ic-sim-${Date.now()}-${idx}`,
-    itemId: item.id,
-    fixtureType: item.fixtureType,
-    catalogNumber: item.catalogNumber,
-    manufacturer: item.manufacturer,
-    status: statuses[idx % statuses.length],
-    notes: [
-      idx === 0 ? 'Verify mounting height requirements' :
-      idx === 1 ? 'Change finish color per architect request' :
-      'Check lead time availability',
-    ],
-    pageReferences: [Math.floor(Math.random() * 20) + 1],
-    resolved: false,
-  }));
-
-  const hasRejected = itemChanges.some(c => c.status === 'rejected');
-  const hasRevise = itemChanges.some(c => c.status === 'revise');
-  const overallStatus = hasRejected
-    ? 'rejected'
-    : hasRevise
-    ? 'revise_and_resubmit'
-    : itemChanges.length > 0
-    ? 'approved_as_noted'
-    : 'approved';
-
-  return {
-    id: `ca-sim-${Date.now()}`,
-    analyzedAt: new Date().toISOString(),
-    analyzedBy: 'ai',
-    totalChangesDetected: itemChanges.length,
-    itemChanges,
-    overallStatus,
-    summary: itemChanges.length > 0
-      ? `${itemChanges.length} items require attention. Please review the marked changes.`
-      : 'No changes detected. Document appears to be approved.',
-  };
+  onSuccess?: (returnedPdf: ReturnedPdf) => void;
 }
 
 export default function ReturnedPdfUpload({
   submittal,
   revision,
   onClose,
-  onUpload,
+  onSuccess,
 }: ReturnedPdfUploadProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedStakeholder, setSelectedStakeholder] = useState<SubmittalStakeholder | null>(null);
-  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
-  const [analyzeWithAI, setAnalyzeWithAI] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // All stakeholders who might return a document
-  const stakeholders = [
-    ...submittal.engineers,
-    ...submittal.architects,
-    ...submittal.customers,
-  ];
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-
-    const files = Array.from(e.dataTransfer.files);
-    const pdfFile = files.find(f => f.type === 'application/pdf');
-    if (pdfFile) {
-      setSelectedFile(pdfFile);
-    }
-  }, []);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      setSelectedFile(files[0]);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile || !selectedStakeholder) return;
-
-    setUploading(true);
-
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    let changeAnalysis: ChangeAnalysis | undefined;
-
-    if (analyzeWithAI) {
-      setAnalyzing(true);
-      // Simulate AI analysis delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      changeAnalysis = simulateAIAnalysis(submittal);
-      setAnalyzing(false);
-    }
-
-    // Create mock URL for uploaded file
-    const mockUrl = `/submittals/returned/${selectedFile.name}`;
-
-    onUpload({
-      revisionNumber: revision.revisionNumber,
-      fileName: selectedFile.name,
-      fileUrl: mockUrl,
-      fileSize: selectedFile.size,
-      returnedBy: selectedStakeholder,
-      receivedDate,
-      notes: notes || undefined,
-      changeAnalysis,
-    });
-  };
-
-  const isValid = selectedFile && selectedStakeholder && receivedDate;
+  const {
+    isDragging,
+    selectedFile,
+    selectedStakeholder,
+    setSelectedStakeholder,
+    receivedDate,
+    setReceivedDate,
+    notes,
+    setNotes,
+    analyzeWithAI,
+    setAnalyzeWithAI,
+    uploading,
+    uploadProgress,
+    analyzing,
+    error,
+    fileInputRef,
+    stakeholders,
+    isValid,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleFileSelect,
+    handleUpload,
+    clearFile,
+  } = useReturnedPdfUpload({ submittal, revision, onClose, onSuccess });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
-      {/* Modal */}
       <div className="relative bg-[var(--card)] rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
@@ -182,10 +69,7 @@ export default function ReturnedPdfUpload({
               <p className="text-xs text-[var(--muted-foreground)]">Revision {revision.revisionNumber}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
-          >
+          <button onClick={onClose} className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
             </svg>
@@ -194,6 +78,12 @@ export default function ReturnedPdfUpload({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
           {/* Drop Zone */}
           <div
             onDragOver={handleDragOver}
@@ -231,10 +121,7 @@ export default function ReturnedPdfUpload({
                   <p className="text-xs text-[var(--muted-foreground)]">{formatFileSize(selectedFile.size)}</p>
                 </div>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedFile(null);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); clearFile(); }}
                   className="p-1.5 hover:bg-red-100 rounded-lg transition-colors text-red-600"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -253,7 +140,7 @@ export default function ReturnedPdfUpload({
                   Drag and drop PDF here, or click to browse
                 </p>
                 <p className="text-xs text-[var(--muted-foreground)]">
-                  PDF files only
+                  PDF files only (max {MAX_FILE_SIZE_MB}MB)
                 </p>
               </>
             )}
@@ -320,6 +207,9 @@ export default function ReturnedPdfUpload({
               <div>
                 <span className="text-sm font-medium text-[var(--foreground)]">
                   Analyze PDF for changes (AI-assisted)
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
+                    Coming soon
+                  </span>
                 </span>
                 <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
                   Automatically detect markups, stamps, and comments that need attention
@@ -328,6 +218,23 @@ export default function ReturnedPdfUpload({
             </label>
           </div>
         </div>
+
+        {/* Progress Bar */}
+        {uploading && (
+          <div className="px-6 py-2 bg-[var(--muted)]/20">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-2 bg-[var(--muted)] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[var(--primary)] transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+              <span className="text-xs text-[var(--muted-foreground)] min-w-[3rem] text-right">
+                {uploadProgress}%
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/20">
@@ -348,7 +255,7 @@ export default function ReturnedPdfUpload({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                {analyzing ? 'Analyzing...' : 'Uploading...'}
+                {analyzing ? 'Analyzing...' : `Uploading... ${uploadProgress}%`}
               </>
             ) : (
               <>

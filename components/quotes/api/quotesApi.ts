@@ -123,6 +123,7 @@ export interface QuoteDetail {
   insideSplitRates?: QuoteSplitRate[];
   outsideSplitRates?: QuoteSplitRate[];
   status?: QuoteDetailStatus;
+  fixtureSchedule?: string;
   subtotal?: number;
   total?: number;
   totalLineCommission?: number;
@@ -254,6 +255,7 @@ export interface QuoteDetailInput {
   insideSplitRates?: QuoteSplitRateInput[];
   outsideSplitRates?: QuoteSplitRateInput[];
   status?: QuoteDetailStatus;
+  fixtureSchedule?: string;
 }
 
 export interface CreateQuoteInput {
@@ -461,6 +463,7 @@ const FIND_QUOTE_BY_ID = `
           userId
         }
         status
+        fixtureSchedule
         subtotal
         total
         totalLineCommission
@@ -608,6 +611,7 @@ const CREATE_QUOTE = `
           userId
         }
         status
+        fixtureSchedule
         subtotal
         total
         totalLineCommission
@@ -751,6 +755,7 @@ const UPDATE_QUOTE = `
           userId
         }
         status
+        fixtureSchedule
         subtotal
         total
         totalLineCommission

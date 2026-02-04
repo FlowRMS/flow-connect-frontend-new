@@ -19,6 +19,8 @@ export type SettingKey =
   | 'SIDEBAR_SETTINGS'
   | 'FLOW_AI_SETTINGS'
   | 'PICKLIST_SETTINGS'
+  | 'NOTIFICATION_SETTINGS'
+  | 'SPEC_SHEETS_SETTINGS'
   | 'TAKEOFF_SETTINGS';
 
 // ============================================================================
@@ -165,6 +167,11 @@ export interface PicklistSettingsValue {
   // Future picklists can be added here
 }
 
+// Spec Sheets preferences (manufacturer order, view preferences)
+export interface SpecSheetsSettingsValue {
+  manufacturerOrder?: string[]; // Array of manufacturer IDs in display order
+}
+
 // Rep type for takeoff analysis
 export interface TakeoffRepType {
   id: string;
@@ -189,6 +196,7 @@ export type SettingValue =
   | SidebarSettingsValue
   | FlowAISettingsValue
   | PicklistSettingsValue
+  | SpecSheetsSettingsValue
   | TakeoffSettingsValue;
 
 // ============================================================================

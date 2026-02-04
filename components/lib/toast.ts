@@ -19,6 +19,49 @@ interface ToastOptions {
 }
 
 // ============================================================================
+// Confirmation Toast
+// ============================================================================
+
+interface ConfirmToastOptions {
+  description?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  duration?: number;
+}
+
+/**
+ * Shows a confirmation toast with action buttons.
+ * Returns a promise that resolves to true if confirmed, false if cancelled.
+ */
+export const showConfirmToast = (
+  message: string,
+  options?: ConfirmToastOptions
+): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const toastId = toast(message, {
+      description: options?.description,
+      duration: options?.duration || Infinity,
+      action: {
+        label: options?.confirmLabel || 'OK',
+        onClick: () => {
+          resolve(true);
+        },
+      },
+      cancel: {
+        label: options?.cancelLabel || 'Cancel',
+        onClick: () => {
+          resolve(false);
+        },
+      },
+      onDismiss: () => {
+        resolve(false);
+      },
+    });
+    return toastId;
+  });
+};
+
+// ============================================================================
 // Success Toasts
 // ============================================================================
 
@@ -800,5 +843,118 @@ export const invoiceToasts = {
   statusChanged: (invoiceNumber: string, newStatus: string) =>
     showSuccessToast('Status Updated', {
       description: `${invoiceNumber} status changed to ${newStatus}`,
+    }),
+};
+
+// Submittal Toasts
+export const submittalToasts = {
+  createSuccess: (submittalNumber: string) =>
+    showSuccessToast('Submittal Created', {
+      description: `${submittalNumber} has been created successfully`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Submittal', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  updateSuccess: (submittalNumber: string) =>
+    showSuccessToast('Submittal Updated', {
+      description: `${submittalNumber} has been updated successfully`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update Submittal', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  deleteSuccess: (submittalNumber: string) =>
+    showSuccessToast('Submittal Deleted', {
+      description: `${submittalNumber} has been removed`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Submittal', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  pdfGenerating: () =>
+    showInfoToast('Generating PDF', {
+      description: 'Your submittal PDF is being generated...',
+    }),
+
+  pdfSuccess: () =>
+    showSuccessToast('PDF Generated', {
+      description: 'Your submittal PDF is ready',
+    }),
+
+  pdfError: (error?: string) =>
+    showErrorToast('PDF Generation Failed', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  emailSent: (recipientCount: number) =>
+    showSuccessToast('Email Sent', {
+      description: `Submittal sent to ${recipientCount} recipient${recipientCount !== 1 ? 's' : ''}`,
+    }),
+
+  emailError: (error?: string) =>
+    showErrorToast('Failed to Send Email', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  itemDeleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Item', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  itemUpdateError: (error?: string) =>
+    showErrorToast('Failed to Update Item', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  specSheetRemoveError: (error?: string) =>
+    showErrorToast('Failed to Remove Spec Sheet', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  changeUpdated: () =>
+    showSuccessToast('Change Updated', {
+      description: 'Item change has been saved',
+    }),
+
+  changeUpdateError: (error?: string) =>
+    showErrorToast('Failed to Update Change', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  changeDeleted: () =>
+    showSuccessToast('Change Deleted', {
+      description: 'Item change has been removed',
+    }),
+
+  changeDeleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Change', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  changeResolved: () =>
+    showSuccessToast('Change Resolved', {
+      description: 'Item change has been marked as resolved',
+    }),
+
+  changeResolveError: (error?: string) =>
+    showErrorToast('Failed to Resolve Change', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  statusUpdated: (status: string) =>
+    showSuccessToast('Status Updated', {
+      description: `Submittal marked as ${status}`,
+    }),
+
+  statusUpdateError: (error?: string) =>
+    showErrorToast('Failed to Update Status', {
+      description: error || 'Please try again or contact support',
     }),
 };

@@ -12,6 +12,7 @@ import {
   createFactory,
   updateFactory,
   deleteFactory,
+  updateFactoryOverageSettings,
   fetchFactoryChildren,
   assignChildFactories,
   type Factory,
@@ -19,9 +20,11 @@ import {
   type FactoryLiteResponse,
   type CreateFactoryInput,
   type UpdateFactoryInput,
+  type FactoryOverageSettingsInput,
   type PaginatedFactoriesResult,
   type FactoryLandingPageFilter,
   type FactoryLandingPageOrderBy,
+  type OverageType,
 } from './factoriesApi';
 
 import { bulkDelete, type BulkDeleteResult } from '@/components/lib/graphql/bulk-operations';
@@ -212,6 +215,21 @@ export function useBulkDeleteFactories() {
 }
 
 /**
+ * Update factory overage settings
+ */
+export function useUpdateFactoryOverageSettings() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Factory, Error, { id: string; input: FactoryOverageSettingsInput }>({
+    mutationFn: ({ id, input }) => updateFactoryOverageSettings(id, input),
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: factoriesQueryKeys.list() });
+      queryClient.invalidateQueries({ queryKey: factoriesQueryKeys.detail(variables.id) });
+    },
+  });
+}
+
+/**
  * Fetch child factories for a given parent factory
  */
 export function useFactoryChildren(parentId: string | undefined) {
@@ -245,6 +263,8 @@ export type {
   FactoryLiteResponse,
   CreateFactoryInput,
   UpdateFactoryInput,
+  FactoryOverageSettingsInput,
   FactoryLandingPageFilter,
   FactoryLandingPageOrderBy,
+  OverageType,
 };

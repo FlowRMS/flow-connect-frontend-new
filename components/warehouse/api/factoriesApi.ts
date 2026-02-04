@@ -38,6 +38,8 @@ export interface FactorySplitRateInput {
   position: number;
 }
 
+export type OverageType = 'BY_LINE' | 'BY_TOTAL';
+
 export interface FactoryParent {
   id: string;
   title: string;
@@ -63,6 +65,9 @@ export interface Factory {
   splitRates?: FactorySplitRate[];
   createdBy?: User;
   createdAt?: string;
+  overageAllowed?: boolean;
+  overageType?: OverageType;
+  repOverageShare?: string;
   isParent: boolean;
   parentId?: string;
   parent?: FactoryParent;
@@ -134,6 +139,12 @@ export interface UpdateFactoryInput {
   splitRates?: FactorySplitRateInput[];
   isParent?: boolean;
   parentId?: string;
+}
+
+export interface FactoryOverageSettingsInput {
+  overageAllowed: boolean;
+  overageType: OverageType;
+  repOverageShare: string;
 }
 
 export interface FactoryLandingPageFilter {
@@ -253,6 +264,9 @@ const FIND_FACTORY_BY_ID = `
         }
       }
       title
+      overageAllowed
+      overageType
+      repOverageShare
       isParent
       parentId
       parent {
@@ -383,6 +397,18 @@ const DELETE_FACTORY = `
   }
 `;
 
+const UPDATE_FACTORY_OVERAGE_SETTINGS = `
+  mutation UpdateFactoryOverageSettings($id: UUID!, $input: FactoryOverageSettingsInput!) {
+    updateFactoryOverageSettings(id: $id, input: $input) {
+      id
+      title
+      overageAllowed
+      overageType
+      repOverageShare
+    }
+  }
+`;
+
 const FACTORY_CHILDREN = `
   query FactoryChildren($parentId: UUID!) {
     factoryChildren(parentId: $parentId) {
@@ -445,7 +471,7 @@ export async function fetchFactoriesWithPagination(
  * Fetch all factories (no pagination)
  */
 export async function fetchFactories(): Promise<FactoryLandingPage[]> {
-  const result = await fetchFactoriesWithPagination();
+  const result = await fetchFactoriesWithPagination(undefined, undefined, { limit: 500, offset: 0 });
   return result.records;
 }
 
@@ -548,6 +574,29 @@ export async function fetchAllFactoryIds(
   }
 
   return allIds;
+}
+
+/**
+ * Update factory overage settings
+ */
+export async function updateFactoryOverageSettings(
+  id: string,
+  input: FactoryOverageSettingsInput
+): Promise<Factory> {
+  const response = await crmGraphQLRequest<{ updateFactoryOverageSettings: Factory }>({
+    query: UPDATE_FACTORY_OVERAGE_SETTINGS,
+    variables: { id, input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update factory overage settings');
+  }
+
+  if (!response.data?.updateFactoryOverageSettings) {
+    throw new Error('No factory returned from update overage settings mutation');
+  }
+
+  return response.data.updateFactoryOverageSettings;
 }
 
 /**
