@@ -172,6 +172,9 @@ export default function CompaniesContent() {
     setIsEditing,
     editFormData,
     setEditFormData,
+    handleEditFormChange,
+    hasLocalEdits,
+    setHasLocalEdits,
     deleteConfirmId,
     setDeleteConfirmId,
     activeFilters,
@@ -284,8 +287,9 @@ export default function CompaniesContent() {
     if (!selectedCompany) {
       setIsEditing(false);
       setEditFormData({});
+      setHasLocalEdits(false);
     }
-  }, [selectedCompany, setIsEditing, setEditFormData]);
+  }, [selectedCompany, setIsEditing, setEditFormData, setHasLocalEdits]);
 
   // Handle back navigation
   const handleBack = () => {
@@ -299,6 +303,7 @@ export default function CompaniesContent() {
     isIntentionalClearRef.current = true;
     setSelectedCompany(null);
     setIsEditing(false);
+    setHasLocalEdits(false);
     router.replace('/companies', { scroll: false });
   };
 
@@ -473,6 +478,7 @@ export default function CompaniesContent() {
       });
 
       // Stay in editing mode after save
+      setHasLocalEdits(false);
       refetch();
       return true;
     } catch (err) {
@@ -487,14 +493,15 @@ export default function CompaniesContent() {
     entityType: 'Company',
     entityId: selectedCompany?.id || null,
     entityName: selectedCompany?.name || null,
-    hasChanges: isEditing && Object.keys(editFormData).length > 0,
+    hasChanges: hasLocalEdits,
     onSave: handleSaveEdit,
   });
 
-  // Handle field change in edit form
-  const handleFieldChange = (field: string, value: unknown) => {
-    setEditFormData(prev => ({ ...prev, [field]: value }));
-  };
+  // Wrapper for onFieldChange to convert (field, value) to handleEditFormChange format
+  const handleFieldChange = useCallback((field: string, value: unknown) => {
+    handleEditFormChange({ [field]: value });
+  }, [handleEditFormChange]);
+
 
   // Show loading state while fetching company details from URL navigation
   if (companyIdFromUrl && companyDetailLoading && !selectedCompany) {
@@ -570,6 +577,7 @@ export default function CompaniesContent() {
         deleteConfirmId={deleteConfirmId}
         updatePending={updateCompanyMutation.isPending}
         deletePending={deleteCompanyMutation.isPending}
+        hasLocalEdits={hasLocalEdits}
         onBack={handleBack}
         onStartEdit={handleStartEdit}
         onSaveEdit={handleSaveEdit}
