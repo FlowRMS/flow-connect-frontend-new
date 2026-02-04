@@ -85,8 +85,8 @@ export function getProductFilterOptions(
     },
     { 
       id: 'created-date', 
-      label: 'Created Date', 
-    type: ColumnFilterTypeEnum.date, 
+      label: 'Entry Date', 
+      type: ColumnFilterTypeEnum.date, 
       columnName: 'createdAt', 
       available: true 
     },
@@ -110,6 +110,6 @@ export function getProductSortOptions(): SortOption[] {
     { columnName: 'categoryTitle', label: 'Category' },
     { columnName: 'unitPrice', label: 'Unit Price' },
     { columnName: 'defaultCommissionRate', label: 'Commission Rate' },
-    { columnName: 'createdAt', label: 'Created Date' },
+    { columnName: 'createdAt', label: 'Entry Date' },
   ];
 }

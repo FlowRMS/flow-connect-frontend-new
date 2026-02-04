@@ -35,6 +35,19 @@ export function ProductRow({
     return `${Number(value).toFixed(1)}%`;
   };
 
+  const formatDate = (value?: string) => {
+    if (!value) return '—';
+    try {
+      return new Date(value).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return '—';
+    }
+  };
+
   return (
     <tr
       onClick={() => onProductClick(product)}
@@ -99,6 +112,11 @@ export function ProductRow({
         ) : (
           <span className="text-xs text-[var(--muted-foreground)]">—</span>
         )}
+      </td>
+      <td className="px-4 py-3 text-center">
+        <span className="text-xs text-[var(--muted-foreground)]">
+          {formatDate(product.createdAt)}
+        </span>
       </td>
       <td className="px-4 py-3 text-center">
         <button
