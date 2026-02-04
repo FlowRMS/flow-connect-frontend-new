@@ -71,8 +71,13 @@ export function AdjustmentRow({
           </div>
         </div>
       </td>
+      {/* Adjustment Date (entityDate) */}
       <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
         {formatDate(adjustment.entityDate)}
+      </td>
+      {/* Entry Date (createdAt) */}
+      <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+        {adjustment.createdAt ? formatDate(adjustment.createdAt) : '-'}
       </td>
       <td className="px-4 py-3 text-[var(--muted-foreground)] max-w-[250px] truncate" title={adjustment.reason || ''}>
         {adjustment.reason || '-'}

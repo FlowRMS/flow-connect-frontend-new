@@ -43,6 +43,7 @@ export function AdjustmentsTableHeader({
     amount: 'amount',
     status: 'status',
     locked: 'locked',
+    createdDate: 'created-date',
   };
   
   // Handle column filter change
@@ -120,6 +121,17 @@ export function AdjustmentsTableHeader({
             <span className="whitespace-nowrap">Date</span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('entityDate')}
+            </div>
+          </div>
+        </th>
+        <th
+          className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs"
+          style={{ minWidth: '130px' }}
+        >
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap">Entry Date</span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('createdDate')}
             </div>
           </div>
         </th>

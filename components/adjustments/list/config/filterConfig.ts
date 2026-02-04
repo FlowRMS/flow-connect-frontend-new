@@ -24,7 +24,7 @@ export function getAdjustmentSortOptions() {
     { columnName: 'status', label: 'Status' },
     { columnName: 'entityDate', label: 'Adjustment Date' },
     { columnName: 'amount', label: 'Amount' },
-    { columnName: 'createdAt', label: 'Created Date' },
+    { columnName: 'createdAt', label: 'Entry Date' },
     { columnName: 'reason', label: 'Reason' },
   ];
 }
@@ -67,7 +67,7 @@ export function getAdjustmentFilterOptions(): FilterOption[] {
     },
     { 
       id: 'created-date', 
-      label: 'Created Date', 
+      label: 'Entry Date', 
       type: ColumnFilterTypeEnum.date, 
       columnName: 'createdAt', 
       available: true 
