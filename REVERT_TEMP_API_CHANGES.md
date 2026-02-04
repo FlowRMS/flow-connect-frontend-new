@@ -540,6 +540,50 @@ All pointing to: `https://flow-py-backend-staging-2.onrender.com/graphql`
 
 ---
 
+## Step 12: Revert useEntityMatching Hook User Search
+
+**File:** `components/flow-ai/hooks/useEntityMatching.ts`
+
+### 12a. Remove crmApolloClient import
+
+**Find (around line 13-17):**
+```typescript
+// TEMPORARY: Import both Flow AI and CRM clients
+// flowrmsApolloClient for Flow AI queries/mutations
+// crmApolloClient for CRM queries (userSearch needs CRM backend)
+// TO REVERT: Remove crmApolloClient import and change crmApolloClient.query back to flowrmsApolloClient.query for Q_USER_SEARCH
+import { flowrmsApolloClient, crmApolloClient } from '@/lib/flow-ai/flowrms-apollo';
+```
+
+**Replace with:**
+```typescript
+import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
+```
+
+### 12b. Revert handleSearchUsers function
+
+**Find (around line 1270-1295):**
+```typescript
+  // Search for users (inside or outside reps)
+  // TEMPORARY: Using crmApolloClient for userSearch (CRM query needs CRM backend)
+  // TO REVERT: Change crmApolloClient.query back to flowrmsApolloClient.query
+  const handleSearchUsers = useCallback(
+    async (searchTerm: string, type: 'inside' | 'outside', limit = 10): Promise<UserResult[]> => {
+      try {
+        const result = await crmApolloClient.query<UserSearchResponse>({
+```
+
+**Replace with:**
+```typescript
+  // Search for users (inside or outside reps)
+  const handleSearchUsers = useCallback(
+    async (searchTerm: string, type: 'inside' | 'outside', limit = 10): Promise<UserResult[]> => {
+      try {
+        const result = await flowrmsApolloClient.query<UserSearchResponse>({
+```
+
+---
+
 ## Files Modified Summary
 
 | File | Changes Made |
@@ -553,3 +597,4 @@ All pointing to: `https://flow-py-backend-staging-2.onrender.com/graphql`
 | `app/(dashboard)/flow-ai/queue/page.tsx` | Import `crmApolloClient`, use for `findLandingPages` and `sendPendingDocumentStatusEmail` |
 | `app/(dashboard)/flow-ai/entity-matching/page.tsx` | Import `crmApolloClient`, use for `executeDocumentWorkflow` |
 | `app/(dashboard)/analytics/pages/product-dashboard/index.js` | Import `crmClient`, use it for `FACTORY_SEARCH` |
+| `components/flow-ai/hooks/useEntityMatching.ts` | Import `crmApolloClient`, use it for `Q_USER_SEARCH` |

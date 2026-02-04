@@ -258,7 +258,7 @@ export default function ContactInfoForm({
                 onChange={(value) => onFieldChange('role', value)}
               />
             ) : (
-              <div className={`${readOnlyClass} flex items-center`}>
+              <div className="pt-1">
                 {contact.role ? (
                   <PicklistValue
                     picklistKey={PicklistKey.CONTACT_ROLES}
@@ -267,7 +267,7 @@ export default function ContactInfoForm({
                     showColor={true}
                   />
                 ) : (
-                  <span className="text-gray-400">-</span>
+                  <span className="text-sm text-gray-400">-</span>
                 )}
               </div>
             )}
