@@ -140,14 +140,52 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
           // Ignore parse errors
         }
 
+        // Determine End User display mode based on unique end users across line items
+        // - 0 or 1 unique end user: show at header level only, remove column from table
+        // - 2+ unique end users: show per-line-item column, remove header-level field
+        const isQuoteOrOrder = entityType === 'QUOTES' || entityType === 'ORDERS';
+        const uniqueEndUsers = new Set<string>();
+        if (isQuoteOrOrder) {
+          lineItems.forEach(item => {
+            if (item.endUser) uniqueEndUsers.add(item.endUser);
+          });
+        }
+        const hasMultipleEndUsers = uniqueEndUsers.size > 1;
+
+        if (isQuoteOrOrder) {
+          if (hasMultipleEndUsers) {
+            // Multiple different end users: remove header-level field, keep per-line-item column
+            fields = fields.filter((f) => f.id !== 'endUser');
+          } else {
+            // 0 or 1 end user: keep header-level field, no per-line-item column needed
+            // (endUser column will be filtered out of columns below)
+          }
+        }
+
+        // Determine column visibility from saved config
+        const getColumnVisibility = (colId: string, defaultVisible: boolean): boolean => {
+          if (savedColumnVisibility && savedColumnVisibility[colId] !== undefined) {
+            return savedColumnVisibility[colId];
+          }
+          // Auto-show endUser column when multiple end users exist
+          if (colId === 'endUser' && hasMultipleEndUsers) {
+            return true;
+          }
+          return defaultVisible;
+        };
+
         setState((prev) => ({
           ...prev,
           entityData: data,
           fields,
           lineItems,
-          columns: savedColumnVisibility
-            ? prev.columns.map((c) => ({ ...c, visible: savedColumnVisibility![c.id] ?? c.visible }))
-            : prev.columns,
+          columns: (isQuoteOrOrder && !hasMultipleEndUsers
+            ? prev.columns.filter((c) => c.id !== 'endUser')
+            : prev.columns
+          ).map((c) => ({
+            ...c,
+            visible: getColumnVisibility(c.id, c.visible),
+          })),
           ...(savedHeaderNote !== undefined && { headerNote: savedHeaderNote }),
           ...(savedFooterNote !== undefined && { footerNote: savedFooterNote }),
           ...(savedShowLogo !== undefined && { showLogo: savedShowLogo }),
@@ -580,6 +618,8 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
               return formatCurrency(editedValues.unitPrice ?? item.unitPrice);
             case 'uom':
               return editedValues.uom ?? item.uom ?? 'EA';
+            case 'endUser':
+              return item.endUser || '-';
             case 'total': {
               const qty = editedValues.quantity ?? item.quantity;
               const price = editedValues.unitPrice ?? item.unitPrice;

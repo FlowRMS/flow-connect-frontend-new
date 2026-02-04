@@ -206,6 +206,7 @@ export function QuoteDetailHeaderV2({
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
   const [showCreateSubmittalModal, setShowCreateSubmittalModal] = useState(false);
   const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
+  const [unsavedChangesAction, setUnsavedChangesAction] = useState<'createOrder' | 'pdfBuilder'>('createOrder');
   const [showQuoteDetails, setShowQuoteDetails] = useState(true);
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
   const [showOverageSettingsModal, setShowOverageSettingsModal] = useState(false);
@@ -898,6 +899,7 @@ export function QuoteDetailHeaderV2({
                       setShowActionsMenu(false);
                       // Check for unsaved changes before opening the modal
                       if (hasChanges) {
+                        setUnsavedChangesAction('createOrder');
                         setShowUnsavedChangesModal(true);
                       } else {
                         setShowCreateOrderModal(true);
@@ -1178,7 +1180,12 @@ export function QuoteDetailHeaderV2({
           <button
             onClick={() => {
               setShowDownloadMenu(false);
-              setShowPDFBuilder(true);
+              if (hasChanges) {
+                setUnsavedChangesAction('pdfBuilder');
+                setShowUnsavedChangesModal(true);
+              } else {
+                setShowPDFBuilder(true);
+              }
             }}
             disabled={isNew || !quote.id}
             className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-lg transition-colors ${
@@ -2137,7 +2144,11 @@ export function QuoteDetailHeaderV2({
       <UnsavedChangesModal
         isOpen={showUnsavedChangesModal}
         title="Unsaved Changes"
-        message="You have unsaved changes to this quote. Please save before creating an order."
+        message={
+          unsavedChangesAction === 'pdfBuilder'
+            ? 'You have unsaved changes to this quote. Please save before opening the PDF builder.'
+            : 'You have unsaved changes to this quote. Please save before creating an order.'
+        }
         actionLabel="Save Quote"
         isSaving={isSaving}
         onClose={() => setShowUnsavedChangesModal(false)}
@@ -2146,8 +2157,12 @@ export function QuoteDetailHeaderV2({
             const success = await onSave();
             if (success) {
               setShowUnsavedChangesModal(false);
-              // After saving successfully, open the create order modal
-              setShowCreateOrderModal(true);
+              // After saving successfully, open the appropriate modal
+              if (unsavedChangesAction === 'pdfBuilder') {
+                setShowPDFBuilder(true);
+              } else {
+                setShowCreateOrderModal(true);
+              }
             }
             // If save failed, keep the modal open so user can cancel or try again after fixing issues
           }
