@@ -2,17 +2,19 @@
  * Customer List View Component
  * Displays customers in a table format
  * - Uses shared ColumnFilter component for column-level filters
- * - Sorting is handled globally via SortButton (no per-column sort here)
+ * - Supports sorting via column headers + SortButton
  */
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { type CustomerLandingPage } from '../../api/useCustomersApi';
 import { CustomersTableSkeleton } from './components/CustomersTableSkeleton';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
 import type { ActiveFilter, FilterOption } from '@/components/advancedFilters/types';
 import { RepsDisplay } from '@/components/shared/RepsDisplay';
+import { SortIndicator } from '@/components/shared/sorting/components/SortIndicator';
+import type { ActiveSort } from '@/components/shared/sorting/types';
 
 interface ListViewProps {
   customers: CustomerLandingPage[];
@@ -33,6 +35,10 @@ interface ListViewProps {
   filterOptions: FilterOption[];
   loadMoreRef?: (node: HTMLDivElement | null) => void;
   isFetchingNextPage?: boolean;
+  // Sorting
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
+  isFetching?: boolean;
 }
 
 export function ListView({
@@ -51,8 +57,23 @@ export function ListView({
   filterOptions,
   loadMoreRef,
   isFetchingNextPage = false,
+  activeSort,
+  onSortChange,
+  isFetching = false,
 }: ListViewProps) {
   const [openFilter, setOpenFilter] = useState<string | null>(null);
+
+  // Helper to get active sort for a specific column
+  const getActiveSortForColumn = useCallback(
+    (columnName: string): ActiveSort | null => {
+      if (!activeSort || activeSort.columnName !== columnName) return null;
+      return {
+        columnId: columnName,
+        direction: activeSort.direction,
+      };
+    },
+    [activeSort]
+  );
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
@@ -155,12 +176,25 @@ export function ListView({
               </th>
               <th className="px-4 md:px-6 py-2.5 md:py-3 text-left align-top">
                 <div className="flex items-center gap-1 whitespace-nowrap">
-                  <span className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                  <span
+                    className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider cursor-pointer hover:text-[var(--foreground)]"
+                    onClick={() => onSortChange?.('companyName')}
+                  >
                     Company Name
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('companyName')}
                   </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator
+                        columnId="companyName"
+                        activeSort={getActiveSortForColumn('companyName')}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
@@ -195,22 +229,48 @@ export function ListView({
               </th>
               <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
                 <div className="flex items-center gap-1 whitespace-nowrap">
-                  <span className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                  <span
+                    className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider cursor-pointer hover:text-[var(--foreground)]"
+                    onClick={() => onSortChange?.('published')}
+                  >
                     Status
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('published')}
                   </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator
+                        columnId="published"
+                        activeSort={getActiveSortForColumn('published')}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               <th className="px-2 md:px-3 py-2.5 md:py-3 text-left align-top">
                 <div className="flex items-center gap-1 whitespace-nowrap">
-                  <span className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                    Created
+                  <span
+                    className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider cursor-pointer hover:text-[var(--foreground)]"
+                    onClick={() => onSortChange?.('createdAt')}
+                  >
+                    Entry Date
                   </span>
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {renderColumnFilter('createdAt')}
                   </div>
+                  {onSortChange && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator
+                        columnId="createdAt"
+                        activeSort={getActiveSortForColumn('createdAt')}
+                        onSort={onSortChange}
+                        isFetching={isFetching}
+                      />
+                    </div>
+                  )}
                 </div>
               </th>
               <th className="px-2 md:px-3 py-2.5 md:py-3 text-right align-top">
