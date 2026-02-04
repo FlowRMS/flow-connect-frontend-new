@@ -10,18 +10,27 @@ import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilt
 import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { ColumnFilterTypeEnum } from '@/components/advancedFilters/types';
 import { getAdjustmentFilterOptions } from '../../config/filterConfig';
+import { SortIndicator } from '@/components/shared/sorting/components/SortIndicator';
+import type { ActiveSort } from '@/components/shared/sorting/types';
 
 interface AdjustmentsTableHeaderProps {
   // Column filters
   onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
   filterOptions?: ReturnType<typeof getAdjustmentFilterOptions>;
   columnFilters?: Record<string, ActiveFilter[]>;
+  // Sorting (header UI)
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
+  isFetching?: boolean;
 }
 
 export function AdjustmentsTableHeader({
   onColumnFiltersChange,
   filterOptions = getAdjustmentFilterOptions(),
   columnFilters: parentColumnFilters,
+  activeSort,
+  onSortChange,
+  isFetching = false,
 }: AdjustmentsTableHeaderProps) {
   const [openFilter, setOpenFilter] = useState<string | null>(null);
   
@@ -45,6 +54,18 @@ export function AdjustmentsTableHeader({
     locked: 'locked',
     createdDate: 'created-date',
   };
+  
+  // Helper to get active sort for a specific column
+  const getActiveSortForColumn = useCallback(
+    (columnName: string): ActiveSort | null => {
+      if (!activeSort || activeSort.columnName !== columnName) return null;
+      return {
+        columnId: columnName,
+        direction: activeSort.direction,
+      };
+    },
+    [activeSort]
+  );
   
   // Handle column filter change
   const handleColumnFilterChange = useCallback((columnKey: string, filters: ActiveFilter[]) => {
@@ -107,10 +128,25 @@ export function AdjustmentsTableHeader({
           style={{ minWidth: '180px' }}
         >
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Adjustment #</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-[var(--foreground)]"
+              onClick={() => onSortChange?.('adjustmentNumber')}
+            >
+              Adjustment #
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('adjustmentNumber')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="adjustmentNumber"
+                  activeSort={getActiveSortForColumn('adjustmentNumber')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
         <th
@@ -118,10 +154,25 @@ export function AdjustmentsTableHeader({
           style={{ minWidth: '130px' }}
         >
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Date</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-[var(--foreground)]"
+              onClick={() => onSortChange?.('entityDate')}
+            >
+              Date
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('entityDate')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="entityDate"
+                  activeSort={getActiveSortForColumn('entityDate')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
         <th
@@ -129,17 +180,49 @@ export function AdjustmentsTableHeader({
           style={{ minWidth: '130px' }}
         >
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Entry Date</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-[var(--foreground)]"
+              onClick={() => onSortChange?.('createdAt')}
+            >
+              Entry Date
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('createdDate')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="createdAt"
+                  activeSort={getActiveSortForColumn('createdAt')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
         <th 
           className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs"
           style={{ minWidth: '250px' }}
         >
-          Reason
+          <div className="flex items-center gap-1.5">
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-[var(--muted-foreground)]"
+              onClick={() => onSortChange?.('reason')}
+            >
+              Reason
+            </span>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="reason"
+                  activeSort={getActiveSortForColumn('reason')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
+          </div>
         </th>
         <th
           className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs"

@@ -167,6 +167,20 @@ export default function AdjustmentsListContent() {
   // Adjustments are now sorted server-side, no client-side sorting needed
   const filteredAdjustments = adjustments;
 
+  // Header column sort: single-column sort toggling via serverOrderBy
+  const handleColumnSort = useCallback(
+    (columnName: string) => {
+      const current = activeSorts.find((s) => s.columnName === columnName);
+      if (current) {
+        const newDirection = current.direction === 'ASC' ? 'DESC' : 'ASC';
+        handleMultiSortChange([{ columnName, direction: newDirection }]);
+      } else {
+        handleMultiSortChange([{ columnName, direction: 'ASC' }]);
+      }
+    },
+    [activeSorts, handleMultiSortChange]
+  );
+
   // Calculate totals
   const totals = useMemo(() => ({
     adjustmentAmount: filteredAdjustments.reduce((sum, a) => sum + parseFloat(a.amount || '0'), 0),
@@ -394,20 +408,22 @@ export default function AdjustmentsListContent() {
 
         {/* Table */}
         {(!isLoadingAdjustments && !adjustmentsError && filteredAdjustments.length > 0) || isLoadingAdjustments ? (
-                <AdjustmentsTable
-                  adjustments={filteredAdjustments}
-                  isLoading={isLoadingAdjustments}
-                  onView={handleViewAdjustment}
-                  onEdit={openEditAdjustmentModal}
-                  onDelete={handleDeleteAdjustment}
-                  hasNextPage={hasNextPage}
-                  isFetchingNextPage={isFetchingNextPage}
-                  fetchNextPage={fetchNextPage}
-                  searchQuery={searchQuery}
-                  totalAmount={totals.adjustmentAmount}
-                  onColumnFiltersChange={handleColumnFiltersChange}
-                  columnFilters={columnFilters}
-                />
+          <AdjustmentsTable
+            adjustments={filteredAdjustments}
+            isLoading={isLoadingAdjustments}
+            onView={handleViewAdjustment}
+            onEdit={openEditAdjustmentModal}
+            onDelete={handleDeleteAdjustment}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            fetchNextPage={fetchNextPage}
+            searchQuery={searchQuery}
+            totalAmount={totals.adjustmentAmount}
+            onColumnFiltersChange={handleColumnFiltersChange}
+            columnFilters={columnFilters}
+            activeSort={activeSort}
+            onSortChange={handleColumnSort}
+          />
         ) : null}
 
         {/* End of list indicator */}
