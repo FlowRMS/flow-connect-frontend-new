@@ -25,6 +25,8 @@ import {
 } from '@/components/hooks/useAddressApi';
 import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
 import { useUnsavedChangesContext } from '@/contexts/UnsavedChangesContext';
+import { useCRMFactorySearch } from '@/components/hooks/useCRMApi';
+import type { FactorySearchResult } from '@/components/lib/api/search';
 
 type TabId = 'overview' | 'addresses' | 'aliases' | 'split-rates' | 'connected-entities' | 'customer-xref' | 'shipto-xref' | 'freight';
 
@@ -42,6 +44,15 @@ export default function ManufacturerEditPage() {
   const [formData, setFormData] = useState<Partial<Factory>>({});
   const [splitRateEntries, setSplitRateEntries] = useState<FactorySplitRateEntry[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Parent/Child hierarchy state
+  const [isParent, setIsParent] = useState(false);
+  const [parentId, setParentId] = useState<string | null>(null);
+  const [parentName, setParentName] = useState('');
+  const [parentSearch, setParentSearch] = useState('');
+  const [showParentDropdown, setShowParentDropdown] = useState(false);
+  const [parentSearchEnabled, setParentSearchEnabled] = useState(false);
+  const parentRef = useRef<HTMLDivElement>(null);
 
   // Section refs for scroll-to functionality
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
@@ -76,6 +87,19 @@ export default function ManufacturerEditPage() {
   const hasAnyReps = splitRateEntries.length > 0;
   const isValidSplitRate = !hasAnyReps || Math.abs(splitRateTotal - 100) < 0.1;
 
+  // Parent manufacturer search hook
+  const { data: parentSearchResults = [], isLoading: isSearchingParent } = useCRMFactorySearch(
+    parentSearch,
+    true, // published only
+    parentSearchEnabled
+  );
+
+  // Filter to show only parent manufacturers, exclude current factory
+  const filteredParentResults = useMemo(() =>
+    parentSearchResults.filter((f: FactorySearchResult) => f.isParent === true && f.id !== factoryId),
+    [parentSearchResults, factoryId]
+  );
+
   // Initialize form data when factory loads
   useEffect(() => {
     if (factory) {
@@ -103,9 +127,27 @@ export default function ManufacturerEditPage() {
       } else {
         setSplitRateEntries([]);
       }
+
+      // Initialize parent-child state
+      setIsParent(factory.isParent || false);
+      setParentId(factory.parentId || null);
+      setParentName(factory.parent?.title || '');
+
       setHasChanges(false);
     }
   }, [factory]);
+
+  // Close parent dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (parentRef.current && !parentRef.current.contains(event.target as Node)) {
+        setShowParentDropdown(false);
+        setParentSearchEnabled(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Scroll spy effect
   useEffect(() => {
@@ -174,6 +216,31 @@ export default function ManufacturerEditPage() {
     setHasChanges(true);
   };
 
+  // Parent search handler
+  const handleParentSearch = useCallback((term: string) => {
+    setParentSearch(term);
+    setParentSearchEnabled(true);
+  }, []);
+
+  // Handle parent manufacturer selection
+  const handleSelectParent = (selectedFactory: FactorySearchResult) => {
+    setParentId(selectedFactory.id);
+    setParentName(selectedFactory.title);
+    setShowParentDropdown(false);
+    setParentSearch('');
+    setParentSearchEnabled(false);
+    setHasChanges(true);
+  };
+
+  // Handle clear parent manufacturer
+  const handleClearParent = () => {
+    setParentId(null);
+    setParentName('');
+    setParentSearch('');
+    setParentSearchEnabled(false);
+    setHasChanges(true);
+  };
+
   const handleSave = async (): Promise<boolean> => {
     if (!formData.title?.trim()) {
       toast.error('Manufacturer name is required');
@@ -205,6 +272,8 @@ export default function ManufacturerEditPage() {
           additionalInformation: formData.additionalInformation || undefined,
           published: formData.published,
           splitRates: splitRatesInput,
+          isParent,
+          parentId: parentId || undefined,
         },
       });
       toast.success('Manufacturer updated successfully');
@@ -443,32 +512,71 @@ export default function ManufacturerEditPage() {
         <div ref={el => { sectionRefs.current['overview'] = el; }} id="section-overview">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Overview</h2>
 
-          {/* Status Toggle */}
+          {/* Status Toggles */}
           <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-            <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">Published</span>
-                <div className="relative group">
-                  <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
-                    Published manufacturers are visible and searchable in the system.
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Published Toggle */}
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Published</span>
+                  <div className="relative group">
+                    <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+                      Published manufacturers are visible and searchable in the system.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => handleFieldChange('published', !formData.published)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.published ? 'bg-green-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    formData.published ? 'translate-x-6' : 'translate-x-1'
+                  }`}/>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => handleFieldChange('published', !formData.published)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  formData.published ? 'bg-green-600' : 'bg-gray-300'
-                }`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  formData.published ? 'translate-x-6' : 'translate-x-1'
-                }`}/>
-              </button>
+
+              {/* Parent Manufacturer Toggle */}
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Parent Manufacturer</span>
+                  <div className="relative group">
+                    <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+                      Mark as a parent manufacturer that can have child manufacturer accounts.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newIsParent = !isParent;
+                    setIsParent(newIsParent);
+                    if (newIsParent) {
+                      // When becoming a parent, clear any parent assignment
+                      setParentId(null);
+                      setParentName('');
+                    }
+                    setHasChanges(true);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    isParent ? 'bg-purple-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isParent ? 'translate-x-6' : 'translate-x-1'
+                  }`}/>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -504,6 +612,95 @@ export default function ManufacturerEditPage() {
                   placeholder="e.g., ACC-001"
                 />
               </div>
+
+              {/* Parent Manufacturer Selector - only show for non-parent manufacturers */}
+              {!isParent && (
+                <div ref={parentRef} className="col-span-2 relative">
+                  <label className={labelClass}>
+                    Parent Manufacturer
+                    {parentId && (
+                      <span className="ml-2 text-green-600 font-normal text-xs">
+                        Selected: {parentName || parentId.slice(0, 8) + '...'}
+                      </span>
+                    )}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={parentId ? (parentName || parentId.slice(0, 8) + '...') : parentSearch}
+                      onChange={(e) => {
+                        if (!parentId) {
+                          handleParentSearch(e.target.value);
+                          setShowParentDropdown(true);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (!parentId) {
+                          handleParentSearch('');
+                          setShowParentDropdown(true);
+                        }
+                      }}
+                      placeholder="Search for a parent manufacturer..."
+                      readOnly={!!parentId}
+                      className={`flex-1 ${inputClass} ${parentId ? 'bg-green-50 border-green-300' : ''}`}
+                    />
+                    {isSearchingParent && !parentId && (
+                      <div className="flex items-center px-3">
+                        <svg className="w-5 h-5 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                      </div>
+                    )}
+                    {parentId && (
+                      <button
+                        type="button"
+                        onClick={handleClearParent}
+                        className="px-3 py-2 text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Assign this manufacturer as a child of a parent manufacturer.
+                  </p>
+
+                  {/* Dropdown Results */}
+                  {showParentDropdown && !parentId && (
+                    <>
+                      {isSearchingParent ? (
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                          Searching...
+                        </div>
+                      ) : filteredParentResults.length > 0 ? (
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {filteredParentResults.map((f: FactorySearchResult) => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => handleSelectParent(f)}
+                              className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="font-medium text-gray-900">{f.title}</div>
+                              <div className="text-xs text-gray-500">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                                  Parent Manufacturer
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : parentSearchEnabled ? (
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                          No parent manufacturers found
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className={labelClass}>Email</label>
                 <input

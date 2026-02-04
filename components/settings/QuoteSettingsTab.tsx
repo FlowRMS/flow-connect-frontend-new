@@ -5,9 +5,15 @@ import { SettingsToggle } from './SettingsToggle';
 import { SettingsScopeToggle } from './SettingsScopeToggle';
 import { ColumnConfigEditor } from './ColumnConfigEditor';
 import { useQuoteSettings, type SettingScope } from '@/contexts/UserSettingsContext';
-import type { QuoteSettingsValue } from '@/components/lib/graphql/settings';
+import type { QuoteSettingsValue, PriceLevelConfig } from '@/components/lib/graphql/settings';
 import { defaultColumnConfigV2, defaultQuoteSettingsV2 } from '@/components/quotes-v2/data/mockData';
 import { showSuccessToast, showErrorToast } from '@/components/lib/toast';
+
+const defaultPriceLevels: PriceLevelConfig[] = [
+  { id: 'l1', name: 'L1', percent: 10, description: 'Standard contractor' },
+  { id: 'l2', name: 'L2', percent: 15, description: 'Preferred contractor' },
+  { id: 'l3', name: 'L3', percent: 20, description: 'List price / MSRP' },
+];
 
 export function QuoteSettingsTab() {
   const { settings, mySettings, tenantSettings, saveSettings, isLoading, isInitialized } = useQuoteSettings();
@@ -254,6 +260,89 @@ export function QuoteSettingsTab() {
           title="Quote Line Item Columns"
           groupBy={true}
         />
+      </div>
+
+      {/* Price Levels */}
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+        <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2">Price Levels</h3>
+        <p className="text-xs text-[var(--muted-foreground)] mb-4">
+          Configure pricing tiers for different customer types (e.g., contractor levels, MSRP)
+        </p>
+        <div className="space-y-3">
+          {(localSettings.priceLevels || defaultPriceLevels).map((level, index) => (
+            <div key={level.id} className="flex items-center gap-3">
+              <input
+                type="text"
+                value={level.name}
+                onChange={(e) => {
+                  const newLevels = [...(localSettings.priceLevels || defaultPriceLevels)];
+                  newLevels[index] = { ...newLevels[index], name: e.target.value };
+                  handleSettingChange('priceLevels', newLevels);
+                }}
+                className="w-16 px-2 py-1.5 text-sm text-center border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                placeholder="Name"
+              />
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={level.percent}
+                  onChange={(e) => {
+                    const newLevels = [...(localSettings.priceLevels || defaultPriceLevels)];
+                    newLevels[index] = { ...newLevels[index], percent: parseFloat(e.target.value) || 0 };
+                    handleSettingChange('priceLevels', newLevels);
+                  }}
+                  className="w-20 px-2 py-1.5 text-sm text-center border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                  placeholder="0"
+                  step="0.1"
+                />
+                <span className="text-sm text-[var(--muted-foreground)]">%</span>
+              </div>
+              <input
+                type="text"
+                value={level.description}
+                onChange={(e) => {
+                  const newLevels = [...(localSettings.priceLevels || defaultPriceLevels)];
+                  newLevels[index] = { ...newLevels[index], description: e.target.value };
+                  handleSettingChange('priceLevels', newLevels);
+                }}
+                placeholder="Description"
+                className="flex-1 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+              />
+              {(localSettings.priceLevels || defaultPriceLevels).length > 1 && (
+                <button
+                  onClick={() => {
+                    const newLevels = (localSettings.priceLevels || defaultPriceLevels).filter((_, i) => i !== index);
+                    handleSettingChange('priceLevels', newLevels);
+                  }}
+                  className="p-1.5 text-[var(--muted-foreground)] hover:text-red-500 rounded hover:bg-[var(--muted)] transition-colors"
+                  title="Remove price level"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={() => {
+            const currentLevels = localSettings.priceLevels || defaultPriceLevels;
+            const newLevel: PriceLevelConfig = {
+              id: `l${currentLevels.length + 1}`,
+              name: `L${currentLevels.length + 1}`,
+              percent: 0,
+              description: '',
+            };
+            handleSettingChange('priceLevels', [...currentLevels, newLevel]);
+          }}
+          className="mt-4 flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10 5v10M5 10h10" strokeLinecap="round" />
+          </svg>
+          Add price level
+        </button>
       </div>
 
       {/* Info Banner */}

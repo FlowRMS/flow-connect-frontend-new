@@ -7,7 +7,7 @@ import type { EntityStep, StepStatus } from '@/components/flow-ai/types/entity-m
 // Document type from pending document entity type
 export type DocumentType = 'ORDERS' | 'QUOTES' | 'INVOICES' | 'CHECKS' | 'ORDER_ACKNOWLEDGEMENTS' | string | null;
 
-// Tabs that require factory to be matched first (only for CHECKS and INVOICES document types)
+// Tabs that require factory to be matched first (for CHECKS, INVOICES, and COMMISSION_STATEMENTS document types)
 const FACTORY_DEPENDENT_TABS: EntityStep[] = ['orders', 'invoices', 'credits', 'adjustments'];
 
 interface EntityStepNavigationProps {
@@ -84,6 +84,13 @@ export function EntityStepNavigation({
       );
     }
 
+    // For COMMISSION_STATEMENTS: Show orders and invoices tabs (hide credits, adjustments)
+    if (normalizedDocType === 'COMMISSION_STATEMENTS') {
+      return allSteps.filter(step =>
+        !['credits', 'adjustments'].includes(step.key)
+      );
+    }
+
     // For other document types (ORDERS, QUOTES, ORDER_ACKNOWLEDGEMENTS, etc.):
     // Hide orders, invoices, credits, adjustments tabs entirely
     return allSteps.filter(step =>
@@ -95,8 +102,8 @@ export function EntityStepNavigation({
   const isTabDisabled = (stepKey: EntityStep): boolean => {
     const normalizedDocType = documentType?.toUpperCase();
 
-    // Only apply factory-dependent logic for CHECKS and INVOICES
-    if (normalizedDocType !== 'CHECKS' && normalizedDocType !== 'INVOICES') {
+    // Only apply factory-dependent logic for CHECKS, INVOICES, and COMMISSION_STATEMENTS
+    if (normalizedDocType !== 'CHECKS' && normalizedDocType !== 'INVOICES' && normalizedDocType !== 'COMMISSION_STATEMENTS') {
       return false;
     }
 
@@ -108,6 +115,11 @@ export function EntityStepNavigation({
     // For INVOICES: only orders tab needs factory match
     if (normalizedDocType === 'INVOICES') {
       return stepKey === 'orders' && !isFactoryMatched;
+    }
+
+    // For COMMISSION_STATEMENTS: orders and invoices tabs need factory match
+    if (normalizedDocType === 'COMMISSION_STATEMENTS') {
+      return ['orders', 'invoices'].includes(stepKey) && !isFactoryMatched;
     }
 
     return false;

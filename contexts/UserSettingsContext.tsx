@@ -14,6 +14,7 @@ import {
   type FlowAISettingsValue,
   type PicklistSettingsValue,
   type PicklistValue,
+  type TakeoffSettingsValue,
   getMySettings,
   getTenantSettings,
   saveMySetting,
@@ -596,6 +597,36 @@ export function usePicklistSettings(picklistKey: string) {
 
   return {
     settings,
+    saveSettings: saveSettingsHandler,
+    isLoading,
+    isInitialized,
+  };
+}
+
+export function useTakeoffSettings() {
+  const { getTenantSettingValue, saveSetting, isLoading, isInitialized, tenantSettings } =
+    useUserSettings();
+
+  const settings = useMemo(() => {
+    const tenantSetting = tenantSettings.get('TAKEOFF_SETTINGS');
+    return tenantSetting ? parseSettingValue<TakeoffSettingsValue>(tenantSetting) : null;
+  }, [tenantSettings]);
+
+  const tenantSettingsValue = useMemo(
+    () => getTenantSettingValue<TakeoffSettingsValue>('TAKEOFF_SETTINGS'),
+    [getTenantSettingValue]
+  );
+
+  const saveSettingsHandler = useCallback(
+    async (value: TakeoffSettingsValue) => {
+      return saveSetting('TAKEOFF_SETTINGS', value, 'tenant');
+    },
+    [saveSetting]
+  );
+
+  return {
+    settings,
+    tenantSettings: tenantSettingsValue,
     saveSettings: saveSettingsHandler,
     isLoading,
     isInitialized,

@@ -2,12 +2,17 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } from '../types';
+import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2, ViewMode } from '../types';
 import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer, listProductPricingTiers } from '../../quotes/api/useQuotesApi';
 import type { ProductPricingTierResult } from '../../quotes/api/quotesApi';
 import { fetchProductById } from '../../products/api/productsApi';
 import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
 import { normalizeDivisor } from '@/components/lib/uom-utils';
+import { FIXTURE_SCHEDULE_OPTIONS } from '../config/viewsConfig';
+import { useOverageCalculationBatch, type OverageCalculationInput, type OverageRecord } from '../api/quotesV2Api';
+
+// Extended overage input with line item ID for mapping results back
+type OverageInputWithLineItemId = OverageCalculationInput & { lineItemId: string };
 
 // Type for rep split rates passed from parent
 interface RepSplitRateInfo {
@@ -40,6 +45,8 @@ interface LineItemsTabV2Props {
   // Current reps for inheriting to new line items
   currentOutsideReps?: RepSplitRateInfo[];
   currentInsideReps?: RepSplitRateInfo[];
+  // View mode for overage calculations
+  viewMode?: ViewMode;
   // Selection state lifted to parent for sharing with header modal
   selectedItems?: Set<string>;
   onSelectedItemsChange?: (items: Set<string>) => void;
@@ -58,6 +65,7 @@ export function LineItemsTabV2({
   headerFactoryName,
   currentOutsideReps,
   currentInsideReps,
+  viewMode = 'simple',
   selectedItems: externalSelectedItems,
   onSelectedItemsChange,
 }: LineItemsTabV2Props) {
@@ -82,6 +90,47 @@ export function LineItemsTabV2({
 
   // Hook for fetching inside reps from factory when manufacturer changes
   const { fetchInsideRepsFromFactory } = useAutoPopulateReps();
+
+  // Prepare overage calculation inputs when in overage view mode
+  const overageInputs = useMemo<OverageInputWithLineItemId[]>(() => {
+    if (viewMode !== 'overage') return [];
+
+    return lineItems
+      .filter(li => li.productId && li.unitPrice > 0)
+      .map(li => ({
+        lineItemId: li.id, // Include line item ID for mapping results back
+        productId: li.productId!,
+        detailUnitPrice: Number(li.unitPrice),
+        factoryId: li.manufacturerId || headerFactoryId || '',
+        endUserId: li.endUserId || soldToCustomerId || '',
+        quantity: Number(li.quantity) || 1,
+      }))
+      .filter(input => input.factoryId && input.endUserId);
+  }, [lineItems, viewMode, headerFactoryId, soldToCustomerId]);
+
+  // Fetch overage calculations in batch
+  const { data: overageResults, error: overageError, isLoading: overageLoading } = useOverageCalculationBatch(
+    overageInputs,
+    viewMode === 'overage' && overageInputs.length > 0
+  );
+
+  // Map overage results to line items by lineItemId for quick lookup
+  const overageByLineItem = useMemo<Record<string, OverageRecord>>(() => {
+    if (!overageResults || overageResults.length === 0) {
+      return {};
+    }
+
+    const map: Record<string, OverageRecord> = {};
+    overageInputs.forEach((input, index) => {
+      if (overageResults[index] && input.lineItemId) {
+        map[input.lineItemId] = overageResults[index];
+      }
+    });
+    return map;
+  }, [overageResults, overageInputs]);
+
+  // Track previous soldToCustomerId to detect changes and update pricing sources
+  const prevSoldToCustomerIdRef = React.useRef<string | undefined>(undefined);
 
   // Fetch pricing options for a product (CPN, tiers, product price) - NEVER changes unit price
   const fetchPricingOptionsForProduct = useCallback(async (productId: string, lineItemId: string, currentUnitPrice: number) => {
@@ -222,12 +271,13 @@ export function LineItemsTabV2({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Determine if we need product, factory, CPN, UOM, or end user search based on open dropdown
+  // Determine if we need product, factory, CPN, UOM, end user, or fixture schedule based on open dropdown
   const isProductDropdown = dropdownOpen && ['partNumber', 'description'].includes(dropdownOpen.column);
   const isFactoryDropdown = dropdownOpen?.column === 'manufacturer';
   const isCpnDropdown = dropdownOpen?.column === 'customerPartNumber';
   const isUomDropdown = dropdownOpen?.column === 'uom';
   const isEndUserDropdown = dropdownOpen?.column === 'endUser' && settings?.specifyEndUserPerLine;
+  const isFixtureScheduleDropdown = dropdownOpen?.column === 'fixtureSchedule';
 
   // Get current line item's productId and manufacturerId for searches
   const currentLineItem = dropdownOpen ? lineItems.find(li => li.id === dropdownOpen.itemId) : null;
@@ -338,6 +388,14 @@ export function LineItemsTabV2({
       commission: 120,
       commissionTotal: 140,
       linkedOrder: 120,
+      // Overage columns
+      percentOver: 100,
+      commissionAmount: 120,
+      ovgPercent: 100,
+      ovgAmount: 120,
+      earnPercent: 100,
+      earnAmount: 120,
+      fixtureSchedule: 150,
     };
 
     let leftOffset = 0; //fixedLeftOffset;
@@ -383,7 +441,7 @@ export function LineItemsTabV2({
   const handleCellClick = (itemId: string, column: LineItemColumnKey, e: React.MouseEvent) => {
     // customerPartNumber and description are read-only (populated when product is selected)
     // partNumber, manufacturer, and uom are dropdown columns
-    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer', 'uom'];
+    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer', 'uom', 'fixtureSchedule'];
     if (settings?.specifyEndUserPerLine) {
       dropdownColumns.push('endUser');
     }
@@ -423,6 +481,8 @@ export function LineItemsTabV2({
       updates.description = value;
     } else if (column === 'manufacturer') {
       updates.manufacturerName = value;
+    } else if (column === 'fixtureSchedule') {
+      updates.fixtureSchedule = value;
     }
     updateLineItem(itemId, updates);
     setDropdownOpen(null);
@@ -588,9 +648,9 @@ export function LineItemsTabV2({
   const renderCell = (item: LineItemV2, column: ColumnConfig) => {
     const isEditing = editingCell?.itemId === item.id && editingCell?.column === column.key;
     const isDropdown = dropdownOpen?.itemId === item.id && dropdownOpen?.column === column.key;
-    // partNumber, manufacturer, and uom are dropdown columns
+    // partNumber, manufacturer, uom, and fixtureSchedule are dropdown columns
     // customerPartNumber and description are read-only (populated when product is selected)
-    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer', 'uom'];
+    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer', 'uom', 'fixtureSchedule'];
     if (settings?.specifyEndUserPerLine) {
       dropdownColumns.push('endUser');
     }
@@ -658,12 +718,90 @@ export function LineItemsTabV2({
       case 'endUser':
         displayValue = item.endUserName || (settings?.specifyEndUserPerLine ? 'Select...' : '—');
         break;
+      // Overage columns - use calculated values from API
+      case 'percentOver': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.effectiveCommissionRate !== null) {
+          // percentOver = ((sellPrice - basePrice) / basePrice) * 100
+          const basePrice = overage.baseUnitPrice || 0;
+          const pctOver = basePrice > 0 ? ((item.unitPrice - basePrice) / basePrice) * 100 : 0;
+          displayValue = `${pctOver.toFixed(2)}%`;
+        } else {
+          displayValue = item.percentOver !== undefined ? `${item.percentOver.toFixed(2)}%` : '—';
+        }
+        break;
+      }
+      case 'commissionAmount': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.effectiveCommissionRate !== null) {
+          const commAmt = (item.sellTotal || 0) * (overage.effectiveCommissionRate / 100);
+          displayValue = `$${commAmt.toFixed(2)}`;
+        } else {
+          displayValue = item.commissionAmount !== undefined ? `$${item.commissionAmount.toFixed(2)}` : '—';
+        }
+        break;
+      }
+      case 'ovgPercent': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.overageUnitPrice !== null && overage.baseUnitPrice !== null) {
+          // ovgPercent = overage portion as % of sell price
+          const ovgPct = item.unitPrice > 0 ? (overage.overageUnitPrice / item.unitPrice) * 100 : 0;
+          displayValue = `${ovgPct.toFixed(2)}%`;
+        } else {
+          displayValue = item.ovgPercent !== undefined ? `${item.ovgPercent.toFixed(2)}%` : '—';
+        }
+        break;
+      }
+      case 'ovgAmount': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.overageUnitPrice !== null && overage.repShare !== null) {
+          // ovgAmount = overage per unit * quantity * rep share
+          const ovgAmt = overage.overageUnitPrice * (item.quantity || 1) * (overage.repShare / 100);
+          displayValue = `$${ovgAmt.toFixed(2)}`;
+        } else {
+          displayValue = item.ovgAmount !== undefined ? `$${item.ovgAmount.toFixed(2)}` : '—';
+        }
+        break;
+      }
+      case 'earnPercent': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.effectiveCommissionRate !== null && overage.overageUnitPrice !== null && overage.repShare !== null) {
+          // earnPercent = total earnings as % of sell total (commission + overage share)
+          const commAmt = (item.sellTotal || 0) * (overage.effectiveCommissionRate / 100);
+          const ovgAmt = overage.overageUnitPrice * (item.quantity || 1) * (overage.repShare / 100);
+          const earnPct = (item.sellTotal || 0) > 0 ? ((commAmt + ovgAmt) / (item.sellTotal || 1)) * 100 : 0;
+          displayValue = `${earnPct.toFixed(2)}%`;
+        } else {
+          displayValue = item.earnPercent !== undefined ? `${item.earnPercent.toFixed(2)}%` : '—';
+        }
+        break;
+      }
+      case 'earnAmount': {
+        const overage = item.id ? overageByLineItem[item.id] : null;
+        if (overage?.success && overage.effectiveCommissionRate !== null && overage.overageUnitPrice !== null && overage.repShare !== null) {
+          // earnAmount = commission + overage share
+          const commAmt = (item.sellTotal || 0) * (overage.effectiveCommissionRate / 100);
+          const ovgAmt = overage.overageUnitPrice * (item.quantity || 1) * (overage.repShare / 100);
+          displayValue = `$${(commAmt + ovgAmt).toFixed(2)}`;
+        } else {
+          displayValue = item.earnAmount !== undefined ? `$${item.earnAmount.toFixed(2)}` : '—';
+        }
+        break;
+      }
+      case 'fixtureSchedule':
+        const fixtureOption = FIXTURE_SCHEDULE_OPTIONS.find(opt => opt.value === item.fixtureSchedule);
+        displayValue = fixtureOption?.label || 'Select...';
+        break;
       default:
         displayValue = '—';
     }
 
     // Read-only cells - endUser is editable when specifyEndUserPerLine is true
-    const readOnlyCells = ['sellTotal', 'commission', 'commissionTotal', 'linkedOrder'];
+    // Overage columns are always read-only (calculated values)
+    const readOnlyCells = [
+      'sellTotal', 'commission', 'commissionTotal', 'linkedOrder',
+      'percentOver', 'commissionAmount', 'ovgPercent', 'ovgAmount', 'earnPercent', 'earnAmount'
+    ];
     if (!settings?.specifyEndUserPerLine) {
       readOnlyCells.push('endUser');
     }
@@ -1301,83 +1439,86 @@ export function LineItemsTabV2({
                 left: Math.min(dropdownOpen.position.left, window.innerWidth - 300),
               }}
             >
-              <div className="p-2 border-b border-gray-100">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Tab') {
-                      // Close dropdown and move to next editable cell
-                      e.preventDefault();
-                      const currentItemId = dropdownOpen?.itemId;
-                      const currentColumn = dropdownOpen?.column;
-                      setDropdownOpen(null);
-                      setSearchQuery('');
-                      setDebouncedSearch('');
+              {/* Search input - not shown for fixture schedule dropdown */}
+              {!isFixtureScheduleDropdown && (
+                <div className="p-2 border-b border-gray-100">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Tab') {
+                        // Close dropdown and move to next editable cell
+                        e.preventDefault();
+                        const currentItemId = dropdownOpen?.itemId;
+                        const currentColumn = dropdownOpen?.column;
+                        setDropdownOpen(null);
+                        setSearchQuery('');
+                        setDebouncedSearch('');
 
-                      // Find next editable cell after the current one
-                      setTimeout(() => {
-                        if (!currentItemId || !currentColumn) return;
+                        // Find next editable cell after the current one
+                        setTimeout(() => {
+                          if (!currentItemId || !currentColumn) return;
 
-                        // Find the current row using data attribute
-                        const currentRow = document.querySelector(`tr[data-item-id="${currentItemId}"]`);
-                        if (!currentRow) return;
+                          // Find the current row using data attribute
+                          const currentRow = document.querySelector(`tr[data-item-id="${currentItemId}"]`);
+                          if (!currentRow) return;
 
-                        // Get all editable cells in the current row (excluding action buttons)
-                        const rowCells = Array.from(currentRow.querySelectorAll<HTMLButtonElement>(
-                          'td button:not([title="Remove line item"]):not([title="More options"])'
-                        ));
+                          // Get all editable cells in the current row (excluding action buttons)
+                          const rowCells = Array.from(currentRow.querySelectorAll<HTMLButtonElement>(
+                            'td button:not([title="Remove line item"]):not([title="More options"])'
+                          ));
 
-                        // Find the current cell index by matching the column
-                        let currentCellIndex = -1;
-                        for (let i = 0; i < rowCells.length; i++) {
-                          const cell = rowCells[i];
-                          const td = cell.closest('td');
-                          if (td && td.getAttribute('data-column') === currentColumn) {
-                            currentCellIndex = i;
-                            break;
-                          }
-                        }
-
-                        // Focus the next cell in the row
-                        if (currentCellIndex >= 0 && currentCellIndex < rowCells.length - 1) {
-                          rowCells[currentCellIndex + 1]?.focus();
-                        } else {
-                          // Move to first cell of next row
-                          const allRows = document.querySelectorAll('tbody tr[data-item-id]');
-                          const currentRowIndex = Array.from(allRows).findIndex(r => r.getAttribute('data-item-id') === currentItemId);
-                          if (currentRowIndex >= 0 && currentRowIndex < allRows.length - 1) {
-                            const nextRow = allRows[currentRowIndex + 1];
-                            const nextRowCells = nextRow.querySelectorAll<HTMLButtonElement>(
-                              'td button:not([title="Remove line item"]):not([title="More options"])'
-                            );
-                            if (nextRowCells.length > 0) {
-                              nextRowCells[0]?.focus();
+                          // Find the current cell index by matching the column
+                          let currentCellIndex = -1;
+                          for (let i = 0; i < rowCells.length; i++) {
+                            const cell = rowCells[i];
+                            const td = cell.closest('td');
+                            if (td && td.getAttribute('data-column') === currentColumn) {
+                              currentCellIndex = i;
+                              break;
                             }
                           }
-                        }
-                      }, 50);
-                    } else if (e.key === 'Escape') {
-                      setDropdownOpen(null);
-                      setSearchQuery('');
-                      setDebouncedSearch('');
+
+                          // Focus the next cell in the row
+                          if (currentCellIndex >= 0 && currentCellIndex < rowCells.length - 1) {
+                            rowCells[currentCellIndex + 1]?.focus();
+                          } else {
+                            // Move to first cell of next row
+                            const allRows = document.querySelectorAll('tbody tr[data-item-id]');
+                            const currentRowIndex = Array.from(allRows).findIndex(r => r.getAttribute('data-item-id') === currentItemId);
+                            if (currentRowIndex >= 0 && currentRowIndex < allRows.length - 1) {
+                              const nextRow = allRows[currentRowIndex + 1];
+                              const nextRowCells = nextRow.querySelectorAll<HTMLButtonElement>(
+                                'td button:not([title="Remove line item"]):not([title="More options"])'
+                              );
+                              if (nextRowCells.length > 0) {
+                                nextRowCells[0]?.focus();
+                              }
+                            }
+                          }
+                        }, 50);
+                      } else if (e.key === 'Escape') {
+                        setDropdownOpen(null);
+                        setSearchQuery('');
+                        setDebouncedSearch('');
+                      }
+                    }}
+                    placeholder={
+                      dropdownOpen.column === 'manufacturer' ? 'Search manufacturers...' :
+                      dropdownOpen.column === 'uom' ? 'Search UOMs...' :
+                      'Type to search...'
                     }
-                  }}
-                  placeholder={
-                    dropdownOpen.column === 'manufacturer' ? 'Search manufacturers...' :
-                    dropdownOpen.column === 'uom' ? 'Search UOMs...' :
-                    'Type to search...'
-                  }
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  autoFocus
-                />
-                {isProductDropdown && (
-                  <div className="mt-1 text-xs text-gray-400">
-                    Searches: Part #, Customer Part #, Description
-                  </div>
-                )}
-              </div>
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    autoFocus
+                  />
+                  {isProductDropdown && (
+                    <div className="mt-1 text-xs text-gray-400">
+                      Searches: Part #, Customer Part #, Description
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="max-h-48 overflow-y-auto">
                 {/* Loading state */}
                 {(productsLoading || factoriesLoading || cpnsLoading || uomsLoading) && (
@@ -1733,6 +1874,25 @@ export function LineItemsTabV2({
                     {uomResults.length === 0 && (
                       <div className="px-3 py-2 text-sm text-gray-500">No UOMs found</div>
                     )}
+                  </>
+                )}
+
+                {/* Fixture Schedule dropdown */}
+                {isFixtureScheduleDropdown && (
+                  <>
+                    {FIXTURE_SCHEDULE_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => {
+                          handleDropdownSelect(dropdownOpen.itemId, 'fixtureSchedule', option.value);
+                        }}
+                        className={`w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors ${
+                          currentLineItem?.fixtureSchedule === option.value ? 'bg-indigo-50 text-indigo-600' : ''
+                        }`}
+                      >
+                        <div className="text-sm font-medium">{option.label}</div>
+                      </button>
+                    ))}
                   </>
                 )}
               </div>

@@ -18,13 +18,23 @@ export type SettingKey =
   | 'CHAT_SETTINGS'
   | 'SIDEBAR_SETTINGS'
   | 'FLOW_AI_SETTINGS'
-  | 'PICKLIST_SETTINGS';
+  | 'PICKLIST_SETTINGS'
+  | 'NOTIFICATION_SETTINGS'
+  | 'SPEC_SHEETS_SETTINGS'
+  | 'TAKEOFF_SETTINGS';
 
 // ============================================================================
 // Setting Value Types
 // ============================================================================
 
 export type OutsideRepSource = 'end_user' | 'sold_to' | 'bill_to';
+
+export interface PriceLevelConfig {
+  id: string;
+  name: string;
+  percent: number;
+  description: string;
+}
 
 export interface QuoteSettingsValue {
   columnConfig: ColumnConfig[];
@@ -35,6 +45,7 @@ export interface QuoteSettingsValue {
   customerPartNumberSource: 'sold_to' | 'end_user';
   outsideRepSource?: OutsideRepSource;
   savedView?: SavedViewState;
+  priceLevels?: PriceLevelConfig[];
 }
 
 export interface OrderColumnConfig {
@@ -164,6 +175,26 @@ export interface PicklistSettingsValue {
   // Future picklists can be added here
 }
 
+// Spec Sheets preferences (manufacturer order, view preferences)
+export interface SpecSheetsSettingsValue {
+  manufacturerOrder?: string[]; // Array of manufacturer IDs in display order
+}
+
+// Rep type for takeoff analysis
+export interface TakeoffRepType {
+  id: string;
+  name: string;
+  division: string;
+  description: string;
+  selected: boolean;
+}
+
+// Takeoff settings stored under TAKEOFF_SETTINGS key
+export interface TakeoffSettingsValue {
+  autoAbridgment: boolean;
+  repTypes: TakeoffRepType[];
+}
+
 export type SettingValue =
   | QuoteSettingsValue
   | OrderSettingsValue
@@ -172,7 +203,9 @@ export type SettingValue =
   | ChatSettingsValue
   | SidebarSettingsValue
   | FlowAISettingsValue
-  | PicklistSettingsValue;
+  | PicklistSettingsValue
+  | SpecSheetsSettingsValue
+  | TakeoffSettingsValue;
 
 // ============================================================================
 // Setting Response Types

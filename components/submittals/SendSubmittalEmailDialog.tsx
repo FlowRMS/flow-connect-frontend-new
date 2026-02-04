@@ -12,7 +12,7 @@ interface SendSubmittalEmailDialogProps {
   submittal: Submittal;
   revision: SubmittalRevision;
   onClose: () => void;
-  onSend: (emailRecord: Omit<EmailSendRecord, 'id' | 'sentAt'>) => void;
+  onSend: (emailRecord: Omit<EmailSendRecord, 'id' | 'sentAt'>) => Promise<void>;
   onSkip: () => void;
 }
 
@@ -39,21 +39,24 @@ export default function SendSubmittalEmailDialog({
     return all.filter(s => s.email);
   }, [submittal]);
 
-  // Pre-select recipients based on addressedTo from output options
-  const preSelectedEmails = useMemo(() => {
-    return revision.outputOptions.addressedTo
-      .filter(s => s.email)
-      .map(s => s.email!);
-  }, [revision.outputOptions.addressedTo]);
+  // Pre-select recipients based on addressedTo from output options, or fall back to all stakeholders
+  const initialRecipients = useMemo(() => {
+    // First try addressedTo from revision output options
+    const addressedTo = revision.outputOptions?.addressedTo || [];
+    const addressedEmails = addressedTo.filter(s => s.email).map(s => s.email!);
+    if (addressedEmails.length > 0) {
+      return addressedEmails;
+    }
+    // Fall back to all stakeholders with emails
+    return allStakeholders.map(s => s.email!);
+  }, [revision.outputOptions?.addressedTo, allStakeholders]);
 
-  const [selectedRecipients, setSelectedRecipients] = useState<string[]>(
-    preSelectedEmails.length > 0 ? preSelectedEmails : allStakeholders.map(s => s.email!)
-  );
+  const [selectedRecipients, setSelectedRecipients] = useState<string[]>(initialRecipients);
   const [customRecipient, setCustomRecipient] = useState('');
   const [showAddRecipient, setShowAddRecipient] = useState(false);
 
   // Generate default subject
-  const isResubmit = revision.outputOptions.transmittedFor.includes('resubmit_for_approval');
+  const isResubmit = revision.outputOptions?.transmittedFor?.includes('resubmit_for_approval') || false;
   const defaultSubject = isResubmit
     ? `Resubmittal - ${submittal.jobName} - Rev ${revision.revisionNumber}`
     : `Submittal - ${submittal.jobName} - Rev ${revision.revisionNumber}`;
@@ -93,24 +96,27 @@ export default function SendSubmittalEmailDialog({
     if (selectedRecipients.length === 0) return;
 
     setSending(true);
-    // Simulate sending delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    onSend({
-      sentBy: 'Current User', // Would come from auth context
-      recipients: selectedRecipients,
-      subject,
-      body,
-      attachmentUrl: revision.generatedPdfUrl || '',
-      attachmentName: revision.generatedPdfName || `Submittal_R${revision.revisionNumber}.pdf`,
-      attachmentSize: revision.generatedPdfSize || 0,
-    });
+    try {
+      await onSend({
+        sentBy: 'Current User', // Would come from auth context
+        recipients: selectedRecipients,
+        subject,
+        body,
+        attachmentUrl: revision.generatedPdfUrl || '',
+        attachmentName: revision.generatedPdfName || `Submittal_R${revision.revisionNumber}.pdf`,
+        attachmentSize: revision.generatedPdfSize || 0,
+      });
+      // Modal will be closed by parent after successful send
+    } catch {
+      // Error handling is done by parent, just reset state
+      setSending(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50" onClick={sending ? undefined : onClose} />
 
       {/* Modal */}
       <div className="relative bg-[var(--card)] rounded-xl shadow-2xl w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
@@ -127,7 +133,8 @@ export default function SendSubmittalEmailDialog({
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+            disabled={sending}
+            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
@@ -254,7 +261,8 @@ export default function SendSubmittalEmailDialog({
         <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/20">
           <button
             onClick={onSkip}
-            className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+            disabled={sending}
+            className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             I&apos;ll send it myself
           </button>
@@ -269,7 +277,7 @@ export default function SendSubmittalEmailDialog({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Sending...
+                Sending Email...
               </>
             ) : (
               <>

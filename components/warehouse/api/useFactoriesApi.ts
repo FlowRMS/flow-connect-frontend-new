@@ -12,13 +12,19 @@ import {
   createFactory,
   updateFactory,
   deleteFactory,
+  updateFactoryOverageSettings,
+  fetchFactoryChildren,
+  assignChildFactories,
   type Factory,
   type FactoryLandingPage,
+  type FactoryLiteResponse,
   type CreateFactoryInput,
   type UpdateFactoryInput,
+  type FactoryOverageSettingsInput,
   type PaginatedFactoriesResult,
   type FactoryLandingPageFilter,
   type FactoryLandingPageOrderBy,
+  type OverageType,
 } from './factoriesApi';
 
 import { bulkDelete, type BulkDeleteResult } from '@/components/lib/graphql/bulk-operations';
@@ -32,6 +38,7 @@ export const factoriesQueryKeys = {
   list: (filters?: FactoryLandingPageFilter[], orderBy?: FactoryLandingPageOrderBy[]) =>
     [...factoriesQueryKeys.all, 'list', { filters, orderBy }] as const,
   detail: (id: string) => [...factoriesQueryKeys.all, 'detail', id] as const,
+  children: (parentId: string) => [...factoriesQueryKeys.all, 'children', parentId] as const,
 };
 
 // ============================================================================
@@ -207,12 +214,57 @@ export function useBulkDeleteFactories() {
   });
 }
 
+/**
+ * Update factory overage settings
+ */
+export function useUpdateFactoryOverageSettings() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Factory, Error, { id: string; input: FactoryOverageSettingsInput }>({
+    mutationFn: ({ id, input }) => updateFactoryOverageSettings(id, input),
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: factoriesQueryKeys.list() });
+      queryClient.invalidateQueries({ queryKey: factoriesQueryKeys.detail(variables.id) });
+    },
+  });
+}
+
+/**
+ * Fetch child factories for a given parent factory
+ */
+export function useFactoryChildren(parentId: string | undefined) {
+  return useQuery<FactoryLiteResponse[], Error>({
+    queryKey: factoriesQueryKeys.children(parentId || ''),
+    queryFn: () => fetchFactoryChildren(parentId!),
+    enabled: !!parentId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Assign child factories to a parent factory
+ */
+export function useAssignChildFactories() {
+  const queryClient = useQueryClient();
+
+  return useMutation<FactoryLiteResponse[], Error, { parentId: string; childIds: string[] }>({
+    mutationFn: ({ parentId, childIds }) => assignChildFactories(parentId, childIds),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: factoriesQueryKeys.children(variables.parentId) });
+      queryClient.invalidateQueries({ queryKey: factoriesQueryKeys.all });
+    },
+  });
+}
+
 // Re-export types
 export type {
   Factory,
   FactoryLandingPage,
+  FactoryLiteResponse,
   CreateFactoryInput,
   UpdateFactoryInput,
+  FactoryOverageSettingsInput,
   FactoryLandingPageFilter,
   FactoryLandingPageOrderBy,
+  OverageType,
 };

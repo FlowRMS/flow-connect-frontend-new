@@ -24,7 +24,7 @@ import { useEntityMatching, CreateExtraFields } from '@/components/flow-ai/hooks
 import type { PendingEntity, PendingEntityType, EntityStep } from '@/components/flow-ai/types/entity-matching';
 import { getConfidencePercentage, parseExtractedData } from '@/components/flow-ai/types/entity-matching';
 
-// Tabs that require factory to be matched first (only for CHECKS and INVOICES document types)
+// Tabs that require factory to be matched first (for CHECKS, INVOICES, and STATEMENTS document types)
 const FACTORY_DEPENDENT_TABS: EntityStep[] = ['orders', 'invoices', 'credits', 'adjustments'];
 
 // All possible steps in order
@@ -49,6 +49,13 @@ function getVisibleSteps(documentType: string | null): EntityStep[] {
   if (normalizedDocType === 'INVOICES') {
     return ALL_STEPS.filter(step =>
       !['invoices', 'credits', 'adjustments'].includes(step)
+    );
+  }
+
+  // For COMMISSION_STATEMENTS: Show orders and invoices tabs (hide credits, adjustments)
+  if (normalizedDocType === 'COMMISSION_STATEMENTS') {
+    return ALL_STEPS.filter(step =>
+      !['credits', 'adjustments'].includes(step)
     );
   }
 

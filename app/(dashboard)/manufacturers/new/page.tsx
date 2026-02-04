@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useCreateFactory } from '@/components/warehouse/api/useFactoriesApi';
@@ -9,6 +9,8 @@ import {
   type FactorySplitRateEntry,
   entriesToFactorySplitRateInputs,
 } from '@/components/warehouse/components/FactorySplitRatesInput';
+import { useCRMFactorySearch } from '@/components/hooks/useCRMApi';
+import type { FactorySearchResult } from '@/components/lib/api/search';
 
 export default function CreateManufacturerPage() {
   const router = useRouter();
@@ -33,7 +35,64 @@ export default function CreateManufacturerPage() {
   const [splitRateEntries, setSplitRateEntries] = useState<FactorySplitRateEntry[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Parent/Child hierarchy state
+  const [isParent, setIsParent] = useState(false);
+  const [parentId, setParentId] = useState<string | null>(null);
+  const [parentName, setParentName] = useState('');
+  const [parentSearch, setParentSearch] = useState('');
+  const [showParentDropdown, setShowParentDropdown] = useState(false);
+  const [parentSearchEnabled, setParentSearchEnabled] = useState(false);
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  // Parent manufacturer search hook - only search for parent manufacturers
+  const { data: parentSearchResults = [], isLoading: isSearchingParent } = useCRMFactorySearch(
+    parentSearch,
+    true, // published only
+    parentSearchEnabled
+  );
+
+  // Filter parent search results - show only parent manufacturers
+  const filteredParentResults = useMemo(() =>
+    parentSearchResults.filter((f: FactorySearchResult) => f.isParent === true),
+    [parentSearchResults]
+  );
+
   const createFactory = useCreateFactory();
+
+  // Parent search handler
+  const handleParentSearch = useCallback((term: string) => {
+    setParentSearch(term);
+    setParentSearchEnabled(true);
+  }, []);
+
+  // Handle parent manufacturer selection
+  const handleSelectParent = (selectedFactory: FactorySearchResult) => {
+    setParentId(selectedFactory.id);
+    setParentName(selectedFactory.title);
+    setShowParentDropdown(false);
+    setParentSearch('');
+    setParentSearchEnabled(false);
+  };
+
+  // Handle clear parent manufacturer
+  const handleClearParent = () => {
+    setParentId(null);
+    setParentName('');
+    setParentSearch('');
+    setParentSearchEnabled(false);
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (parentRef.current && !parentRef.current.contains(event.target as Node)) {
+        setShowParentDropdown(false);
+        setParentSearchEnabled(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Calculate split rate total for validation
   const splitRateTotal = useMemo(() =>
@@ -90,6 +149,8 @@ export default function CreateManufacturerPage() {
         additionalInformation: formData.additionalInformation || undefined,
         published: formData.published,
         splitRates: splitRatesInput.length > 0 ? splitRatesInput : undefined,
+        isParent,
+        parentId: parentId || undefined,
       });
 
       toast.success('Manufacturer created successfully');
@@ -354,28 +415,146 @@ export default function CreateManufacturerPage() {
 
             {/* Status Settings */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">Status</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">Status & Hierarchy</h2>
 
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <label className="block text-sm font-medium text-gray-900">
-                    Published
-                  </label>
-                  <p className="text-xs text-gray-500">Make manufacturer visible in the system</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleChange('published', !formData.published)}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${
-                    formData.published ? 'bg-green-500' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${
-                      formData.published ? 'translate-x-5' : 'translate-x-0'
+              <div className="space-y-4">
+                {/* Published Toggle */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900">
+                      Published
+                    </label>
+                    <p className="text-xs text-gray-500">Make manufacturer visible in the system</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleChange('published', !formData.published)}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${
+                      formData.published ? 'bg-green-500' : 'bg-gray-300'
                     }`}
-                  />
-                </button>
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${
+                        formData.published ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Parent Manufacturer Toggle */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900">
+                      Parent Manufacturer
+                    </label>
+                    <p className="text-xs text-gray-500">Mark as a parent that can have child manufacturers</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsParent(!isParent);
+                      if (!isParent) {
+                        // When becoming a parent, clear any parent assignment
+                        setParentId(null);
+                        setParentName('');
+                      }
+                    }}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${
+                      isParent ? 'bg-purple-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${
+                        isParent ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Parent Manufacturer Selector - only show for non-parent manufacturers */}
+                {!isParent && (
+                  <div ref={parentRef} className="relative p-4 bg-gray-50 rounded-lg">
+                    <label className="block text-sm font-medium text-gray-900 mb-1.5">
+                      Assign to Parent Manufacturer
+                      {parentId && (
+                        <span className="ml-2 text-green-600 font-normal text-xs">
+                          Selected: {parentName || parentId.slice(0, 8) + '...'}
+                        </span>
+                      )}
+                    </label>
+                    <p className="text-xs text-gray-500 mb-3">Optionally assign this manufacturer as a child of a parent manufacturer</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={parentId ? (parentName || parentId.slice(0, 8) + '...') : parentSearch}
+                        onChange={(e) => {
+                          if (!parentId) {
+                            handleParentSearch(e.target.value);
+                            setShowParentDropdown(true);
+                          }
+                        }}
+                        onFocus={() => {
+                          if (!parentId) {
+                            handleParentSearch('');
+                            setShowParentDropdown(true);
+                          }
+                        }}
+                        placeholder="Search for a parent manufacturer..."
+                        readOnly={!!parentId}
+                        className={`flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400 ${parentId ? 'bg-green-50 border-green-300' : ''}`}
+                      />
+                      {isSearchingParent && !parentId && (
+                        <div className="flex items-center px-3">
+                          <svg className="w-5 h-5 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                          </svg>
+                        </div>
+                      )}
+                      {parentId && (
+                        <button
+                          type="button"
+                          onClick={handleClearParent}
+                          className="px-3 py-2 text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    {showParentDropdown && !parentId && (
+                      <>
+                        {isSearchingParent ? (
+                          <div className="absolute z-20 left-4 right-4 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                            Searching...
+                          </div>
+                        ) : filteredParentResults.length > 0 ? (
+                          <div className="absolute z-20 left-4 right-4 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                            {filteredParentResults.map((f: FactorySearchResult) => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => handleSelectParent(f)}
+                                className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="font-medium text-gray-900">{f.title}</div>
+                                <div className="text-xs text-gray-500 flex items-center gap-2">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                                    Parent Manufacturer
+                                  </span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        ) : parentSearchEnabled ? (
+                          <div className="absolute z-20 left-4 right-4 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                            {parentSearch ? `No parent manufacturers found for "${parentSearch}"` : 'No parent manufacturers available'}
+                          </div>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
