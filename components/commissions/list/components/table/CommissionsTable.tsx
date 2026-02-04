@@ -54,6 +54,10 @@ interface CommissionsTableProps {
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
+  // Sorting state for header UI (server-side)
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
+  isFetching?: boolean;
 }
 
 export function CommissionsTable({
@@ -84,6 +88,9 @@ export function CommissionsTable({
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
+  activeSort,
+  onSortChange,
+  isFetching = false,
 }: CommissionsTableProps) {
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -133,6 +140,9 @@ export function CommissionsTable({
                 onColumnFiltersChange={onColumnFiltersChange}
                 filterOptions={filterOptions}
                 columnFilters={columnFilters}
+                activeSort={activeSort}
+                onSortChange={onSortChange}
+                isFetching={isFetching}
               />
               <tbody className="divide-y divide-gray-200">
                 {isLoading ? (

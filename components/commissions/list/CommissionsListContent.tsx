@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
@@ -72,6 +72,16 @@ export default function CommissionsListContent() {
     columnName: orderBy.columnName,
     direction: orderBy.direction,
   }));
+
+  // Handler for column sort click - single-column sort (header interaction)
+  const handleColumnSort = useCallback((columnName: string) => {
+    if (activeSort && activeSort.columnName === columnName) {
+      const newDirection = activeSort.direction === 'ASC' ? 'DESC' : 'ASC';
+      state.handleSortChange({ columnName, direction: newDirection });
+    } else {
+      state.handleSortChange({ columnName, direction: 'ASC' });
+    }
+  }, [activeSort, state.handleSortChange]);
 
   // Handler to open bulk delete modal instead of using confirm dialog
   const handleBulkDelete = () => {
@@ -225,6 +235,9 @@ export default function CommissionsListContent() {
             hasNextPage={state.hasNextPage}
             isFetchingNextPage={state.isFetchingNextPage}
             fetchNextPage={state.fetchNextPage}
+            activeSort={activeSort}
+            onSortChange={handleColumnSort}
+            isFetching={state.isLoadingChecks}
           />
           {/* Infinite Scroll Loading Indicator */}
           {state.isFetchingNextPage && (
