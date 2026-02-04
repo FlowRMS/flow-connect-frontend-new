@@ -338,6 +338,7 @@ export interface Contact {
   email?: string | null;
   phone?: string | null;
   role?: string | null;
+  roleDetail?: string | null;
   notes?: string | null;
   tags?: string | string[] | null;
   territory?: string | null;
@@ -351,6 +352,7 @@ export interface ContactInput {
   email?: string;
   phone?: string;
   role?: string;
+  roleDetail?: string;
   companyId?: string;
   notes?: string;
   tags?: string;
@@ -363,6 +365,7 @@ export interface UpdateContactInput {
   email?: string;
   phone?: string;
   role?: string;
+  roleDetail?: string;
   companyId?: string;
   notes?: string;
   tags?: string;
@@ -376,6 +379,7 @@ export interface ContactLandingPage {
   email?: string;
   phone?: string;
   role?: string;
+  roleDetail?: string;
   companyName?: string;
   createdBy?: string;
   createdAt?: string;
@@ -597,6 +601,9 @@ export interface ProductSearchResult {
 export interface FactorySearchResult {
   id: string;
   title: string;
+  published?: boolean;
+  isParent?: boolean;
+  parentId?: string;
 }
 
 export interface CustomerSearchResult {
@@ -1284,6 +1291,18 @@ export interface RelatedEntityTask {
   tags?: string;
 }
 
+export interface RelatedEntityStatement {
+  id: string;
+  statementNumber: string;
+  balanceId?: string;
+  entityDate?: string;
+  factoryId?: string;
+  url?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+}
+
 export interface RelatedEntities {
   sourceType: RelatedEntitiesSourceType;
   sourceEntityId: string;
@@ -1299,5 +1318,6 @@ export interface RelatedEntities {
   preOpportunities: RelatedEntityPreOpportunity[];
   products: RelatedEntityProduct[];
   quotes: RelatedEntityQuote[];
+  statements: RelatedEntityStatement[];
   tasks: RelatedEntityTask[];
 }

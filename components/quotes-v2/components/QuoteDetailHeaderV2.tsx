@@ -1313,8 +1313,8 @@ export function QuoteDetailHeaderV2({
         {showQuoteDetails && (
         <div className="px-6 pb-4">
 
-        {/* Row 1: Quote Number, Manufacturer, Quote Date, Expiration Date, Sold To Customer, End User, Outside Rep */}
-        <div className="grid grid-cols-7 gap-4 mb-4">
+        {/* Row 1: Quote Number, Name, Manufacturer, Quote Date, Expiration Date, Sold To Customer, End User, Outside Rep */}
+        <div className="grid grid-cols-8 gap-4 mb-4">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Quote Number*</label>
             <input
@@ -1323,6 +1323,16 @@ export function QuoteDetailHeaderV2({
               onChange={(e) => onQuoteChange({ quoteNumber: e.target.value })}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               placeholder="Enter quote number"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Name</label>
+            <input
+              type="text"
+              value={quote.name || ''}
+              onChange={(e) => onQuoteChange({ name: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Enter quote name (optional)"
             />
           </div>
           <div>

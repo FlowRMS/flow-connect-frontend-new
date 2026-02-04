@@ -32,6 +32,7 @@ const GET_CONTACTS = `
       email
       phone
       role
+      roleDetail
       companyId
       notes
       tags
@@ -50,6 +51,7 @@ const GET_CONTACT = `
       email
       phone
       role
+      roleDetail
       notes
       tags
       territory
@@ -67,6 +69,7 @@ const GET_CONTACTS_BY_COMPANY = `
       email
       phone
       role
+      roleDetail
       notes
       tags
       territory
@@ -159,6 +162,7 @@ const CREATE_CONTACT = `
       email
       phone
       role
+      roleDetail
       notes
       tags
       territory
@@ -176,6 +180,7 @@ const UPDATE_CONTACT = `
       email
       phone
       role
+      roleDetail
       notes
       tags
       territory
@@ -212,6 +217,7 @@ const FIND_CONTACT_LANDING_PAGES = `
           email
           phone
           role
+          roleDetail
           companyName
           createdBy
           createdAt

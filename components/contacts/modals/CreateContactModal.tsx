@@ -5,18 +5,19 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useCreateCRMContact, useCRMCompanyLandingPages } from '../../hooks/useCRMApi';
-import { CONTACT_ROLES } from '../constants';
+import { useCreateCRMContact } from '../../hooks/useCRMApi';
 import type { ContactInput } from '../../lib/crm-graphql';
 import { contactToasts } from '../../lib/toast';
+import { usePicklist } from '@/lib/picklists';
+import { PicklistKey } from '@/lib/picklists/enums';
 
 // Portaled Custom Select Component
 interface CustomSelectProps {
   value: string;
   onChange: (value: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; color?: string }[];
   placeholder?: string;
   disabled?: boolean;
   icon?: React.ReactNode;
@@ -92,7 +93,13 @@ function CustomSelect({ value, onChange, options, placeholder, disabled, icon }:
               ${value === option.value ? 'bg-blue-50' : ''}
             `}
           >
-            <span className={`${value === option.value ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+            <span className={`flex items-center gap-2 ${value === option.value ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+              {option.color && (
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: option.color }}
+                />
+              )}
               {option.label}
             </span>
             {value === option.value && (
@@ -124,7 +131,15 @@ function CustomSelect({ value, onChange, options, placeholder, disabled, icon }:
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {icon && <span className="text-gray-400 flex-shrink-0">{icon}</span>}
           {selectedOption ? (
-            <span className="text-gray-900 truncate">{selectedOption.label}</span>
+            <span className="text-gray-900 truncate flex items-center gap-2">
+              {selectedOption.color && (
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: selectedOption.color }}
+                />
+              )}
+              {selectedOption.label}
+            </span>
           ) : (
             <span className="text-gray-400">{placeholder || 'Select...'}</span>
           )}
@@ -143,204 +158,6 @@ function CustomSelect({ value, onChange, options, placeholder, disabled, icon }:
   );
 }
 
-// Portaled Company Search Select
-interface CompanySelectProps {
-  value: string;
-  companies: { id: string; name: string; companySourceType?: string }[];
-  isLoading: boolean;
-  onChange: (id: string) => void;
-}
-
-function CompanySelect({ value, companies, isLoading, onChange }: CompanySelectProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setPortalTarget(document.body);
-  }, []);
-
-  useEffect(() => {
-    if (isOpen && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownHeight = 280;
-      
-      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
-        setPosition({
-          top: rect.top + window.scrollY - dropdownHeight - 4,
-          left: rect.left + window.scrollX,
-          width: rect.width,
-        });
-      } else {
-        setPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-          width: rect.width,
-        });
-      }
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const isInsideTrigger = triggerRef.current?.contains(target);
-      const isInsideDropdown = dropdownRef.current?.contains(target);
-      
-      if (!isInsideTrigger && !isInsideDropdown) {
-        setIsOpen(false);
-        setSearchQuery('');
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const filteredCompanies = companies.filter(company =>
-    company.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const selectedCompany = companies.find(c => c.id === value);
-
-  const dropdownContent = isOpen && portalTarget && createPortal(
-    <div
-      ref={dropdownRef}
-      className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
-      style={{ top: position.top, left: position.left, width: position.width }}
-    >
-      {/* Search input */}
-      <div className="p-3 border-b border-gray-100">
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search companies..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      </div>
-      
-      {/* Options list */}
-      <div className="max-h-48 overflow-y-auto">
-        {/* None option */}
-        <button
-          type="button"
-          onClick={() => {
-            onChange('');
-            setIsOpen(false);
-            setSearchQuery('');
-          }}
-          className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors text-gray-500 flex items-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          No company
-        </button>
-        
-        {isLoading ? (
-          <div className="px-4 py-6 text-center">
-            <svg className="animate-spin h-5 w-5 text-gray-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-            </svg>
-            <span className="text-sm text-gray-500">Loading companies...</span>
-          </div>
-        ) : filteredCompanies.length === 0 ? (
-          <div className="px-4 py-6 text-center text-sm text-gray-500">
-            No companies found
-          </div>
-        ) : (
-          filteredCompanies.map((company) => (
-            <button
-              key={company.id}
-              type="button"
-              onClick={() => {
-                onChange(company.id);
-                setIsOpen(false);
-                setSearchQuery('');
-              }}
-              className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between ${
-                value === company.id ? 'bg-blue-50' : ''
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold ${
-                  company.companySourceType === 'MANUFACTURER' ? 'bg-purple-500' : 'bg-green-500'
-                }`}>
-                  {company.name.substring(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <div className={`font-medium ${value === company.id ? 'text-blue-600' : 'text-gray-900'}`}>
-                    {company.name}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
-                  </div>
-                </div>
-              </div>
-              {value === company.id && (
-                <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          ))
-        )}
-      </div>
-    </div>,
-    portalTarget
-  );
-
-  return (
-    <div className="relative">
-      <div
-        ref={triggerRef}
-        onClick={() => setIsOpen(!isOpen)}
-        className={`
-          w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white cursor-pointer
-          flex items-center justify-between gap-2 transition-all
-          hover:border-blue-300 hover:shadow-sm
-          ${isOpen ? 'ring-2 ring-blue-500 border-transparent shadow-sm' : ''}
-        `}
-      >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {selectedCompany ? (
-            <div className="flex items-center gap-2">
-              <div className={`w-6 h-6 rounded flex items-center justify-center text-white text-xs font-semibold ${
-                selectedCompany.companySourceType === 'MANUFACTURER' ? 'bg-purple-500' : 'bg-green-500'
-              }`}>
-                {selectedCompany.name.substring(0, 2).toUpperCase()}
-              </div>
-              <span className="text-gray-900 truncate">{selectedCompany.name}</span>
-            </div>
-          ) : (
-            <span className="text-gray-400">Select a company...</span>
-          )}
-        </div>
-        <svg 
-          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} 
-          fill="none" 
-          viewBox="0 0 24 24" 
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
-      {dropdownContent}
-    </div>
-  );
-}
-
 interface CreateContactModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -354,6 +171,7 @@ export default function CreateContactModal({ isOpen, onClose, onSuccess }: Creat
     email: '',
     phone: '',
     role: '',
+    roleDetail: '',
     companyId: '',
     notes: '',
     tags: '',
@@ -361,7 +179,12 @@ export default function CreateContactModal({ isOpen, onClose, onSuccess }: Creat
   });
 
   const createContactMutation = useCreateCRMContact();
-  const { data: companies, isLoading: companiesLoading } = useCRMCompanyLandingPages();
+  const { enabledItems: roleItems } = usePicklist(PicklistKey.CONTACT_ROLES);
+
+  const roleOptions = useMemo(() => [
+    { value: '', label: 'Select a role...' },
+    ...roleItems.map(item => ({ value: item.key, label: item.label, color: item.color }))
+  ], [roleItems]);
 
   if (!isOpen) return null;
 
@@ -379,6 +202,7 @@ export default function CreateContactModal({ isOpen, onClose, onSuccess }: Creat
         email: '',
         phone: '',
         role: '',
+        roleDetail: '',
         companyId: '',
         notes: '',
         tags: '',
@@ -407,11 +231,6 @@ export default function CreateContactModal({ isOpen, onClose, onSuccess }: Creat
 
   const labelClass = "flex items-center gap-2 text-sm font-medium text-gray-700 mb-2";
   const inputClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
-
-  const roleOptions = [
-    { value: '', label: 'Select a role...' },
-    ...CONTACT_ROLES.map(role => ({ value: role, label: role }))
-  ];
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4" onClick={handleClose}>
@@ -552,20 +371,25 @@ export default function CreateContactModal({ isOpen, onClose, onSuccess }: Creat
                 />
               </div>
 
-              {/* Company */}
+              {/* Role Detail */}
               <div>
                 <label className={labelClass}>
                   <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  Company
+                  Role Detail
                 </label>
-                <CompanySelect
-                  value={formData.companyId || ''}
-                  companies={companies || []}
-                  isLoading={companiesLoading}
-                  onChange={(id) => setFormData({ ...formData, companyId: id })}
+                <textarea
+                  value={formData.roleDetail || ''}
+                  onChange={(e) => setFormData({ ...formData, roleDetail: e.target.value })}
+                  rows={2}
+                  maxLength={1000}
+                  className={`${inputClass} resize-none`}
+                  placeholder="Additional details about responsibilities, decision-making authority, etc."
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  {(formData.roleDetail || '').length}/1000 characters
+                </p>
               </div>
 
               {/* Territory */}

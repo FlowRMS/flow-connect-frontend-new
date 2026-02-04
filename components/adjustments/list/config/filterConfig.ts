@@ -5,6 +5,7 @@
  */
 
 import type { FilterOption } from '../../../advancedFilters/types';
+import { ColumnFilterTypeEnum } from '../../../advancedFilters/types';
 import type { AdjustmentStatus } from '@/components/orders/api/adjustmentsApi';
 
 // Adjustment status options matching AdjustmentStatus type
@@ -37,14 +38,14 @@ export function getAdjustmentFilterOptions(): FilterOption[] {
     { 
       id: 'adjustment-number', 
       label: 'Adjustment Number', 
-      type: 'text' as const, 
+      type: ColumnFilterTypeEnum.text, 
       columnName: 'adjustmentNumber', 
       available: true 
     },
     { 
       id: 'status', 
       label: 'Status', 
-      type: 'dropdown' as const, 
+      type: ColumnFilterTypeEnum.dropdown, 
       columnName: 'status', 
       available: true, 
       options: ADJUSTMENT_STATUSES 
@@ -52,7 +53,7 @@ export function getAdjustmentFilterOptions(): FilterOption[] {
     { 
       id: 'amount', 
       label: 'Amount', 
-      type: 'number' as const, 
+      type: ColumnFilterTypeEnum.number, 
       columnName: 'amount', 
       available: true,
       numberFormat: 'currency' as const
@@ -60,21 +61,21 @@ export function getAdjustmentFilterOptions(): FilterOption[] {
     { 
       id: 'adjustment-date', 
       label: 'Adjustment Date', 
-      type: 'date' as const, 
+      type: ColumnFilterTypeEnum.date, 
       columnName: 'entityDate', 
       available: true 
     },
     { 
       id: 'created-date', 
       label: 'Created Date', 
-      type: 'date' as const, 
+      type: ColumnFilterTypeEnum.date, 
       columnName: 'createdAt', 
       available: true 
     },
     { 
       id: 'locked', 
       label: 'Locked', 
-      type: 'boolean' as const, 
+      type: ColumnFilterTypeEnum.boolean, 
       columnName: 'locked', 
       available: true
     },

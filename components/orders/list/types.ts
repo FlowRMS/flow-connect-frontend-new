@@ -3,7 +3,7 @@
  * Local types for the orders list component
  */
 
-import type { Order } from '@/lib/types/rms';
+import type { ExportType } from '@/components/shared/excel-export/types';
 
 // Sort configuration
 export type SortField =
@@ -72,6 +72,8 @@ export interface ColumnConfig {
   sortable: boolean;
   filterable: boolean;
   align?: 'left' | 'center' | 'right';
+  exportType?: ExportType; // Type for Excel export formatting
+  apiField?: string; // Field name in OrderLandingPage (if different from id)
 }
 
 // Bulk actions

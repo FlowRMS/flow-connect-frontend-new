@@ -8,7 +8,7 @@
 import React, { useState, useCallback } from 'react';
 import type { Contact } from '../types';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
-import type { ActiveFilter } from '@/components/advancedFilters/types';
+import type { ActiveFilter, ColumnFilterType } from '@/components/advancedFilters/types';
 import { getContactFilterOptions } from '../config/filterConfig';
 
 interface ContactsTableHeaderProps {
@@ -73,8 +73,7 @@ export function ContactsTableHeader({
       return null;
     }
     
-    // Ensure type is preserved correctly
-    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean';
+    const filterType = filterOption.type as ColumnFilterType;
     
     // Get filters for this column (ActiveFilter[])
     // Map columnKey to the actual filters stored under that key
@@ -97,6 +96,8 @@ export function ContactsTableHeader({
         isOpen={openFilter === columnKey}
         onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
         filterOption={filterOption}
+        picklistKey={filterOption.picklistKey}
+        multiSelect={filterOption.multiSelect}
       />
     );
   };
@@ -132,6 +133,11 @@ export function ContactsTableHeader({
               {renderColumnFilter('role')}
             </div>
           </div>
+        </th>
+
+        {/* Role Detail */}
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+          <span className="whitespace-nowrap">Role Detail</span>
         </th>
 
         {/* Tags */}

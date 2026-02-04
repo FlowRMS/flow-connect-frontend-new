@@ -21,8 +21,9 @@ import CreateContactModal from './modals/CreateContactModal';
 import { useContactsState } from './hooks/useContactsState';
 import { useCRMContact } from '../hooks/useCRMApi';
 import { getContactFilterOptions, getContactSortOptions } from './config/filterConfig';
-import { CONTACT_TYPES } from './constants';
 import { mapAPIContactToUIContact } from './types';
+import { usePicklist } from '@/lib/picklists';
+import { PicklistKey } from '@/lib/picklists/enums';
 import type { DuplicateGroup } from './types';
 import type { RelatedEntityCompany, RelatedEntityJob } from '../lib/crm-graphql';
 import { useUnsavedChangesGuard } from '../shared/hooks/useUnsavedChangesGuard';
@@ -103,6 +104,13 @@ export default function ContactsContent() {
     }
   }, [state.selectedContact?.id, state.isMounted, router, searchParams]);
 
+  // Ensure editing is enabled when a contact is selected (editable by default)
+  useEffect(() => {
+    if (state.selectedContact && !state.isEditing) {
+      state.setIsEditing(true);
+    }
+  }, [state.selectedContact, state.isEditing, state.setIsEditing]);
+
   // Clear editing state when contact is deselected (e.g., after discarding changes and navigating back)
   useEffect(() => {
     if (!state.selectedContact) {
@@ -139,6 +147,14 @@ export default function ContactsContent() {
   // Generate filter and sort options (static, no dependencies on data)
   const contactFilterOptions = useMemo(() => getContactFilterOptions(), []);
   const contactSortOptions = useMemo(() => getContactSortOptions(), []);
+
+  // Get contact roles dynamically from picklist
+  const { enabledItems: contactRoles, getLabelByKey } = usePicklist(PicklistKey.CONTACT_ROLES);
+  
+  // Create quick filter options: 'All' + enabled roles
+  const quickFilterOptions = useMemo(() => {
+    return ['All', ...contactRoles.map(role => role.key)];
+  }, [contactRoles]);
 
   // Mock duplicate groups (would come from API in the future)
   const duplicateGroups: DuplicateGroup[] = [];
@@ -239,6 +255,7 @@ export default function ContactsContent() {
         isDeleting={state.deleteContactMutation.isPending}
         editFormData={state.editFormData}
         deleteConfirmId={state.deleteConfirmId}
+        hasLocalEdits={state.hasLocalEdits}
         onBack={handleBack}
         onEdit={state.handleStartEdit}
         onSave={state.handleSaveEdit}
@@ -390,20 +407,20 @@ export default function ContactsContent() {
           <div className="flex items-center gap-3">
             <span className="text-sm text-[var(--muted-foreground)] leading-none">Quick filters:</span>
           <div className="flex gap-1 sm:gap-2 overflow-x-auto -mx-1 px-1 items-center">
-            {CONTACT_TYPES.map((type) => {
+            {quickFilterOptions.map((roleKey) => {
               // Determine if this role filter is active
               const roleFilter = state.activeFilters.find(f => f.columnName === 'role');
               let isActive = false;
               
-              if (type === 'All') {
+              if (roleKey === 'All') {
                 // "All" is active if there's no role filter in activeFilters
                 isActive = !roleFilter;
               } else {
                 // Check if this specific role is in the active filters
                 if (roleFilter?.operator === 'IN' && roleFilter.values) {
-                  isActive = roleFilter.values.includes(type);
+                  isActive = roleFilter.values.includes(roleKey);
                 } else if (roleFilter?.operator === 'EQ' && roleFilter.value) {
-                  isActive = roleFilter.value === type;
+                  isActive = roleFilter.value === roleKey;
                 }
               }
 
@@ -411,7 +428,7 @@ export default function ContactsContent() {
                 // Remove any existing role filters
                 const otherFilters = state.activeFilters.filter(f => f.columnName !== 'role');
                 
-                if (type === 'All') {
+                if (roleKey === 'All') {
                   // Clear role filter
                   state.handleFiltersChange(otherFilters);
                 } else {
@@ -421,15 +438,18 @@ export default function ContactsContent() {
                     {
                       columnName: 'role',
                       operator: 'IN',
-                      values: [type],
+                      values: [roleKey],
                     },
                   ]);
                 }
               };
 
+              // Get display label: 'All' or the label from picklist
+              const displayLabel = roleKey === 'All' ? 'All' : getLabelByKey(roleKey);
+
               return (
                 <button
-                  key={type}
+                  key={roleKey}
                   onClick={handleQuickFilterClick}
                   className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
                     isActive
@@ -437,7 +457,7 @@ export default function ContactsContent() {
                       : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
                   }`}
                 >
-                  {type}
+                  {displayLabel}
                 </button>
               );
             })}
@@ -456,7 +476,8 @@ export default function ContactsContent() {
             isFetchingNextPage={state.isFetchingNextPage}
             fetchNextPage={state.fetchNextPage}
             isLoading={state.isLoading}
-            hasFilters={state.activeFilters.length > 0}
+            hasFilters={state.activeFilters.length > 0 || Object.keys(state.columnFilters).length > 0 || state.searchQuery.length >= 2}
+            onClearFilters={state.clearAllFilters}
             onColumnFiltersChange={state.handleColumnFiltersChange}
             filterOptions={contactFilterOptions}
             columnFilters={state.columnFilters}

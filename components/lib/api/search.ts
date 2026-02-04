@@ -290,6 +290,8 @@ export interface FactorySearchResult {
   title: string;
   accountNumber?: string;
   published?: boolean;
+  isParent?: boolean;
+  parentId?: string;
 }
 
 export interface CustomerSearchResult {
@@ -662,6 +664,8 @@ const FACTORY_SEARCH = `
       title
       accountNumber
       published
+      isParent
+      parentId
     }
   }
 `;

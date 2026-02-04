@@ -47,6 +47,7 @@ export interface Contact {
   company: string;
   companyId?: string;
   role: string;
+  roleDetail?: string;
   contactType: string[]; // Deprecated: kept for UI compatibility, always empty
   tags: string[];
   lists: string[]; // Deprecated: kept for UI compatibility, always empty
@@ -121,6 +122,7 @@ export function mapLandingPageToUIContact(landingPage: ContactLandingPage): Cont
     phone: landingPage.phone || '',
     company: landingPage.companyName || '',
     role: landingPage.role || '',
+    roleDetail: landingPage.roleDetail || '',
     contactType: [], // Deprecated: no longer exists in backend, kept for UI compatibility
     tags: parseTags(landingPage.tags), // Parse tags from landing page
     lists: [], // Deprecated: no longer exists in backend, kept for UI compatibility
@@ -149,6 +151,7 @@ export function mapAPIContactToUIContact(apiContact: APIContact): Contact {
     company: '', // Will be fetched separately if needed
     companyId: undefined,
     role: role,
+    roleDetail: apiContact.roleDetail || '',
     contactType: [], // Deprecated: no longer exists in backend, kept for UI compatibility
     tags,
     lists: [], // Deprecated: no longer exists in backend, kept for UI compatibility

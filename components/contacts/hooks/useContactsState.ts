@@ -74,6 +74,7 @@ export function useContactsState() {
         email: selectedContact.email,
         phone: selectedContact.phone,
         role: selectedContact.role,
+        roleDetail: selectedContact.roleDetail,
         company: selectedContact.company,
         companyId: selectedContact.companyId,
         territory: selectedContact.territory,
@@ -317,6 +318,15 @@ export function useContactsState() {
     }
   }, [syncColumnToAdvanced]);
 
+  // Clear all filters (both advanced and column filters)
+  const clearAllFilters = useCallback(() => {
+    setActiveFilters([]);
+    setActiveFilter(undefined);
+    setColumnFilters({});
+    setServerFilters([]);
+    setSearchQuery('');
+  }, []);
+
   // Handle sort change (single - backward compatibility)
   const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
     if (sort) {
@@ -381,6 +391,7 @@ export function useContactsState() {
           email: editFormData.email,
           phone: editFormData.phone,
           role: editFormData.role,
+          roleDetail: editFormData.roleDetail,
           tags: tagsToSend,
         },
       });
@@ -399,6 +410,7 @@ export function useContactsState() {
         email: editFormData.email || selectedContact.email,
         phone: editFormData.phone || selectedContact.phone,
         role: editFormData.role || selectedContact.role,
+        roleDetail: editFormData.roleDetail || selectedContact.roleDetail,
         tags: updatedTags,
       });
 
@@ -497,6 +509,7 @@ export function useContactsState() {
     handleFilterChange,
     handleFiltersChange,
     handleColumnFiltersChange,
+    clearAllFilters,
     handleSortChange,
     handleMultiSortChange,
     handleStartEdit,

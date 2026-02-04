@@ -14,25 +14,36 @@ export type ActiveSort = {
   direction: 'ASC' | 'DESC';
 };
 
+export enum ColumnFilterTypeEnum {
+  dropdown = 'dropdown',
+  date = 'date',
+  text = 'text',
+  number = 'number',
+  boolean = 'boolean',
+  month = 'month',
+  factory = 'factory',
+  category = 'category',
+  company = 'company',
+  companyType = 'companyType',
+  user = 'user',
+  customer = 'customer',
+  picklist = 'picklist',
+}
+
+// For backward compatibility, we also allow plain strings (e.g. 'text', 'date') to be passed
+// from older components. Internally we always compare against ColumnFilterTypeEnum.
+export type ColumnFilterType = ColumnFilterTypeEnum | string;
+
 export type FilterOption = {
   id: string;
   label: string;
-  type:
-    | 'dropdown'
-    | 'date'
-    | 'text'
-    | 'number'
-    | 'boolean'
-    | 'month'
-    | 'factory'
-    | 'category'
-    | 'company'
-    | 'companyType'
-    | 'user';
+  type: ColumnFilterType;
   columnName?: string; // API column name for filtering
   available?: boolean; // Whether this filter is available in the API
   options?: string[]; // Available options for dropdown filters
   numberFormat?: NumberFormat; // Format for number filters: 'currency' | 'percentage' | 'number' (default)
+  picklistKey?: string; // Key for picklist filters (e.g., 'orderTypes')
+  multiSelect?: boolean; // For picklist/dropdown: true = IN with array, false = EQ with single value (default: true)
 };
 
 export type AdvancedFiltersProps = {

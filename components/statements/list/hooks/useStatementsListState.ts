@@ -301,10 +301,10 @@ export function useStatementsListState() {
     setColumnFiltersToAPIState(columnFiltersToAPI);
   }, [columnFiltersToAPI]);
 
-  // Combine all filters
+  // Combine quick filters with server filters (serverFilters already contains synced column filters)
   const filters = useMemo<StatementLandingPageFilter[]>(() => {
-    return [...quickFilters, ...serverFilters, ...columnFiltersToAPIState];
-  }, [quickFilters, serverFilters, columnFiltersToAPIState]);
+    return [...quickFilters, ...serverFilters];
+  }, [quickFilters, serverFilters]);
 
   // Build orderBy from sort state
   const orderBy = useMemo<StatementLandingPageOrderBy[]>(() => {
@@ -452,6 +452,7 @@ export function useStatementsListState() {
   return {
     // Statements data
     statements,
+    allStatementsData,
     selectedStatement: selectedStatementDetails || null,
     selectedStatementId,
     setSelectedStatement,
@@ -495,6 +496,7 @@ export function useStatementsListState() {
     // Sorting
     sortField,
     sortDirection,
+    serverOrderBy,
     handleSortChange,
 
     // Selection

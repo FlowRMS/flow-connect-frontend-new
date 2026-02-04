@@ -5,6 +5,7 @@
  */
 
 import type { FilterOption } from '../../../advancedFilters/types';
+import { ColumnFilterTypeEnum } from '../../../advancedFilters/types';
 import type { CheckStatus } from '@/components/lib/graphql/checks';
 
 // Check status options matching CheckStatus type
@@ -22,14 +23,14 @@ export function getCommissionFilterOptions(): FilterOption[] {
     { 
       id: 'check-number', 
       label: 'Check Number', 
-      type: 'text' as const, 
+    type: ColumnFilterTypeEnum.text, 
       columnName: 'checkNumber', 
       available: true 
     },
     { 
       id: 'status', 
       label: 'Status', 
-      type: 'dropdown' as const, 
+    type: ColumnFilterTypeEnum.dropdown, 
       columnName: 'status', 
       available: true, 
       options: CHECK_STATUSES 
@@ -37,35 +38,35 @@ export function getCommissionFilterOptions(): FilterOption[] {
     { 
       id: 'commission-month', 
       label: 'Commission Month', 
-      type: 'month' as const, 
+    type: ColumnFilterTypeEnum.month, 
       columnName: 'commissionMonth', 
       available: true 
     },
     { 
       id: 'post-date', 
       label: 'Post Date', 
-      type: 'date' as const, 
+    type: ColumnFilterTypeEnum.date, 
       columnName: 'postDate', 
       available: true 
     },
     { 
       id: 'check-date', 
       label: 'Check Date', 
-      type: 'date' as const, 
+    type: ColumnFilterTypeEnum.date, 
       columnName: 'checkDate', 
       available: true 
     },
     { 
       id: 'entry-date', 
       label: 'Entry Date', 
-      type: 'date' as const, 
+    type: ColumnFilterTypeEnum.date, 
       columnName: 'createdAt', 
       available: true 
     },
     { 
       id: 'net-amount', 
       label: 'Commission', 
-      type: 'number' as const, 
+    type: ColumnFilterTypeEnum.number, 
       columnName: 'enteredCommissionAmount', 
       available: true,
       numberFormat: 'currency' as const
@@ -74,7 +75,7 @@ export function getCommissionFilterOptions(): FilterOption[] {
     { 
       id: 'factory-name', 
       label: 'Factory Name', 
-      type: 'text' as const, 
+    type: ColumnFilterTypeEnum.text, 
       columnName: 'factoryName', 
       available: false 
     },

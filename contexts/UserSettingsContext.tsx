@@ -14,6 +14,7 @@ import {
   type FlowAISettingsValue,
   type PicklistSettingsValue,
   type PicklistValue,
+  type TakeoffSettingsValue,
   getMySettings,
   getTenantSettings,
   saveMySetting,
@@ -319,7 +320,9 @@ export function useQuoteSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: QuoteSettingsValue, scope: SettingScope) => saveSetting('QUOTE_SETTINGS', value, scope),
+    async (value: QuoteSettingsValue, scope: SettingScope) => {
+      return saveSetting('QUOTE_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -354,7 +357,9 @@ export function useOrderSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: OrderSettingsValue, scope: SettingScope) => saveSetting('ORDER_SETTINGS', value, scope),
+    async (value: OrderSettingsValue, scope: SettingScope) => {
+      return saveSetting('ORDER_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -389,7 +394,9 @@ export function useInvoiceSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: InvoiceSettingsValue, scope: SettingScope) => saveSetting('INVOICE_SETTINGS', value, scope),
+    async (value: InvoiceSettingsValue, scope: SettingScope) => {
+      return saveSetting('INVOICE_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -424,7 +431,9 @@ export function useCommissionSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: CommissionSettingsValue, scope: SettingScope) => saveSetting('CHECKS_SETTINGS', value, scope),
+    async (value: CommissionSettingsValue, scope: SettingScope) => {
+      return saveSetting('CHECKS_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -459,7 +468,9 @@ export function useChatSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: ChatSettingsValue, scope: SettingScope) => saveSetting('CHAT_SETTINGS', value, scope),
+    async (value: ChatSettingsValue, scope: SettingScope) => {
+      return saveSetting('CHAT_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -494,7 +505,9 @@ export function useSidebarSettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: SidebarSettingsValue, scope: SettingScope) => saveSetting('SIDEBAR_SETTINGS', value, scope),
+    async (value: SidebarSettingsValue, scope: SettingScope) => {
+      return saveSetting('SIDEBAR_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -529,7 +542,9 @@ export function useFlowAISettings() {
   );
 
   const saveSettingsHandler = useCallback(
-    (value: FlowAISettingsValue, scope: SettingScope) => saveSetting('FLOW_AI_SETTINGS', value, scope),
+    async (value: FlowAISettingsValue, scope: SettingScope) => {
+      return saveSetting('FLOW_AI_SETTINGS', value, scope);
+    },
     [saveSetting]
   );
 
@@ -582,6 +597,36 @@ export function usePicklistSettings(picklistKey: string) {
 
   return {
     settings,
+    saveSettings: saveSettingsHandler,
+    isLoading,
+    isInitialized,
+  };
+}
+
+export function useTakeoffSettings() {
+  const { getTenantSettingValue, saveSetting, isLoading, isInitialized, tenantSettings } =
+    useUserSettings();
+
+  const settings = useMemo(() => {
+    const tenantSetting = tenantSettings.get('TAKEOFF_SETTINGS');
+    return tenantSetting ? parseSettingValue<TakeoffSettingsValue>(tenantSetting) : null;
+  }, [tenantSettings]);
+
+  const tenantSettingsValue = useMemo(
+    () => getTenantSettingValue<TakeoffSettingsValue>('TAKEOFF_SETTINGS'),
+    [getTenantSettingValue]
+  );
+
+  const saveSettingsHandler = useCallback(
+    async (value: TakeoffSettingsValue) => {
+      return saveSetting('TAKEOFF_SETTINGS', value, 'tenant');
+    },
+    [saveSetting]
+  );
+
+  return {
+    settings,
+    tenantSettings: tenantSettingsValue,
     saveSettings: saveSettingsHandler,
     isLoading,
     isInitialized,

@@ -17,10 +17,11 @@ export type SettingKey =
   | 'CHECKS_SETTINGS'
   | 'CHAT_SETTINGS'
   | 'SIDEBAR_SETTINGS'
+  | 'FLOW_AI_SETTINGS'
   | 'PICKLIST_SETTINGS'
   | 'NOTIFICATION_SETTINGS'
   | 'SPEC_SHEETS_SETTINGS'
-  | 'FLOW_AI_SETTINGS';
+  | 'TAKEOFF_SETTINGS';
 
 // ============================================================================
 // Setting Value Types
@@ -171,6 +172,21 @@ export interface SpecSheetsSettingsValue {
   manufacturerOrder?: string[]; // Array of manufacturer IDs in display order
 }
 
+// Rep type for takeoff analysis
+export interface TakeoffRepType {
+  id: string;
+  name: string;
+  division: string;
+  description: string;
+  selected: boolean;
+}
+
+// Takeoff settings stored under TAKEOFF_SETTINGS key
+export interface TakeoffSettingsValue {
+  autoAbridgment: boolean;
+  repTypes: TakeoffRepType[];
+}
+
 export type SettingValue =
   | QuoteSettingsValue
   | OrderSettingsValue
@@ -180,7 +196,8 @@ export type SettingValue =
   | SidebarSettingsValue
   | FlowAISettingsValue
   | PicklistSettingsValue
-  | SpecSheetsSettingsValue;
+  | SpecSheetsSettingsValue
+  | TakeoffSettingsValue;
 
 // ============================================================================
 // Setting Response Types

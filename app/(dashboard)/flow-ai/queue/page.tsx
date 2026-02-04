@@ -99,6 +99,9 @@ import {
   M_ARCHIVE_PENDING_DOCUMENTS,
   M_SEND_PENDING_DOCUMENT_STATUS_EMAIL,
 } from "@/lib/flow-ai/gql";
+// TEMPORARY: Import CRM client for findLandingPages query (CRM query needs CRM backend)
+// TO REVERT: Remove this import and change crmApolloClient back to apolloClient for Q_PENDING_DOCUMENTS_LANDING
+import { crmApolloClient } from "@/lib/flow-ai/flowrms-apollo";
 import { toast } from "sonner";
 import {
   Mail,
@@ -621,15 +624,15 @@ function QueuePageContent() {
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 20;
 
-  // Archive mutation
+  // Archive mutation - Flow AI mutation (stays on Flow AI backend)
   const [archiveMutation, { loading: archiving }] = useMutation(
     M_ARCHIVE_PENDING_DOCUMENTS
   );
 
-  // Email notification mutation
-  const [sendEmailMutation, { loading: sendingEmail }] = useMutation(
-    M_SEND_PENDING_DOCUMENT_STATUS_EMAIL
-  );
+  // Email notification mutation - using state for loading since we call crmApolloClient directly
+  // TEMPORARY: Using crmApolloClient for sendPendingDocumentStatusEmail (CRM mutation needs CRM backend)
+  // TO REVERT: Change back to useMutation hook with default client
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   // Email notification dialog state
   const [showEmailDialog, setShowEmailDialog] = useState(false);
@@ -800,6 +803,8 @@ function QueuePageContent() {
   }, [orderBy, orderDirection]);
 
   // Fetch documents
+  // TEMPORARY: Using crmApolloClient for findLandingPages (CRM query needs CRM backend)
+  // TO REVERT: Change crmApolloClient back to apolloClient
   const fetchDocuments = useCallback(
     async (showRefreshToast = false) => {
       if (showRefreshToast) {
@@ -813,7 +818,7 @@ function QueuePageContent() {
         const filters = buildFilters();
         const orderByInput = buildOrderBy();
 
-        const { data } = await apolloClient.query<PaginatedResponse>({
+        const { data } = await crmApolloClient.query<PaginatedResponse>({
           query: Q_PENDING_DOCUMENTS_LANDING,
           variables: {
             limit: pageSize,
@@ -860,7 +865,7 @@ function QueuePageContent() {
         setRefreshing(false);
       }
     },
-    [apolloClient, currentPage, pageSize, buildFilters, buildOrderBy]
+    [currentPage, pageSize, buildFilters, buildOrderBy]
   );
 
   // Fetch on mount and when dependencies change
@@ -869,6 +874,8 @@ function QueuePageContent() {
   }, [fetchDocuments]);
 
   // Silent auto-refresh every 10 seconds
+  // TEMPORARY: Using crmApolloClient for findLandingPages (CRM query needs CRM backend)
+  // TO REVERT: Change crmApolloClient back to apolloClient
   useEffect(() => {
     const intervalId = setInterval(() => {
       // Silent refresh - don't show loading state or toast
@@ -878,7 +885,7 @@ function QueuePageContent() {
           const filters = buildFilters();
           const orderByInput = buildOrderBy();
 
-          const { data } = await apolloClient.query<PaginatedResponse>({
+          const { data } = await crmApolloClient.query<PaginatedResponse>({
             query: Q_PENDING_DOCUMENTS_LANDING,
             variables: {
               limit: pageSize,
@@ -922,7 +929,7 @@ function QueuePageContent() {
     }, 10000); // 10 seconds
 
     return () => clearInterval(intervalId);
-  }, [apolloClient, currentPage, pageSize, buildFilters, buildOrderBy]);
+  }, [currentPage, pageSize, buildFilters, buildOrderBy]);
 
   // Handle document click - redirect based on workflow status
   // Note: Using new field names from findLandingPages:
@@ -1004,7 +1011,7 @@ function QueuePageContent() {
     setSelectedIds(newSelected);
   };
 
-  // Handle archive
+  // Handle archive - Flow AI mutation (stays on Flow AI backend)
   const handleArchive = async () => {
     if (selectedIds.size === 0) return;
 
@@ -1027,11 +1034,15 @@ function QueuePageContent() {
   };
 
   // Handle email notification request
+  // TEMPORARY: Using crmApolloClient for sendPendingDocumentStatusEmail (CRM mutation needs CRM backend)
+  // TO REVERT: Change back to sendEmailMutation() from useMutation hook
   const handleSendEmailNotification = async () => {
     if (!emailDialogDocument) return;
 
+    setSendingEmail(true);
     try {
-      const result = await sendEmailMutation({
+      const result = await crmApolloClient.mutate({
+        mutation: M_SEND_PENDING_DOCUMENT_STATUS_EMAIL,
         variables: {
           pendingDocumentId: emailDialogDocument.id,
         },
@@ -1054,6 +1065,8 @@ function QueuePageContent() {
       toast.error("Failed to set up email notification", {
         description: error instanceof Error ? error.message : "Unknown error",
       });
+    } finally {
+      setSendingEmail(false);
     }
   };
 

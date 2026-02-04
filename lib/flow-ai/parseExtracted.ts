@@ -25,7 +25,7 @@ export type LineItem = Record<string, unknown> & {
 };
 export const LINE_ITEM_SOURCE_MAP_KEY = '__sourcePaths';
 
-export type EntityType = "ORDERS" | "QUOTES" | "INVOICES" | "CHECKS" | "ORDER_ACKNOWLEDGEMENTS";
+export type EntityType = "ORDERS" | "QUOTES" | "INVOICES" | "CHECKS" | "ORDER_ACKNOWLEDGEMENTS" | "DELIVERIES";
 
 // Primary keys mapping for ORDERS entity type (default)
 export const PRIMARY_KEYS_ORDERS: Record<string, string> = {
@@ -95,6 +95,19 @@ export const PRIMARY_KEYS_ORDER_ACKNOWLEDGEMENTS: Record<string, string> = {
   "Factory": "factory",
 };
 
+// Primary keys mapping for DELIVERIES entity type (packing slips / BOL)
+export const PRIMARY_KEYS_DELIVERIES: Record<string, string> = {
+  "BOL / Reference #": "invoice_number",
+  "Shipment Date": "invoice_date",
+  "PO #": "order.order_number",
+  "PO Date": "order.order_date",
+  "Invoice Amount": "invoice_amount",
+  "End User": "end_user",
+  "Sold To Customer": "sold_to_customer",
+  "Bill To Customer": "bill_to_customer",
+  Factory: "factory",
+};
+
 // Default to ORDERS for backward compatibility
 export const PRIMARY_KEYS: Record<string, string> = PRIMARY_KEYS_ORDERS;
 
@@ -111,6 +124,8 @@ export function getPrimaryKeysForEntity(entityType?: string | null): Record<stri
       return PRIMARY_KEYS_CHECKS;
     case "ORDER_ACKNOWLEDGEMENTS":
       return PRIMARY_KEYS_ORDER_ACKNOWLEDGEMENTS;
+    case "DELIVERIES":
+      return PRIMARY_KEYS_DELIVERIES;
     case "ORDERS":
     default:
       return PRIMARY_KEYS_ORDERS;
@@ -184,6 +199,8 @@ export function getIdentifierKey(entityType?: string | null): string {
       return "check_number";
     case "ORDER_ACKNOWLEDGEMENTS":
       return "ack_number";
+    case "DELIVERIES":
+      return "invoice_number";
     case "ORDERS":
     default:
       return "order_number";
@@ -206,6 +223,8 @@ export function getIdentifierLabel(entityType?: string | null): string {
       return "Check #";
     case "ORDER_ACKNOWLEDGEMENTS":
       return "Ack #";
+    case "DELIVERIES":
+      return "BOL / Reference #";
     case "ORDERS":
     default:
       return "Order #";
@@ -228,7 +247,7 @@ export function buildPrimary(extracted: Extracted, entityType?: string | null): 
   const primaryKeys = getPrimaryKeysForEntity(entityType);
   
   return Object.entries(primaryKeys).map(([label, key]) => {
-    if (["Sold To Customer", "Bill To Customer", "Factory"].includes(label)) {
+    if (["Sold To Customer", "Bill To Customer", "Factory", "End User"].includes(label)) {
       const block = extracted[key] as Record<string, unknown> | null | undefined;
       const nested = buildAddressBlock(block, key);
       return {
