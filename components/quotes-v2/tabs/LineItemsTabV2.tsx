@@ -94,17 +94,7 @@ export function LineItemsTabV2({
   const overageInputs = useMemo<OverageInputWithLineItemId[]>(() => {
     if (viewMode !== 'overage') return [];
 
-    // DEBUG: Log line items to see what data we have
-    console.log('[DEBUG] Building overageInputs from lineItems:', lineItems.map(li => ({
-      id: li.id,
-      productId: li.productId,
-      manufacturerId: li.manufacturerId,
-      endUserId: li.endUserId,
-      unitPrice: li.unitPrice,
-    })));
-    console.log('[DEBUG] headerFactoryId:', headerFactoryId, 'soldToCustomerId:', soldToCustomerId);
-
-    const inputs = lineItems
+    return lineItems
       .filter(li => li.productId && li.unitPrice > 0)
       .map(li => ({
         lineItemId: li.id, // Include line item ID for mapping results back
@@ -115,9 +105,6 @@ export function LineItemsTabV2({
         quantity: Number(li.quantity) || 1,
       }))
       .filter(input => input.factoryId && input.endUserId);
-
-    console.log('[DEBUG] Final overageInputs after filtering:', inputs);
-    return inputs;
   }, [lineItems, viewMode, headerFactoryId, soldToCustomerId]);
 
   // Fetch overage calculations in batch
@@ -126,18 +113,9 @@ export function LineItemsTabV2({
     viewMode === 'overage' && overageInputs.length > 0
   );
 
-  // DEBUG: Log overage API results
-  React.useEffect(() => {
-    if (viewMode === 'overage') {
-      console.log('[DEBUG] Overage API - loading:', overageLoading, 'error:', overageError);
-      console.log('[DEBUG] Overage API - results:', overageResults);
-    }
-  }, [viewMode, overageLoading, overageError, overageResults]);
-
   // Map overage results to line items by lineItemId for quick lookup
   const overageByLineItem = useMemo<Record<string, OverageRecord>>(() => {
     if (!overageResults || overageResults.length === 0) {
-      console.log('[DEBUG] overageByLineItem - no results, returning empty');
       return {};
     }
 
@@ -147,7 +125,6 @@ export function LineItemsTabV2({
         map[input.lineItemId] = overageResults[index];
       }
     });
-    console.log('[DEBUG] overageByLineItem map:', map);
     return map;
   }, [overageResults, overageInputs]);
 

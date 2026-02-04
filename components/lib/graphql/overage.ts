@@ -85,8 +85,6 @@ const FIND_EFFECTIVE_COMMISSION_RATE_AND_OVERAGE_QUERY = `
 export async function findEffectiveCommissionRateAndOverage(
   input: OverageCalculationInput
 ): Promise<OverageRecord> {
-  console.log('[DEBUG] overage.ts - Calling API with input:', input);
-
   const response = await crmGraphQLRequest<{
     findEffectiveCommissionRateAndOverageUnitPriceByProduct: OverageRecord;
   }>({
@@ -100,12 +98,9 @@ export async function findEffectiveCommissionRateAndOverage(
     },
   });
 
-  console.log('[DEBUG] overage.ts - Raw response:', response);
-  console.log('[DEBUG] overage.ts - response.data:', response.data);
   if (response.errors) {
-    console.error('[DEBUG] overage.ts - GraphQL ERRORS:', JSON.stringify(response.errors, null, 2));
+    console.error('Overage calculation GraphQL errors:', response.errors);
   }
-  console.log('[DEBUG] overage.ts - result:', response.data?.findEffectiveCommissionRateAndOverageUnitPriceByProduct);
 
   return response.data?.findEffectiveCommissionRateAndOverageUnitPriceByProduct as OverageRecord;
 }

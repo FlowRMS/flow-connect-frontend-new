@@ -43,7 +43,6 @@ import { useFlowChat } from '@/contexts/FlowChatContext';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
 import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 import { useUnsavedChangesGuard } from '@/components/shared/hooks/useUnsavedChangesGuard';
-import { useLineItemsColumnConfig } from '@/components/shared/hooks/useLineItemsColumnConfig';
 import { useEntityFilesCount } from '@/components/shared/hooks/useEntityFilesCount';
 
 type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings' | 'files';
@@ -89,23 +88,82 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>('simple');
 
-  // Column configuration - derived from viewMode
+  // Column configuration - stores user preferences for column visibility
   const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(defaultColumnConfigV2);
-
-  // Update column config when view mode changes
-  const effectiveColumnConfig = useMemo(() => {
-    const viewColumns = getColumnsForView(viewMode);
-    return viewColumns.map((key) => ({
-      key,
-      label: COLUMN_LABELS[key],
-      group: key.startsWith('ovg') || key.startsWith('earn') || key === 'percentOver' ? 'Commission' as const :
-             ['quantity', 'uom', 'divisor', 'unitPrice', 'sellTotal'].includes(key) ? 'Pricing' as const : 'Basic' as const,
-      visible: true,
-    }));
-  }, [viewMode]);
 
   // Track if we've applied column settings to avoid re-applying
   const hasAppliedColumnSettings = React.useRef(false);
+
+  // Debounce timer for saving column config to settings
+  const saveColumnConfigTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Apply saved column configuration from settings (runs once when settings are initialized)
+  useEffect(() => {
+    if (settingsInitialized && !hasAppliedColumnSettings.current && savedQuoteSettings?.columnConfig) {
+      setColumnConfig(savedQuoteSettings.columnConfig);
+      hasAppliedColumnSettings.current = true;
+    }
+  }, [settingsInitialized, savedQuoteSettings]);
+
+  // Compute effective column config: combines viewMode columns with user visibility preferences
+  const effectiveColumnConfig = useMemo(() => {
+    const viewColumns = getColumnsForView(viewMode);
+
+    // Create a map of user's visibility preferences from columnConfig
+    const visibilityMap = new Map<string, boolean>();
+    columnConfig.forEach(col => {
+      visibilityMap.set(col.key, col.visible);
+    });
+
+    // Build effective config: columns from viewMode with user's visibility preferences
+    return viewColumns.map((key) => {
+      // Use saved visibility if available, otherwise default to visible
+      const savedVisible = visibilityMap.get(key);
+      return {
+        key,
+        label: COLUMN_LABELS[key],
+        group: key.startsWith('ovg') || key.startsWith('earn') || key === 'percentOver' ? 'Commission' as const :
+               ['quantity', 'uom', 'divisor', 'unitPrice', 'sellTotal'].includes(key) ? 'Pricing' as const : 'Basic' as const,
+        visible: savedVisible !== undefined ? savedVisible : true,
+      };
+    });
+  }, [viewMode, columnConfig]);
+
+  // Handle column config changes from the modal - update state and persist to settings
+  const handleColumnConfigChange = useCallback((newConfig: ColumnConfig[]) => {
+    setColumnConfig(newConfig);
+
+    // Clear existing timeout
+    if (saveColumnConfigTimeoutRef.current) {
+      clearTimeout(saveColumnConfigTimeoutRef.current);
+    }
+
+    // Save to settings with debounce (500ms)
+    saveColumnConfigTimeoutRef.current = setTimeout(async () => {
+      try {
+        const currentSettings = savedQuoteSettings || {
+          columnConfig: defaultColumnConfigV2,
+          specifyEndUserPerLine: false,
+          outsideRepAtLineLevel: false,
+          insideRepAtLineLevel: false,
+          factoryPerLineItem: false,
+          customerPartNumberSource: 'sold_to' as const,
+        };
+        await saveSettings({ ...currentSettings, columnConfig: newConfig }, 'my');
+      } catch (error) {
+        console.error('Failed to save column config to settings:', error);
+      }
+    }, 500);
+  }, [savedQuoteSettings, saveSettings]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveColumnConfigTimeoutRef.current) {
+        clearTimeout(saveColumnConfigTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Apply saved user settings when creating a new quote (for behavioral settings like specifyEndUserPerLine)
   useEffect(() => {
@@ -1120,8 +1178,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       <ColumnsConfigModalV2
         isOpen={showColumnsModal}
         onClose={() => setShowColumnsModal(false)}
-        columnConfig={columnConfig}
-        onColumnConfigChange={setColumnConfig}
+        columnConfig={effectiveColumnConfig}
+        onColumnConfigChange={handleColumnConfigChange}
       />
 
       <AdditionalDetailsModalV2
