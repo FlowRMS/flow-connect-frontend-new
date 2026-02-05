@@ -28,9 +28,10 @@
  *   - divisionFactor = 0.1 → returns 10 (invert: 1/0.1 = 10, divide by 10)
  *   - divisionFactor = 1 → returns 1 (no change)
  *   - divisionFactor = null/undefined → returns 1 (default)
+ *   - divisionFactor = -0.5 → returns 2 (invert absolute value: 1/0.5 = 2)
  *
  * @param divisionFactor - The raw division factor from the UOM
- * @returns The normalized divisor to use in calculations
+ * @returns The normalized divisor to use in calculations (always positive, >= 1)
  */
 export function normalizeDivisor(divisionFactor: number | null | undefined): number {
   // Default to 1 if not provided
@@ -38,21 +39,33 @@ export function normalizeDivisor(divisionFactor: number | null | undefined): num
     return 1;
   }
 
+  // Handle negative values by taking absolute value first
+  // Negative values are invalid and likely legacy data errors
+  const absFactor = Math.abs(divisionFactor);
+
   // If division factor is less than 1, invert it to maintain correct semantics
   // This handles legacy data where multiply_by < 1 was used
-  if (divisionFactor < 1) {
-    return 1 / divisionFactor;
+  // Note: This assumes all values < 1 are legacy migration artifacts.
+  // If legitimate v6 UOMs need < 1 values, this logic should be reconsidered.
+  if (absFactor < 1) {
+    return 1 / absFactor;
   }
 
-  return divisionFactor;
+  return absFactor;
 }
 
 /**
  * Calculates the extended price from quantity, unit price, and division factor.
  *
+ * This helper normalizes the division factor internally, so it's safe to pass
+ * raw divisionFactor values (including legacy values < 1 or negative values).
+ *
+ * If you already have a normalized divisor, you can calculate directly:
+ *   extendedPrice = (quantity * unitPrice) / normalizedDivisor
+ *
  * @param quantity - The quantity of items
  * @param unitPrice - The price per unit
- * @param divisionFactor - The raw division factor from the UOM
+ * @param divisionFactor - The raw division factor from the UOM (will be normalized)
  * @returns The calculated extended price
  */
 export function calculateExtendedPrice(

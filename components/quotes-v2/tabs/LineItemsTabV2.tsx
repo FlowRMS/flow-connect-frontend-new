@@ -1853,7 +1853,8 @@ export function LineItemsTabV2({
                             key={uom.id}
                             onClick={() => {
                               const newDivisor = normalizedDivisor;
-                              const oldDivisor = item?.divisor || 1;
+                              // Normalize oldDivisor in case it's a legacy value that wasn't normalized before
+                              const oldDivisor = normalizeDivisor(item?.divisor);
                               const quantity = item?.quantity || 1;
                               const oldUnitPrice = item?.unitPrice || 0;
                               // When changing UOM, adjust unit price to maintain the same extended price
