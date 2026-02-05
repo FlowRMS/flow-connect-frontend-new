@@ -200,7 +200,9 @@ export function extractProducts(data: unknown): ExtractedProducts {
 
   // Check for direct products array
   if (Array.isArray(obj.products) && obj.products.length > 0) {
-    return { products: obj.products, isStreaming: false, totalCount: obj.products.length };
+    const isStreaming = !!obj.output_file;
+    const total = (obj.total_products as number) || (obj.total_rows as number) || (obj.row_count as number) || obj.products.length;
+    return { products: obj.products, isStreaming, totalCount: total };
   }
 
   // Check for output_file + preview_products structure (streaming)
@@ -218,13 +220,15 @@ export function extractProducts(data: unknown): ExtractedProducts {
   // Check for nested result.products
   const result = obj.result as Record<string, unknown> | undefined;
   if (result && Array.isArray(result.products) && result.products.length > 0) {
-    return { products: result.products, isStreaming: false, totalCount: result.products.length };
+    const total = (result.total_products as number) || (result.total_rows as number) || result.products.length;
+    return { products: result.products, isStreaming: !!result.output_file, totalCount: total };
   }
 
   // Check for nested data.products
   const dataObj = obj.data as Record<string, unknown> | undefined;
   if (dataObj && Array.isArray(dataObj.products) && dataObj.products.length > 0) {
-    return { products: dataObj.products, isStreaming: false, totalCount: dataObj.products.length };
+    const total = (dataObj.total_products as number) || (dataObj.total_rows as number) || dataObj.products.length;
+    return { products: dataObj.products, isStreaming: !!dataObj.output_file, totalCount: total };
   }
 
   // Check if data itself is an array of products
