@@ -77,12 +77,14 @@ function CompanyTypeSelect({
   disabled,
   companyTypes,
   isLoading,
+  companyTypeName,
 }: {
   value: string | undefined;
   onChange: (value: string) => void;
   disabled: boolean;
   companyTypes: CompanyType[];
   isLoading: boolean;
+  companyTypeName?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,9 +99,9 @@ function CompanyTypeSelect({
     type.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Find selected type name
+  // Find selected type name - use companyTypeName as fallback if not found in array
   const selectedType = companyTypes.find(t => t.id === value);
-  const selectedLabel = selectedType?.name || 'Select Company Type';
+  const selectedLabel = selectedType?.name || companyTypeName || 'Select Company Type';
 
   useEffect(() => {
     setPortalTarget(document.body);
@@ -971,7 +973,14 @@ export default function CompanyDetailView({
                     </div>
                     <CompanyTypeSelect
                       value={isEditing ? (editFormData.companyTypeId ?? company.companyTypeId) : company.companyTypeId}
-                      onChange={(value) => onFieldChange('companyTypeId', value)}
+                      companyTypeName={isEditing ? (editFormData.companyTypeName ?? company.companyTypeName) : company.companyTypeName}
+                      onChange={(value) => {
+                        const selectedType = companyTypes.find(t => t.id === value);
+                        onFieldChange('companyTypeId', value);
+                        if (selectedType) {
+                          onFieldChange('companyTypeName', selectedType.name);
+                        }
+                      }}
                       disabled={!isEditing}
                       companyTypes={companyTypes}
                       isLoading={isLoadingCompanyTypes}
