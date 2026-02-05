@@ -8,7 +8,6 @@ import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
 import { iconMap } from '@/components/Sidebar';
 import type { RefObject } from 'react';
 import {
-  Upload,
   Loader2,
   Sparkles,
 } from 'lucide-react';
@@ -18,6 +17,8 @@ import { useMutation } from '@apollo/client/react';
 import { M_BATCH_PROCESS_DOCUMENTS } from '@/lib/flow-ai/gql';
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import { toast } from 'sonner';
+import { workflowAPI } from '@/lib/flow-ai/workflow-api';
+import { PricingTemplateResults } from '@/components/flow-ai/flowrms/PricingTemplateResults';
 
 // FlowAI facts and tips to show during loading (same as other pages)
 const FLOWAI_FACTS = [
@@ -34,7 +35,7 @@ const FLOWAI_FACTS = [
 ];
 
 // Valid document types that can be passed via URL
-const VALID_DOCUMENT_TYPES: DocumentType[] = ['quotes', 'orders', 'order_acknowledgements', 'invoices', 'checks', 'statements', 'products', 'factories', 'customers', 'deliveries'];
+const VALID_DOCUMENT_TYPES: DocumentType[] = ['quotes', 'orders', 'order_acknowledgements', 'invoices', 'checks', 'statements', 'products', 'factories', 'customers', 'pricing', 'deliveries'];
 
 export default function UploadPage() {
   const router = useRouter();
@@ -42,6 +43,10 @@ export default function UploadPage() {
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [currentFactIndex, setCurrentFactIndex] = useState(() => Math.floor(Math.random() * FLOWAI_FACTS.length));
   const [isFactVisible, setIsFactVisible] = useState(true);
+  const [isPricingProcessing, setIsPricingProcessing] = useState(false);
+  const [pricingResult, setPricingResult] = useState<unknown>(null);
+  const [pricingTemplateName, setPricingTemplateName] = useState<string>('');
+  const [pricingTemplateId, setPricingTemplateId] = useState<string>('');
 
   // Navigation morph hooks
   const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
@@ -64,9 +69,9 @@ export default function UploadPage() {
     ? (typeParam as DocumentType)
     : undefined;
 
-  // Rotate facts every 5 seconds with fade animation when batch processing
+  // Rotate facts every 5 seconds with fade animation when batch or pricing processing
   useEffect(() => {
-    if (!isBatchProcessing) return;
+    if (!isBatchProcessing && !isPricingProcessing) return;
 
     const factInterval = setInterval(() => {
       setIsFactVisible(false);
@@ -77,7 +82,7 @@ export default function UploadPage() {
     }, 5000);
 
     return () => clearInterval(factInterval);
-  }, [isBatchProcessing]);
+  }, [isBatchProcessing, isPricingProcessing]);
 
   const currentFact = useMemo(() => FLOWAI_FACTS[currentFactIndex] || FLOWAI_FACTS[0], [currentFactIndex]);
 
@@ -149,6 +154,60 @@ export default function UploadPage() {
       );
       setIsBatchProcessing(false);
     }
+  };
+
+  const handlePricingTemplateSelected = async (templateId: string, fileIds: string[]) => {
+    setIsPricingProcessing(true);
+    setPricingResult(null);
+
+    try {
+      // Get the workflow to retrieve the saved code
+      const workflow = await workflowAPI.getWorkflow(templateId);
+      setPricingTemplateName(workflow.name);
+      setPricingTemplateId(templateId);
+
+      if (!workflow.generated_code) {
+        throw new Error('Selected template has no generated code');
+      }
+
+      // Execute pipeline with the saved code (Node 4 only)
+      const result = await workflowAPI.executePipeline(
+        workflow.instruction || '',
+        undefined,
+        fileIds,
+        4, // stopAfter Node 4
+        workflow.generated_code, // Use saved code
+        {
+          startFromNode: 4, // Start from Node 4
+          runAsync: false,
+          workflowId: templateId,
+        }
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Pipeline execution failed');
+      }
+
+      // Extract the result from node4
+      const node4Result = result.nodes?.node4?.result;
+      setPricingResult(node4Result);
+      toast.success('Pricing template executed successfully');
+    } catch (error) {
+      console.error('Pricing template execution error:', error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to execute pricing template'
+      );
+    } finally {
+      setIsPricingProcessing(false);
+    }
+  };
+
+  const handleResetPricingResult = () => {
+    setPricingResult(null);
+    setPricingTemplateName('');
+    setPricingTemplateId('');
   };
 
   return (
@@ -224,11 +283,50 @@ export default function UploadPage() {
             </div>
           </div>
         )}
-        <CombinedUploadPane
-          onDocumentUploaded={handleDocumentUploaded}
-          onBatchDocumentsUploaded={handleBatchDocumentsUploaded}
-          initialDocumentType={initialDocumentType}
-        />
+        {isPricingProcessing && (
+          <div className="absolute inset-0 bg-background z-50 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-6 max-w-lg text-center px-4">
+              <Loader2 className="w-12 h-12 animate-spin text-primary" />
+              <p className="text-lg font-medium">Processing pricing template...</p>
+              <p className="text-sm text-muted-foreground mb-2">Executing saved code with your uploaded files</p>
+
+              {/* FlowAI Facts Section */}
+              <div className={`w-full p-6 bg-primary/5 border border-primary/20 rounded-xl transition-opacity duration-300 ${isFactVisible ? 'opacity-100' : 'opacity-0'}`}>
+                <div className="flex items-center justify-center gap-2 mb-3">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-semibold text-primary">Did you know?</span>
+                </div>
+                <p className="text-sm font-medium text-foreground mb-2">{currentFact.title}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{currentFact.fact}</p>
+                <div className="flex justify-center gap-1 mt-4">
+                  {FLOWAI_FACTS.map((_, index) => (
+                    <div
+                      key={index}
+                      className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                        index === currentFactIndex ? 'bg-primary' : 'bg-muted-foreground/30'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {pricingResult ? (
+          <PricingTemplateResults
+            result={pricingResult}
+            templateName={pricingTemplateName}
+            templateId={pricingTemplateId}
+            onReset={handleResetPricingResult}
+          />
+        ) : (
+          <CombinedUploadPane
+            onDocumentUploaded={handleDocumentUploaded}
+            onBatchDocumentsUploaded={handleBatchDocumentsUploaded}
+            onPricingTemplateSelected={handlePricingTemplateSelected}
+            initialDocumentType={initialDocumentType}
+          />
+        )}
       </main>
     </div>
   );

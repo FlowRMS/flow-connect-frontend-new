@@ -44,7 +44,7 @@ export function getCustomerFilterOptions(
     },
     {
       id: 'createdAt',
-      label: 'Created Date',
+      label: 'Entry Date',
       type: 'date',
       columnName: 'createdAt',
       available: true,
@@ -76,7 +76,7 @@ export function getCustomerFilterOptions(
 export function getCustomerSortOptions(): SortOption[] {
   return [
     { columnName: 'companyName', label: 'Company Name' },
-    { columnName: 'createdAt', label: 'Created Date' },
+    { columnName: 'createdAt', label: 'Entry Date' },
     { columnName: 'isParent', label: 'Is Parent' },
     { columnName: 'published', label: 'Published' },
   ];

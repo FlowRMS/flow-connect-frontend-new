@@ -4,7 +4,7 @@
  */
 
 import { useRef } from 'react';
-import type { ProductLandingPage } from '../../../api/useProductsApi';
+import type { ProductLandingPage } from '../../../api';
 import { ProductsTableHeader } from './ProductsTableHeader';
 import { ProductRow } from './ProductRow';
 import { ProductsEmptyState } from './ProductsEmptyState';
@@ -41,6 +41,10 @@ interface ProductsTableProps {
   // Empty state actions
   onClearFilters?: () => void;
   onCreateProduct?: () => void;
+  // Sorting
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
+  isFetching?: boolean;
 }
 
 export function ProductsTable({
@@ -63,6 +67,9 @@ export function ProductsTable({
   onDelete,
   onClearFilters,
   onCreateProduct,
+  activeSort,
+  onSortChange,
+  isFetching = false,
 }: ProductsTableProps) {
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -102,6 +109,9 @@ export function ProductsTable({
                 onColumnFiltersChange={onColumnFiltersChange}
                 filterOptions={filterOptions}
                 columnFilters={columnFilters}
+                activeSort={activeSort}
+                onSortChange={onSortChange}
+                isFetching={isFetching}
               />
               <tbody className="divide-y divide-[var(--border)]">
                 {/* Skeleton only shows when loading AND there are no products (filter applied) */}

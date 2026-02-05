@@ -35,6 +35,7 @@ export interface PDFLineItemConfig {
   unitPrice: number;
   uom?: string;
   total: number;
+  endUser?: string; // End user company name for per-line-item display
   editedValues?: {
     product?: string;
     description?: string;
@@ -113,8 +114,9 @@ export const DEFAULT_COLUMNS: Record<PDFEntityType, PDFColumnConfig[]> = {
   ],
   QUOTES: [
     { id: 'itemNumber', label: 'Item #', visible: true, width: '60px' },
-    { id: 'product', label: 'Product', visible: true, width: '180px' },
+    { id: 'product', label: 'Product', visible: true, width: '150px' },
     { id: 'description', label: 'Description', visible: true },
+    { id: 'endUser', label: 'End User', visible: false, width: '120px' }, // Hidden by default, shown when per-line-item
     { id: 'unitPrice', label: 'Unit Price', visible: true, width: '100px' },
     { id: 'quantity', label: 'Qty', visible: true, width: '60px' },
     { id: 'uom', label: 'UOM', visible: true, width: '60px' },
@@ -122,8 +124,9 @@ export const DEFAULT_COLUMNS: Record<PDFEntityType, PDFColumnConfig[]> = {
   ],
   ORDERS: [
     { id: 'itemNumber', label: 'Item #', visible: true, width: '60px' },
-    { id: 'product', label: 'Product', visible: true, width: '180px' },
+    { id: 'product', label: 'Product', visible: true, width: '150px' },
     { id: 'description', label: 'Description', visible: true },
+    { id: 'endUser', label: 'End User', visible: false, width: '120px' }, // Hidden by default, shown when per-line-item
     { id: 'unitPrice', label: 'Unit Price', visible: true, width: '100px' },
     { id: 'quantity', label: 'Qty', visible: true, width: '60px' },
     { id: 'uom', label: 'UOM', visible: true, width: '60px' },

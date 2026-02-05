@@ -28,6 +28,9 @@ interface AdjustmentsTableProps {
   // Column filters
   onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
   columnFilters?: Record<string, ActiveFilter[]>;
+  // Sorting (header UI)
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
 }
 
 export function AdjustmentsTable({
@@ -43,6 +46,8 @@ export function AdjustmentsTable({
   totalAmount,
   onColumnFiltersChange,
   columnFilters,
+  activeSort,
+  onSortChange,
 }: AdjustmentsTableProps) {
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -81,6 +86,8 @@ export function AdjustmentsTable({
                 onColumnFiltersChange={onColumnFiltersChange}
                 filterOptions={getAdjustmentFilterOptions()}
                 columnFilters={columnFilters}
+                activeSort={activeSort}
+                onSortChange={onSortChange}
               />
                 <tbody className="divide-y divide-[var(--border)]">
                   {isLoading ? (

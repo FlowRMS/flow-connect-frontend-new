@@ -172,6 +172,32 @@ export function QuoteSettingsTab() {
         </div>
       </div>
 
+      {/* Header Field Visibility - Tenant Only */}
+      <div className={`bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 ${scope === 'my' ? 'opacity-50' : ''}`}>
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Header Field Visibility</h3>
+          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Tenant Only</span>
+        </div>
+        {scope === 'my' ? (
+          <p className="text-xs text-[var(--muted-foreground)]">
+            This is a tenant-wide setting. Switch to Tenant Settings to configure.
+          </p>
+        ) : (
+          <div className="space-y-1">
+            <SettingsToggle
+              enabled={localSettings.hideQuoteNameField ?? false}
+              onChange={(enabled) => handleSettingChange('hideQuoteNameField', enabled)}
+              label="Hide quote name field"
+              description={
+                localSettings.hideQuoteNameField
+                  ? 'The optional "Name" field is hidden on quote headers'
+                  : 'The optional "Name" field is visible on quote headers'
+              }
+            />
+          </div>
+        )}
+      </div>
+
       {/* Outside Rep Population Source - Tenant Only */}
       <div className={`bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 ${scope === 'my' ? 'opacity-50' : ''}`}>
         <div className="flex items-center gap-2 mb-4">

@@ -18,7 +18,7 @@ import { useProductSearch, useProductCpns, useProductUoms, getProductCpnByCustom
 import type { ProductPricingTierResult } from '@/components/quotes/api/quotesApi';
 import { normalizeDivisor } from '@/components/lib/uom-utils';
 
-type EditableColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionPercent';
+type EditableColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionPercent' | 'commission';
 
 interface LineItemsTableProps {
   invoice: EditableInvoice;
@@ -380,6 +380,19 @@ export function LineItemsTable({
         updates.commission = commissionAmount;
         break;
       }
+      case 'commission': {
+        // When commission value is edited, recalculate commissionRate
+        // Formula: commissionRate = (commission / amount) * 100
+        const newCommission = parseFloat(value.replace(/[$,]/g, '')) || 0;
+        const extendedPrice = item.amount || 0;
+        // Calculate the new commission rate from the commission value
+        const newCommissionRate = extendedPrice !== 0 ? Math.round((newCommission / extendedPrice) * 100 * 10000) / 10000 : 0;
+        updates.commissionAmount = newCommission;
+        updates.commission = newCommission;
+        updates.commissionRate = newCommissionRate;
+        updates.commissionPercent = newCommissionRate;
+        break;
+      }
       case 'divisor': {
         const divisor = parseFloat(value) || 1;
         const extendedPrice = item.quantity * item.unitPrice / divisor;
@@ -438,8 +451,12 @@ export function LineItemsTable({
         editValue = String(item.unitPrice || 0);
         break;
       case 'commissionPercent':
-        displayValue = `${String(Number(item.commissionRate || 0))}%`;
-        editValue = String(Number(item.commissionRate || 0));
+        displayValue = `${String(parseFloat(Number(item.commissionRate || 0).toFixed(4)))}%`;
+        editValue = String(parseFloat(Number(item.commissionRate || 0).toFixed(4)));
+        break;
+      case 'commission':
+        displayValue = formatCurrency((item.amount - (item.discount || 0)) * ((item.commissionRate ?? 0) / 100));
+        editValue = String((item.amount - (item.discount || 0)) * ((item.commissionRate ?? 0) / 100));
         break;
     }
 
@@ -519,7 +536,7 @@ export function LineItemsTable({
         <button
           onClick={(e) => handleCellClick(item.id, column, e)}
           className={`w-full px-2 py-1 ${alignClass} rounded hover:bg-gray-100 transition-colors ${
-            column === 'commissionPercent' ? 'text-purple-600' : ''
+            column === 'commissionPercent' || column === 'commission' ? 'text-purple-600' : ''
           }`}
         >
           {displayValue}
@@ -529,7 +546,7 @@ export function LineItemsTable({
 
     // Non-editable display
     return (
-      <span className={`px-2 py-1 ${alignClass} ${column === 'commissionPercent' ? 'text-purple-600' : ''}`}>
+      <span className={`px-2 py-1 ${alignClass} ${column === 'commissionPercent' || column === 'commission' ? 'text-purple-600' : ''}`}>
         {displayValue}
       </span>
     );
@@ -799,10 +816,10 @@ export function LineItemsTable({
                       </td>
                     )}
 
-                    {/* Commission - base commission before commission discount */}
+                    {/* Commission - base commission before commission discount - editable */}
                     {visibleColumns.has('commission') && (
-                      <td className="px-3 py-2 text-sm text-right text-purple-600">
-                        {formatCurrency((item.amount - (item.discount || 0)) * ((item.commissionRate ?? 0) / 100))}
+                      <td data-column="commission" className="px-3 py-2 text-sm">
+                        {renderEditableCell(item, 'commission', 'right')}
                       </td>
                     )}
 

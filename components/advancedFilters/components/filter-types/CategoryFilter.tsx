@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { FilterOption } from '../../types';
-import { useProductCategorySearch } from '@/components/products/api/useProductsApi';
+import { useProductCategorySearch } from '@/components/products/api';
 import { useDebounce } from '@/components/pre-opportunities/hooks/useDebounce';
 
 type CategoryFilterProps = {

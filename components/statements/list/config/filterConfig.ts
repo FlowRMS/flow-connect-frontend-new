@@ -17,7 +17,7 @@ export function getStatementSortOptions() {
     { columnName: 'factoryName', label: 'Factory Name' },
     { columnName: 'total', label: 'Total' },
     { columnName: 'commission', label: 'Commission' },
-    { columnName: 'createdAt', label: 'Created Date' },
+    { columnName: 'createdAt', label: 'Entry Date' },
   ];
 }
 

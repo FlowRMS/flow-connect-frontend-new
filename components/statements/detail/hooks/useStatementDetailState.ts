@@ -125,6 +125,14 @@ interface UseStatementDetailStateProps {
 // Generate unique temp ID
 const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+// Sanitize string values that may come as "nan" from Python backend
+const sanitizeNan = (value: string | undefined | null): string => {
+  if (!value) return '';
+  const lower = value.trim().toLowerCase();
+  if (lower === 'nan' || lower === 'none' || lower === 'null') return '';
+  return value;
+};
+
 // Create empty line item
 const createEmptyLineItem = (itemNumber: number): LocalLineItem => ({
   id: '',
@@ -176,11 +184,11 @@ const convertToLocalLineItem = (detail: StatementDetail, index: number, existing
     itemNumber: detail.itemNumber || index + 1,
     // Product fields
     productId: detail.productId,
-    partNumber: detail.product?.factoryPartNumber || detail.productNameAdhoc || '',
+    partNumber: sanitizeNan(detail.product?.factoryPartNumber) || sanitizeNan(detail.productNameAdhoc),
     custPartNumber: '', // Will be populated from CPN lookup
-    description: detail.product?.description || detail.productDescriptionAdhoc || '',
-    productNameAdhoc: detail.productNameAdhoc,
-    productDescriptionAdhoc: detail.productDescriptionAdhoc,
+    description: sanitizeNan(detail.product?.description) || sanitizeNan(detail.productDescriptionAdhoc),
+    productNameAdhoc: sanitizeNan(detail.productNameAdhoc) || undefined,
+    productDescriptionAdhoc: sanitizeNan(detail.productDescriptionAdhoc) || undefined,
     // Customer fields
     soldToCustomerId: detail.soldToCustomerId,
     soldToCustomerName: detail.soldToCustomer?.companyName,

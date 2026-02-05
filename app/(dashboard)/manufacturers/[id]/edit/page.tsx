@@ -44,6 +44,12 @@ export default function ManufacturerEditPage() {
   const [formData, setFormData] = useState<Partial<Factory>>({});
   const [splitRateEntries, setSplitRateEntries] = useState<FactorySplitRateEntry[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Reset initialization flag when factory ID changes
+  useEffect(() => {
+    setIsInitialized(false);
+  }, [factoryId]);
 
   // Parent/Child hierarchy state
   const [isParent, setIsParent] = useState(false);
@@ -78,15 +84,6 @@ export default function ManufacturerEditPage() {
   const updateAddressMutation = useUpdateAddress();
   const deleteAddressMutation = useDeleteAddress();
 
-  // Calculate split rate total for validation
-  const splitRateTotal = useMemo(() =>
-    splitRateEntries.reduce((sum, e) => sum + (parseFloat(e.splitRate) || 0), 0),
-    [splitRateEntries]
-  );
-
-  const hasAnyReps = splitRateEntries.length > 0;
-  const isValidSplitRate = !hasAnyReps || Math.abs(splitRateTotal - 100) < 0.1;
-
   // Parent manufacturer search hook
   const { data: parentSearchResults = [], isLoading: isSearchingParent } = useCRMFactorySearch(
     parentSearch,
@@ -100,9 +97,9 @@ export default function ManufacturerEditPage() {
     [parentSearchResults, factoryId]
   );
 
-  // Initialize form data when factory loads
+  // Initialize form data when factory loads (only once per factory ID)
   useEffect(() => {
-    if (factory) {
+    if (factory && !isInitialized) {
       setFormData({ ...factory });
 
       // Convert factory splitRates to editable entries
@@ -134,8 +131,9 @@ export default function ManufacturerEditPage() {
       setParentName(factory.parent?.title || '');
 
       setHasChanges(false);
+      setIsInitialized(true);
     }
-  }, [factory]);
+  }, [factory, isInitialized]);
 
   // Close parent dropdown when clicking outside
   useEffect(() => {
@@ -247,12 +245,22 @@ export default function ManufacturerEditPage() {
       return false;
     }
 
-    if (!isValidSplitRate) {
-      toast.error('Total split rate must equal exactly 100%');
-      return false;
+    // Normalize split rates to ensure they total exactly 100% before sending to API
+    const validEntries = splitRateEntries.filter(e => e.userId && e.splitRate);
+    let normalizedEntries = validEntries;
+    if (validEntries.length > 0) {
+      const total = validEntries.reduce((sum, e) => sum + (parseFloat(e.splitRate) || 0), 0);
+      if (Math.abs(total - 100) > 0.01) {
+        // Adjust first entry to make total exactly 100
+        const adjustment = 100 - total;
+        normalizedEntries = validEntries.map((e, i) =>
+          i === 0
+            ? { ...e, splitRate: (parseFloat(e.splitRate) + adjustment).toFixed(1) }
+            : e
+        );
+      }
     }
-
-    const splitRatesInput = entriesToFactorySplitRateInputsWithId(splitRateEntries);
+    const splitRatesInput = entriesToFactorySplitRateInputsWithId(normalizedEntries);
 
     try {
       await updateFactory.mutateAsync({
@@ -278,6 +286,7 @@ export default function ManufacturerEditPage() {
       });
       toast.success('Manufacturer updated successfully');
       setHasChanges(false);
+      setIsInitialized(false); // Allow re-initialization from server after save
       return true;
     } catch (err) {
       toast.error('Failed to update manufacturer');
@@ -462,7 +471,7 @@ export default function ManufacturerEditPage() {
             </button>
             <button
               onClick={handleSave}
-              disabled={updateFactory.isPending || !hasChanges || !isValidSplitRate}
+              disabled={updateFactory.isPending || !hasChanges}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               {updateFactory.isPending ? (

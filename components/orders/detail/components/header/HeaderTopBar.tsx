@@ -12,6 +12,7 @@ import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
 import { ExcelBuilder } from '@/components/shared/excel-builder';
 import { ManufacturerExcelModal } from '@/components/shared/manufacturer-excel';
+import { UnsavedChangesModal } from '@/components/shared/modals/UnsavedChangesModal';
 
 interface HeaderTopBarProps {
   order: Order;
@@ -110,6 +111,7 @@ export function HeaderTopBar({
   const [showExcelBuilder, setShowExcelBuilder] = useState(false);
   const [showManufacturerExcel, setShowManufacturerExcel] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
 
   return (
     <div className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
@@ -325,7 +327,11 @@ export function HeaderTopBar({
             <button
               onClick={() => {
                 setShowDownloadMenu(false);
-                setShowPDFBuilder(true);
+                if (hasChanges) {
+                  setShowUnsavedChangesModal(true);
+                } else {
+                  setShowPDFBuilder(true);
+                }
               }}
               disabled={isCreateMode || !order.id}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -427,6 +433,21 @@ export function HeaderTopBar({
         entityType="ORDERS"
         isOpen={showManufacturerExcel}
         onClose={() => setShowManufacturerExcel(false)}
+      />
+
+      {/* Unsaved Changes Modal */}
+      <UnsavedChangesModal
+        isOpen={showUnsavedChangesModal}
+        title="Unsaved Changes"
+        message="You have unsaved changes to this order. Please save before opening the PDF builder."
+        actionLabel="Save Order"
+        isSaving={isSaving}
+        onClose={() => setShowUnsavedChangesModal(false)}
+        onSave={() => {
+          onSave();
+          setShowUnsavedChangesModal(false);
+          setShowPDFBuilder(true);
+        }}
       />
     </div>
   );

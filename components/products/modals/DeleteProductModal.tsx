@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useDeleteProduct, type ProductLandingPage } from '../api/useProductsApi';
+import { useDeleteProduct, type ProductLandingPage } from '../api';
 
 interface DeleteProductModalProps {
   isOpen: boolean;

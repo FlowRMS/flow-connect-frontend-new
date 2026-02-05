@@ -295,6 +295,7 @@ export interface QuoteSettingsV2 {
   outsideRepAtLineLevel: boolean;
   insideRepAtLineLevel: boolean;
   factoryPerLineItem: boolean;
+  hideQuoteNameField?: boolean;
   customerPartNumberSource: 'sold_to' | 'end_user';
   outsideRepSource?: 'end_user' | 'sold_to' | 'bill_to';
   priceLevels: PriceLevelV2[];

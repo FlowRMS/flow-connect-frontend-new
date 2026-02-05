@@ -31,6 +31,9 @@ interface ListViewProps {
   onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
   filterOptions?: ReturnType<typeof getContactFilterOptions>;
   columnFilters?: Record<string, ActiveFilter[]>;
+  // Sorting (header UI)
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
 }
 
 export default function ListView({ 
@@ -45,6 +48,8 @@ export default function ListView({
   onColumnFiltersChange,
   filterOptions = getContactFilterOptions(),
   columnFilters: parentColumnFilters,
+  activeSort,
+  onSortChange,
 }: ListViewProps) {
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -72,7 +77,7 @@ export default function ListView({
           onClearFilters={onClearFilters}
         />
       ) : (
-        <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+        <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 320px)' }}>
           <div 
             ref={scrollContainerRef}
             className="overflow-auto scrollbar-always-visible flex-1"
@@ -82,6 +87,8 @@ export default function ListView({
                 onColumnFiltersChange={onColumnFiltersChange}
                 filterOptions={filterOptions}
                 columnFilters={parentColumnFilters}
+                activeSort={activeSort}
+                onSortChange={onSortChange}
               />
               <tbody className="divide-y divide-gray-200 bg-white">
                 {isLoading ? (

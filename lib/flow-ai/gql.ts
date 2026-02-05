@@ -603,6 +603,7 @@ export const Q_GET_WORKFLOW = gql`
       pseudoCode
       status
       isPublic
+      templateType
       createdBy
       createdAt
       updatedAt
@@ -623,6 +624,7 @@ export const Q_GET_WORKFLOWS = gql`
         pseudoCode
         status
         isPublic
+        templateType
         createdBy
         createdAt
         updatedAt
@@ -695,6 +697,7 @@ export const Q_GET_WORKFLOW_GALLERY = gql`
         pseudoCode
         status
         isPublic
+        templateType
         createdAt
         updatedAt
         createdBy
@@ -709,10 +712,31 @@ export const Q_GET_WORKFLOW_GALLERY = gql`
         pseudoCode
         status
         isPublic
+        templateType
         createdAt
         updatedAt
         createdBy
       }
+    }
+  }
+`;
+
+export const Q_GET_PRICING_TEMPLATES = gql`
+  query GetPricingTemplates {
+    pricingTemplates {
+      id
+      name
+      description
+      instruction
+      workflowJson
+      generatedCode
+      pseudoCode
+      status
+      isPublic
+      templateType
+      createdAt
+      updatedAt
+      createdBy
     }
   }
 `;
@@ -926,6 +950,7 @@ export const M_SAVE_WORKFLOW = gql`
     $description: String
     $pseudoCode: String
     $isPublic: Boolean! = false
+    $templateType: String! = "workflow"
   ) {
     saveWorkflow(
       name: $name
@@ -935,6 +960,7 @@ export const M_SAVE_WORKFLOW = gql`
       description: $description
       pseudoCode: $pseudoCode
       isPublic: $isPublic
+      templateType: $templateType
     ) {
       id
       name
@@ -945,6 +971,7 @@ export const M_SAVE_WORKFLOW = gql`
       pseudoCode
       status
       isPublic
+      templateType
       createdAt
       updatedAt
     }
@@ -962,6 +989,7 @@ export const M_UPDATE_WORKFLOW = gql`
     $generatedCode: String
     $pseudoCode: String
     $isPublic: Boolean
+    $templateType: String
   ) {
     updateWorkflow(
       workflowId: $workflowId
@@ -973,6 +1001,7 @@ export const M_UPDATE_WORKFLOW = gql`
       generatedCode: $generatedCode
       pseudoCode: $pseudoCode
       isPublic: $isPublic
+      templateType: $templateType
     ) {
       id
       name
@@ -983,6 +1012,7 @@ export const M_UPDATE_WORKFLOW = gql`
       pseudoCode
       status
       isPublic
+      templateType
       createdAt
       updatedAt
     }
@@ -1055,6 +1085,10 @@ export const M_EXECUTE_PIPELINE = gql`
     $overrideCode: String
     $stopAfter: Int = 4
     $additionalData: JSON
+    $executionId: UUID
+    $startFromNode: Int = 1
+    $runAsync: Boolean = false
+    $workflowId: UUID
   ) {
     executePipeline(
       prompt: $prompt
@@ -1062,6 +1096,10 @@ export const M_EXECUTE_PIPELINE = gql`
       overrideCode: $overrideCode
       stopAfter: $stopAfter
       additionalData: $additionalData
+      executionId: $executionId
+      startFromNode: $startFromNode
+      runAsync: $runAsync
+      workflowId: $workflowId
     ) {
       success
       error
@@ -1069,6 +1107,7 @@ export const M_EXECUTE_PIPELINE = gql`
       nodes
       warnings
       columnMapping
+      executionId
     }
   }
 `;

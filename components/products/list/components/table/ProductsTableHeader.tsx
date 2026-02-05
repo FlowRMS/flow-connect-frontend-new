@@ -4,12 +4,14 @@
  */
 
 'use client';
-
+ 
 import React, { useState, useCallback } from 'react';
-import type { ProductLandingPage } from '../../../api/useProductsApi';
+import type { ProductLandingPage } from '../../../api';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { getProductFilterOptions } from '../../../config/filterConfig';
+import { SortIndicator } from '@/components/shared/sorting/components/SortIndicator';
+import type { ActiveSort } from '@/components/shared/sorting/types';
 
 interface ProductsTableHeaderProps {
   // Selection
@@ -21,6 +23,10 @@ interface ProductsTableHeaderProps {
   onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
   filterOptions?: ReturnType<typeof getProductFilterOptions>;
   columnFilters?: Record<string, ActiveFilter[]>;
+  // Sorting
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
+  isFetching?: boolean;
 }
 
 export function ProductsTableHeader({
@@ -31,6 +37,9 @@ export function ProductsTableHeader({
   onColumnFiltersChange,
   filterOptions = getProductFilterOptions([], [], []),
   columnFilters: parentColumnFilters,
+  activeSort,
+  onSortChange,
+  isFetching = false,
 }: ProductsTableHeaderProps) {
   const [openFilter, setOpenFilter] = useState<string | null>(null);
   
@@ -51,6 +60,18 @@ export function ProductsTableHeader({
     createdAt: 'created-date',
     tags: 'tags',
   };
+
+  // Helper to get active sort for a specific column
+  const getActiveSortForColumn = useCallback(
+    (columnName: string): ActiveSort | null => {
+      if (!activeSort || activeSort.columnName !== columnName) return null;
+      return {
+        columnId: columnName,
+        direction: activeSort.direction,
+      };
+    },
+    [activeSort]
+  );
   
   // Handle column filter change - now receives ActiveFilter[]
   const handleColumnFilterChange = useCallback((columnKey: string, filters: ActiveFilter[]) => {
@@ -135,12 +156,25 @@ export function ProductsTableHeader({
         {/* Part Number */}
         <th className="px-4 py-3 text-left">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">
+            <span
+              className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-[var(--foreground)]"
+              onClick={() => onSortChange?.('factoryPartNumber')}
+            >
               Part Number
             </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('factoryPartNumber')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="factoryPartNumber"
+                  activeSort={getActiveSortForColumn('factoryPartNumber')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
@@ -154,72 +188,175 @@ export function ProductsTableHeader({
         {/* Factory */}
         <th className="px-4 py-3 text-left">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">
+            <span
+              className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-[var(--foreground)]"
+              onClick={() => onSortChange?.('factoryTitle')}
+            >
               Factory
             </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('factoryTitle')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="factoryTitle"
+                  activeSort={getActiveSortForColumn('factoryTitle')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
         {/* Category */}
         <th className="px-4 py-3 text-left">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">
+            <span
+              className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-[var(--foreground)]"
+              onClick={() => onSortChange?.('categoryTitle')}
+            >
               Category
             </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('categoryTitle')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="categoryTitle"
+                  activeSort={getActiveSortForColumn('categoryTitle')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
         {/* Unit Price */}
         <th className="px-4 py-3 text-right">
           <div className="flex items-center justify-end gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">
+            <span
+              className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-[var(--foreground)]"
+              onClick={() => onSortChange?.('unitPrice')}
+            >
               Unit Price
             </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('unitPrice')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="unitPrice"
+                  activeSort={getActiveSortForColumn('unitPrice')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
         {/* Commission */}
         <th className="px-4 py-3 text-center">
           <div className="flex items-center justify-center gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">
+            <span
+              className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-[var(--foreground)]"
+              onClick={() => onSortChange?.('defaultCommissionRate')}
+            >
               Commission
             </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('defaultCommissionRate')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="defaultCommissionRate"
+                  activeSort={getActiveSortForColumn('defaultCommissionRate')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
         {/* Status (Published) */}
         <th className="px-4 py-3 text-center">
           <div className="flex items-center justify-center gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">
+            <span
+              className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-[var(--foreground)]"
+              onClick={() => onSortChange?.('published')}
+            >
               Status
             </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('published')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="published"
+                  activeSort={getActiveSortForColumn('published')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
         {/* Approval */}
         <th className="px-4 py-3 text-center">
           <div className="flex items-center justify-center gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">
+            <span
+              className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-[var(--foreground)]"
+              onClick={() => onSortChange?.('approvalNeeded')}
+            >
               Approval
             </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('approvalNeeded')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="approvalNeeded"
+                  activeSort={getActiveSortForColumn('approvalNeeded')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
+          </div>
+        </th>
+
+        {/* Entry Date */}
+        <th className="px-4 py-3 text-center">
+          <div className="flex items-center justify-center gap-1.5">
+            <span
+              className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-[var(--foreground)]"
+              onClick={() => onSortChange?.('createdAt')}
+            >
+              Entry Date
+            </span>
+            <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderColumnFilter('createdAt')}
+            </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="createdAt"
+                  activeSort={getActiveSortForColumn('createdAt')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 

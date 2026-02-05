@@ -17,7 +17,8 @@ export const ORDER_TABLE_COLUMNS: ColumnConfig[] = [
   { id: 'status', width: '130px', label: 'Status', sortable: true, filterable: true, exportType: 'text' },
   { id: 'total', width: '120px', label: 'Amount', sortable: true, filterable: true, align: 'right', exportType: 'currency' },
   { id: 'orderDate', width: '130px', label: 'Order Date', sortable: true, filterable: true, exportType: 'date', apiField: 'entityDate' },
-  { id: 'entryDate', width: '130px', label: 'Entry Date', sortable: false, filterable: false, exportType: 'date', apiField: 'createdAt' },
+  // Entry Date uses createdAt (audit field) from the landing page
+  { id: 'entryDate', width: '130px', label: 'Entry Date', sortable: true, filterable: false, exportType: 'date', apiField: 'createdAt' },
   { id: 'createdBy', width: '140px', label: 'Created By', sortable: false, filterable: false, exportType: 'text' },
   { id: 'shipDate', width: '90px', label: 'Ship Date', sortable: false, filterable: false, exportType: 'date' },
   { id: 'dueDate', width: '90px', label: 'Due Date', sortable: false, filterable: false, exportType: 'date' },

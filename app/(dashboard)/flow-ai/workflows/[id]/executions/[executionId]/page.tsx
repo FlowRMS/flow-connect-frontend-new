@@ -134,21 +134,68 @@ export default function WorkflowExecutionDetailPage() {
     URL.revokeObjectURL(url);
   };
 
+  const extractTabularData = (raw: any): Record<string, any>[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (Array.isArray(raw?.data)) return raw.data;
+    if (Array.isArray(raw?.rows)) return raw.rows;
+    if (Array.isArray(raw?.result)) return raw.result;
+    if (Array.isArray(raw?.preview_rows)) return raw.preview_rows;
+    if (Array.isArray(raw?.customer_price_list)) return raw.customer_price_list;
+    // Check in nodes structure
+    if (raw?.nodes?.node4?.result) {
+      const node4Result = raw.nodes.node4.result;
+      if (Array.isArray(node4Result)) return node4Result;
+      if (Array.isArray(node4Result?.data)) return node4Result.data;
+      if (Array.isArray(node4Result?.rows)) return node4Result.rows;
+      if (Array.isArray(node4Result?.preview_rows)) return node4Result.preview_rows;
+    }
+    return [];
+  };
+
+  // Extract S3 output file URL if streaming was used
+  const getOutputFileUrl = (raw: any): string | null => {
+    if (!raw) return null;
+    // Direct output_file
+    if (typeof raw?.output_file === 'string' && raw.output_file.startsWith('http')) {
+      return raw.output_file;
+    }
+    // Check in nodes structure
+    if (raw?.nodes?.node4?.result?.output_file) {
+      const url = raw.nodes.node4.result.output_file;
+      if (typeof url === 'string' && url.startsWith('http')) {
+        return url;
+      }
+    }
+    return null;
+  };
+
+  // Get row count from streaming result
+  const getRowCount = (raw: any): number | null => {
+    if (!raw) return null;
+    if (typeof raw?.row_count === 'number') return raw.row_count;
+    if (raw?.nodes?.node4?.result?.row_count) {
+      return raw.nodes.node4.result.row_count;
+    }
+    return null;
+  };
+
   const handleDownloadOutput = () => {
     if (!execution?.output_data) {
       toast.error('No output data available');
       return;
     }
-    const raw = execution.output_data;
-    const data = Array.isArray(raw?.data)
-      ? raw.data
-      : Array.isArray(raw?.rows)
-      ? raw.rows
-      : Array.isArray(raw?.result)
-      ? raw.result
-      : Array.isArray(raw)
-      ? raw
-      : [];
+
+    // Check for S3 URL first (streaming result)
+    const outputFileUrl = getOutputFileUrl(execution.output_data);
+    if (outputFileUrl) {
+      window.open(outputFileUrl, '_blank');
+      toast.success('Opening download link...');
+      return;
+    }
+
+    // Fallback to extracting data and generating CSV
+    const data = extractTabularData(execution.output_data);
     if (!data.length) {
       toast.error('No tabular data to download');
       return;
@@ -178,16 +225,11 @@ export default function WorkflowExecutionDetailPage() {
     );
   }
 
-  const outputData = execution.output_data;
-  const resultArray = Array.isArray(outputData?.data)
-    ? outputData.data
-    : Array.isArray(outputData?.rows)
-    ? outputData.rows
-    : Array.isArray(outputData?.result)
-    ? outputData.result
-    : Array.isArray(outputData)
-    ? outputData
-    : [];
+  const resultArray = extractTabularData(execution.output_data);
+  const outputFileUrl = getOutputFileUrl(execution.output_data);
+  const rowCount = getRowCount(execution.output_data);
+  const isStreaming = !!outputFileUrl;
+  const hasDownloadableData = resultArray.length > 0 || isStreaming;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
@@ -199,10 +241,10 @@ export default function WorkflowExecutionDetailPage() {
               Back to Executions
             </Link>
           </Button>
-          {resultArray.length > 0 && (
+          {hasDownloadableData && (
             <Button variant="outline" onClick={handleDownloadOutput}>
               <Download className="w-4 h-4 mr-2" />
-              Download Output CSV
+              {isStreaming && rowCount ? `Download CSV (${rowCount.toLocaleString()} rows)` : 'Download Output CSV'}
             </Button>
           )}
         </div>
@@ -273,9 +315,24 @@ export default function WorkflowExecutionDetailPage() {
             <CardTitle>Execution Data</CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Show streaming info banner if applicable */}
+            {isStreaming && rowCount !== null && (
+              <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-primary">
+                      Streaming Result: {rowCount.toLocaleString()} rows generated
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Showing preview below. Use the download button for the complete file.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             <Tabs defaultValue="output">
               <TabsList className="mb-4">
-                <TabsTrigger value="output">Output Data</TabsTrigger>
+                <TabsTrigger value="output">{isStreaming ? 'Preview Data' : 'Output Data'}</TabsTrigger>
                 <TabsTrigger value="input">Input Data</TabsTrigger>
                 <TabsTrigger value="logs">Execution Logs</TabsTrigger>
               </TabsList>

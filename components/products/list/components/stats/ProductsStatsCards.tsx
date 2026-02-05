@@ -6,7 +6,7 @@
 
 import { ProductStatCard } from './ProductStatCard';
 import { useProductStat } from './useProductStat';
-import type { ProductLandingPageFilter } from '../../../api/useProductsApi';
+import type { ProductLandingPageFilter } from '../../../api';
 
 export function ProductsStatsCards() {
   // Total Products - no filter

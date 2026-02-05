@@ -11,6 +11,7 @@ export type SortField =
   | 'customerName'
   | 'manufacturerName'
   | 'invoiceDate'
+  | 'entryDate'
   | 'dueDate'
   | 'total'
   | 'balance'

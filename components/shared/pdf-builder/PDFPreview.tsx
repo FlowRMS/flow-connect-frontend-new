@@ -325,6 +325,9 @@ export function PDFPreview({
                         case 'uom':
                           value = editedValues.uom ?? item.uom ?? 'EA';
                           break;
+                        case 'endUser':
+                          value = item.endUser || '-';
+                          break;
                         case 'total':
                           value = formatCurrency(getLineItemTotal(item));
                           break;

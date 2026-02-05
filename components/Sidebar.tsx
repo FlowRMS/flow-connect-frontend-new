@@ -532,6 +532,14 @@ const iconMap: Record<string, React.ReactNode> = {
       <circle cx="12" cy="8" r="1" fill="currentColor"/>
     </svg>
   ),
+  // External links
+  'flow-connect': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+      <polyline points="15 3 21 3 21 9"/>
+      <line x1="10" y1="14" x2="21" y2="3"/>
+    </svg>
+  ),
 };
 
 // Export iconMap for use in other components
@@ -569,51 +577,46 @@ export default function Sidebar() {
   // Track visually selected item - updates immediately on click, before page loads
   const [visuallySelectedId, setVisuallySelectedId] = useState<string | null>(null);
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   // Store refs to all nav items for pill position calculation
   const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   // Track pill position for smooth sliding animation
   const [pillPosition, setPillPosition] = useState<{ top: number; height: number } | null>(null);
 
-  // Update pill position when visual selection changes
-  useEffect(() => {
-    if (visuallySelectedId && itemRefs.current.has(visuallySelectedId)) {
-      const element = itemRefs.current.get(visuallySelectedId);
-      const nav = navRef.current;
-      if (element && nav) {
-        const elementRect = element.getBoundingClientRect();
-        const navRect = nav.getBoundingClientRect();
-        setPillPosition({
-          top: elementRect.top - navRect.top + nav.scrollTop,
-          height: elementRect.height,
-        });
-      }
+  // Recalculate pill position, hiding it if the active item isn't visible
+  const updatePillPosition = useCallback(() => {
+    if (!visuallySelectedId) { setPillPosition(null); return; }
+    const element = itemRefs.current.get(visuallySelectedId);
+    const nav = navRef.current;
+    if (element && nav && element.offsetParent !== null) {
+      const elementRect = element.getBoundingClientRect();
+      const navRect = nav.getBoundingClientRect();
+      setPillPosition({
+        top: elementRect.top - navRect.top + nav.scrollTop,
+        height: elementRect.height,
+      });
+    } else {
+      setPillPosition(null);
     }
-  }, [visuallySelectedId, isCollapsed]);
+  }, [visuallySelectedId]);
+
+  // Update pill position when visual selection, collapse, search, or group toggle changes
+  useEffect(() => {
+    updatePillPosition();
+  }, [updatePillPosition, isCollapsed, searchQuery, config.groups]);
 
   // Also update pill position on scroll
   useEffect(() => {
-    const updatePillOnScroll = () => {
-      if (visuallySelectedId && itemRefs.current.has(visuallySelectedId)) {
-        const element = itemRefs.current.get(visuallySelectedId);
-        const nav = navRef.current;
-        if (element && nav) {
-          const elementRect = element.getBoundingClientRect();
-          const navRect = nav.getBoundingClientRect();
-          setPillPosition({
-            top: elementRect.top - navRect.top + nav.scrollTop,
-            height: elementRect.height,
-          });
-        }
-      }
-    };
-
     const nav = navRef.current;
     if (nav) {
-      nav.addEventListener('scroll', updatePillOnScroll, { passive: true });
-      return () => nav.removeEventListener('scroll', updatePillOnScroll);
+      nav.addEventListener('scroll', updatePillPosition, { passive: true });
+      return () => nav.removeEventListener('scroll', updatePillPosition);
     }
-  }, [visuallySelectedId]);
+  }, [updatePillPosition]);
 
   // Sync visual selection with pathname when page actually loads
   useEffect(() => {
@@ -741,6 +744,57 @@ export default function Sidebar() {
         )}
       </div>
 
+      {/* Search */}
+      {!isCollapsed ? (
+        <div className="px-3 pt-3 pb-1">
+          <div className="relative">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] pointer-events-none"
+            >
+              <circle cx="9" cy="9" r="6" />
+              <path d="M13.5 13.5L17 17" strokeLinecap="round" />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search..."
+              className="w-full pl-8 pr-7 py-1.5 text-sm bg-[var(--muted)] text-[var(--foreground)] placeholder-[var(--muted-foreground)] rounded-md border border-transparent focus:border-[var(--border)] focus:bg-[var(--background)] focus:outline-none transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-center pt-3 pb-1">
+          <button
+            onClick={() => { setIsCollapsed(false); setTimeout(() => searchInputRef.current?.focus(), 300); }}
+            className="p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] rounded-md transition-colors"
+            title="Search"
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="9" cy="9" r="6" />
+              <path d="M13.5 13.5L17 17" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav ref={navRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-3 relative">
         {/* Single sliding pill that animates between items */}
@@ -757,7 +811,12 @@ export default function Sidebar() {
         )}
         <div className="relative z-10">
         {config.groups.map((group, groupIndex) => {
-          const enabledItems = group.items.filter(item => item.enabled);
+          const query = searchQuery.toLowerCase().trim();
+          const enabledItems = group.items.filter(item => {
+            if (!item.enabled) return false;
+            if (query && !item.name.toLowerCase().includes(query)) return false;
+            return true;
+          });
           if (enabledItems.length === 0) return null;
 
           return (
@@ -784,7 +843,7 @@ export default function Sidebar() {
                 groupIndex > 0 && <div className="mx-2 my-2 border-t border-[var(--border)]" />
               )}
 
-              {(isCollapsed || !group.collapsed) && (
+              {(isCollapsed || !group.collapsed || searchQuery) && (
                 <div className={!isCollapsed ? 'mt-1' : ''}>
                   {enabledItems.map((item) => {
                     // Use visual selection for the sliding pill - updates instantly on click
@@ -892,6 +951,30 @@ export default function Sidebar() {
           );
         })}
         </div>
+
+        {/* Flow Connect external link */}
+        {process.env.NEXT_PUBLIC_FLOW_CONNECT_URL && (
+          <div className="mt-4 pt-4 border-t border-[var(--border)]">
+            <Link
+              href={process.env.NEXT_PUBLIC_FLOW_CONNECT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={isCollapsed ? 'Flow Connect' : undefined}
+              className={`
+                w-full flex items-center
+                ${isCollapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5'}
+                rounded-lg text-sm font-medium
+                text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]
+                transition-colors
+              `}
+            >
+              {iconMap['flow-connect']}
+              {!isCollapsed && (
+                <span className="whitespace-nowrap">Flow Connect</span>
+              )}
+            </Link>
+          </div>
+        )}
       </nav>
     </div>
   );

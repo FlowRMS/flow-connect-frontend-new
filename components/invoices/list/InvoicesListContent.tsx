@@ -124,6 +124,7 @@ export default function InvoicesListContent() {
             invoiceNumber: 'invoiceNumber',
             status: 'status',
             invoiceDate: 'entityDate',
+            entryDate: 'createdAt',
             dueDate: 'dueDate',
             total: 'total',
             balance: 'total', // Note: balance not in API, use total as fallback
@@ -158,6 +159,18 @@ export default function InvoicesListContent() {
       reportTitle: 'Invoices Export',
     },
   });
+
+  // Handler for column sort click - single-column sort (replaces previous)
+  const handleColumnSort = useCallback((columnName: string) => {
+    if (activeSort && activeSort.columnName === columnName) {
+      // Toggle direction
+      const newDirection = activeSort.direction === 'ASC' ? 'DESC' : 'ASC';
+      state.handleSortChange({ columnName, direction: newDirection });
+    } else {
+      // New sort, default ASC
+      state.handleSortChange({ columnName, direction: 'ASC' });
+    }
+  }, [activeSort, state.handleSortChange]);
 
   // Fetch ALL records for export (not just loaded via infinite scroll)
   const fetchAllInvoicesForExport = useCallback(async () => {
@@ -370,6 +383,9 @@ export default function InvoicesListContent() {
             isFetchingNextPage={state.isFetchingNextPage}
             fetchNextPage={state.fetchNextPage}
             searchQuery={state.searchQuery}
+            activeSort={activeSort}
+            onSortChange={handleColumnSort}
+            isFetching={false}
           />
 
           {/* Empty State - shown outside table when no data */}
