@@ -185,6 +185,17 @@ export default function StatementsListContent() {
   const filterOptions = useMemo(() => getStatementFilterOptions(), []);
   const sortOptions = useMemo(() => getStatementSortOptions(), []);
 
+  const activeSort = useMemo(() => {
+    if (serverOrderBy && serverOrderBy.length > 0) {
+      const first = serverOrderBy[0];
+      return {
+        columnName: first.columnName,
+        direction: first.direction,
+      } as { columnName: string; direction: 'ASC' | 'DESC' };
+    }
+    return undefined;
+  }, [serverOrderBy]);
+
   // Check if there are any filters applied
   const hasFilters = useMemo(() => {
     const hasQuickDateFilter = quickDatePreset !== 'all';
@@ -197,7 +208,7 @@ export default function StatementsListContent() {
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-gradient-to-br from-gray-50 to-white">
       {/* Page Header */}
-      <div className="px-6 py-5 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
+      <div className="px-6 py-5 border-b border-gray-100 bg-white/80 backdrop-blur-sm relative z-30">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-start gap-4">
             {/* Morphing Icon Target */}
@@ -297,7 +308,8 @@ export default function StatementsListContent() {
             {/* Sort Button */}
             <SortButton
               sortOptions={sortOptions}
-              onSortChange={(sort) => handleSortChange(sort)}
+              activeSort={activeSort}
+              onSortChange={handleSortChange}
             />
 
             {/* Create Button */}
@@ -315,7 +327,7 @@ export default function StatementsListContent() {
       </div>
 
       {/* Filters Bar */}
-      <div className="px-6 py-4 border-b border-gray-100 bg-white/60 backdrop-blur-sm relative z-20">
+      <div className="px-6 py-4 border-b border-gray-100 bg-white/60 backdrop-blur-sm relative z-10">
         <div className="flex items-center gap-3 flex-wrap">
           {/* Quick filters label */}
           <span className="text-sm text-gray-500">
