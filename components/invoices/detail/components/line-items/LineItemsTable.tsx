@@ -381,7 +381,7 @@ export function LineItemsTable({
         const newCommission = parseFloat(value.replace(/[$,]/g, '')) || 0;
         const extendedPrice = item.amount || 0;
         // Calculate the new commission rate from the commission value
-        const newCommissionRate = extendedPrice !== 0 ? (newCommission / extendedPrice) * 100 : 0;
+        const newCommissionRate = extendedPrice !== 0 ? Math.round((newCommission / extendedPrice) * 100 * 10000) / 10000 : 0;
         updates.commissionAmount = newCommission;
         updates.commission = newCommission;
         updates.commissionRate = newCommissionRate;
@@ -446,8 +446,8 @@ export function LineItemsTable({
         editValue = String(item.unitPrice || 0);
         break;
       case 'commissionPercent':
-        displayValue = `${String(Number(item.commissionRate || 0))}%`;
-        editValue = String(Number(item.commissionRate || 0));
+        displayValue = `${String(parseFloat(Number(item.commissionRate || 0).toFixed(4)))}%`;
+        editValue = String(parseFloat(Number(item.commissionRate || 0).toFixed(4)));
         break;
       case 'commission':
         displayValue = formatCurrency((item.amount - (item.discount || 0)) * ((item.commissionRate ?? 0) / 100));

@@ -600,7 +600,7 @@ export function LineItemsTabV2({
       const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
       const discountedSellTotal = sellTotal - lineDiscountAmount;
       // Calculate the new commission percent from the commission value
-      const newCommissionPercent = discountedSellTotal !== 0 ? (newCommission / discountedSellTotal) * 100 : 0;
+      const newCommissionPercent = discountedSellTotal !== 0 ? Math.round((newCommission / discountedSellTotal) * 100 * 10000) / 10000 : 0;
       const commissionDiscountAmt = newCommission * ((item.commissionDiscountPercent || 0) / 100);
       updates.commission = newCommission;
       updates.commissionPercent = newCommissionPercent;
@@ -722,8 +722,8 @@ export function LineItemsTabV2({
         displayValue = `$${Number((item.sellTotal || 0) - (item.lineDiscountAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         break;
       case 'commissionPercent':
-        displayValue = String(Number(item.commissionPercent || 0));
-        editValue = String(Number(item.commissionPercent || 0));
+        displayValue = String(parseFloat(Number(item.commissionPercent || 0).toFixed(4)));
+        editValue = String(parseFloat(Number(item.commissionPercent || 0).toFixed(4)));
         break;
       case 'commission':
         // Show base commission before commission discount (per unit)
