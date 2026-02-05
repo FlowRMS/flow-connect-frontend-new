@@ -138,16 +138,16 @@ export function useStatementsListState() {
   const isSyncingFromAdvanced = useRef(false);
   const isSyncingFromColumn = useRef(false);
 
-  // Sort state
+  // Sort state - default to Entry Date (createdAt) DESC
   const [serverOrderBy, setServerOrderBy] = useState<StatementLandingPageOrderBy[]>(() => {
     return [{
-      columnName: mapSortFieldToColumnName('entityDate'),
+      columnName: mapSortFieldToColumnName('createdAt'),
       direction: 'DESC',
     }];
   });
 
   // UI sort state (for backwards compatibility)
-  const [sortField, setSortField] = useState<SortField>('entityDate');
+  const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // Selected statement for detail panel
@@ -435,11 +435,12 @@ export function useStatementsListState() {
         setSortDirection(sort.direction.toLowerCase() as SortDirection);
       }
     } else {
+      // Reset to default: Entry Date (createdAt) DESC
       setServerOrderBy([{
-        columnName: mapSortFieldToColumnName('entityDate'),
+        columnName: mapSortFieldToColumnName('createdAt'),
         direction: 'DESC',
       }]);
-      setSortField('entityDate');
+      setSortField('createdAt');
       setSortDirection('desc');
     }
   }, []);

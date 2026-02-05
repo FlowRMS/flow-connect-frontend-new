@@ -11,6 +11,8 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { StatementListItem } from '../../../types';
 import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { StatementsTableHeader } from './StatementsTableHeader';
 
 // Helper to get initials from a name
 const getInitials = (name: string | undefined | null): string => {
@@ -59,6 +61,13 @@ interface StatementsTableProps {
   searchQuery?: string;
   hasFilters?: boolean;
   onClearFilters?: () => void;
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  columnFilters?: Record<string, ActiveFilter[]>;
+  // Sorting
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
+  isFetching?: boolean;
 }
 
 const formatCurrency = (value: number | undefined | null): string => {
@@ -101,6 +110,11 @@ export function StatementsTable({
   searchQuery = '',
   hasFilters = false,
   onClearFilters,
+  onColumnFiltersChange,
+  columnFilters,
+  activeSort,
+  onSortChange,
+  isFetching = false,
 }: StatementsTableProps) {
   const router = useRouter();
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -144,32 +158,16 @@ export function StatementsTable({
           style={{ maxHeight: 'calc(100vh)' }}
         >
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
-              <tr>
-                <th className="w-12 px-4 py-4">
-                  <div className="w-5 h-5 bg-gray-200 rounded animate-pulse" />
-                </th>
-                <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Statement #
-                </th>
-                <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Factory
-                </th>
-                <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Total
-                </th>
-                <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Commission
-                </th>
-                <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Created By
-                </th>
-                <th className="w-16 px-4 py-4"></th>
-              </tr>
-            </thead>
+            <StatementsTableHeader
+              areAllEligibleSelected={isAllSelected}
+              isPartiallySelected={isPartiallySelected}
+              onSelectAll={handleSelectAllClick}
+              onColumnFiltersChange={onColumnFiltersChange}
+              columnFilters={columnFilters}
+              activeSort={activeSort}
+              onSortChange={onSortChange}
+              isFetching={isFetching}
+            />
             <tbody className="divide-y divide-gray-100">
               {[...Array(8)].map((_, index) => (
                 <tr key={index} className="animate-pulse">
@@ -277,53 +275,16 @@ export function StatementsTable({
         style={{ maxHeight: 'calc(100vh - 340px)' }}
       >
         <table className="w-full">
-          <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0">
-          <tr>
-            <th className="w-12 px-4 py-4">
-              <div className="flex items-center justify-center">
-                <button
-                  onClick={handleSelectAllClick}
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
-                    isAllSelected
-                      ? 'bg-emerald-500 border-emerald-500'
-                      : isPartiallySelected
-                      ? 'bg-emerald-100 border-emerald-500'
-                      : 'border-gray-300 hover:border-emerald-400'
-                  }`}
-                >
-                  {(isAllSelected || isPartiallySelected) && (
-                    <svg width="12" height="12" viewBox="0 0 20 20" fill="white">
-                      {isAllSelected ? (
-                        <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
-                      ) : (
-                        <path d="M4 10h12" stroke="currentColor" strokeWidth="2" fill="none" />
-                      )}
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </th>
-            <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Statement #
-            </th>
-            <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Factory
-            </th>
-            <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Date
-            </th>
-            <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Total
-            </th>
-            <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Commission
-            </th>
-            <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Created By
-            </th>
-            <th className="w-16 px-4 py-4"></th>
-          </tr>
-        </thead>
+          <StatementsTableHeader
+            areAllEligibleSelected={isAllSelected}
+            isPartiallySelected={isPartiallySelected}
+            onSelectAll={handleSelectAllClick}
+            onColumnFiltersChange={onColumnFiltersChange}
+            columnFilters={columnFilters}
+            activeSort={activeSort}
+            onSortChange={onSortChange}
+            isFetching={isFetching}
+          />
         <tbody className="divide-y divide-gray-100">
           <AnimatePresence mode="popLayout">
             {statements.map((statement, index) => {
@@ -389,6 +350,11 @@ export function StatementsTable({
                   <td className="px-4 py-4">
                     <span className="text-gray-500 text-sm">
                       {formatDate(statement.entityDate)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4">
+                    <span className="text-gray-500 text-sm">
+                      {formatDate(statement.createdAt)}
                     </span>
                   </td>
                   <td className="px-4 py-4 text-right">

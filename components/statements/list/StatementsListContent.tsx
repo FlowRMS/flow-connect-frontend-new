@@ -100,10 +100,11 @@ export default function StatementsListContent() {
     quickDateField,
     setQuickDateField,
 
-    // Advanced filters
+    // Advanced filters & column filters
     activeFilters,
     columnFilters,
     handleServerFiltersChange,
+    handleColumnFiltersChange,
     statementFilterOptions,
     serverFilters,
 
@@ -204,6 +205,21 @@ export default function StatementsListContent() {
     const hasSearch = searchQuery.trim().length > 0;
     return hasQuickDateFilter || hasAdvancedFilters || hasColumnFilters || hasSearch;
   }, [quickDatePreset, activeFilters, columnFilters, searchQuery]);
+
+  // Column header sort handler (single-column, toggles ASC/DESC) - same pattern as invoices
+  const handleColumnSort = useCallback(
+    (columnName: string) => {
+      if (activeSort && activeSort.columnName === columnName) {
+        // Toggle direction
+        const newDirection = activeSort.direction === 'ASC' ? 'DESC' : 'ASC';
+        handleSortChange({ columnName, direction: newDirection });
+      } else {
+        // New sort, default ASC
+        handleSortChange({ columnName, direction: 'ASC' });
+      }
+    },
+    [activeSort, handleSortChange]
+  );
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-gradient-to-br from-gray-50 to-white">
@@ -356,7 +372,7 @@ export default function StatementsListContent() {
                 <button
                   type="button"
                   onClick={() => setShowQuickPresetDropdown((open) => !open)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-gray-200 bg-white shadow-sm"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-gray-200 bg-white shadow-sm"
                 >
                   <span>More</span>
                   <svg
@@ -510,6 +526,10 @@ export default function StatementsListContent() {
           searchQuery={searchQuery}
           hasFilters={hasFilters}
           onClearFilters={clearAllFilters}
+          onColumnFiltersChange={handleColumnFiltersChange}
+          columnFilters={columnFilters}
+          activeSort={activeSort}
+          onSortChange={handleColumnSort}
         />
 
         {/* End of list */}
