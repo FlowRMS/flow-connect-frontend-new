@@ -115,7 +115,7 @@ export default function WorkflowDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="h-screen overflow-auto bg-gradient-to-br from-background via-background to-primary/5">
       <div className="container mx-auto px-6 py-8">
         <div className="mb-6 flex items-center justify-between">
           <Button variant="ghost" asChild>
@@ -144,7 +144,7 @@ export default function WorkflowDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-1">
-            <Card className="sticky top-24 flow-card">
+            <Card className="lg:sticky lg:top-8 flow-card max-h-[calc(100vh-6rem)] overflow-auto">
               <CardHeader>
                 <CardTitle>Workflow Details</CardTitle>
                 <CardDescription>Edit workflow settings</CardDescription>
@@ -277,7 +277,30 @@ export default function WorkflowDetailPage() {
               </TabsContent>
 
               <TabsContent value="pipeline">
-                {workflow && <PipelineRunner workflow={workflow} />}
+                {workflow && (
+                  <PipelineRunner
+                    workflow={workflow}
+                    onSave={(result) => {
+                      // Update local state with generated code and workflow plan
+                      const node2 = result.nodes?.node2;
+                      const node3 = result.nodes?.node3;
+
+                      if (node2?.workflow_plan) {
+                        setWorkflowJson(node2.workflow_plan);
+                      }
+
+                      if (node3?.code) {
+                        setGeneratedCode(node3.code);
+                      }
+
+                      if (node3?.pseudo_code) {
+                        setPseudoCode(node3.pseudo_code);
+                      }
+
+                      toast.success('Workflow data updated. Click "Save" to persist changes.');
+                    }}
+                  />
+                )}
               </TabsContent>
             </Tabs>
           </div>

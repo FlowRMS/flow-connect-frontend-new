@@ -12,7 +12,7 @@ import {
   type ProductUom,
   type ProductCategory,
   type FactorySearchResult,
-} from '../api/useProductsApi';
+} from '../api';
 
 interface CreateProductModalProps {
   isOpen: boolean;

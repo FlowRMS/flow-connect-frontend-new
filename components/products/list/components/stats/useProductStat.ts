@@ -5,9 +5,11 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { fetchProductsWithPagination } from '../../../api/productsApi';
-import type { ProductLandingPageFilter } from '../../../api/useProductsApi';
-import { productQueryKeys } from '../../../api/useProductsApi';
+import {
+  fetchProductsWithPagination,
+  type ProductLandingPageFilter,
+  productQueryKeys,
+} from '../../../api';
 
 interface UseProductStatResult {
   total: number;

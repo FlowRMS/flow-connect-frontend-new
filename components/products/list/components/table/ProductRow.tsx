@@ -3,7 +3,7 @@
  * Individual product row in the products table
  */
 
-import type { ProductLandingPage } from '../../../api/useProductsApi';
+import type { ProductLandingPage } from '../../../api';
 
 interface ProductRowProps {
   product: ProductLandingPage;

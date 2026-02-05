@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2, ViewMode } from '../types';
 import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer, listProductPricingTiers } from '../../quotes/api/useQuotesApi';
 import type { ProductPricingTierResult } from '../../quotes/api/quotesApi';
-import { fetchProductById } from '../../products/api/productsApi';
+import { fetchProductById } from '../../products/api';
 import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
 import { FIXTURE_SCHEDULE_OPTIONS } from '../config/viewsConfig';
 import { useOverageCalculationBatch, type OverageCalculationInput, type OverageRecord } from '../api/quotesV2Api';

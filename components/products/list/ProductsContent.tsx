@@ -1,27 +1,23 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useMemo, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
-import { HeaderIconAnimation } from '@/components/ui/HeaderIconAnimations';
-import { iconMap } from '@/components/Sidebar';
+import { useNavigationMorph } from '@/contexts/NavigationMorphContext';
 import type { RefObject } from 'react';
 import { useProductsState } from '../hooks/useProductsState';
 import { DeleteProductModal } from '../modals/DeleteProductModal';
 import { ManageCategoriesModal } from '../modals/ManageCategoriesModal';
 import { ManageUomsModal } from '../modals/ManageUomsModal';
 import { BulkDeleteModal, BulkActionsToolbar } from '../../shared';
-import type { ProductLandingPage } from '../api/useProductsApi';
+import type { ProductLandingPage } from '../api';
 import { ProductsTable } from './components/table/ProductsTable';
 import { ProductsStatsCards } from './components/stats/ProductsStatsCards';
+import { ProductsHeader } from './components/header/ProductsHeader';
+import { ProductsFilters } from './components/filters/ProductsFilters';
 import { getProductFilterOptions, getProductSortOptions } from '../config/filterConfig';
-import SortButton from '@/components/SortButton';
 
 export default function ProductsContent() {
   const router = useRouter();
-
-  // Navigation morph hooks
   const { registerHeaderTarget, floatingIcon } = useNavigationMorph();
   const headerIconRef = useRef<HTMLDivElement>(null);
 
@@ -37,45 +33,32 @@ export default function ProductsContent() {
   const isReceivingAnimation = floatingIcon?.itemId === 'products';
 
   const {
-    // State
     searchQuery,
     setSearchQuery,
     filteredProducts,
-    stats,
     totalCount,
-    // Sort state
-    sortState,
-    handleSort,
     clientSortColumns,
     handleMultiSortChange,
     columnFilters,
     handleColumnFiltersChange,
-    // Advanced filters
     activeFilters,
     setActiveFilters,
-    // Modal state
     showCategoriesModal,
     setShowCategoriesModal,
     showUomsModal,
     setShowUomsModal,
     deleteConfirmId,
     setDeleteConfirmId,
-    // Loading state
     isLoading,
     isMounted,
     refetch,
-    // Pagination
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    handleScroll,
-    // Filter options
     uniqueFactories,
     uniqueCategories,
     uniqueUoms,
-    // Handlers
     handleProductDeleted,
-    // Bulk selection
     selectAllMode,
     selectedCount,
     isAllSelected,
@@ -85,23 +68,19 @@ export default function ProductsContent() {
     handleSelectOne,
     clearSelection,
     getAllSelectedIds,
-    // Bulk delete modal
     showBulkDeleteModal,
     setShowBulkDeleteModal,
     handleBulkDeleteSuccess,
   } = useProductsState();
 
-  // Get filter options with dynamic values
-  const filterOptions = useMemo(() => 
+  const filterOptions = useMemo(() =>
     getProductFilterOptions(uniqueFactories, uniqueCategories, uniqueUoms),
     [uniqueFactories, uniqueCategories, uniqueUoms]
   );
 
-  // Get sort options
   const sortOptions = useMemo(() => getProductSortOptions(), []);
 
-  // Check if there are any filters applied (search, column filters, sort, or advanced filters)
-  const hasFilters = useMemo(() => 
+  const hasFilters = useMemo(() =>
     searchQuery.length >= 2 ||
     Object.keys(columnFilters || {}).length > 0 ||
     (clientSortColumns && clientSortColumns.length > 0) ||
@@ -124,7 +103,6 @@ export default function ProductsContent() {
     }
   };
 
-  // Clear all filters handler
   const handleClearAllFilters = useCallback(() => {
     setSearchQuery('');
     handleColumnFiltersChange({});
@@ -132,33 +110,15 @@ export default function ProductsContent() {
     setActiveFilters([]);
   }, [setSearchQuery, handleColumnFiltersChange, handleMultiSortChange, setActiveFilters]);
 
-  // Product to delete
   const productToDelete = useMemo(() => {
     if (!deleteConfirmId) return null;
     return filteredProducts.find(p => p.id === deleteConfirmId) || null;
   }, [deleteConfirmId, filteredProducts]);
 
-  // Navigate to product detail page
   const handleProductClick = (product: ProductLandingPage) => {
     router.push(`/products/${product.id}/edit`);
   };
 
-  // Format currency
-  const formatCurrency = (value?: number) => {
-    if (value === undefined || value === null) return '—';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(value);
-  };
-
-  // Format percentage
-  const formatPercentage = (value?: number) => {
-    if (value === undefined || value === null) return '—';
-    return `${(value * 100).toFixed(1)}%`;
-  };
-
-  // Skeleton loader
   if (!isMounted) {
     return (
       <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
@@ -186,155 +146,30 @@ export default function ProductsContent() {
   return (
     <main className="flex-1 overflow-auto bg-[var(--background)] flex">
       <div className="flex-1 flex flex-col min-h-0 w-full">
-        {/* Header */}
         <div className="p-6 pb-0 flex-shrink-0">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div className="flex items-start gap-4 flex-shrink-0">
-              {/* Morphing Icon Target - Cube Rotate Animation */}
-              <HeaderIconAnimation
-                isReceivingAnimation={isReceivingAnimation}
-                animationStyle="cube-rotate"
-                headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
-              >
-                {iconMap['products']}
-              </HeaderIconAnimation>
-              <div className="overflow-hidden">
-                <motion.h1
-                  className="text-2xl font-semibold text-[var(--foreground)]"
-                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
-                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                  transition={{ duration: 0.35, delay: 0.1, ease: morphEase }}
-                >
-                  Products
-                </motion.h1>
-                <motion.p
-                  className="text-sm text-[var(--muted-foreground)] mt-1"
-                  initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
-                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                  transition={{ duration: 0.3, delay: 0.2, ease: morphEase }}
-                >
-                  Manage your product catalog, categories, and units of measure
-                </motion.p>
-              </div>
-            </div>
-            <motion.div
-              className="flex items-center gap-2 sm:gap-3 flex-wrap"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
-            >
-              <button
-                onClick={() => setShowUomsModal(true)}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-[var(--border)] rounded-lg text-xs sm:text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors whitespace-nowrap"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
-                <span className="hidden sm:inline">Manage UOMs</span>
-                <span className="sm:hidden">UOMs</span>
-              </button>
-              <button
-                onClick={() => setShowCategoriesModal(true)}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-[var(--border)] rounded-lg text-xs sm:text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors whitespace-nowrap"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
-                <span className="hidden sm:inline">Manage Categories</span>
-                <span className="sm:hidden">Categories</span>
-              </button>
-              <button
-                onClick={() => router.push('/products/new')}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors whitespace-nowrap"
-              >
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="10" cy="10" r="7"/>
-                  <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
-                </svg>
-                <span className="hidden sm:inline">Add Product</span>
-                <span className="sm:hidden">Add</span>
-              </button>
-            </motion.div>
-          </div>
+          <ProductsHeader
+            headerIconRef={headerIconRef as RefObject<HTMLDivElement>}
+            isReceivingAnimation={isReceivingAnimation}
+            onManageUoms={() => setShowUomsModal(true)}
+            onManageCategories={() => setShowCategoriesModal(true)}
+          />
 
-          {/* Stats Cards */}
           <ProductsStatsCards />
 
-          {/* Search and Filters */}
-          <div className="flex items-center gap-4 mb-4">
-            {/* Results count */}
-            <div className="text-sm text-[var(--muted-foreground)] whitespace-nowrap">
-              Showing {filteredProducts.length} of {totalCount} products
-            </div>
-            <div className="relative flex-1 max-w-md">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="8"/>
-                <path d="M21 21l-4.35-4.35"/>
-              </svg>
-              <input
-                type="text"
-                placeholder="Search by part number...."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-              />
-            </div>
-            <SortButton
-              sortOptions={sortOptions}
-              onMultiSortChange={handleMultiSortChange}
-              activeSorts={clientSortColumns}
-            />
-            <button
-              onClick={handleClearAllFilters}
-              disabled={!hasFilters}
-              className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md transition-colors ${
-                hasFilters
-                  ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                  : 'border-[var(--border)] text-[var(--muted-foreground)] opacity-50 cursor-not-allowed'
-              }`}
-              title={hasFilters ? 'Clear all filters' : 'No filters to clear'}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-              Clear Filters
-            </button>
-            <button
-              onClick={() => refetch()}
-              disabled={isLoading}
-              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors disabled:opacity-50"
-            >
-              <svg
-                className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </button>
-          </div>
+          <ProductsFilters
+            filteredCount={filteredProducts.length}
+            totalCount={totalCount}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            sortOptions={sortOptions}
+            activeSorts={clientSortColumns}
+            onMultiSortChange={handleMultiSortChange}
+            hasFilters={hasFilters}
+            onClearFilters={handleClearAllFilters}
+            isLoading={isLoading}
+            onRefresh={refetch}
+          />
 
-          {/* Bulk Actions Toolbar */}
           <BulkActionsToolbar
             entityType="PRODUCTS"
             selectedCount={selectedCount}
@@ -346,7 +181,6 @@ export default function ProductsContent() {
           />
         </div>
 
-        {/* Products Table */}
         <div className="flex-1 p-6 pt-4 min-h-0">
           <ProductsTable
             filteredProducts={filteredProducts}
@@ -378,7 +212,6 @@ export default function ProductsContent() {
         </div>
       </div>
 
-      {/* Modals */}
       <DeleteProductModal
         isOpen={!!deleteConfirmId}
         product={productToDelete}
@@ -396,7 +229,6 @@ export default function ProductsContent() {
         onClose={() => setShowUomsModal(false)}
       />
 
-      {/* Bulk Delete Modal */}
       <BulkDeleteModal
         isOpen={showBulkDeleteModal}
         entityType="PRODUCTS"

@@ -12,7 +12,7 @@ import {
   type ProductCategory,
   type CreateProductCategoryInput,
   type FactorySearchResult,
-} from '../api/useProductsApi';
+} from '../api';
 
 interface ManageCategoriesModalProps {
   isOpen: boolean;

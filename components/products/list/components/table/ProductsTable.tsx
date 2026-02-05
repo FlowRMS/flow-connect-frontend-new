@@ -4,7 +4,7 @@
  */
 
 import { useRef } from 'react';
-import type { ProductLandingPage } from '../../../api/useProductsApi';
+import type { ProductLandingPage } from '../../../api';
 import { ProductsTableHeader } from './ProductsTableHeader';
 import { ProductRow } from './ProductRow';
 import { ProductsEmptyState } from './ProductsEmptyState';

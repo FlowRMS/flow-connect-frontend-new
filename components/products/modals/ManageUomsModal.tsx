@@ -9,7 +9,7 @@ import {
   useDeleteProductUom,
   type ProductUom,
   type CreateProductUomInput,
-} from '../api/useProductsApi';
+} from '../api';
 
 interface ManageUomsModalProps {
   isOpen: boolean;

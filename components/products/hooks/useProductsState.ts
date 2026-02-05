@@ -11,8 +11,8 @@ import {
   type ProductLandingPageFilter,
   type ProductLandingPageOrderBy,
   type ProductSearchResult,
-} from '../api/useProductsApi';
-import { fetchAllProductIds } from '../api/productsApi';
+  fetchAllProductIds,
+} from '../api';
 import type { ActiveFilter } from '../../advancedFilters/AdvancedFilters';
 import { useBulkSelection } from '../../shared';
 
