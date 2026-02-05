@@ -228,6 +228,25 @@ export default function CompaniesContent() {
 
   // Track intentional clear to prevent re-selecting after back navigation
   const isIntentionalClearRef = useRef(false);
+  // Track previous company id from URL to detect transitions from /companies?id=xxx -> /companies
+  const previousCompanyIdRef = useRef<string | null>(companyIdFromUrl);
+
+  // Keep local selection in sync with URL when navigating via the unsaved-changes modal.
+  // Only clear selection when we had an id in the URL and now no longer have one
+  // (e.g. user chose "Discard Changes" and we navigated back to /companies).
+  useEffect(() => {
+    const prevId = previousCompanyIdRef.current;
+
+    if (prevId && !companyIdFromUrl && selectedCompany) {
+      isIntentionalClearRef.current = true;
+      setSelectedCompany(null);
+      setIsEditing(false);
+      setHasLocalEdits(false);
+      setEditFormData({});
+    }
+    // Update previous id after we've used it for the transition check
+    previousCompanyIdRef.current = companyIdFromUrl;
+  }, [companyIdFromUrl, selectedCompany, setSelectedCompany, setIsEditing, setHasLocalEdits, setEditFormData]);
 
   // Fetch full company details when navigating via URL
   const targetCompanyId = (!isIntentionalClearRef.current && companyIdFromUrl) ? companyIdFromUrl : (selectedCompany?.id || '');
@@ -252,12 +271,13 @@ export default function CompaniesContent() {
     }
   }, [fullCompanyData, companyIdFromUrl, selectedCompany, setSelectedCompany, parentCompanyData]);
 
-  // Reset the intentional clear flag when URL has no ID
+  // Reset the intentional clear flag whenever a new company is selected
+  // (e.g. user clicks a company from the list after having discarded changes)
   useEffect(() => {
-    if (!companyIdFromUrl) {
+    if (selectedCompany) {
       isIntentionalClearRef.current = false;
     }
-  }, [companyIdFromUrl]);
+  }, [selectedCompany]);
 
   // Set full entity context for global chatbot (type, id, and company name)
   useEffect(() => {
@@ -274,6 +294,9 @@ export default function CompaniesContent() {
   // Update URL when a company is selected (not when cleared - that's handled by handleBack)
   useEffect(() => {
     if (!isMounted) return;
+    // If this is an intentional clear (e.g. user chose Discard Changes),
+    // don't try to re-sync the URL back to ?id=...
+    if (isIntentionalClearRef.current) return;
     if (selectedCompany?.id) {
       const currentId = searchParams.get('id');
       if (currentId !== selectedCompany.id) {
