@@ -584,6 +584,30 @@ export function LineItemsTabV2({
       updates.commission = commissionBeforeDiscount;
       updates.commissionTotal = commissionBeforeDiscount - commissionDiscountAmt;
       updates.commissionDiscountAmount = commissionDiscountAmt;
+    } else if (column === 'commission') {
+      // When commission value is edited, recalculate commissionPercent
+      // Formula: commissionPercent = (commission / discountedSellTotal) * 100
+      const newCommission = parseFloat(value.replace(/[$,]/g, '')) || 0;
+      // Skip if value hasn't changed
+      if (newCommission === item.commission) {
+        setEditingCell(null);
+        return;
+      }
+      // Recalculate sellTotal to ensure consistency
+      const sellTotal = item.quantity * item.unitPrice / item.divisor;
+      // Commission is calculated on DISCOUNTED sell total (after line discount)
+      const lineDiscountPct = item.lineDiscountPercent || 0;
+      const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
+      const discountedSellTotal = sellTotal - lineDiscountAmount;
+      // Calculate the new commission percent from the commission value
+      const newCommissionPercent = discountedSellTotal !== 0 ? (newCommission / discountedSellTotal) * 100 : 0;
+      const commissionDiscountAmt = newCommission * ((item.commissionDiscountPercent || 0) / 100);
+      updates.commission = newCommission;
+      updates.commissionPercent = newCommissionPercent;
+      updates.sellTotal = sellTotal;
+      updates.lineDiscountAmount = lineDiscountAmount;
+      updates.commissionTotal = newCommission - commissionDiscountAmt;
+      updates.commissionDiscountAmount = commissionDiscountAmt;
     }
     updateLineItem(itemId, updates);
     setEditingCell(null);
@@ -704,6 +728,7 @@ export function LineItemsTabV2({
       case 'commission':
         // Show base commission before commission discount (per unit)
         displayValue = `$${Number(item.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+        editValue = String(item.commission || 0);
         break;
       case 'commissionTotal':
         // Display commission after commission discount
@@ -798,7 +823,7 @@ export function LineItemsTabV2({
     // Read-only cells - endUser is editable when specifyEndUserPerLine is true
     // Overage columns are always read-only (calculated values)
     const readOnlyCells = [
-      'sellTotal', 'commission', 'commissionTotal', 'linkedOrder',
+      'sellTotal', 'commissionTotal', 'linkedOrder',
       'percentOver', 'commissionAmount', 'ovgPercent', 'ovgAmount', 'earnPercent', 'earnAmount'
     ];
     if (!settings?.specifyEndUserPerLine) {
@@ -1239,7 +1264,7 @@ export function LineItemsTabV2({
             setEditingCell({ itemId: item.id, column: column.key });
           }}
           className={`w-full px-2 py-1 rounded hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-            column.key === 'commissionPercent' ? 'text-purple-600' : ''
+            column.key === 'commissionPercent' || column.key === 'commission' ? 'text-purple-600' : ''
           }`}
         >
           {displayValue}

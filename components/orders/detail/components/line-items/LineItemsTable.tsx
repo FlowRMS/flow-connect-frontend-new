@@ -25,7 +25,7 @@ interface PricingOptions {
   tiers: ProductPricingTierResult[]; // Volume pricing tiers
 }
 
-type EditableColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionPercent' | 'manufacturer' | 'endUser';
+type EditableColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionPercent' | 'commission' | 'manufacturer' | 'endUser';
 
 // Type for rep split rates passed from parent
 interface RepSplitRateInfo {
@@ -614,6 +614,22 @@ export function LineItemsTable({
         updates.commissionAmount = item.extendedPrice * (pct / 100);
         break;
       }
+      case 'commission': {
+        // When commission value is edited, recalculate commissionRate
+        // Formula: commissionRate = (commission / extendedPrice) * 100
+        const newCommission = parseFloat(value.replace(/[$,]/g, '')) || 0;
+        // Skip if value hasn't changed
+        if (newCommission === item.commissionAmount) {
+          setEditingCell(null);
+          return;
+        }
+        const extendedPrice = item.extendedPrice || 0;
+        // Calculate the new commission rate from the commission value
+        const newCommissionRate = extendedPrice !== 0 ? (newCommission / extendedPrice) * 100 : 0;
+        updates.commissionAmount = newCommission;
+        updates.commissionRate = newCommissionRate;
+        break;
+      }
       case 'divisor': {
         const divisor = parseFloat(value) || 1;
         // Skip if value hasn't changed
@@ -690,6 +706,10 @@ export function LineItemsTable({
       case 'commissionPercent':
         displayValue = `${String(Number(item.commissionRate || 0))}%`;
         editValue = String(Number(item.commissionRate || 0));
+        break;
+      case 'commission':
+        displayValue = formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100));
+        editValue = String(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100));
         break;
     }
 
@@ -962,7 +982,7 @@ export function LineItemsTable({
           setEditingCell({ itemId: item.id, column });
         }}
         className={`w-full px-2 py-1 ${alignClass} rounded hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-          column === 'commissionPercent' ? 'text-purple-600' : ''
+          column === 'commissionPercent' || column === 'commission' ? 'text-purple-600' : ''
         }`}
       >
         {displayValue}
@@ -1243,16 +1263,8 @@ export function LineItemsTable({
 
                   {/* Commission */}
                   {visibleColumns.has('commission') && (
-                    <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      <div className="flex flex-col items-end">
-                        <span>{formatCurrency((item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100)) - ((item as any).commissionDiscountAmount || 0))}</span>
-                        {(item as any).commissionDiscountAmount > 0 && (
-                          <>
-                            <span className="text-xs text-gray-400 line-through">{formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 0) / 100))}</span>
-                            <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-{formatCurrency((item as any).commissionDiscountAmount)}</span>
-                          </>
-                        )}
-                      </div>
+                    <td data-column="commission" className="px-3 py-2 text-sm">
+                      {renderEditableCell(item, 'commission', 'right')}
                     </td>
                   )}
 
