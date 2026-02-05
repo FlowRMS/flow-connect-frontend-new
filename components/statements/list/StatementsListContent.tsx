@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useNavigationMorph, morphEase } from '@/contexts/NavigationMorphContext';
@@ -129,6 +129,9 @@ export default function StatementsListContent() {
     handleBulkDeleteSuccess,
   } = useStatementsListState();
 
+  // Local UI state
+  const [showQuickPresetDropdown, setShowQuickPresetDropdown] = useState(false);
+
   // Excel export hook
   const { context: exportContext } = useEntityExport({
     data: allStatementsData as unknown as Record<string, unknown>[],
@@ -185,7 +188,7 @@ export default function StatementsListContent() {
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-gradient-to-br from-gray-50 to-white">
       {/* Page Header */}
       <div className="px-6 py-5 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-start gap-4">
             {/* Morphing Icon Target */}
             <HeaderIconAnimation
@@ -229,45 +232,93 @@ export default function StatementsListContent() {
             </div>
           </div>
 
-          {/* Create Button */}
-          <motion.button
-            onClick={() => router.push('/statements/new')}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all font-medium text-sm shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30"
+          {/* Top controls: search, filters, sort, create */}
+          <motion.div
+            className="flex items-center gap-3 flex-wrap justify-end"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.35, delay: 0.25, ease: morphEase }}
           >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
-            </svg>
-            Create Statement
-          </motion.button>
+            {/* Search */}
+            <div className="relative w-72">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              >
+                <circle cx="9" cy="9" r="6"/>
+                <path d="M13.5 13.5L17 17" strokeLinecap="round"/>
+              </svg>
+              <input
+                type="text"
+                placeholder="Search statements..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              )}
+              {isSearching && (
+                <div className="absolute right-10 top-1/2 -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-emerald-500" />
+                </div>
+              )}
+            </div>
+
+            {/* Advanced Filters */}
+            <AdvancedFilters
+              filterOptions={filterOptions}
+              activeFilters={activeFilters}
+              onFiltersChange={handleServerFiltersChange}
+            />
+
+            {/* Sort Button */}
+            <SortButton
+              sortOptions={sortOptions}
+              onSortChange={(sort) => handleSortChange(sort)}
+            />
+
+            {/* Create Button */}
+            <motion.button
+              onClick={() => router.push('/statements/new')}
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all font-medium text-sm shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
+              </svg>
+              Create Statement
+            </motion.button>
+          </motion.div>
         </div>
       </div>
 
       {/* Filters Bar */}
-      <div className="px-6 py-4 border-b border-gray-100 bg-white/60 backdrop-blur-sm">
+      <div className="px-6 py-4 border-b border-gray-100 bg-white/60 backdrop-blur-sm relative z-20">
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Advanced Filters */}
-          <AdvancedFilters
-            filterOptions={filterOptions}
-            activeFilters={activeFilters}
-            onFiltersChange={handleServerFiltersChange}
-          />
-
-          {/* Sort Button */}
-          <SortButton
-            sortOptions={sortOptions}
-            onSortChange={(sort) => handleSortChange(sort)}
-          />
+          {/* Quick filters label */}
+          <span className="text-sm text-gray-500">
+            Quick filters:
+          </span>
 
           {/* Quick Date Filter */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 relative">
             {QUICK_DATE_PRESETS.slice(0, 5).map((preset) => (
               <button
                 key={preset.value}
                 onClick={() => setQuickDatePreset(preset.value as any)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-md text-sm transition-all ${
                   quickDatePreset === preset.value
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
@@ -276,72 +327,92 @@ export default function StatementsListContent() {
                 {preset.label}
               </button>
             ))}
-            <select
-              value={quickDatePreset}
-              onChange={(e) => setQuickDatePreset(e.target.value as any)}
-              className="px-2 py-1.5 text-xs font-medium text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer"
-            >
-              <option value="" disabled>More...</option>
-              {QUICK_DATE_PRESETS.slice(5).map((preset) => (
-                <option key={preset.value} value={preset.value}>{preset.label}</option>
-              ))}
-            </select>
-          </div>
 
-          {/* Export to Excel */}
-          <ExportExcelButton context={exportContext} options={{}} fetchAllData={fetchAllStatementsForExport} />
+            {/* "More" dropdown trigger */}
+            {QUICK_DATE_PRESETS.length > 5 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickPresetDropdown((open) => !open)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-gray-200 bg-white shadow-sm"
+                >
+                  <span>More</span>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path
+                      d="M6 8l4 4 4-4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
 
-          {/* Spacer */}
-          <div className="flex-1" />
-
-          {/* Search */}
-          <div className="relative w-72">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-            >
-              <circle cx="9" cy="9" r="6"/>
-              <path d="M13.5 13.5L17 17" strokeLinecap="round"/>
-            </svg>
-            <input
-              type="text"
-              placeholder="Search statements..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition-all"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            )}
-            {isSearching && (
-              <div className="absolute right-10 top-1/2 -translate-y-1/2">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-emerald-500" />
+                {showQuickPresetDropdown && (
+                  <>
+                    {/* Backdrop to close on outside click */}
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowQuickPresetDropdown(false)}
+                    />
+                    {/* Dropdown menu */}
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 py-1 min-w-[150px]">
+                      {QUICK_DATE_PRESETS.slice(5).map((preset) => (
+                        <button
+                          key={preset.value}
+                          type="button"
+                          onClick={() => {
+                            setQuickDatePreset(preset.value as any);
+                            setShowQuickPresetDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                            quickDatePreset === preset.value
+                              ? 'bg-emerald-50 text-emerald-700 font-medium'
+                              : 'text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
 
+          {/* Spacer */}
+          <div className="flex-1" />
+
           {/* Refresh */}
           <button
             onClick={() => refetch()}
-            className="p-2.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-500 hover:text-gray-700"
+            className="flex items-center justify-center w-9 h-9 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-700"
             title="Refresh"
           >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 10a7 7 0 1114 0M3 10V4m0 6h6"/>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M23 4v6h-6" />
+              <path d="M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
             </svg>
           </button>
+
+          {/* Export to Excel */}
+          <ExportExcelButton context={exportContext} options={{}} fetchAllData={fetchAllStatementsForExport} />
         </div>
 
         {/* Bulk Actions */}
@@ -373,7 +444,7 @@ export default function StatementsListContent() {
 
       {/* Content */}
       <div
-        className={`flex-1 overflow-auto p-6 transition-all duration-300 relative z-0 ${
+        className={`flex-1 overflow-auto p-6 pb-0 transition-all duration-300 relative z-0 ${
           selectedStatement ? 'mr-[520px]' : ''
         }`}
         onScroll={handleScroll}
@@ -419,7 +490,7 @@ export default function StatementsListContent() {
 
         {/* End of list */}
         {!hasNextPage && statements.length > 0 && !searchQuery && (
-          <div className="text-center py-6 text-sm text-gray-400">
+          <div className="text-center py-3 text-sm text-gray-400">
             All {totalCount} statements loaded
           </div>
         )}

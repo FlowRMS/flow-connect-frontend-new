@@ -6,10 +6,11 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { StatementListItem } from '../../../types';
+import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
 
 // Helper to get initials from a name
 const getInitials = (name: string | undefined | null): string => {
@@ -95,28 +96,19 @@ export function StatementsTable({
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
-  searchQuery,
+  searchQuery = '',
 }: StatementsTableProps) {
   const router = useRouter();
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
-  // Infinite scroll handler
-  useEffect(() => {
-    const container = tableContainerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      if (scrollHeight - scrollTop - clientHeight < 200) {
-        if (hasNextPage && !isFetchingNextPage && !searchQuery && fetchNextPage) {
-          fetchNextPage();
-        }
-      }
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [hasNextPage, isFetchingNextPage, searchQuery, fetchNextPage]);
+  // Use shared scroll pagination hook so behavior matches invoices/adjustments
+  const shouldPaginate = (hasNextPage ?? false) && !searchQuery;
+  useScrollPagination(tableContainerRef, {
+    hasNextPage: shouldPaginate,
+    isFetchingNextPage: isFetchingNextPage ?? false,
+    fetchNextPage: fetchNextPage ?? (() => {}),
+    threshold: 200,
+  });
 
   // Navigate to detail page on row click
   const handleRowClick = useCallback((statement: StatementListItem) => {
@@ -141,35 +133,71 @@ export function StatementsTable({
   // Skeleton loader
   if (isLoading && statements.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-        <table className="w-full">
-          <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
-            <tr>
-              <th className="w-12 px-4 py-4"><div className="w-5 h-5 bg-gray-200 rounded animate-pulse" /></th>
-              <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Statement #</th>
-              <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Factory</th>
-              <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-              <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
-              <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Commission</th>
-              <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Created By</th>
-              <th className="w-16 px-4 py-4"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {[...Array(8)].map((_, index) => (
-              <tr key={index} className="animate-pulse">
-                <td className="px-4 py-4"><div className="w-5 h-5 bg-gray-100 rounded" /></td>
-                <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded w-24" /></td>
-                <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded w-32" /></td>
-                <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded w-20" /></td>
-                <td className="px-4 py-4 text-right"><div className="h-4 bg-gray-100 rounded w-20 ml-auto" /></td>
-                <td className="px-4 py-4 text-right"><div className="h-4 bg-gray-100 rounded w-16 ml-auto" /></td>
-                <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded w-24" /></td>
-                <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded w-8" /></td>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm flex flex-col flex-1 min-h-0">
+        <div
+          ref={tableContainerRef}
+          className="overflow-auto scrollbar-always-visible flex-1"
+          style={{ maxHeight: 'calc(100vh)' }}
+        >
+          <table className="w-full">
+            <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
+              <tr>
+                <th className="w-12 px-4 py-4">
+                  <div className="w-5 h-5 bg-gray-200 rounded animate-pulse" />
+                </th>
+                <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Statement #
+                </th>
+                <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Factory
+                </th>
+                <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Total
+                </th>
+                <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Commission
+                </th>
+                <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Created By
+                </th>
+                <th className="w-16 px-4 py-4"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {[...Array(8)].map((_, index) => (
+                <tr key={index} className="animate-pulse">
+                  <td className="px-4 py-4">
+                    <div className="w-5 h-5 bg-gray-100 rounded" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="h-4 bg-gray-100 rounded w-24" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="h-4 bg-gray-100 rounded w-32" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="h-4 bg-gray-100 rounded w-20" />
+                  </td>
+                  <td className="px-4 py-4 text-right">
+                    <div className="h-4 bg-gray-100 rounded w-20 ml-auto" />
+                  </td>
+                  <td className="px-4 py-4 text-right">
+                    <div className="h-4 bg-gray-100 rounded w-16 ml-auto" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="h-4 bg-gray-100 rounded w-24" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="h-4 bg-gray-100 rounded w-8" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
@@ -200,12 +228,14 @@ export function StatementsTable({
   }
 
   return (
-    <div
-      ref={tableContainerRef}
-      className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
-    >
-      <table className="w-full">
-        <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 sticky top-0">
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm flex flex-col flex-1 min-h-0">
+      <div
+        ref={tableContainerRef}
+        className="overflow-auto scrollbar-always-visible flex-1"
+        style={{ maxHeight: 'calc(100vh - 340px)' }}
+      >
+        <table className="w-full">
+          <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0">
           <tr>
             <th className="w-12 px-4 py-4">
               <div className="flex items-center justify-center">
@@ -363,7 +393,8 @@ export function StatementsTable({
             })}
           </AnimatePresence>
         </tbody>
-      </table>
+        </table>
+      </div>
 
       {/* Loading more indicator */}
       {isFetchingNextPage && (
