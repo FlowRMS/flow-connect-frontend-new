@@ -172,6 +172,9 @@ export default function CompaniesContent() {
     setIsEditing,
     editFormData,
     setEditFormData,
+    handleEditFormChange,
+    hasLocalEdits,
+    setHasLocalEdits,
     deleteConfirmId,
     setDeleteConfirmId,
     activeFilters,
@@ -243,6 +246,25 @@ export default function CompaniesContent() {
 
   // Track intentional clear to prevent re-selecting after back navigation
   const isIntentionalClearRef = useRef(false);
+  // Track previous company id from URL to detect transitions from /companies?id=xxx -> /companies
+  const previousCompanyIdRef = useRef<string | null>(companyIdFromUrl);
+
+  // Keep local selection in sync with URL when navigating via the unsaved-changes modal.
+  // Only clear selection when we had an id in the URL and now no longer have one
+  // (e.g. user chose "Discard Changes" and we navigated back to /companies).
+  useEffect(() => {
+    const prevId = previousCompanyIdRef.current;
+
+    if (prevId && !companyIdFromUrl && selectedCompany) {
+      isIntentionalClearRef.current = true;
+      setSelectedCompany(null);
+      setIsEditing(false);
+      setHasLocalEdits(false);
+      setEditFormData({});
+    }
+    // Update previous id after we've used it for the transition check
+    previousCompanyIdRef.current = companyIdFromUrl;
+  }, [companyIdFromUrl, selectedCompany, setSelectedCompany, setIsEditing, setHasLocalEdits, setEditFormData]);
 
   // Fetch full company details when navigating via URL
   const targetCompanyId = (!isIntentionalClearRef.current && companyIdFromUrl) ? companyIdFromUrl : (selectedCompany?.id || '');
@@ -260,19 +282,24 @@ export default function CompaniesContent() {
       if (parentCompanyData && fullCompanyData.parentCompanyId) {
         mappedCompany.parentCompanyName = parentCompanyData.name;
       }
-      if (!selectedCompany || selectedCompany.id !== mappedCompany.id ||
-          (parentCompanyData && !selectedCompany.parentCompanyName)) {
+      if (
+        !selectedCompany ||
+        selectedCompany.id !== mappedCompany.id ||
+        (parentCompanyData && !selectedCompany.parentCompanyName) ||
+        (!selectedCompany.companyTypeId && mappedCompany.companyTypeId)
+      ) {
         setSelectedCompany(mappedCompany);
       }
     }
   }, [fullCompanyData, companyIdFromUrl, selectedCompany, setSelectedCompany, parentCompanyData]);
 
-  // Reset the intentional clear flag when URL has no ID
+  // Reset the intentional clear flag whenever a new company is selected
+  // (e.g. user clicks a company from the list after having discarded changes)
   useEffect(() => {
-    if (!companyIdFromUrl) {
+    if (selectedCompany) {
       isIntentionalClearRef.current = false;
     }
-  }, [companyIdFromUrl]);
+  }, [selectedCompany]);
 
   // Set full entity context for global chatbot (type, id, and company name)
   useEffect(() => {
@@ -289,6 +316,9 @@ export default function CompaniesContent() {
   // Update URL when a company is selected (not when cleared - that's handled by handleBack)
   useEffect(() => {
     if (!isMounted) return;
+    // If this is an intentional clear (e.g. user chose Discard Changes),
+    // don't try to re-sync the URL back to ?id=...
+    if (isIntentionalClearRef.current) return;
     if (selectedCompany?.id) {
       const currentId = searchParams.get('id');
       if (currentId !== selectedCompany.id) {
@@ -302,8 +332,9 @@ export default function CompaniesContent() {
     if (!selectedCompany) {
       setIsEditing(false);
       setEditFormData({});
+      setHasLocalEdits(false);
     }
-  }, [selectedCompany, setIsEditing, setEditFormData]);
+  }, [selectedCompany, setIsEditing, setEditFormData, setHasLocalEdits]);
 
   // Handle back navigation
   const handleBack = () => {
@@ -317,6 +348,7 @@ export default function CompaniesContent() {
     isIntentionalClearRef.current = true;
     setSelectedCompany(null);
     setIsEditing(false);
+    setHasLocalEdits(false);
     router.replace('/companies', { scroll: false });
   };
 
@@ -448,8 +480,15 @@ export default function CompaniesContent() {
     // Ensure name is always provided (required by GraphQL schema)
     const nameToSend = editFormData.name || selectedCompany.name;
 
-    // Get the company type name for display
-    const companyTypeId = editFormData.companyTypeId || selectedCompany.companyTypeId;
+    // Resolve company type ID and name
+    const companyTypeId = editFormData.companyTypeId ?? selectedCompany.companyTypeId;
+
+    // companyTypeId is required by the GraphQL schema (UUID!)
+    if (!companyTypeId) {
+      companyToasts.updateError('Please select a Company Type before saving.');
+      return false;
+    }
+
     const companyTypeName = companyTypes.find(t => t.id === companyTypeId)?.name || editFormData.companyTypeName || selectedCompany.companyTypeName;
 
     try {
@@ -491,6 +530,7 @@ export default function CompaniesContent() {
       });
 
       // Stay in editing mode after save
+      setHasLocalEdits(false);
       refetch();
       return true;
     } catch (err) {
@@ -505,14 +545,15 @@ export default function CompaniesContent() {
     entityType: 'Company',
     entityId: selectedCompany?.id || null,
     entityName: selectedCompany?.name || null,
-    hasChanges: isEditing && Object.keys(editFormData).length > 0,
+    hasChanges: hasLocalEdits,
     onSave: handleSaveEdit,
   });
 
-  // Handle field change in edit form
-  const handleFieldChange = (field: string, value: unknown) => {
-    setEditFormData(prev => ({ ...prev, [field]: value }));
-  };
+  // Wrapper for onFieldChange to convert (field, value) to handleEditFormChange format
+  const handleFieldChange = useCallback((field: string, value: unknown) => {
+    handleEditFormChange({ [field]: value });
+  }, [handleEditFormChange]);
+
 
   // Show loading state while fetching company details from URL navigation
   if (companyIdFromUrl && companyDetailLoading && !selectedCompany) {
@@ -588,6 +629,7 @@ export default function CompaniesContent() {
         deleteConfirmId={deleteConfirmId}
         updatePending={updateCompanyMutation.isPending}
         deletePending={deleteCompanyMutation.isPending}
+        hasLocalEdits={hasLocalEdits}
         onBack={handleBack}
         onStartEdit={handleStartEdit}
         onSaveEdit={handleSaveEdit}

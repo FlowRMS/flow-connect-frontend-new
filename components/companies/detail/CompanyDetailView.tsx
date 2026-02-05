@@ -56,6 +56,7 @@ interface CompanyDetailViewProps {
   deleteConfirmId: string | null;
   updatePending: boolean;
   deletePending: boolean;
+  hasLocalEdits: boolean;
   onBack: () => void;
   onStartEdit: () => void;
   onSaveEdit: () => void;
@@ -76,12 +77,14 @@ function CompanyTypeSelect({
   disabled,
   companyTypes,
   isLoading,
+  companyTypeName,
 }: {
   value: string | undefined;
   onChange: (value: string) => void;
   disabled: boolean;
   companyTypes: CompanyType[];
   isLoading: boolean;
+  companyTypeName?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -96,9 +99,9 @@ function CompanyTypeSelect({
     type.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Find selected type name
+  // Find selected type name - use companyTypeName as fallback if not found in array
   const selectedType = companyTypes.find(t => t.id === value);
-  const selectedLabel = selectedType?.name || 'Select Company Type';
+  const selectedLabel = selectedType?.name || companyTypeName || 'Select Company Type';
 
   useEffect(() => {
     setPortalTarget(document.body);
@@ -470,6 +473,7 @@ export default function CompanyDetailView({
   deleteConfirmId,
   updatePending,
   deletePending,
+  hasLocalEdits,
   onBack,
   onStartEdit,
   onSaveEdit,
@@ -824,8 +828,8 @@ export default function CompanyDetailView({
             </button>
             <button
               onClick={onSaveEdit}
-              disabled={updatePending}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              disabled={updatePending || !hasLocalEdits}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {updatePending ? (
                 <>
@@ -969,7 +973,14 @@ export default function CompanyDetailView({
                     </div>
                     <CompanyTypeSelect
                       value={isEditing ? (editFormData.companyTypeId ?? company.companyTypeId) : company.companyTypeId}
-                      onChange={(value) => onFieldChange('companyTypeId', value)}
+                      companyTypeName={isEditing ? (editFormData.companyTypeName ?? company.companyTypeName) : company.companyTypeName}
+                      onChange={(value) => {
+                        const selectedType = companyTypes.find(t => t.id === value);
+                        onFieldChange('companyTypeId', value);
+                        if (selectedType) {
+                          onFieldChange('companyTypeName', selectedType.name);
+                        }
+                      }}
                       disabled={!isEditing}
                       companyTypes={companyTypes}
                       isLoading={isLoadingCompanyTypes}

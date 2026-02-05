@@ -22,6 +22,8 @@ export function useCompaniesState(
   // Always editable - no need to click Edit
   const [isEditing, setIsEditing] = useState(true);
   const [editFormData, setEditFormData] = useState<Partial<Company>>({});
+  // Track if user has made actual edits (not just entered edit mode)
+  const [hasLocalEdits, setHasLocalEdits] = useState(false);
 
   // Auto-initialize editFormData when selectedCompany changes
   // This fixes the "can't edit until refresh" bug by ensuring form data is populated on navigation
@@ -47,6 +49,8 @@ export function useCompaniesState(
       });
       // Always enable editing when a company is selected
       setIsEditing(true);
+      // Reset hasLocalEdits when switching companies
+      setHasLocalEdits(false);
     } else {
       setEditFormData({});
     }
@@ -192,7 +196,18 @@ export function useCompaniesState(
     } else {
       setEditFormData({});
     }
+    setHasLocalEdits(false);
   };
+
+  // Wrapper for setEditFormData that tracks changes
+  const handleEditFormChange = useCallback((updater: Partial<Company> | ((prev: Partial<Company>) => Partial<Company>)) => {
+    setHasLocalEdits(true);
+    if (typeof updater === 'function') {
+      setEditFormData(updater);
+    } else {
+      setEditFormData(prev => ({ ...prev, ...updater }));
+    }
+  }, []);
 
   return {
     // View state
@@ -210,6 +225,9 @@ export function useCompaniesState(
     setIsEditing,
     editFormData,
     setEditFormData,
+    handleEditFormChange,
+    hasLocalEdits,
+    setHasLocalEdits,
 
     // Modals
     deleteConfirmId,
