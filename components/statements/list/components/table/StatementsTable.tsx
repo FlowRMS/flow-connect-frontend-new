@@ -57,6 +57,8 @@ interface StatementsTableProps {
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
   searchQuery?: string;
+  hasFilters?: boolean;
+  onClearFilters?: () => void;
 }
 
 const formatCurrency = (value: number | undefined | null): string => {
@@ -97,6 +99,8 @@ export function StatementsTable({
   isFetchingNextPage,
   fetchNextPage,
   searchQuery = '',
+  hasFilters = false,
+  onClearFilters,
 }: StatementsTableProps) {
   const router = useRouter();
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -217,12 +221,50 @@ export function StatementsTable({
             <path d="M9 12h6M9 16h4"/>
           </svg>
         </div>
-        <h4 className="text-xl font-semibold text-gray-900 mb-2">No Statements Found</h4>
-        <p className="text-sm text-gray-500 text-center max-w-md mb-6">
-          {searchQuery
-            ? `No statements match your search "${searchQuery}". Try a different search term.`
-            : 'Create your first statement to get started tracking commissions and payments.'}
-        </p>
+        {hasFilters ? (
+          <>
+            <h4 className="text-xl font-semibold text-gray-900 mb-2">
+              No statements match your filters
+            </h4>
+            <p className="text-sm text-gray-500 text-center max-w-md mb-6">
+              {searchQuery
+                ? `No statements match your search "${searchQuery}". Try a different search term or clear your filters.`
+                : 'Try adjusting or clearing your filters to see more statements.'}
+            </p>
+            {onClearFilters && (
+              <button
+                type="button"
+                onClick={onClearFilters}
+                className="inline-flex items-center gap-2 px-6 py-2.5 border border-red-500 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    d="M5 5l10 10M15 5L5 15"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Clear filters
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <h4 className="text-xl font-semibold text-gray-900 mb-2">
+              No Statements Found
+            </h4>
+            <p className="text-sm text-gray-500 text-center max-w-md mb-6">
+              Create your first statement to get started tracking commissions and payments.
+            </p>
+          </>
+        )}
       </motion.div>
     );
   }

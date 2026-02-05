@@ -127,6 +127,7 @@ export default function StatementsListContent() {
     showBulkDeleteModal,
     setShowBulkDeleteModal,
     handleBulkDeleteSuccess,
+    clearAllFilters,
   } = useStatementsListState();
 
   // Local UI state
@@ -183,6 +184,15 @@ export default function StatementsListContent() {
   // Filter and sort options
   const filterOptions = useMemo(() => getStatementFilterOptions(), []);
   const sortOptions = useMemo(() => getStatementSortOptions(), []);
+
+  // Check if there are any filters applied
+  const hasFilters = useMemo(() => {
+    const hasQuickDateFilter = quickDatePreset !== 'all';
+    const hasAdvancedFilters = activeFilters.length > 0;
+    const hasColumnFilters = Object.keys(columnFilters || {}).length > 0;
+    const hasSearch = searchQuery.trim().length > 0;
+    return hasQuickDateFilter || hasAdvancedFilters || hasColumnFilters || hasSearch;
+  }, [quickDatePreset, activeFilters, columnFilters, searchQuery]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-gradient-to-br from-gray-50 to-white">
@@ -486,6 +496,8 @@ export default function StatementsListContent() {
           isFetchingNextPage={isFetchingNextPage}
           fetchNextPage={fetchNextPage}
           searchQuery={searchQuery}
+          hasFilters={hasFilters}
+          onClearFilters={clearAllFilters}
         />
 
         {/* End of list */}

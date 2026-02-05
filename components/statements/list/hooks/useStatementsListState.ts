@@ -449,6 +449,15 @@ export function useStatementsListState() {
     setSelectedStatementId(statement?.id || null);
   }, []);
 
+  // Clear all filters (advanced, column, quick date, and search)
+  const clearAllFilters = useCallback(() => {
+    setActiveFilters([]);
+    setServerFilters([]);
+    setColumnFilters({});
+    setQuickDatePreset('all');
+    setSearchQuery('');
+  }, []);
+
   return {
     // Statements data
     statements,
@@ -518,5 +527,8 @@ export function useStatementsListState() {
     showBulkDeleteModal,
     setShowBulkDeleteModal,
     handleBulkDeleteSuccess,
+
+    // Utility
+    clearAllFilters,
   };
 }
