@@ -42,6 +42,7 @@ export interface QuoteSettingsValue {
   outsideRepAtLineLevel: boolean;
   insideRepAtLineLevel: boolean;
   factoryPerLineItem: boolean;
+  hideQuoteNameField?: boolean;
   customerPartNumberSource: 'sold_to' | 'end_user';
   outsideRepSource?: OutsideRepSource;
   savedView?: SavedViewState;

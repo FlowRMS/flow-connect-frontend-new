@@ -290,9 +290,10 @@ export function QuoteDetailHeaderV2({
   const skipOutsideRepsEffectRef = useRef(false);
   const skipInsideRepsEffectRef = useRef(false);
 
-  // Outside rep source setting - read from tenant settings directly since personal settings mask it
+  // Quote tenant settings - read directly since personal settings mask these
   const { tenantSettings: quoteTenantSettings } = useQuoteSettings();
   const outsideRepSource: OutsideRepSource = quoteTenantSettings?.outsideRepSource || settings?.outsideRepSource || 'end_user';
+  const hideQuoteNameField = quoteTenantSettings?.hideQuoteNameField ?? settings?.hideQuoteNameField ?? false;
 
   // Source labels for the loading indicator
   const outsideRepSourceLabel: Record<string, string> = {
@@ -1320,8 +1321,8 @@ export function QuoteDetailHeaderV2({
         {showQuoteDetails && (
         <div className="px-6 pb-4">
 
-        {/* Row 1: Quote Number, Name, Manufacturer, Quote Date, Expiration Date, Sold To Customer, End User, Outside Rep */}
-        <div className="grid grid-cols-8 gap-4 mb-4">
+        {/* Row 1: Quote Number, Name (optional), Manufacturer, Quote Date, Expiration Date, Sold To Customer, End User, Outside Rep */}
+        <div className={`grid gap-4 mb-4 ${hideQuoteNameField ? 'grid-cols-7' : 'grid-cols-8'}`}>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Quote Number*</label>
             <input
@@ -1332,6 +1333,7 @@ export function QuoteDetailHeaderV2({
               placeholder="Enter quote number"
             />
           </div>
+          {!hideQuoteNameField && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Name</label>
             <input
@@ -1342,6 +1344,7 @@ export function QuoteDetailHeaderV2({
               placeholder="Enter quote name (optional)"
             />
           </div>
+          )}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Manufacturer</label>
             {settings?.factoryPerLineItem ? (
