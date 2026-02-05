@@ -220,6 +220,24 @@ export default function CompaniesContent() {
     handleServerSortChange(sorts);
   }, [stateHandleMultiSortChange, handleServerSortChange]);
 
+  // Sorting for table header: use clientSortColumns from state
+  const activeSorts = clientSortColumns;
+  const activeSort = activeSorts.length > 0 ? activeSorts[0] : undefined;
+
+  // Handler for column sort click - only allows one sort at a time (replaces previous)
+  const handleColumnSort = (columnName: string) => {
+    // Check if this column is already the active sort
+    const current = activeSorts.find((s) => s.columnName === columnName);
+    if (current) {
+      // Column is already sorted - toggle direction (replace with new direction)
+      const newDirection = current.direction === 'ASC' ? 'DESC' : 'ASC';
+      handleMultiSortChange([{ columnName, direction: newDirection }]);
+    } else {
+      // Replace all sorts with this new one - default to ASC
+      handleMultiSortChange([{ columnName, direction: 'ASC' }]);
+    }
+  };
+
   // Get company ID from URL - this is the source of truth for navigation
   const companyIdFromUrl = searchParams.get('id');
 
@@ -872,6 +890,9 @@ export default function CompaniesContent() {
               filterOptions={companyFilterOptions}
               loadMoreRef={loadMoreRef}
               isFetchingNextPage={isFetchingNextPage}
+              activeSort={activeSort}
+              onSortChange={handleColumnSort}
+              isFetching={isLoading}
             />
           )}
         </>

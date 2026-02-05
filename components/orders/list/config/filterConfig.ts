@@ -30,6 +30,7 @@ export function getOrderSortOptions() {
     { columnName: 'entityDate', label: 'Order Date' },
     { columnName: 'total', label: 'Total' },
     { columnName: 'commission', label: 'Commission' },
+    { columnName: 'createdAt', label: 'Entry Date' },
     // Soon options
     { columnName: 'soldToCustomerName', label: 'Customer Name' }, // Soon
     { columnName: 'factoryName', label: 'Factory Name' }, // Soon

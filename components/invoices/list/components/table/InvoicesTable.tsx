@@ -47,6 +47,10 @@ interface InvoicesTableProps {
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
   searchQuery?: string;
+  // Sorting
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
+  isFetching?: boolean;
 }
 
 export function InvoicesTable({
@@ -74,6 +78,9 @@ export function InvoicesTable({
   isFetchingNextPage,
   fetchNextPage,
   searchQuery = '',
+  activeSort,
+  onSortChange,
+  isFetching = false,
 }: InvoicesTableProps) {
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -126,6 +133,9 @@ export function InvoicesTable({
                 onColumnFiltersChange={onColumnFiltersChange}
                 filterOptions={filterOptions}
                 columnFilters={columnFilters}
+                activeSort={activeSort}
+                onSortChange={onSortChange}
+                isFetching={isFetching}
               />
               <tbody className="divide-y divide-gray-200">
                 {isLoading ? (

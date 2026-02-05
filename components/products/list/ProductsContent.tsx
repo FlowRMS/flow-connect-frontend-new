@@ -109,6 +109,21 @@ export default function ProductsContent() {
     [searchQuery, columnFilters, clientSortColumns, activeFilters]
   );
 
+  // Sorting for table header: use clientSortColumns from state
+  const activeSorts = clientSortColumns;
+  const activeSort = activeSorts.length > 0 ? activeSorts[0] : undefined;
+
+  // Handler for column sort click - only allows one sort at a time (replaces previous)
+  const handleColumnSort = (columnName: string) => {
+    const current = activeSorts.find((s) => s.columnName === columnName);
+    if (current) {
+      const newDirection = current.direction === 'ASC' ? 'DESC' : 'ASC';
+      handleMultiSortChange([{ columnName, direction: newDirection }]);
+    } else {
+      handleMultiSortChange([{ columnName, direction: 'ASC' }]);
+    }
+  };
+
   // Clear all filters handler
   const handleClearAllFilters = useCallback(() => {
     setSearchQuery('');
@@ -356,6 +371,9 @@ export default function ProductsContent() {
               handleColumnFiltersChange({});
             }}
             onCreateProduct={() => router.push('/products/new')}
+            activeSort={activeSort}
+            onSortChange={handleColumnSort}
+            isFetching={isLoading}
           />
         </div>
       </div>

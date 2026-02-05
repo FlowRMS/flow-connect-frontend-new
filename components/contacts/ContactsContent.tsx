@@ -238,6 +238,20 @@ export default function ContactsContent() {
     );
   }
 
+  // Sorting for table header: use server-side clientSortColumns
+  const activeSorts = state.clientSortColumns;
+  const activeSort = activeSorts.length > 0 ? activeSorts[0] : undefined;
+
+  const handleColumnSort = (columnName: string) => {
+    const current = activeSorts.find((s) => s.columnName === columnName);
+    if (current) {
+      const newDirection = current.direction === 'ASC' ? 'DESC' : 'ASC';
+      state.handleMultiSortChange([{ columnName, direction: newDirection }]);
+    } else {
+      state.handleMultiSortChange([{ columnName, direction: 'ASC' }]);
+    }
+  };
+
   // Wrap delete handler to navigate back after successful deletion
   const handleDeleteWithNavigation = async (id: string) => {
     await state.handleDeleteContact(id);
@@ -481,6 +495,8 @@ export default function ContactsContent() {
             onColumnFiltersChange={state.handleColumnFiltersChange}
             filterOptions={contactFilterOptions}
             columnFilters={state.columnFilters}
+            activeSort={activeSort}
+            onSortChange={handleColumnSort}
           />
         ) : (
           <GridView contacts={state.filteredContacts} onContactClick={state.setSelectedContact} />
