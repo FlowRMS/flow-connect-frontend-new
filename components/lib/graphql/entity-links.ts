@@ -41,6 +41,7 @@ export type {
   RelatedEntityPreOpportunity,
   RelatedEntityProduct,
   RelatedEntityQuote,
+  RelatedEntityStatement,
   RelatedEntityTask,
 } from './types';
 
@@ -402,6 +403,17 @@ const GET_RELATED_ENTITIES = `
         tags
         title
       }
+      statements {
+        balanceId
+        createdAt
+        createdById
+        creationType
+        entityDate
+        factoryId
+        id
+        statementNumber
+        url
+      }
     }
   }
 `;
@@ -548,6 +560,7 @@ export async function fetchRelatedEntities(
     preOpportunities: data?.preOpportunities || [],
     products: data?.products || [],
     quotes: data?.quotes || [],
+    statements: data?.statements || [],
     tasks: data?.tasks || [],
   };
 }

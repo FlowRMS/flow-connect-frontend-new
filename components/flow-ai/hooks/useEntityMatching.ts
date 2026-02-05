@@ -10,7 +10,11 @@ import {
   M_CREATE_NEW_ENTITY,
   M_TRIGGER_PENDING_ENTITIES_BY_FACTORY,
 } from '@/lib/flow-ai/gql';
-import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
+// TEMPORARY: Import both Flow AI and CRM clients
+// flowrmsApolloClient for Flow AI queries/mutations
+// crmApolloClient for CRM queries (userSearch needs CRM backend)
+// TO REVERT: Remove crmApolloClient import and change crmApolloClient.query back to flowrmsApolloClient.query for Q_USER_SEARCH
+import { flowrmsApolloClient, crmApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import type {
   PendingEntity,
   PendingEntityType,
@@ -285,7 +289,7 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
   }, [factories]);
 
   // Load entities by factory (Orders, Invoices, Credits, Adjustments) when factory is matched
-  // This is only used for CHECKS and INVOICES document types
+  // This is used for CHECKS, INVOICES, and STATEMENTS document types
   const loadEntitiesByFactory = useCallback(async (factoryId: string) => {
     if (!pendingDocumentId || !factoryId) return;
 
@@ -297,8 +301,8 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
 
     const normalizedDocType = documentType?.toUpperCase();
 
-    // Only applicable for CHECKS and INVOICES
-    if (normalizedDocType !== 'CHECKS' && normalizedDocType !== 'INVOICES') {
+    // Only applicable for CHECKS, INVOICES, and STATEMENTS
+    if (normalizedDocType !== 'CHECKS' && normalizedDocType !== 'INVOICES' && normalizedDocType !== 'COMMISSION_STATEMENTS') {
       return;
     }
 
@@ -306,9 +310,14 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
 
     try {
       // Determine which entity types to load based on document type
-      const entityTypes: string[] = normalizedDocType === 'CHECKS'
-        ? ['ORDERS', 'INVOICES', 'CREDITS', 'ADJUSTMENTS']
-        : ['ORDERS']; // INVOICES document type only needs Orders
+      let entityTypes: string[];
+      if (normalizedDocType === 'CHECKS') {
+        entityTypes = ['ORDERS', 'INVOICES', 'CREDITS', 'ADJUSTMENTS'];
+      } else if (normalizedDocType === 'COMMISSION_STATEMENTS') {
+        entityTypes = ['ORDERS', 'INVOICES'];
+      } else {
+        entityTypes = ['ORDERS']; // INVOICES document type only needs Orders
+      }
 
       console.log(`Loading factory-based entities for ${normalizedDocType}:`, entityTypes);
 
@@ -358,6 +367,8 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
         setInvoices(invoicesData);
         setCredits(creditsData);
         setAdjustments(adjustmentsData);
+      } else if (normalizedDocType === 'COMMISSION_STATEMENTS') {
+        setInvoices(invoicesData);
       }
 
       // Mark factory entities as loaded and track which factory was used
@@ -372,6 +383,8 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
           newSteps.add('invoices');
           newSteps.add('credits');
           newSteps.add('adjustments');
+        } else if (normalizedDocType === 'COMMISSION_STATEMENTS') {
+          newSteps.add('invoices');
         }
         return newSteps;
       });
@@ -392,7 +405,7 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
   useEffect(() => {
     if (isFactoryMatched && matchedFactoryId && !factoryEntitiesLoaded && !factoryEntitiesLoading) {
       const normalizedDocType = documentType?.toUpperCase();
-      if (normalizedDocType === 'CHECKS' || normalizedDocType === 'INVOICES') {
+      if (normalizedDocType === 'CHECKS' || normalizedDocType === 'INVOICES' || normalizedDocType === 'COMMISSION_STATEMENTS') {
         loadEntitiesByFactory(matchedFactoryId);
       }
     }
@@ -1256,10 +1269,12 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
   );
 
   // Search for users (inside or outside reps)
+  // TEMPORARY: Using crmApolloClient for userSearch (CRM query needs CRM backend)
+  // TO REVERT: Change crmApolloClient.query back to flowrmsApolloClient.query
   const handleSearchUsers = useCallback(
     async (searchTerm: string, type: 'inside' | 'outside', limit = 10): Promise<UserResult[]> => {
       try {
-        const result = await flowrmsApolloClient.query<UserSearchResponse>({
+        const result = await crmApolloClient.query<UserSearchResponse>({
           query: Q_USER_SEARCH,
           variables: {
             searchTerm,
@@ -1311,6 +1326,13 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
     if (normalizedDocType === 'INVOICES') {
       return allSteps.filter(step =>
         !['invoices', 'credits', 'adjustments'].includes(step)
+      );
+    }
+
+    // For STATEMENTS: Show orders and invoices (hide credits, adjustments)
+    if (normalizedDocType === 'COMMISSION_STATEMENTS') {
+      return allSteps.filter(step =>
+        !['credits', 'adjustments'].includes(step)
       );
     }
 
@@ -1398,7 +1420,7 @@ export function useEntityMatching({ pendingDocumentId, documentType }: UseEntity
     loadingEntities,
     loadedSteps,
 
-    // Factory-based entities state (for CHECKS/INVOICES document types)
+    // Factory-based entities state (for CHECKS/INVOICES/STATEMENTS document types)
     isFactoryMatched,
     matchedFactoryId,
     factoryEntitiesLoading,

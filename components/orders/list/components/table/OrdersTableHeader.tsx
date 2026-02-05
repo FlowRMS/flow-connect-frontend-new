@@ -283,13 +283,28 @@ export function OrdersTableHeader({
           </div>
         </th>
         
-        {/* Entry Date */}
+        {/* Entry Date (createdAt) */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Entry Date</span>
+            <span 
+              className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+              onClick={() => onSortChange?.('createdAt')}
+            >
+              Entry Date
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('entryDate')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator 
+                  columnId="createdAt" 
+                  activeSort={getActiveSortForColumn('createdAt')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
         

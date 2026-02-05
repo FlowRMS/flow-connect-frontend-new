@@ -96,7 +96,7 @@ interface ProcessingResult {
 }
 
 // Filter types - entity categories + special statuses
-type EntityCategory = 'quotes' | 'orders' | 'invoices' | 'customers' | 'products' | 'factories' | 'checks';
+type EntityCategory = 'quotes' | 'orders' | 'invoices' | 'customers' | 'products' | 'factories' | 'checks' | 'statements';
 type SpecialFilter = 'skipped' | 'errors';
 type FilterType = EntityCategory | SpecialFilter | null;
 
@@ -605,6 +605,7 @@ function UploadCompleteContent() {
   const productsCount = relatedData?.products?.length || 0;
   const factoriesCount = relatedData?.factories?.length || 0;
   const checksCount = relatedData?.checks?.length || 0;
+  const statementsCount = relatedData?.statements?.length || 0;
 
   // Processing results counts (for SKIPPED/ERROR)
   const skippedResults = useMemo(() => processingResults.filter(r => r.status === 'SKIPPED'), [processingResults]);
@@ -666,7 +667,7 @@ function UploadCompleteContent() {
     }
   }, [pendingId, router]);
 
-  const totalEntities = quotesCount + ordersCount + invoicesCount + customersCount + productsCount + factoriesCount + checksCount;
+  const totalEntities = quotesCount + ordersCount + invoicesCount + customersCount + productsCount + factoriesCount + checksCount + statementsCount;
   const hasAnyEntities = totalEntities > 0;
   const hasSkippedOrErrors = skippedCount > 0 || errorCount > 0;
   const hasAnything = hasAnyEntities || hasSkippedOrErrors;
@@ -729,6 +730,7 @@ function UploadCompleteContent() {
             productsCount={productsCount}
             factoriesCount={factoriesCount}
             checksCount={checksCount}
+            statementsCount={statementsCount}
             skippedCount={skippedCount}
             errorCount={errorCount}
           />
@@ -761,6 +763,10 @@ function UploadCompleteContent() {
 
         {(activeFilter === null || activeFilter === 'checks') && checksCount > 0 && relatedData && (
           <ChecksTable checks={relatedData.checks} />
+        )}
+
+        {(activeFilter === null || activeFilter === 'statements') && statementsCount > 0 && relatedData && (
+          <StatementsTable statements={relatedData.statements} />
         )}
 
         {/* SKIPPED and ERROR Tables (from pendingDocumentProcessings) */}
@@ -867,6 +873,7 @@ interface SummaryCardsProps {
   productsCount: number;
   factoriesCount: number;
   checksCount: number;
+  statementsCount: number;
   skippedCount: number;
   errorCount: number;
 }
@@ -881,6 +888,7 @@ function SummaryCards({
   productsCount,
   factoriesCount,
   checksCount,
+  statementsCount,
   skippedCount,
   errorCount
 }: SummaryCardsProps) {
@@ -893,6 +901,7 @@ function SummaryCards({
     { key: 'products', label: 'Products', count: productsCount, icon: <Package className="w-4 h-4 text-cyan-600" />, color: 'cyan' },
     { key: 'factories', label: 'Factories', count: factoriesCount, icon: <Factory className="w-4 h-4 text-indigo-600" />, color: 'indigo' },
     { key: 'checks', label: 'Checks', count: checksCount, icon: <DollarSign className="w-4 h-4 text-emerald-600" />, color: 'emerald' },
+    { key: 'statements', label: 'Statements', count: statementsCount, icon: <FileText className="w-4 h-4 text-pink-600" />, color: 'pink' },
     { key: 'skipped', label: 'Skipped', count: skippedCount, icon: <SkipForward className="w-4 h-4 text-yellow-600" />, color: 'yellow' },
     { key: 'errors', label: 'Errors', count: errorCount, icon: <XCircle className="w-4 h-4 text-red-600" />, color: 'red' },
   ];
@@ -937,6 +946,7 @@ function SummaryCardButton({ isActive, onClick, label, count, icon, color }: Sum
     cyan: isActive ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
     indigo: isActive ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
     emerald: isActive ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
+    pink: isActive ? 'border-pink-500 bg-pink-50 dark:bg-pink-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
     yellow: isActive ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
     red: isActive ? 'border-red-500 bg-red-50 dark:bg-red-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
   };
@@ -949,6 +959,7 @@ function SummaryCardButton({ isActive, onClick, label, count, icon, color }: Sum
     cyan: isActive ? 'text-cyan-600' : 'text-gray-700 dark:text-gray-300',
     indigo: isActive ? 'text-indigo-600' : 'text-gray-700 dark:text-gray-300',
     emerald: isActive ? 'text-emerald-600' : 'text-gray-700 dark:text-gray-300',
+    pink: isActive ? 'text-pink-600' : 'text-gray-700 dark:text-gray-300',
     yellow: isActive ? 'text-yellow-600' : 'text-gray-700 dark:text-gray-300',
     red: isActive ? 'text-red-600' : 'text-gray-700 dark:text-gray-300',
   };
@@ -961,6 +972,7 @@ function SummaryCardButton({ isActive, onClick, label, count, icon, color }: Sum
     cyan: 'text-cyan-600',
     indigo: 'text-indigo-600',
     emerald: 'text-emerald-600',
+    pink: 'text-pink-600',
     yellow: 'text-yellow-600',
     red: 'text-red-600',
   };
@@ -1716,6 +1728,97 @@ function ChecksTable({ checks }: { checks: RelatedEntities['checks'] }) {
   );
 }
 
+// Memoized table row component for statements
+const StatementRow = React.memo(function StatementRow({ statement }: { statement: RelatedEntities['statements'][0] }) {
+  return (
+    <tr className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30">
+      <td className="px-4 py-3 font-medium">
+        <Link
+          href={`/statements/${statement.id}`}
+          className="text-pink-600 hover:text-pink-800 hover:underline"
+        >
+          {statement.statementNumber || statement.id}
+        </Link>
+      </td>
+      <td className="px-4 py-3">{formatDate(statement.entityDate)}</td>
+      <td className="px-4 py-3">{formatDate(statement.createdAt)}</td>
+      <td className="px-4 py-3">
+        {statement.creationType && <Badge variant="secondary">{statement.creationType}</Badge>}
+      </td>
+    </tr>
+  );
+});
+
+// Statements Table Component
+type StatementSortColumn = 'statementNumber' | 'entityDate' | 'createdAt' | 'creationType';
+
+function StatementsTable({ statements }: { statements: RelatedEntities['statements'] }) {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredStatements = useMemo(() => {
+    const searchLower = searchTerm.toLowerCase();
+    return statements.filter(statement => {
+      const matchesSearch = !searchTerm ||
+        (statement.statementNumber?.toLowerCase().includes(searchLower)) ||
+        (statement.id.toLowerCase().includes(searchLower));
+      return matchesSearch;
+    });
+  }, [statements, searchTerm]);
+
+  const { sortedItems, sortConfig, requestSort, pagination } = useSortableData<typeof statements[0], StatementSortColumn>(filteredStatements);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-pink-600" />
+              Commission Statements ({filteredStatements.length}{filteredStatements.length !== statements.length ? ` of ${statements.length}` : ''})
+            </CardTitle>
+            <CardDescription>
+              Commission statements linked to this document
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-4">
+            <TableFilter
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Search statements..."
+            />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800/50 border-b">
+              <tr>
+                <SortableHeader column="statementNumber" label="Statement #" sortConfig={sortConfig} onSort={requestSort} />
+                <SortableHeader column="entityDate" label="Entity Date" sortConfig={sortConfig} onSort={requestSort} />
+                <SortableHeader column="createdAt" label="Created At" sortConfig={sortConfig} onSort={requestSort} />
+                <SortableHeader column="creationType" label="Creation Type" sortConfig={sortConfig} onSort={requestSort} />
+              </tr>
+            </thead>
+            <tbody>
+              {sortedItems.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+                    No statements match your filters
+                  </td>
+                </tr>
+              ) : (
+                sortedItems.map((statement) => <StatementRow key={statement.id} statement={statement} />)
+              )}
+            </tbody>
+          </table>
+        </div>
+        <PaginationControls pagination={pagination} />
+      </CardContent>
+    </Card>
+  );
+}
+
 // Paginated Details Table - for showing large arrays efficiently
 function PaginatedDetailsTable({
   arrayField,
@@ -2275,6 +2378,7 @@ async function exportToExcel(data: ExcelExportData): Promise<void> {
     ['Products', relatedData?.products?.length || 0],
     ['Factories', relatedData?.factories?.length || 0],
     ['Checks', relatedData?.checks?.length || 0],
+    ['Statements', relatedData?.statements?.length || 0],
     ['Skipped', skippedResults.length],
     ['Errors', errorResults.length],
   ];
@@ -2373,6 +2477,19 @@ async function exportToExcel(data: ExcelExportData): Promise<void> {
         formatDate(c.entityDate),
         formatDate(c.postDate),
         c.status || '-'
+      ])
+    );
+  }
+
+  // Statements Sheet
+  if (relatedData?.statements && relatedData.statements.length > 0) {
+    addSheet('Statements',
+      ['Statement #', 'Entity Date', 'Created At', 'Creation Type'],
+      relatedData.statements.map(s => [
+        s.statementNumber || s.id,
+        formatDate(s.entityDate),
+        formatDate(s.createdAt),
+        s.creationType || '-'
       ])
     );
   }

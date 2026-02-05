@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@workos-inc/authkit-nextjs';
 
-// FlowAI GraphQL endpoint - use the dedicated FlowAI/FlowRMS endpoint
-// Falls back to the main CRM endpoint if not set
-const FLOWAI_GRAPHQL_URL = process.env.NEXT_PUBLIC_FLOWRMS_GRAPHQL_URL 
-  || process.env.NEXT_PUBLIC_FLOWCRM_GRAPHQL_URL 
-  || 'https://staging.v6.api.flowrms.com/graphql';
+// FlowAI GraphQL endpoint - use the dedicated Flow AI endpoint
+// TEMPORARY: Changed to use NEXT_PUBLIC_FLOW_AI_GRAPHQL_URL for Flow AI module
+// TO REVERT: Change back to NEXT_PUBLIC_FLOWRMS_GRAPHQL_URL || NEXT_PUBLIC_FLOWCRM_GRAPHQL_URL
+const FLOWAI_GRAPHQL_URL = process.env.NEXT_PUBLIC_FLOW_AI_GRAPHQL_URL
+  || 'https://staging.v6.ai.flowrms.com/graphql';
 
 /**
  * GraphQL proxy for FlowAI requests

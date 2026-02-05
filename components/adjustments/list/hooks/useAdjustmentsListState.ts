@@ -56,6 +56,7 @@ export function useAdjustmentsListState() {
     amount: 'amount',
     status: 'status',
     locked: 'locked',
+    createdDate: 'created-date',
   }), []);
   
   // Filter options for sync

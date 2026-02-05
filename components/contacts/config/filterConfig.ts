@@ -51,7 +51,7 @@ export function getContactFilterOptions(): FilterOption[] {
     },
     { 
       id: 'created-at', 
-      label: 'Created At', 
+      label: 'Entry Date', 
       type: ColumnFilterTypeEnum.date, 
       columnName: 'createdAt', 
       available: true 
@@ -69,7 +69,7 @@ export function getContactSortOptions() {
     { columnName: 'lastName', label: 'Last Name' },
     { columnName: 'companyName', label: 'Company' },
     { columnName: 'role', label: 'Role' },
-    { columnName: 'createdAt', label: 'Created Date' },
+    { columnName: 'createdAt', label: 'Entry Date' },
     { columnName: 'createdBy', label: 'Created By' },
   ];
 }

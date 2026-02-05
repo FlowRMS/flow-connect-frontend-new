@@ -3,260 +3,27 @@
 import React, { useState } from 'react';
 import type {
   ReturnedPdf,
-  ChangeAnalysis,
   ItemChange,
-  ItemChangeStatus,
   SubmittalItem,
+  SubmittalStatus,
 } from '../../lib/types/submittals';
+import {
+  getStatusColor,
+  getStatusLabel,
+  ItemChangeStatusIcon,
+  AddChangeModal,
+  EditChangeModal,
+} from './change-analysis';
 
 interface ChangeAnalysisPanelProps {
   returnedPdf: ReturnedPdf;
   submittalItems: SubmittalItem[];
   onClose: () => void;
   onResubmit: () => void;
+  onApplyStatus: (status: SubmittalStatus) => void | Promise<void>;
   onUpdateChange: (changeId: string, updates: Partial<ItemChange>) => void;
   onAddChange: (change: Omit<ItemChange, 'id'>) => void;
   onDeleteChange: (changeId: string) => void;
-}
-
-function getStatusColor(status: ItemChangeStatus): string {
-  switch (status) {
-    case 'approved':
-      return 'bg-green-100 text-green-700 border-green-200';
-    case 'approved_as_noted':
-      return 'bg-blue-100 text-blue-700 border-blue-200';
-    case 'revise':
-      return 'bg-amber-100 text-amber-700 border-amber-200';
-    case 'rejected':
-      return 'bg-red-100 text-red-700 border-red-200';
-    default:
-      return 'bg-gray-100 text-gray-700 border-gray-200';
-  }
-}
-
-function getStatusLabel(status: ItemChangeStatus): string {
-  switch (status) {
-    case 'approved':
-      return 'Approved';
-    case 'approved_as_noted':
-      return 'Approved as Noted';
-    case 'revise':
-      return 'Revise';
-    case 'rejected':
-      return 'Rejected';
-    default:
-      return status;
-  }
-}
-
-function ItemChangeStatusIcon({ status }: { status: ItemChangeStatus }) {
-  switch (status) {
-    case 'approved':
-      return (
-        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" className="text-green-600">
-            <path d="M7 10l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-      );
-    case 'approved_as_noted':
-      return (
-        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" className="text-blue-600">
-            <path d="M7 10l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-      );
-    case 'revise':
-      return (
-        <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" className="text-amber-600">
-            <path d="M10 6v5M10 13v1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </div>
-      );
-    case 'rejected':
-      return (
-        <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" className="text-red-600">
-            <path d="M7 7l6 6M13 7l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </div>
-      );
-    default:
-      return null;
-  }
-}
-
-function EditChangeModal({
-  change,
-  onSave,
-  onCancel,
-}: {
-  change: ItemChange;
-  onSave: (updates: Partial<ItemChange>) => void;
-  onCancel: () => void;
-}) {
-  const [status, setStatus] = useState<ItemChangeStatus>(change.status);
-  const [notes, setNotes] = useState(change.notes.join('\n'));
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
-      <div className="relative bg-[var(--card)] rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
-        <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Edit Change</h3>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Status
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as ItemChangeStatus)}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-            >
-              <option value="approved">Approved</option>
-              <option value="approved_as_noted">Approved as Noted</option>
-              <option value="revise">Revise</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Notes (one per line)
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 resize-none"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-3 mt-6">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onSave({ status, notes: notes.split('\n').filter(n => n.trim()) })}
-            className="px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)]"
-          >
-            Save Changes
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AddChangeModal({
-  items,
-  onAdd,
-  onCancel,
-}: {
-  items: SubmittalItem[];
-  onAdd: (change: Omit<ItemChange, 'id'>) => void;
-  onCancel: () => void;
-}) {
-  const [selectedItemId, setSelectedItemId] = useState('');
-  const [status, setStatus] = useState<ItemChangeStatus>('revise');
-  const [notes, setNotes] = useState('');
-
-  const selectedItem = items.find(i => i.id === selectedItemId);
-
-  const handleAdd = () => {
-    if (!selectedItem) return;
-
-    onAdd({
-      itemId: selectedItem.id,
-      fixtureType: selectedItem.fixtureType,
-      catalogNumber: selectedItem.catalogNumber,
-      manufacturer: selectedItem.manufacturer,
-      status,
-      notes: notes.split('\n').filter(n => n.trim()),
-      resolved: false,
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
-      <div className="relative bg-[var(--card)] rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
-        <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Add Change Manually</h3>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Item
-            </label>
-            <select
-              value={selectedItemId}
-              onChange={(e) => setSelectedItemId(e.target.value)}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-            >
-              <option value="">Select an item...</option>
-              {items.map(item => (
-                <option key={item.id} value={item.id}>
-                  {item.fixtureType} - {item.catalogNumber}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Status
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as ItemChangeStatus)}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-            >
-              <option value="approved">Approved</option>
-              <option value="approved_as_noted">Approved as Noted</option>
-              <option value="revise">Revise</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Notes (one per line)
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-              placeholder="Enter notes about this change..."
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 resize-none"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-3 mt-6">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleAdd}
-            disabled={!selectedItemId || !notes.trim()}
-            className="px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Add Change
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export default function ChangeAnalysisPanel({
@@ -264,6 +31,7 @@ export default function ChangeAnalysisPanel({
   submittalItems,
   onClose,
   onResubmit,
+  onApplyStatus,
   onUpdateChange,
   onAddChange,
   onDeleteChange,
@@ -290,6 +58,20 @@ export default function ChangeAnalysisPanel({
   const needsResubmit = analysis.itemChanges.some(c => c.status === 'revise' || c.status === 'rejected');
   const unresolvedCount = analysis.itemChanges.filter(c => !c.resolved && (c.status === 'revise' || c.status === 'rejected')).length;
 
+  // Derive approval status from current item statuses (not the static overallStatus)
+  // This ensures the button updates when users change individual item statuses
+  let approvalStatus: SubmittalStatus | null = null;
+  if (!needsResubmit && analysis.itemChanges.length > 0) {
+    const hasApprovedAsNoted = analysis.itemChanges.some(c => c.status === 'approved_as_noted');
+    approvalStatus = hasApprovedAsNoted ? 'approved_as_noted' : 'approved';
+  }
+
+  const approvalButtonConfig: Record<string, { label: string; bgClass: string; hoverClass: string; icon: string }> = {
+    approved: { label: 'Mark as Approved', bgClass: 'bg-green-600', hoverClass: 'hover:bg-green-700', icon: 'M20 6L9 17l-5-5' },
+    approved_as_noted: { label: 'Approved as Noted', bgClass: 'bg-blue-600', hoverClass: 'hover:bg-blue-700', icon: 'M20 6L9 17l-5-5' },
+    rejected: { label: 'Mark as Rejected', bgClass: 'bg-red-600', hoverClass: 'hover:bg-red-700', icon: 'M18 6L6 18M6 6l12 12' },
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -303,10 +85,21 @@ export default function ChangeAnalysisPanel({
             <div>
               <h2 className="text-lg font-semibold text-[var(--foreground)]">Change Analysis</h2>
               <p className="text-sm text-[var(--muted-foreground)]">
-                {analysis.totalChangesDetected} items need attention
+                {analysis.itemChanges.length} items need attention
               </p>
             </div>
             <div className="flex items-center gap-3">
+              {!needsResubmit && approvalStatus && approvalButtonConfig[approvalStatus] && (
+                <button
+                  onClick={() => onApplyStatus(approvalStatus)}
+                  className={`px-4 py-2 text-sm font-medium text-white ${approvalButtonConfig[approvalStatus].bgClass} rounded-lg ${approvalButtonConfig[approvalStatus].hoverClass} transition-colors flex items-center gap-2`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={approvalButtonConfig[approvalStatus].icon} />
+                  </svg>
+                  {approvalButtonConfig[approvalStatus].label}
+                </button>
+              )}
               {needsResubmit && (
                 <button
                   onClick={onResubmit}

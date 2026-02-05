@@ -24,7 +24,7 @@ import { useEntityMatching, CreateExtraFields } from '@/components/flow-ai/hooks
 import type { PendingEntity, PendingEntityType, EntityStep } from '@/components/flow-ai/types/entity-matching';
 import { getConfidencePercentage, parseExtractedData } from '@/components/flow-ai/types/entity-matching';
 
-// Tabs that require factory to be matched first (only for CHECKS and INVOICES document types)
+// Tabs that require factory to be matched first (for CHECKS, INVOICES, and STATEMENTS document types)
 const FACTORY_DEPENDENT_TABS: EntityStep[] = ['orders', 'invoices', 'credits', 'adjustments'];
 
 // All possible steps in order
@@ -52,13 +52,24 @@ function getVisibleSteps(documentType: string | null): EntityStep[] {
     );
   }
 
+  // For COMMISSION_STATEMENTS: Show orders and invoices tabs (hide credits, adjustments)
+  if (normalizedDocType === 'COMMISSION_STATEMENTS') {
+    return ALL_STEPS.filter(step =>
+      !['credits', 'adjustments'].includes(step)
+    );
+  }
+
   // For other document types (ORDERS, QUOTES, ORDER_ACKNOWLEDGEMENTS, etc.):
   // Hide orders, invoices, credits, adjustments tabs entirely
   return ALL_STEPS.filter(step =>
     !FACTORY_DEPENDENT_TABS.includes(step)
   );
 }
-import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
+// TEMPORARY: Import both Flow AI and CRM clients
+// flowrmsApolloClient for Flow AI queries (Q_GET_PENDING)
+// crmApolloClient for CRM mutations (M_EXECUTE_DOCUMENT_WORKFLOW)
+// TO REVERT: Remove crmApolloClient import and change crmApolloClient.mutate back to flowrmsApolloClient.mutate for M_EXECUTE_DOCUMENT_WORKFLOW
+import { flowrmsApolloClient, crmApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import { Q_GET_PENDING, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
 import { fetchCustomerById } from '@/components/customers/api/customersApi';
 
@@ -429,10 +440,12 @@ function EntityMatchingContent() {
       }
 
       // Call executeDocumentWorkflow mutation
+      // TEMPORARY: Using crmApolloClient for executeDocumentWorkflow (CRM mutation needs CRM backend)
+      // TO REVERT: Change crmApolloClient.mutate back to flowrmsApolloClient.mutate
       console.log('📄 Executing document workflow for pendingId:', pendingId);
       toast.info('Processing document...');
 
-      const result = await flowrmsApolloClient.mutate<{
+      const result = await crmApolloClient.mutate<{
         executeDocumentWorkflow?: {
           message: string;
           success: boolean;

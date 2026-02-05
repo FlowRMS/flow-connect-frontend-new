@@ -213,6 +213,15 @@ export interface LineItemV2 {
   // Split rates - inside and outside reps at line item level
   insideSplitRates?: { id: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
   outsideSplitRates?: { id: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
+
+  // Overage fields
+  percentOver?: number;
+  commissionAmount?: number;
+  ovgPercent?: number;
+  ovgAmount?: number;
+  earnPercent?: number;
+  earnAmount?: number;
+  fixtureSchedule?: string;
 }
 
 export interface NoteV2 {
@@ -290,6 +299,9 @@ export interface QuoteSettingsV2 {
   priceLevels: PriceLevelV2[];
 }
 
+// View mode for line items table
+export type ViewMode = 'simple' | 'overage';
+
 // Column configuration
 export type LineItemColumnKey =
   | 'partNumber'
@@ -305,7 +317,15 @@ export type LineItemColumnKey =
   | 'commissionPercent'
   | 'commission'
   | 'commissionTotal'
-  | 'linkedOrder';
+  | 'linkedOrder'
+  // Overage columns
+  | 'percentOver'
+  | 'commissionAmount'
+  | 'ovgPercent'
+  | 'ovgAmount'
+  | 'earnPercent'
+  | 'earnAmount'
+  | 'fixtureSchedule';
 
 export interface ColumnConfig {
   key: LineItemColumnKey;
@@ -594,6 +614,9 @@ export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: s
     // Split rates - inside and outside reps at line item level
     insideSplitRates: detail.insideSplitRates,
     outsideSplitRates: detail.outsideSplitRates,
+
+    // Fixture schedule (from overage view)
+    fixtureSchedule: detail.fixtureSchedule,
   };
 }
 
@@ -642,6 +665,7 @@ export function transformLineItemV2ToDetailInput(
   productId?: string;
   status?: QuoteDetailStatus;
   uomId?: string;
+  fixtureSchedule?: string;
   insideSplitRates?: { id?: string; userId: string; splitRate: number; position?: number }[];
   outsideSplitRates?: { id?: string; userId: string; splitRate: number; position?: number }[];
 } {
@@ -710,6 +734,7 @@ export function transformLineItemV2ToDetailInput(
     productId: lineItem.productId,
     status: lineItem.status,
     uomId: lineItem.uomId || undefined,
+    fixtureSchedule: lineItem.fixtureSchedule,
     insideSplitRates: insideSplitRates && insideSplitRates.length > 0 ? insideSplitRates : undefined,
     outsideSplitRates: outsideSplitRates && outsideSplitRates.length > 0 ? outsideSplitRates : undefined,
   };

@@ -10,6 +10,8 @@ import type { CommissionCheck } from '@/lib/types/rms';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { getCommissionFilterOptions } from '../../config/filterConfig';
+import { SortIndicator } from '@/components/shared/sorting/components/SortIndicator';
+import type { ActiveSort } from '@/components/shared/sorting/types';
 
 interface CommissionsTableHeaderProps {
   // Selection
@@ -21,6 +23,10 @@ interface CommissionsTableHeaderProps {
   onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
   filterOptions?: ReturnType<typeof getCommissionFilterOptions>;
   columnFilters?: Record<string, ActiveFilter[]>;
+  // Sorting (single-column, server-side)
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
+  isFetching?: boolean;
 }
 
 export function CommissionsTableHeader({
@@ -31,12 +37,24 @@ export function CommissionsTableHeader({
   onColumnFiltersChange,
   filterOptions = getCommissionFilterOptions(),
   columnFilters: parentColumnFilters,
+  activeSort,
+  onSortChange,
+  isFetching = false,
 }: CommissionsTableHeaderProps) {
   const [openFilter, setOpenFilter] = useState<string | null>(null);
   
   // Column filter state - use parent if provided, otherwise local state
   const [localColumnFilters, setLocalColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
   const columnFilters = parentColumnFilters !== undefined ? parentColumnFilters : localColumnFilters;
+  
+  // Helper to get active sort for a specific API column
+  const getActiveSortForColumn = useCallback((columnName: string): ActiveSort | null => {
+    if (!activeSort || activeSort.columnName !== columnName) return null;
+    return {
+      columnId: columnName,
+      direction: activeSort.direction,
+    };
+  }, [activeSort]);
   
   // Map from UI column keys to filter option IDs
   const columnKeyToFilterId: Record<string, string> = {
@@ -129,35 +147,97 @@ export function CommissionsTableHeader({
         {/* Check Number */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Check Number</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-gray-700"
+              onClick={() => onSortChange?.('checkNumber')}
+            >
+              Check Number
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('checkNumber')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="checkNumber"
+                  activeSort={getActiveSortForColumn('checkNumber')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
         {/* Posted Status */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Posted Status</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-gray-700"
+              onClick={() => onSortChange?.('status')}
+            >
+              Posted Status
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('status')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="status"
+                  activeSort={getActiveSortForColumn('status')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
         {/* Commission */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
-          <span className="whitespace-nowrap">Commission</span>
+          <div className="flex items-center gap-1.5 justify-end">
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-gray-700"
+              onClick={() => onSortChange?.('enteredCommissionAmount')}
+            >
+              Commission
+            </span>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="enteredCommissionAmount"
+                  activeSort={getActiveSortForColumn('enteredCommissionAmount')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
+          </div>
         </th>
 
         {/* Commission Month */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Commission Month</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-gray-700"
+              onClick={() => onSortChange?.('commissionMonth')}
+            >
+              Commission Month
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('commissionMonth')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="commissionMonth"
+                  activeSort={getActiveSortForColumn('commissionMonth')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
@@ -174,30 +254,75 @@ export function CommissionsTableHeader({
         {/* Post Date */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Post Date</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-gray-700"
+              onClick={() => onSortChange?.('postDate')}
+            >
+              Post Date
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('postDate')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="postDate"
+                  activeSort={getActiveSortForColumn('postDate')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
         {/* Check Date */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Check Date</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-gray-700"
+              onClick={() => onSortChange?.('checkDate')}
+            >
+              Check Date
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('checkDate')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="checkDate"
+                  activeSort={getActiveSortForColumn('checkDate')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 
         {/* Entry Date */}
         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Entry Date</span>
+            <span
+              className="whitespace-nowrap cursor-pointer hover:text-gray-700"
+              onClick={() => onSortChange?.('createdAt')}
+            >
+              Entry Date
+            </span>
             <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {renderColumnFilter('entryDate')}
             </div>
+            {onSortChange && (
+              <div className="flex-shrink-0">
+                <SortIndicator
+                  columnId="createdAt"
+                  activeSort={getActiveSortForColumn('createdAt')}
+                  onSort={onSortChange}
+                  isFetching={isFetching}
+                />
+              </div>
+            )}
           </div>
         </th>
 

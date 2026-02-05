@@ -30,6 +30,7 @@ function mapSortFieldToColumnName(sortField: SortField): string {
     customerName: 'soldToCustomerName', // Not available yet
     manufacturerName: 'factoryName', // Not available yet
     invoiceDate: 'entityDate',
+    entryDate: 'createdAt',
     dueDate: 'dueDate',
     total: 'total',
     balance: 'balance', // Not available yet
@@ -79,7 +80,7 @@ function transformLandingPageToInvoice(landing: InvoiceLandingPage): Invoice {
     status: mapApiStatusToInvoiceStatus(landing.status),
     isLocked: landing.locked || false,
     invoiceDate: landing.entityDate || '',
-    entryDate: landing.entityDate || '',
+    entryDate: landing.createdAt || '',
     dueDate: landing.dueDate || '',
     createdAt: landing.createdAt || '',
     createdBy: typeof landing.createdBy === 'string' ? landing.createdBy : '',
@@ -447,7 +448,7 @@ export function useInvoicesListState() {
         status: mapApiStatusToInvoiceStatus(result.status),
         isLocked: result.locked || false,
         invoiceDate: result.entityDate || '',
-        entryDate: result.entityDate || '',
+        entryDate: result.createdAt || '',
         dueDate: result.dueDate || '',
         createdAt: result.createdAt || '',
         createdBy: '',
@@ -549,6 +550,7 @@ export function useInvoicesListState() {
         'invoiceNumber': 'invoiceNumber',
         'status': 'status',
         'entityDate': 'invoiceDate',
+        'createdAt': 'entryDate',
         'dueDate': 'dueDate',
         'total': 'total',
         'commission': 'total', // Note: commission maps to total in UI (no commission in SortField)

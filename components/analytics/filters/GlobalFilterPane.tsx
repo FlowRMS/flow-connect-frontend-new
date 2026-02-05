@@ -8,6 +8,9 @@ import { useGlobalDashFilters } from "@/lib/analytics/features/order-dashboard/G
 import { ValueType, GetComparisonData, GetComparisonVariables } from "@/lib/analytics/graphql/types";
 import { USER_SEARCH } from "@/lib/analytics/graphql/queries/orderDashboardFilters";
 import { GET_COMPARISON } from "@/lib/analytics/graphql/queries/orderDashboard";
+// TEMPORARY: Import CRM client for user searches (CRM queries need CRM backend, not Report API)
+// TO REVERT: Remove this import and change crmClient.query back to client.query for USER_SEARCH
+import { crmClient } from "@/lib/analytics/apolloClient";
 
 interface User {
   id: string;
@@ -90,10 +93,12 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
   const repsSearchTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load reps based on search term
+  // TEMPORARY: Using crmClient for user search (CRM query needs CRM backend)
+  // TO REVERT: Change crmClient.query back to client.query
   const loadOutsideReps = React.useCallback(async (searchTerm: string) => {
     setRepsLoading(true);
     try {
-      const { data } = await client.query<UserSearchData>({
+      const { data } = await crmClient.query<UserSearchData>({
         query: USER_SEARCH,
         variables: {
           searchTerm: searchTerm,

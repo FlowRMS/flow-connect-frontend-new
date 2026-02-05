@@ -11,6 +11,9 @@ import {
   FACTORY_SEARCH,
   GET_PRODUCT_TRENDS_BY_FACTORY,
 } from "./queries";
+// TEMPORARY: Import CRM client for factory search (CRM query needs CRM backend, not Report API)
+// TO REVERT: Remove this import and change crmClient.query back to useQuery for FACTORY_SEARCH
+import { crmClient } from "@/lib/analytics/apolloClient";
 
 // Default factory to load on page open
 const DEFAULT_FACTORY_NAME = "ERMCO";
@@ -24,21 +27,42 @@ const ProductAnalyticsDashboardContent = () => {
   const factoryDropdownRef = React.useRef(null);
   const searchInputRef = React.useRef(null);
 
-  // Fetch factories based on search term (or default factory on initial load)
-  const {
-    data: factoriesData,
-    loading: factoriesLoading,
-  } = useQuery(FACTORY_SEARCH, {
-    variables: {
-      searchTerm: showFactoryDropdown ? searchTerm : DEFAULT_FACTORY_NAME,
-      limit: 1000,
-      useCustomOrder: false,
-      published: true,
-    },
-    skip: showFactoryDropdown ? false : hasLoadedDefault,
-  });
+  // TEMPORARY: Using crmClient for factory search (CRM query needs CRM backend, not Report API)
+  // TO REVERT: Change back to useQuery hook with default client
+  const [factories, setFactories] = React.useState([]);
+  const [factoriesLoading, setFactoriesLoading] = React.useState(false);
 
-  const factories = factoriesData?.factorySearch || [];
+  // Fetch factories using CRM client
+  React.useEffect(() => {
+    const fetchFactories = async () => {
+      // Skip if dropdown is closed and we've already loaded default
+      if (!showFactoryDropdown && hasLoadedDefault) {
+        return;
+      }
+
+      setFactoriesLoading(true);
+      try {
+        const { data } = await crmClient.query({
+          query: FACTORY_SEARCH,
+          variables: {
+            searchTerm: showFactoryDropdown ? searchTerm : DEFAULT_FACTORY_NAME,
+            limit: 1000,
+            useCustomOrder: false,
+            published: true,
+          },
+          fetchPolicy: "network-only",
+        });
+        setFactories(data?.factorySearch || []);
+      } catch (error) {
+        console.error("Error fetching factories:", error);
+        setFactories([]);
+      } finally {
+        setFactoriesLoading(false);
+      }
+    };
+
+    fetchFactories();
+  }, [showFactoryDropdown, searchTerm, hasLoadedDefault]);
 
   // Auto-select default factory on initial load
   React.useEffect(() => {

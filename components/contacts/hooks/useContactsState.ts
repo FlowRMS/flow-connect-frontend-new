@@ -74,6 +74,7 @@ export function useContactsState() {
         email: selectedContact.email,
         phone: selectedContact.phone,
         role: selectedContact.role,
+        roleDetail: selectedContact.roleDetail,
         company: selectedContact.company,
         companyId: selectedContact.companyId,
         territory: selectedContact.territory,
@@ -390,6 +391,7 @@ export function useContactsState() {
           email: editFormData.email,
           phone: editFormData.phone,
           role: editFormData.role,
+          roleDetail: editFormData.roleDetail,
           tags: tagsToSend,
         },
       });
@@ -400,14 +402,16 @@ export function useContactsState() {
       // Parse tags for local state update
       const updatedTags = tagsToSend ? tagsToSend.split(',').map(t => t.trim()).filter(Boolean) : selectedContact.tags;
       
+      // Use explicit undefined checks to allow empty string values (e.g., clearing role or roleDetail)
       setSelectedContact({
         ...selectedContact,
-        firstName: editFormData.firstName || selectedContact.firstName,
-        lastName: editFormData.lastName || selectedContact.lastName,
+        firstName: editFormData.firstName !== undefined ? editFormData.firstName : selectedContact.firstName,
+        lastName: editFormData.lastName !== undefined ? editFormData.lastName : selectedContact.lastName,
         name: fullName,
-        email: editFormData.email || selectedContact.email,
-        phone: editFormData.phone || selectedContact.phone,
-        role: editFormData.role || selectedContact.role,
+        email: editFormData.email !== undefined ? editFormData.email : selectedContact.email,
+        phone: editFormData.phone !== undefined ? editFormData.phone : selectedContact.phone,
+        role: editFormData.role !== undefined ? editFormData.role : selectedContact.role,
+        roleDetail: editFormData.roleDetail !== undefined ? editFormData.roleDetail : selectedContact.roleDetail,
         tags: updatedTags,
       });
 

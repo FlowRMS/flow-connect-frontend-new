@@ -109,6 +109,21 @@ function extractPreOpportunityFields(data: PDFPreOpportunity): PDFFieldConfig[] 
 
 // Extract fields from Quote
 function extractQuoteFields(data: PDFQuote): PDFFieldConfig[] {
+  // End user is only available at the line-item level
+  // Aggregate end users from details
+  let endUserName: string | undefined;
+  const uniqueEndUsers = new Set<string>();
+  data.details?.forEach(detail => {
+    if (detail.endUser?.companyName) {
+      uniqueEndUsers.add(detail.endUser.companyName);
+    }
+  });
+  if (uniqueEndUsers.size === 1) {
+    endUserName = Array.from(uniqueEndUsers)[0];
+  } else if (uniqueEndUsers.size > 1) {
+    endUserName = `${uniqueEndUsers.size} End Users`;
+  }
+
   return [
     { id: 'quoteNumber', label: 'Quote #', visible: true, editable: false, value: data.quoteNumber, type: 'text', category: 'header' },
     { id: 'status', label: 'Status', visible: true, editable: false, value: data.status, type: 'text', category: 'header' },
@@ -119,6 +134,7 @@ function extractQuoteFields(data: PDFQuote): PDFFieldConfig[] {
     { id: 'acceptDate', label: 'Accept Date', visible: false, editable: true, value: data.acceptDate, type: 'date', category: 'dates' },
     { id: 'soldToCustomer', label: 'Sold To', visible: true, editable: false, value: data.soldToCustomer?.companyName, type: 'text', category: 'customer' },
     { id: 'billToCustomer', label: 'Bill To', visible: true, editable: false, value: data.billToCustomer?.companyName, type: 'text', category: 'customer' },
+    { id: 'endUser', label: 'End User', visible: true, editable: false, value: endUserName, type: 'text', category: 'customer' },
     { id: 'customerRef', label: 'Customer Ref', visible: true, editable: true, value: data.customerRef, type: 'text', category: 'customer' },
     { id: 'paymentTerms', label: 'Payment Terms', visible: true, editable: true, value: data.paymentTerms, type: 'text', category: 'terms' },
     { id: 'freightTerms', label: 'Freight Terms', visible: true, editable: true, value: data.freightTerms, type: 'text', category: 'terms' },
@@ -131,6 +147,21 @@ function extractQuoteFields(data: PDFQuote): PDFFieldConfig[] {
 
 // Extract fields from Order
 function extractOrderFields(data: PDFOrder): PDFFieldConfig[] {
+  // End user is only available at the line-item level
+  // Aggregate end users from details
+  let endUserName: string | undefined;
+  const uniqueEndUsers = new Set<string>();
+  data.details?.forEach(detail => {
+    if (detail.endUser?.companyName) {
+      uniqueEndUsers.add(detail.endUser.companyName);
+    }
+  });
+  if (uniqueEndUsers.size === 1) {
+    endUserName = Array.from(uniqueEndUsers)[0];
+  } else if (uniqueEndUsers.size > 1) {
+    endUserName = `${uniqueEndUsers.size} End Users`;
+  }
+
   return [
     { id: 'orderNumber', label: 'Order #', visible: true, editable: false, value: data.orderNumber, type: 'text', category: 'header' },
     { id: 'status', label: 'Status', visible: true, editable: false, value: data.status, type: 'text', category: 'header' },
@@ -143,6 +174,7 @@ function extractOrderFields(data: PDFOrder): PDFFieldConfig[] {
     { id: 'shipDate', label: 'Ship Date', visible: false, editable: true, value: data.shipDate, type: 'date', category: 'dates' },
     { id: 'soldToCustomer', label: 'Sold To', visible: true, editable: false, value: data.soldToCustomer?.companyName, type: 'text', category: 'customer' },
     { id: 'billToCustomer', label: 'Bill To', visible: true, editable: false, value: data.billToCustomer?.companyName, type: 'text', category: 'customer' },
+    { id: 'endUser', label: 'End User', visible: true, editable: false, value: endUserName, type: 'text', category: 'customer' },
     { id: 'factory', label: 'Manufacturer', visible: true, editable: false, value: data.factory?.title, type: 'text', category: 'other' },
     { id: 'freightTerms', label: 'Freight Terms', visible: true, editable: true, value: data.freightTerms, type: 'text', category: 'terms' },
     { id: 'shippingTerms', label: 'Shipping Terms', visible: true, editable: true, value: data.shippingTerms, type: 'text', category: 'terms' },
@@ -230,6 +262,7 @@ function extractQuoteLineItems(details: PDFQuoteDetail[]): PDFLineItemConfig[] {
     unitPrice: detail.unitPrice,
     uom: detail.uom?.title || 'EA',
     total: detail.total,
+    endUser: detail.endUser?.companyName || undefined,
   }));
 }
 
@@ -244,6 +277,7 @@ function extractOrderLineItems(details: PDFOrderDetail[]): PDFLineItemConfig[] {
     unitPrice: detail.unitPrice,
     uom: detail.uom?.title || 'EA',
     total: detail.total,
+    endUser: detail.endUser?.companyName || undefined,
   }));
 }
 

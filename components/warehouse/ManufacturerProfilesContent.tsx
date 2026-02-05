@@ -143,6 +143,7 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
         overallDiscountRate: undefined,
         paymentTerms: undefined,
         leadTime: undefined,
+        isParent: sr.isParent ?? false,
       }));
 
       // Apply published filter to search results
@@ -497,6 +498,9 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
                       <SortIcon field="createdAt" />
                     </button>
                   </th>
+                  <th className="hidden xl:table-cell px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">
+                    Hierarchy
+                  </th>
                   <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">
                     Status
                   </th>
@@ -600,6 +604,31 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
                       <span className="text-sm text-[var(--muted-foreground)]">
                         {factory.createdAt ? new Date(factory.createdAt).toLocaleDateString() : '-'}
                       </span>
+                    </td>
+                    <td className="hidden xl:table-cell px-4 sm:px-6 py-4">
+                      <div className="space-y-1">
+                        {factory.isParent ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                            <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            Parent
+                          </span>
+                        ) : factory.parent ? (
+                          <div>
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                              Child
+                            </span>
+                            <div className="text-xs text-[var(--muted-foreground)] mt-1 truncate max-w-[150px]" title={factory.parent}>
+                              ↳ {factory.parent}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                            Child
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 sm:px-6 py-4">
                       {factory.published ? (

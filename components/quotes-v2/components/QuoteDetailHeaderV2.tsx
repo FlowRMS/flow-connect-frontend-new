@@ -12,8 +12,22 @@ import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/use
 import { useQuoteSettings } from '@/contexts/UserSettingsContext';
 import type { OutsideRepSource } from '@/components/lib/graphql/settings';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
+import { FactoryOverageSettingsModal } from '../modals/FactoryOverageSettingsModal';
+import { useFactory } from '@/components/warehouse/api/useFactoriesApi';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
+import CreateSubmittalModal from '@/components/submittals/CreateSubmittalModal';
+import type { QuoteLineItem } from '@/components/submittals/CreateSubmittalModal';
+import type { Submittal } from '@/lib/types/submittals';
+import {
+  useCreateSubmittal,
+  useAddSubmittalItem,
+  useAddSubmittalStakeholder,
+  type SubmittalItemInput,
+  type SubmittalStakeholderInput,
+  type SubmittalStakeholderRoleGQL,
+} from '@/components/submittals/api/useSubmittalsApi';
+import { submittalToasts } from '@/components/lib/toast';
 import { ExcelBuilder } from '@/components/shared/excel-builder';
 import { ManufacturerExcelModal } from '@/components/shared/manufacturer-excel';
 import { UnsavedChangesModal } from '@/components/shared/modals/UnsavedChangesModal';
@@ -57,6 +71,9 @@ function getQuoteStatusBadgeClass(status?: QuoteV2Status): string {
   }
 }
 
+// View mode type
+export type ViewMode = 'simple' | 'overage';
+
 interface QuoteDetailHeaderV2Props {
   quote: QuoteV2;
   onQuoteChange: (updates: Partial<QuoteV2>) => void;
@@ -71,6 +88,8 @@ interface QuoteDetailHeaderV2Props {
   selectedLineItemIds?: Set<string>;
   settings?: QuoteSettingsV2;
   onClearLineItemProducts?: () => void;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
   // Callbacks for auto-populating reps at line item level
   onAutoPopulateOutsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
   onAutoPopulateInsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
@@ -150,6 +169,8 @@ export function QuoteDetailHeaderV2({
   selectedLineItemIds,
   settings,
   onClearLineItemProducts,
+  viewMode: controlledViewMode,
+  onViewModeChange,
   onAutoPopulateOutsideRepsToLineItems,
   onAutoPopulateInsideRepsToLineItems,
   onAutoPopulateInsideRepsPerLineItemFactory,
@@ -160,17 +181,35 @@ export function QuoteDetailHeaderV2({
     fetchInsideRepsFromFactory,
   } = useAutoPopulateReps();
 
+  // Submittal creation hooks
+  const createSubmittalMutation = useCreateSubmittal();
+  const addSubmittalItemMutation = useAddSubmittalItem();
+  const addSubmittalStakeholderMutation = useAddSubmittalStakeholder();
+
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showPipelineStageMenu, setShowPipelineStageMenu] = useState(false);
   const [showVersionMenu, setShowVersionMenu] = useState(false);
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [showSaveMenu, setShowSaveMenu] = useState(false);
-  const [viewMode, setViewMode] = useState<'simple' | 'overage'>('simple');
+  const [localViewMode, setLocalViewMode] = useState<ViewMode>('simple');
+
+  // Use controlled viewMode if provided, otherwise use local state
+  const viewMode = controlledViewMode ?? localViewMode;
+  const handleViewModeChange = (mode: ViewMode) => {
+    if (onViewModeChange) {
+      onViewModeChange(mode);
+    } else {
+      setLocalViewMode(mode);
+    }
+  };
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
+  const [showCreateSubmittalModal, setShowCreateSubmittalModal] = useState(false);
   const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
+  const [unsavedChangesAction, setUnsavedChangesAction] = useState<'createOrder' | 'pdfBuilder'>('createOrder');
   const [showQuoteDetails, setShowQuoteDetails] = useState(true);
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
+  const [showOverageSettingsModal, setShowOverageSettingsModal] = useState(false);
   const [showExcelBuilder, setShowExcelBuilder] = useState(false);
   const [showManufacturerExcel, setShowManufacturerExcel] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
@@ -507,6 +546,18 @@ export function QuoteDetailHeaderV2({
   const createJobMutation = useCreateCRMJob();
   const { data: jobStatuses } = useCRMJobStatuses();
   const { data: factories, isLoading: isFactoriesLoading } = useFactorySearch(factorySearchTerm, factorySearchEnabled);
+  // Fetch factory details to check overage settings
+  const { data: selectedFactory } = useFactory(quote.factoryId || '');
+  const isOverageAllowed = selectedFactory?.overageAllowed ?? false;
+
+  // Auto-switch to Simple View if overage is not allowed for the factory
+  useEffect(() => {
+    if (!isOverageAllowed && viewMode === 'overage') {
+      handleViewModeChange('simple');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOverageAllowed, viewMode]);
+
   const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, false, outsideRepSearchEnabled, true); // isInside=false, isOutside=true
   const { data: insideSplitRepResults, isLoading: isInsideSplitRepLoading } = useUserSearch(insideSplitRepSearchTerm, true, insideSplitRepSearchEnabled, false); // isInside=true, isOutside=false
   const { data: outsideSplitRepResults, isLoading: isOutsideSplitRepLoading } = useUserSearch(outsideSplitRepSearchTerm, false, outsideSplitRepSearchEnabled, true); // isInside=false, isOutside=true
@@ -726,6 +777,69 @@ export function QuoteDetailHeaderV2({
     setFactorySearchEnabled(true);
   }, []);
 
+  // Handle create submittal - calls the API to persist to backend
+  const handleCreateSubmittal = useCallback(async (newSubmittal: Partial<Submittal>) => {
+    try {
+      // 1. Create the submittal
+      const createdSubmittal = await createSubmittalMutation.mutateAsync({
+        submittalNumber: `SUB-${Date.now()}`,
+        description: newSubmittal.jobName || 'New Submittal',
+        status: 'DRAFT',
+        quoteId: newSubmittal.quoteIds?.[0],
+      });
+
+      const submittalId = createdSubmittal.id;
+
+      // 2. Add items
+      if (newSubmittal.items && newSubmittal.items.length > 0) {
+        for (let i = 0; i < newSubmittal.items.length; i++) {
+          const item = newSubmittal.items[i];
+          const itemInput: SubmittalItemInput = {
+            itemNumber: i + 1,
+            partNumber: item.catalogNumber || item.fixtureType,
+            description: item.description,
+            quantity: item.quantity,
+            matchStatus: 'NO_MATCH',
+          };
+          await addSubmittalItemMutation.mutateAsync({ submittalId, input: itemInput });
+        }
+      }
+
+      // 3. Add stakeholders (customers, engineers, architects)
+      const mapRoleToGQL = (role: string): SubmittalStakeholderRoleGQL => {
+        switch (role) {
+          case 'customer': return 'CUSTOMER';
+          case 'engineer': return 'ENGINEER';
+          case 'architect': return 'ARCHITECT';
+          case 'gc': return 'GENERAL_CONTRACTOR';
+          default: return 'OTHER';
+        }
+      };
+
+      const allStakeholders = [
+        ...(newSubmittal.customers || []),
+        ...(newSubmittal.engineers || []),
+        ...(newSubmittal.architects || []),
+      ];
+
+      for (const stakeholder of allStakeholders) {
+        const stakeholderInput: SubmittalStakeholderInput = {
+          role: mapRoleToGQL(stakeholder.role),
+          contactName: stakeholder.contactName,
+          contactEmail: stakeholder.email,
+          companyName: stakeholder.companyName,
+        };
+        await addSubmittalStakeholderMutation.mutateAsync({ submittalId, input: stakeholderInput });
+      }
+
+      setShowCreateSubmittalModal(false);
+      submittalToasts.createSuccess(createdSubmittal.submittalNumber);
+    } catch (err) {
+      console.error('Error creating submittal:', err);
+      submittalToasts.createError(err instanceof Error ? err.message : 'Unknown error');
+    }
+  }, [createSubmittalMutation, addSubmittalItemMutation, addSubmittalStakeholderMutation]);
+
   return (
     <div className="flex-shrink-0 bg-white">
       {/* Sticky section: Top Header Row + Pricing Summary */}
@@ -785,6 +899,7 @@ export function QuoteDetailHeaderV2({
                       setShowActionsMenu(false);
                       // Check for unsaved changes before opening the modal
                       if (hasChanges) {
+                        setUnsavedChangesAction('createOrder');
                         setShowUnsavedChangesModal(true);
                       } else {
                         setShowCreateOrderModal(true);
@@ -799,6 +914,25 @@ export function QuoteDetailHeaderV2({
                       <path d="M3 5h14M3 10h14M3 15h7" strokeLinecap="round" />
                     </svg>
                     Create Order
+                  </button>
+
+                  {/* Create Submittal */}
+                  <button
+                    onClick={() => {
+                      setShowActionsMenu(false);
+                      setShowCreateSubmittalModal(true);
+                    }}
+                    disabled={isNew || !quote.id}
+                    className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
+                      isNew || !quote.id ? 'text-gray-400 cursor-not-allowed' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M14 2v6h6" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M9 15l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Create Submittal
                   </button>
 
                   {/* Duplicate Quote */}
@@ -927,19 +1061,64 @@ export function QuoteDetailHeaderV2({
             </button>
           </div>
 
-          {/* View Mode Dropdown - Coming Soon */}
+          {/* View Mode Dropdown */}
           <div className="relative">
             <button
-              disabled
-              className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed"
+              onClick={() => setShowViewModeMenu(!showViewModeMenu)}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                 <path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z" />
               </svg>
-              Simple View
-              <ComingSoonBadge inline />
+              {viewMode === 'simple' ? 'Simple View' : 'Overage View'}
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+              </svg>
             </button>
+            {showViewModeMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowViewModeMenu(false)} />
+                <div className="absolute top-full right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+                  <button
+                    onClick={() => {
+                      handleViewModeChange('simple');
+                      setShowViewModeMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${viewMode === 'simple' ? 'bg-gray-50' : ''}`}
+                  >
+                    <span>Simple View</span>
+                    {viewMode === 'simple' && (
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" className="text-indigo-600">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (isOverageAllowed) {
+                        handleViewModeChange('overage');
+                        setShowViewModeMenu(false);
+                      }
+                    }}
+                    disabled={!isOverageAllowed}
+                    title={!isOverageAllowed ? 'Overage is not enabled for this manufacturer. Click the gear icon to enable.' : ''}
+                    className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between ${
+                      !isOverageAllowed
+                        ? 'text-gray-400 cursor-not-allowed'
+                        : 'hover:bg-gray-50'
+                    } ${viewMode === 'overage' ? 'bg-gray-50' : ''}`}
+                  >
+                    <span>Overage View {!isOverageAllowed && '(Disabled)'}</span>
+                    {viewMode === 'overage' && (
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" className="text-indigo-600">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Excel Button with Manufacturer Dropdown */}
@@ -1001,7 +1180,12 @@ export function QuoteDetailHeaderV2({
           <button
             onClick={() => {
               setShowDownloadMenu(false);
-              setShowPDFBuilder(true);
+              if (hasChanges) {
+                setUnsavedChangesAction('pdfBuilder');
+                setShowUnsavedChangesModal(true);
+              } else {
+                setShowPDFBuilder(true);
+              }
             }}
             disabled={isNew || !quote.id}
             className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-lg transition-colors ${
@@ -1170,6 +1354,8 @@ export function QuoteDetailHeaderV2({
                 />
               </div>
             ) : (
+              <div className="flex gap-1">
+              <div className="flex-1">
               <SearchableDropdownV2
                 value={quote.factoryId || ''}
                 displayValue={quote.factoryName || ''}
@@ -1231,6 +1417,22 @@ export function QuoteDetailHeaderV2({
                   }
                 }}
               />
+              </div>
+              {/* Overage Settings Button */}
+              {quote.factoryId && (
+                <button
+                  type="button"
+                  onClick={() => setShowOverageSettingsModal(true)}
+                  className="flex items-center justify-center p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 border border-gray-300 rounded-md transition-colors"
+                  title="Overage Settings"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+              )}
+              </div>
             )}
           </div>
           <div>
@@ -1890,12 +2092,37 @@ export function QuoteDetailHeaderV2({
         onClose={() => setShowCreateOrderModal(false)}
       />
 
+      {/* Create Submittal Modal */}
+      {showCreateSubmittalModal && (
+        <CreateSubmittalModal
+          onClose={() => setShowCreateSubmittalModal(false)}
+          onCreate={handleCreateSubmittal}
+          preselectedQuoteId={quote.id}
+          preselectedQuoteName={quote.quoteNumber}
+          quoteLineItems={lineItems.map((item): QuoteLineItem => ({
+            id: item.id,
+            catalogNumber: item.partNumber,
+            manufacturer: item.manufacturerName,
+            description: item.description,
+            quantity: item.quantity,
+          }))}
+        />
+      )}
+
       {/* PDF Builder */}
       <PDFBuilder
         entityId={quote.id}
         entityType="QUOTES"
         isOpen={showPDFBuilder}
         onClose={() => setShowPDFBuilder(false)}
+      />
+
+{/* Factory Overage Settings Modal */}
+      <FactoryOverageSettingsModal
+        isOpen={showOverageSettingsModal}
+        onClose={() => setShowOverageSettingsModal(false)}
+        factoryId={quote.factoryId || null}
+        factoryName={quote.factoryName}
       />
 
       {/* Excel Builder */}
@@ -1917,7 +2144,11 @@ export function QuoteDetailHeaderV2({
       <UnsavedChangesModal
         isOpen={showUnsavedChangesModal}
         title="Unsaved Changes"
-        message="You have unsaved changes to this quote. Please save before creating an order."
+        message={
+          unsavedChangesAction === 'pdfBuilder'
+            ? 'You have unsaved changes to this quote. Please save before opening the PDF builder.'
+            : 'You have unsaved changes to this quote. Please save before creating an order.'
+        }
         actionLabel="Save Quote"
         isSaving={isSaving}
         onClose={() => setShowUnsavedChangesModal(false)}
@@ -1926,8 +2157,12 @@ export function QuoteDetailHeaderV2({
             const success = await onSave();
             if (success) {
               setShowUnsavedChangesModal(false);
-              // After saving successfully, open the create order modal
-              setShowCreateOrderModal(true);
+              // After saving successfully, open the appropriate modal
+              if (unsavedChangesAction === 'pdfBuilder') {
+                setShowPDFBuilder(true);
+              } else {
+                setShowCreateOrderModal(true);
+              }
             }
             // If save failed, keep the modal open so user can cancel or try again after fixing issues
           }

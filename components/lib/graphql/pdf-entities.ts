@@ -172,6 +172,7 @@ export interface PDFQuoteDetail {
   productNameAdhoc?: string;
   productDescriptionAdhoc?: string;
   endUserId?: string;
+  endUser?: PDFCustomer;
   uom?: PDFUom;
   insideSplitRates?: PDFSplitRate[];
   outsideSplitRates?: PDFSplitRate[];
@@ -239,6 +240,7 @@ export interface PDFOrderDetail {
   productNameAdhoc?: string;
   productDescriptionAdhoc?: string;
   endUserId?: string;
+  endUser?: PDFCustomer;
   uom?: PDFUom;
   insideSplitRates?: PDFSplitRate[];
   outsideSplitRates?: PDFSplitRate[];
@@ -613,6 +615,13 @@ const QUOTE_PDF_QUERY = `
           productNameAdhoc
           productDescriptionAdhoc
           endUserId
+          endUser {
+            id
+            companyName
+            isParent
+            parentId
+            published
+          }
           uom {
             id
             title
@@ -769,6 +778,13 @@ const ORDER_PDF_QUERY = `
           productNameAdhoc
           productDescriptionAdhoc
           endUserId
+          endUser {
+            id
+            companyName
+            isParent
+            parentId
+            published
+          }
           uom {
             id
             title

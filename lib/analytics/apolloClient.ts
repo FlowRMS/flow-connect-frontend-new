@@ -45,8 +45,23 @@ export function clearTokenCache(): void {
   tokenExpiry = 0;
 }
 
-// Primary GraphQL endpoint - uses the same endpoint as the CRM
+// Primary GraphQL endpoint for analytics/reports
+// TEMPORARY: Using separate report API endpoint
+// TO REVERT: Change back to process.env.NEXT_PUBLIC_FLOWCRM_GRAPHQL_URL
 const httpLink = new HttpLink({
+  uri: process.env.NEXT_PUBLIC_REPORT_GRAPHQL_URL_TEMP || process.env.NEXT_PUBLIC_FLOWCRM_GRAPHQL_URL || "https://staging.v6.api.flowrms.com/graphql",
+  fetchOptions: {
+    mode: 'cors',
+  },
+});
+
+// ============================================================================
+// TEMPORARY: CRM Apollo Client for Analytics module
+// Used for CRM-specific queries (userSearch, findCustomerByCompanyName, etc.)
+// that need to go to the CRM backend, not the Report API
+// TO REVERT: Delete this entire crmHttpLink and crmClient section
+// ============================================================================
+const crmHttpLink = new HttpLink({
   uri: process.env.NEXT_PUBLIC_FLOWCRM_GRAPHQL_URL || "https://staging.v6.api.flowrms.com/graphql",
   fetchOptions: {
     mode: 'cors',
@@ -128,6 +143,20 @@ const client = new ApolloClient({
   cache,
 });
 
+// ============================================================================
+// TEMPORARY: CRM Client for Analytics (for user/entity lookups)
+// TO REVERT: Delete this crmClient and its export
+// ============================================================================
+const crmLink = ApolloLink.from([errorLink, authLink, crmHttpLink]);
+
+const crmClient = new ApolloClient({
+  link: crmLink,
+  cache: new InMemoryCache(),
+});
+
 export default client;
 export { client };
 export { client as apolloClient };
+// TEMPORARY: Export CRM client for user/entity searches in Analytics
+// TO REVERT: Delete this export
+export { crmClient };

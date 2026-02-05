@@ -98,10 +98,10 @@ export function getCompanyFilterOptions(): FilterOption[] {
     },
     {
       id: 'last-activity',
-      label: 'Last Activity',
+      label: 'Entry Date',
       type: 'date',
       columnName: 'createdAt',
-      available: false
+      available: true
     },
   ];
 }
@@ -110,6 +110,6 @@ export function getCompanySortOptions(): SortOption[] {
   return [
     { columnName: 'name', label: 'Company Name' },
     { columnName: 'companySourceType', label: 'Company Type' },
-    { columnName: 'createdAt', label: 'Created Date' },
+    { columnName: 'createdAt', label: 'Entry Date' },
   ];
 }
