@@ -26,6 +26,7 @@ export const SIMPLE_VIEW_COLUMNS: LineItemColumnKey[] = [
   'unitPrice',
   'sellTotal',
   'commissionPercent',
+  'commission',
   'commissionTotal',
 ];
 
