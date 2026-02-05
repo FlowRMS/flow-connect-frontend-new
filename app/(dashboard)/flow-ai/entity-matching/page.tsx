@@ -675,27 +675,25 @@ function EntityMatchingContent() {
     return handleSearchUsers(query, 'outside', 10);
   }, [handleSearchUsers]);
 
-  // Callback for searching factories (used when creating new Products)
-  const searchFactories = useCallback(async (query: string, limit?: number): Promise<EntitySearchResult[]> => {
-    const { Q_SEARCH_EXISTING_ENTITIES } = await import('@/lib/flow-ai/gql');
-    const result = await flowrmsApolloClient.query<{ searchExistingEntities: Array<{ entityId: string; name: string; similarityScore: number | string; metadata: string | null }> }>({
-      query: Q_SEARCH_EXISTING_ENTITIES,
-      variables: {
-        input: {
-          entityType: 'FACTORIES',
-          query,
-          limit: limit || 10,
-        },
-      },
-      fetchPolicy: 'network-only',
-    });
-    return (result.data?.searchExistingEntities || []).map(r => ({
-      entityId: r.entityId,
-      name: r.name,
-      similarityScore: r.similarityScore,
-      metadata: r.metadata,
-    }));
-  }, []);
+  // Callback for searching factories - filtered to only factories confirmed in this document
+  const searchFactories = useCallback(async (query: string): Promise<EntitySearchResult[]> => {
+    const confirmed = factories
+      .filter(f =>
+        (f.confirmationStatus === 'CONFIRMED' || f.confirmationStatus === 'AUTO_MATCHED') &&
+        f.bestMatchId
+      )
+      .map(f => ({
+        entityId: f.bestMatchId!,
+        name: f.bestMatchName || f.matchCandidates?.find(m => m.entityId === f.bestMatchId)?.name || 'Unknown',
+      }));
+
+    // Deduplicate by entityId (same factory may appear on multiple lines)
+    const unique = Array.from(new Map(confirmed.map(f => [f.entityId, f])).values());
+
+    if (!query) return unique;
+    const lower = query.toLowerCase();
+    return unique.filter(f => f.name.toLowerCase().includes(lower));
+  }, [factories]);
 
   // Check what rep/factory fields are needed for current entity type
   // - Customers/Bill to Customers/End Users: outsideRepId required, insideRepId optional
