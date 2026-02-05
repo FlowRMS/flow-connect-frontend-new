@@ -6,10 +6,13 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { StatementListItem } from '../../../types';
+import { useScrollPagination } from '@/components/hooks/useInfiniteScroll';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { StatementsTableHeader } from './StatementsTableHeader';
 
 // Helper to get initials from a name
 const getInitials = (name: string | undefined | null): string => {
@@ -56,6 +59,15 @@ interface StatementsTableProps {
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
   searchQuery?: string;
+  hasFilters?: boolean;
+  onClearFilters?: () => void;
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  columnFilters?: Record<string, ActiveFilter[]>;
+  // Sorting
+  activeSort?: { columnName: string; direction: 'ASC' | 'DESC' };
+  onSortChange?: (columnName: string) => void;
+  isFetching?: boolean;
 }
 
 const formatCurrency = (value: number | undefined | null): string => {
@@ -95,28 +107,26 @@ export function StatementsTable({
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
-  searchQuery,
+  searchQuery = '',
+  hasFilters = false,
+  onClearFilters,
+  onColumnFiltersChange,
+  columnFilters,
+  activeSort,
+  onSortChange,
+  isFetching = false,
 }: StatementsTableProps) {
   const router = useRouter();
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
-  // Infinite scroll handler
-  useEffect(() => {
-    const container = tableContainerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      if (scrollHeight - scrollTop - clientHeight < 200) {
-        if (hasNextPage && !isFetchingNextPage && !searchQuery && fetchNextPage) {
-          fetchNextPage();
-        }
-      }
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [hasNextPage, isFetchingNextPage, searchQuery, fetchNextPage]);
+  // Use shared scroll pagination hook so behavior matches invoices/adjustments
+  const shouldPaginate = (hasNextPage ?? false) && !searchQuery;
+  useScrollPagination(tableContainerRef, {
+    hasNextPage: shouldPaginate,
+    isFetchingNextPage: isFetchingNextPage ?? false,
+    fetchNextPage: fetchNextPage ?? (() => {}),
+    threshold: 200,
+  });
 
   // Navigate to detail page on row click
   const handleRowClick = useCallback((statement: StatementListItem) => {
@@ -141,35 +151,55 @@ export function StatementsTable({
   // Skeleton loader
   if (isLoading && statements.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-        <table className="w-full">
-          <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
-            <tr>
-              <th className="w-12 px-4 py-4"><div className="w-5 h-5 bg-gray-200 rounded animate-pulse" /></th>
-              <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Statement #</th>
-              <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Factory</th>
-              <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-              <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
-              <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Commission</th>
-              <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Created By</th>
-              <th className="w-16 px-4 py-4"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {[...Array(8)].map((_, index) => (
-              <tr key={index} className="animate-pulse">
-                <td className="px-4 py-4"><div className="w-5 h-5 bg-gray-100 rounded" /></td>
-                <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded w-24" /></td>
-                <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded w-32" /></td>
-                <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded w-20" /></td>
-                <td className="px-4 py-4 text-right"><div className="h-4 bg-gray-100 rounded w-20 ml-auto" /></td>
-                <td className="px-4 py-4 text-right"><div className="h-4 bg-gray-100 rounded w-16 ml-auto" /></td>
-                <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded w-24" /></td>
-                <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded w-8" /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm flex flex-col flex-1 min-h-0">
+        <div
+          ref={tableContainerRef}
+          className="overflow-auto scrollbar-always-visible flex-1"
+          style={{ maxHeight: 'calc(100vh)' }}
+        >
+          <table className="w-full">
+            <StatementsTableHeader
+              areAllEligibleSelected={isAllSelected}
+              isPartiallySelected={isPartiallySelected}
+              onSelectAll={handleSelectAllClick}
+              onColumnFiltersChange={onColumnFiltersChange}
+              columnFilters={columnFilters}
+              activeSort={activeSort}
+              onSortChange={onSortChange}
+              isFetching={isFetching}
+            />
+            <tbody className="divide-y divide-gray-100">
+              {[...Array(8)].map((_, index) => (
+                <tr key={index} className="animate-pulse">
+                  <td className="px-4 py-4">
+                    <div className="w-5 h-5 bg-gray-100 rounded" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="h-4 bg-gray-100 rounded w-24" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="h-4 bg-gray-100 rounded w-32" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="h-4 bg-gray-100 rounded w-20" />
+                  </td>
+                  <td className="px-4 py-4 text-right">
+                    <div className="h-4 bg-gray-100 rounded w-20 ml-auto" />
+                  </td>
+                  <td className="px-4 py-4 text-right">
+                    <div className="h-4 bg-gray-100 rounded w-16 ml-auto" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="h-4 bg-gray-100 rounded w-24" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="h-4 bg-gray-100 rounded w-8" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
@@ -189,69 +219,72 @@ export function StatementsTable({
             <path d="M9 12h6M9 16h4"/>
           </svg>
         </div>
-        <h4 className="text-xl font-semibold text-gray-900 mb-2">No Statements Found</h4>
-        <p className="text-sm text-gray-500 text-center max-w-md mb-6">
-          {searchQuery
-            ? `No statements match your search "${searchQuery}". Try a different search term.`
-            : 'Create your first statement to get started tracking commissions and payments.'}
-        </p>
+        {hasFilters ? (
+          <>
+            <h4 className="text-xl font-semibold text-gray-900 mb-2">
+              No statements match your filters
+            </h4>
+            <p className="text-sm text-gray-500 text-center max-w-md mb-6">
+              {searchQuery
+                ? `No statements match your search "${searchQuery}". Try a different search term or clear your filters.`
+                : 'Try adjusting or clearing your filters to see more statements.'}
+            </p>
+            {onClearFilters && (
+              <button
+                type="button"
+                onClick={onClearFilters}
+                className="inline-flex items-center gap-2 px-6 py-2.5 border border-red-500 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    d="M5 5l10 10M15 5L5 15"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Clear filters
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <h4 className="text-xl font-semibold text-gray-900 mb-2">
+              No Statements Found
+            </h4>
+            <p className="text-sm text-gray-500 text-center max-w-md mb-6">
+              Create your first statement to get started tracking commissions and payments.
+            </p>
+          </>
+        )}
       </motion.div>
     );
   }
 
   return (
-    <div
-      ref={tableContainerRef}
-      className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
-    >
-      <table className="w-full">
-        <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 sticky top-0">
-          <tr>
-            <th className="w-12 px-4 py-4">
-              <div className="flex items-center justify-center">
-                <button
-                  onClick={handleSelectAllClick}
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
-                    isAllSelected
-                      ? 'bg-emerald-500 border-emerald-500'
-                      : isPartiallySelected
-                      ? 'bg-emerald-100 border-emerald-500'
-                      : 'border-gray-300 hover:border-emerald-400'
-                  }`}
-                >
-                  {(isAllSelected || isPartiallySelected) && (
-                    <svg width="12" height="12" viewBox="0 0 20 20" fill="white">
-                      {isAllSelected ? (
-                        <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
-                      ) : (
-                        <path d="M4 10h12" stroke="currentColor" strokeWidth="2" fill="none" />
-                      )}
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </th>
-            <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Statement #
-            </th>
-            <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Factory
-            </th>
-            <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Date
-            </th>
-            <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Total
-            </th>
-            <th className="text-right px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Commission
-            </th>
-            <th className="text-left px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Created By
-            </th>
-            <th className="w-16 px-4 py-4"></th>
-          </tr>
-        </thead>
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm flex flex-col flex-1 min-h-0">
+      <div
+        ref={tableContainerRef}
+        className="overflow-auto scrollbar-always-visible flex-1"
+        style={{ maxHeight: 'calc(100vh - 340px)' }}
+      >
+        <table className="w-full">
+          <StatementsTableHeader
+            areAllEligibleSelected={isAllSelected}
+            isPartiallySelected={isPartiallySelected}
+            onSelectAll={handleSelectAllClick}
+            onColumnFiltersChange={onColumnFiltersChange}
+            columnFilters={columnFilters}
+            activeSort={activeSort}
+            onSortChange={onSortChange}
+            isFetching={isFetching}
+          />
         <tbody className="divide-y divide-gray-100">
           <AnimatePresence mode="popLayout">
             {statements.map((statement, index) => {
@@ -319,6 +352,11 @@ export function StatementsTable({
                       {formatDate(statement.entityDate)}
                     </span>
                   </td>
+                  <td className="px-4 py-4">
+                    <span className="text-gray-500 text-sm">
+                      {formatDate(statement.createdAt)}
+                    </span>
+                  </td>
                   <td className="px-4 py-4 text-right">
                     <span className="font-semibold text-gray-900 tabular-nums">
                       {formatCurrency(statement.total)}
@@ -363,7 +401,8 @@ export function StatementsTable({
             })}
           </AnimatePresence>
         </tbody>
-      </table>
+        </table>
+      </div>
 
       {/* Loading more indicator */}
       {isFetchingNextPage && (
