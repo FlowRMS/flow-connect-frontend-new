@@ -30,6 +30,7 @@ import { useFactory } from '@/components/warehouse/api/useFactoriesApi';
 import { useCustomer } from '@/components/customers/api/useCustomersApi';
 import { fetchInvoiceById } from '../../api/invoicesApi';
 import { parseLocalDate, formatLocalDate } from '@/components/lib/date-utils';
+import { normalizeDivisor } from '@/components/lib/uom-utils';
 
 function addDaysToDate(dateString: string, days: number): string {
   if (!dateString) return '';
@@ -81,7 +82,9 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     // Parse base values first
     const quantity = parseFloat(detail.quantity || '0');
     const unitPrice = parseFloat(detail.unitPrice || '0');
-    const divisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
+    // Normalize divisor to handle legacy data where divisionFactor < 1
+    const rawDivisor = detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1');
+    const divisor = normalizeDivisor(rawDivisor);
     const commissionRate = parseFloat(detail.commissionRate || '0');
 
     // Use API subtotal if available and non-zero, otherwise calculate from inputs
@@ -246,7 +249,9 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
 function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineItem {
   const quantity = parseFloat(detail.quantity || '0');
   const unitPrice = parseFloat(detail.unitPrice || '0');
-  const divisor = parseFloat(detail.divisionFactor || '1');
+  // Normalize divisor to handle legacy data where divisionFactor < 1
+  const rawDivisor = parseFloat(detail.divisionFactor || '1');
+  const divisor = normalizeDivisor(detail.uom?.divisionFactor || rawDivisor);
   const commissionRate = parseFloat(detail.commissionRate || '0');
 
   // Use API subtotal if available and non-zero, otherwise calculate from inputs
@@ -275,7 +280,7 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
     custPartNumber: '', // Not directly in API
     uom: detail.uom?.title || null,
     uomId: detail.uom?.id || detail.uomId || null,
-    divisor: detail.uom?.divisionFactor || divisor,
+    divisor,
     total,
     commissionPercent: commissionRate,
     commission: commissionAmount,
@@ -465,7 +470,7 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
         unitPrice: typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : (item.unitPrice || 0),
         uom: item.uom?.title || item.uom || null,
         uomId: item.uom?.id || item.uomId || null,
-        divisor: item.uom?.divisionFactor || (typeof item.divisionFactor === 'string' ? parseFloat(item.divisionFactor) : (item.divisor || 1)),
+        divisor: normalizeDivisor(item.uom?.divisionFactor || (typeof item.divisionFactor === 'string' ? parseFloat(item.divisionFactor) : (item.divisor || 1))),
         total: item.total || item.extendedPrice || item.amount || 0,
         amount: item.total || item.extendedPrice || item.amount || 0,
         commissionPercent: typeof item.commissionRate === 'string' ? parseFloat(item.commissionRate) * 100 : ((item.commissionRate ?? 0.08) * 100),

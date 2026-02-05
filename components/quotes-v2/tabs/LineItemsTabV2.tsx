@@ -7,6 +7,7 @@ import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, 
 import type { ProductPricingTierResult } from '../../quotes/api/quotesApi';
 import { fetchProductById } from '../../products/api';
 import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
+import { normalizeDivisor } from '@/components/lib/uom-utils';
 import { FIXTURE_SCHEDULE_OPTIONS } from '../config/viewsConfig';
 import { useOverageCalculationBatch, type OverageCalculationInput, type OverageRecord } from '../api/quotesV2Api';
 
@@ -1845,15 +1846,23 @@ export function LineItemsTabV2({
                       .map((uom) => {
                         // Get current item to recalculate sellTotal when divisor changes
                         const item = lineItems.find(li => li.id === dropdownOpen.itemId);
+                        // Normalize divisor to handle legacy data where divisionFactor < 1
+                        const normalizedDivisor = normalizeDivisor(uom.divisionFactor);
                         return (
                           <button
                             key={uom.id}
                             onClick={() => {
-                              const divisor = uom.divisionFactor || 1;
+                              const newDivisor = normalizedDivisor;
+                              // Normalize oldDivisor in case it's a legacy value that wasn't normalized before
+                              const oldDivisor = normalizeDivisor(item?.divisor);
                               const quantity = item?.quantity || 1;
-                              const unitPrice = item?.unitPrice || 0;
+                              const oldUnitPrice = item?.unitPrice || 0;
+                              // When changing UOM, adjust unit price to maintain the same extended price
+                              // This prevents the 10x pricing bug when switching between UOMs
+                              // Formula: newUnitPrice = oldUnitPrice * (newDivisor / oldDivisor)
+                              const unitPrice = oldUnitPrice * (newDivisor / oldDivisor);
                               const commissionPercent = item?.commissionPercent || 0;
-                              const sellTotal = quantity * unitPrice / divisor;
+                              const sellTotal = quantity * unitPrice / newDivisor;
                               // Commission is calculated on DISCOUNTED sell total (after line discount)
                               const lineDiscountPct = item?.lineDiscountPercent || 0;
                               const lineDiscountAmount = sellTotal * (lineDiscountPct / 100);
@@ -1864,7 +1873,8 @@ export function LineItemsTabV2({
                               updateLineItem(dropdownOpen.itemId, {
                                 uomId: uom.id,
                                 uom: uom.title,
-                                divisor: divisor,
+                                divisor: newDivisor,
+                                unitPrice: unitPrice,
                                 sellTotal: sellTotal,
                                 lineDiscountAmount: lineDiscountAmount,
                                 commission: commissionBeforeDiscount,
@@ -1881,8 +1891,8 @@ export function LineItemsTabV2({
                             {uom.description && (
                               <div className="text-xs text-gray-400">{uom.description}</div>
                             )}
-                            {uom.divisionFactor && uom.divisionFactor !== 1 && (
-                              <div className="text-xs text-gray-400">Divisor: {uom.divisionFactor}</div>
+                            {normalizedDivisor && normalizedDivisor !== 1 && (
+                              <div className="text-xs text-gray-400">Divisor: {normalizedDivisor}</div>
                             )}
                           </button>
                         );

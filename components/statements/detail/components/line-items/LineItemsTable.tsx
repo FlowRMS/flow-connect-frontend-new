@@ -19,6 +19,18 @@ import {
 } from '../../../api/useStatementsApi';
 import { fetchProductById } from '@/components/products/api';
 import { BulkActionsBar } from './BulkActionsBar';
+import { normalizeDivisor } from '@/components/lib/uom-utils';
+
+// Types
+// Note: custPartNumber is NOT editable - it auto-populates when product is selected
+type EditableColumnKey = 'partNumber' | 'description' | 'soldTo' | 'endUser' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionRate';
+
+interface PricingOptions {
+  productPrice: number | null;
+  cpnPrice: number | null;
+  cpnCommissionRate: number | null;
+  tiers: Array<{ quantityLow: number; quantityHigh: number; unitPrice: number | string }>;
+}
 import {
   type EditableColumnKey,
   type PricingOptions,
@@ -233,12 +245,34 @@ export function LineItemsTable({
   const handleUomSelect = useCallback((tempId: string, uom: any) => {
     const item = lineItemMap.get(tempId);
     if (!item) return;
-    const divisor = uom.divisionFactor || 1;
-    const extendedPrice = ((item.quantity || 1) * (item.unitPrice || 0)) / divisor;
-    const commission = extendedPrice * ((item.commissionRate || 0) / 100);
-    onUpdateLineItem(tempId, { uomId: uom.id, uom: uom.title, divisor, extendedPrice, commission });
-    setDropdownOpen(null); setEditingCell(null); setSearchQuery('');
-  }, [lineItemMap, onUpdateLineItem]);
+
+    // Normalize divisor to handle legacy data where divisionFactor < 1
+    const newDivisor = normalizeDivisor(uom.divisionFactor);
+    // Normalize oldDivisor in case it's a legacy value that wasn't normalized before
+    const oldDivisor = normalizeDivisor(item.divisor);
+    const quantity = item.quantity || 1;
+    const oldUnitPrice = item.unitPrice || 0;
+    
+    // When changing UOM, adjust unit price to maintain the same extended price
+    // This prevents the 10x pricing bug when switching between UOMs
+    // Formula: newUnitPrice = oldUnitPrice * (newDivisor / oldDivisor)
+    const unitPrice = oldUnitPrice * (newDivisor / oldDivisor);
+    const extendedPrice = (quantity * unitPrice) / newDivisor;
+    const commissionRate = item.commissionRate || 0;
+    const commission = extendedPrice * (commissionRate / 100);
+
+    onUpdateLineItem(tempId, {
+      uomId: uom.id,
+      uom: uom.title,
+      divisor: newDivisor,
+      unitPrice,
+      extendedPrice,
+      commission,
+    });
+    setDropdownOpen(null);
+    setEditingCell(null);
+    setSearchQuery('');
+  }, [lineItems, onUpdateLineItem]);
 
   const handlePricingSourceSelect = useCallback((tempId: string, source: string, price: number, commissionRate?: number) => {
     const item = lineItemMap.get(tempId);
