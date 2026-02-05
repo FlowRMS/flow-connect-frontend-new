@@ -532,6 +532,14 @@ const iconMap: Record<string, React.ReactNode> = {
       <circle cx="12" cy="8" r="1" fill="currentColor"/>
     </svg>
   ),
+  // External links
+  'flow-connect': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+      <polyline points="15 3 21 3 21 9"/>
+      <line x1="10" y1="14" x2="21" y2="3"/>
+    </svg>
+  ),
 };
 
 // Export iconMap for use in other components
@@ -892,6 +900,30 @@ export default function Sidebar() {
           );
         })}
         </div>
+
+        {/* Flow Connect external link */}
+        {process.env.NEXT_PUBLIC_FLOW_CONNECT_URL && (
+          <div className="mt-4 pt-4 border-t border-[var(--border)]">
+            <Link
+              href={process.env.NEXT_PUBLIC_FLOW_CONNECT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={isCollapsed ? 'Flow Connect' : undefined}
+              className={`
+                w-full flex items-center
+                ${isCollapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5'}
+                rounded-lg text-sm font-medium
+                text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]
+                transition-colors
+              `}
+            >
+              {iconMap['flow-connect']}
+              {!isCollapsed && (
+                <span className="whitespace-nowrap">Flow Connect</span>
+              )}
+            </Link>
+          </div>
+        )}
       </nav>
     </div>
   );
