@@ -264,8 +264,12 @@ export default function CompaniesContent() {
       if (parentCompanyData && fullCompanyData.parentCompanyId) {
         mappedCompany.parentCompanyName = parentCompanyData.name;
       }
-      if (!selectedCompany || selectedCompany.id !== mappedCompany.id ||
-          (parentCompanyData && !selectedCompany.parentCompanyName)) {
+      if (
+        !selectedCompany ||
+        selectedCompany.id !== mappedCompany.id ||
+        (parentCompanyData && !selectedCompany.parentCompanyName) ||
+        (!selectedCompany.companyTypeId && mappedCompany.companyTypeId)
+      ) {
         setSelectedCompany(mappedCompany);
       }
     }
@@ -458,8 +462,15 @@ export default function CompaniesContent() {
     // Ensure name is always provided (required by GraphQL schema)
     const nameToSend = editFormData.name || selectedCompany.name;
 
-    // Get the company type name for display
-    const companyTypeId = editFormData.companyTypeId || selectedCompany.companyTypeId;
+    // Resolve company type ID and name
+    const companyTypeId = editFormData.companyTypeId ?? selectedCompany.companyTypeId;
+
+    // companyTypeId is required by the GraphQL schema (UUID!)
+    if (!companyTypeId) {
+      companyToasts.updateError('Please select a Company Type before saving.');
+      return false;
+    }
+
     const companyTypeName = companyTypes.find(t => t.id === companyTypeId)?.name || editFormData.companyTypeName || selectedCompany.companyTypeName;
 
     try {
