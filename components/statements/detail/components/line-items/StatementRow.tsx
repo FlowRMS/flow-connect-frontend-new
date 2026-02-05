@@ -55,6 +55,31 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 });
 export const formatCurrency = (value: number) => currencyFormatter.format(value);
 
+// ============================================================================
+// Shared column width definitions — used by both TableHeader and StatementRowInner
+// ============================================================================
+export const COL = {
+  checkbox:       'w-10 flex-shrink-0',
+  lineNumber:     'w-12 flex-shrink-0',
+  partNumber:     'w-[120px] flex-shrink-0',
+  custPartNumber: 'w-[80px] flex-shrink-0',
+  description:    'flex-1 min-w-[140px]',
+  soldTo:         'flex-1 min-w-[130px]',
+  endUser:        'flex-1 min-w-[130px]',
+  quantity:       'w-16 flex-shrink-0',
+  uom:            'w-16 flex-shrink-0',
+  divisor:        'w-16 flex-shrink-0',
+  unitPrice:      'w-[150px] flex-shrink-0 overflow-hidden',
+  extendedPrice:  'w-[100px] flex-shrink-0',
+  commissionRate: 'w-[70px] flex-shrink-0',
+  commission:     'w-[100px] flex-shrink-0',
+  outsideRep:     'w-[110px] flex-shrink-0',
+  order:          'w-[80px] flex-shrink-0',
+  invoice:        'w-[80px] flex-shrink-0',
+  note:           'w-[110px] flex-shrink-0',
+  actions:        'w-16 flex-shrink-0',
+} as const;
+
 export const isNanString = (value: string | undefined | null): boolean => {
   if (!value) return true;
   const lower = value.trim().toLowerCase();
@@ -201,15 +226,16 @@ export const StatementRowInner = memo(function StatementRowInner({
       const isDropdownOpenForThis = pricingDropdownOpen?.tempId === item.tempId;
 
       return (
-        <div className="relative">
-          <div className="flex items-center justify-end gap-1.5">
-            <button onClick={(e) => onCellClick(item.tempId, column, e)} className="px-2 py-1 rounded hover:bg-gray-100 transition-colors">{displayValue}</button>
+        <div className="relative overflow-hidden">
+          <div className="flex items-center justify-end gap-1">
+            <button onClick={(e) => onCellClick(item.tempId, column, e)} className="px-2 py-1 rounded hover:bg-gray-100 transition-colors flex-shrink-0">{displayValue}</button>
             <button
               onClick={(e) => onPricingDropdownToggle(item.tempId, e)}
-              className={`text-[10px] px-1.5 py-0.5 rounded font-medium cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-0.5 whitespace-nowrap ${tagColor}`}
+              className={`text-[10px] px-1 py-0.5 rounded font-medium cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-0.5 truncate max-w-[60px] flex-shrink ${tagColor}`}
+              title={tagLabel}
             >
-              {tagLabel}
-              <svg width="8" height="8" viewBox="0 0 20 20" fill="currentColor">
+              <span className="truncate">{tagLabel}</span>
+              <svg width="8" height="8" viewBox="0 0 20 20" fill="currentColor" className="flex-shrink-0">
                 <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
               </svg>
             </button>
@@ -220,16 +246,16 @@ export const StatementRowInner = memo(function StatementRowInner({
               style={{ top: pricingDropdownOpen.position.top, left: pricingDropdownOpen.position.left }}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
             >
-              {options?.productPrice !== null && (
-                <button onClick={() => onPricingSourceSelect(item.tempId, 'product', options!.productPrice!, item.commissionRate)} className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${pricingSource === 'product' ? 'bg-purple-50' : ''}`}>
+              {options && options.productPrice !== null && (
+                <button onClick={() => onPricingSourceSelect(item.tempId, 'product', options.productPrice!, item.commissionRate)} className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${pricingSource === 'product' ? 'bg-purple-50' : ''}`}>
                   <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-purple-500"></span>Product</span>
-                  <span className="text-gray-500">${options!.productPrice!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                  <span className="text-gray-500">${options.productPrice!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                 </button>
               )}
-              {options?.cpnPrice !== null && (
-                <button onClick={() => onPricingSourceSelect(item.tempId, 'cpn', options!.cpnPrice!, options?.cpnCommissionRate ?? item.commissionRate)} className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${pricingSource === 'cpn' ? 'bg-blue-50' : ''}`}>
+              {options && options.cpnPrice !== null && (
+                <button onClick={() => onPricingSourceSelect(item.tempId, 'cpn', options.cpnPrice!, options.cpnCommissionRate ?? item.commissionRate)} className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${pricingSource === 'cpn' ? 'bg-blue-50' : ''}`}>
                   <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span>CPN</span>
-                  <span className="text-gray-500">${options!.cpnPrice!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                  <span className="text-gray-500">${options.cpnPrice!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                 </button>
               )}
               {options?.tiers && options.tiers.length > 0 && (
@@ -275,59 +301,59 @@ export const StatementRowInner = memo(function StatementRowInner({
       style={style}
       className={`flex items-center border-b border-[var(--border)] hover:bg-[var(--muted)]/20 transition-colors ${isSelected ? 'bg-[var(--primary)]/5' : ''}`}
     >
-      <div className="w-10 px-3 py-2 flex-shrink-0">
+      <div className={`${COL.checkbox} px-3 py-2`}>
         <input type="checkbox" checked={isSelected} onChange={() => onToggleSelection(item.tempId)} className="accent-[var(--primary)]" />
       </div>
-      {visibleColumns.has('lineNumber') && <div className="px-3 py-2 text-sm text-[var(--muted-foreground)] w-16 flex-shrink-0">{item.itemNumber}</div>}
-      {visibleColumns.has('partNumber') && <div className="px-3 py-2 text-sm min-w-[150px] flex-shrink-0">{renderCell('partNumber', 'left')}</div>}
+      {visibleColumns.has('lineNumber') && <div className={`${COL.lineNumber} px-3 py-2 text-sm text-[var(--muted-foreground)]`}>{item.itemNumber}</div>}
+      {visibleColumns.has('partNumber') && <div className={`${COL.partNumber} px-3 py-2 text-sm`}>{renderCell('partNumber', 'left')}</div>}
       {visibleColumns.has('custPartNumber') && (
-        <div className="px-3 py-2 text-sm min-w-[120px] flex-shrink-0">
-          <span className={`px-2 py-1 ${!item.custPartNumber ? 'text-gray-400' : ''}`}>{item.custPartNumber || '—'}</span>
+        <div className={`${COL.custPartNumber} px-3 py-2 text-sm`}>
+          <span className={`px-2 py-1 truncate block ${!item.custPartNumber ? 'text-gray-400' : ''}`}>{item.custPartNumber || '—'}</span>
         </div>
       )}
-      {visibleColumns.has('description') && <div className="px-3 py-2 text-sm min-w-[200px] max-w-[300px] flex-shrink-0">{renderCell('description', 'left')}</div>}
-      {visibleColumns.has('soldTo') && <div className="px-3 py-2 text-sm min-w-[150px] flex-shrink-0">{renderCell('soldTo', 'left')}</div>}
-      {visibleColumns.has('endUser') && <div className="px-3 py-2 text-sm min-w-[150px] flex-shrink-0">{renderCell('endUser', 'left')}</div>}
-      {visibleColumns.has('quantity') && <div className="px-3 py-2 text-sm w-20 flex-shrink-0">{renderCell('quantity', 'center')}</div>}
-      {visibleColumns.has('uom') && <div className="px-3 py-2 text-sm w-20 flex-shrink-0">{renderCell('uom', 'center')}</div>}
-      {visibleColumns.has('divisor') && <div className="px-3 py-2 text-sm w-20 flex-shrink-0">{renderCell('divisor', 'center')}</div>}
-      {visibleColumns.has('unitPrice') && <div className="px-3 py-2 text-sm min-w-[130px] flex-shrink-0">{renderCell('unitPrice', 'right')}</div>}
-      {visibleColumns.has('extendedPrice') && <div className="px-3 py-2 text-sm text-right font-medium min-w-[100px] flex-shrink-0">{formatCurrency(item.extendedPrice || 0)}</div>}
-      {visibleColumns.has('commissionRate') && <div className="px-3 py-2 text-sm w-20 flex-shrink-0">{renderCell('commissionRate', 'right')}</div>}
-      {visibleColumns.has('commission') && <div className="px-3 py-2 text-sm text-right font-medium text-purple-600 min-w-[100px] flex-shrink-0">{formatCurrency(item.commission || 0)}</div>}
+      {visibleColumns.has('description') && <div className={`${COL.description} px-3 py-2 text-sm overflow-hidden`}>{renderCell('description', 'left')}</div>}
+      {visibleColumns.has('soldTo') && <div className={`${COL.soldTo} px-3 py-2 text-sm overflow-hidden`}>{renderCell('soldTo', 'left')}</div>}
+      {visibleColumns.has('endUser') && <div className={`${COL.endUser} px-3 py-2 text-sm overflow-hidden`}>{renderCell('endUser', 'left')}</div>}
+      {visibleColumns.has('quantity') && <div className={`${COL.quantity} px-3 py-2 text-sm`}>{renderCell('quantity', 'center')}</div>}
+      {visibleColumns.has('uom') && <div className={`${COL.uom} px-3 py-2 text-sm`}>{renderCell('uom', 'center')}</div>}
+      {visibleColumns.has('divisor') && <div className={`${COL.divisor} px-3 py-2 text-sm`}>{renderCell('divisor', 'center')}</div>}
+      {visibleColumns.has('unitPrice') && <div className={`${COL.unitPrice} px-3 py-2 text-sm`}>{renderCell('unitPrice', 'right')}</div>}
+      {visibleColumns.has('extendedPrice') && <div className={`${COL.extendedPrice} px-3 py-2 text-sm text-right font-medium`}>{formatCurrency(item.extendedPrice || 0)}</div>}
+      {visibleColumns.has('commissionRate') && <div className={`${COL.commissionRate} px-3 py-2 text-sm`}>{renderCell('commissionRate', 'right')}</div>}
+      {visibleColumns.has('commission') && <div className={`${COL.commission} px-3 py-2 text-sm text-right font-medium text-purple-600`}>{formatCurrency(item.commission || 0)}</div>}
       {visibleColumns.has('outsideRep') && (
-        <div className="px-3 py-2 text-sm min-w-[120px] flex-shrink-0">
+        <div className={`${COL.outsideRep} px-3 py-2 text-sm overflow-hidden`}>
           {item.outsideSplitRates && item.outsideSplitRates.length > 0 ? (
-            <span className="text-gray-700">{item.outsideSplitRates.map((r: CommissionSplitRep) => r.userName).join(', ')}</span>
+            <span className="text-gray-700 truncate block">{item.outsideSplitRates.map((r: CommissionSplitRep) => r.userName).join(', ')}</span>
           ) : (
             <span className="text-gray-400">-</span>
           )}
         </div>
       )}
       {visibleColumns.has('order') && (
-        <div className="px-3 py-2 text-sm min-w-[100px] flex-shrink-0">
+        <div className={`${COL.order} px-3 py-2 text-sm`}>
           {item.orderId ? (
-            <Link href={`/orders/${item.orderId}`} className="text-blue-600 hover:text-blue-800 hover:underline" onClick={(e) => e.stopPropagation()}>
+            <Link href={`/orders/${item.orderId}`} className="text-blue-600 hover:text-blue-800 hover:underline truncate block" onClick={(e) => e.stopPropagation()}>
               {item.orderNumber || item.orderId.substring(0, 8)}
             </Link>
           ) : (<span className="text-gray-400">-</span>)}
         </div>
       )}
       {visibleColumns.has('invoice') && (
-        <div className="px-3 py-2 text-sm min-w-[100px] flex-shrink-0">
+        <div className={`${COL.invoice} px-3 py-2 text-sm`}>
           {item.invoiceId ? (
-            <Link href={`/invoices/${item.invoiceId}`} className="text-blue-600 hover:text-blue-800 hover:underline" onClick={(e) => e.stopPropagation()}>
+            <Link href={`/invoices/${item.invoiceId}`} className="text-blue-600 hover:text-blue-800 hover:underline truncate block" onClick={(e) => e.stopPropagation()}>
               {item.invoiceNumber || item.invoiceId.substring(0, 8)}
             </Link>
           ) : (<span className="text-gray-400">-</span>)}
         </div>
       )}
       {visibleColumns.has('note') && (
-        <div className="px-3 py-2 text-sm min-w-[120px] flex-shrink-0">
-          {item.note ? (<span className="truncate block max-w-[150px]" title={item.note}>{item.note}</span>) : (<span className="text-gray-400">-</span>)}
+        <div className={`${COL.note} px-3 py-2 text-sm overflow-hidden`}>
+          {item.note ? (<span className="truncate block" title={item.note}>{item.note}</span>) : (<span className="text-gray-400">-</span>)}
         </div>
       )}
-      <div className="px-2 py-2 w-20 flex-shrink-0">
+      <div className={`${COL.actions} px-2 py-2`}>
         <div className="flex items-center gap-1">
           <button onClick={() => onRemoveLineItem(item.tempId)} className="p-1 hover:bg-red-100 rounded transition-colors group" title="Remove line item">
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-400 group-hover:text-red-500">
@@ -392,27 +418,27 @@ export const TableHeader = memo(function TableHeader({
 }) {
   return (
     <div className="flex items-center border-b border-[var(--border)] bg-[var(--muted)]/50">
-      <div className="w-10 px-3 py-3 flex-shrink-0">
+      <div className={`${COL.checkbox} px-3 py-3`}>
         <input type="checkbox" checked={selectedLineItems.size === lineItemCount && lineItemCount > 0} onChange={onToggleAllSelection} className="accent-[var(--primary)]" />
       </div>
-      {visibleColumns.has('lineNumber') && <div className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider w-16 flex-shrink-0">#</div>}
-      {visibleColumns.has('partNumber') && <div className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[150px] flex-shrink-0">Part #</div>}
-      {visibleColumns.has('custPartNumber') && <div className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[120px] flex-shrink-0">CPN</div>}
-      {visibleColumns.has('description') && <div className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[200px] flex-shrink-0">Description</div>}
-      {visibleColumns.has('soldTo') && <div className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[150px] flex-shrink-0">Sold To</div>}
-      {visibleColumns.has('endUser') && <div className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[150px] flex-shrink-0">End User</div>}
-      {visibleColumns.has('quantity') && <div className="px-3 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider w-20 flex-shrink-0">Qty</div>}
-      {visibleColumns.has('uom') && <div className="px-3 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider w-20 flex-shrink-0">UOM</div>}
-      {visibleColumns.has('divisor') && <div className="px-3 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider w-20 flex-shrink-0">Divisor</div>}
-      {visibleColumns.has('unitPrice') && <div className="px-3 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[130px] flex-shrink-0">Unit Price</div>}
-      {visibleColumns.has('extendedPrice') && <div className="px-3 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[100px] flex-shrink-0">Ext. Price</div>}
-      {visibleColumns.has('commissionRate') && <div className="px-3 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider w-20 flex-shrink-0">Comm %</div>}
-      {visibleColumns.has('commission') && <div className="px-3 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[100px] flex-shrink-0">Commission</div>}
-      {visibleColumns.has('outsideRep') && <div className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[120px] flex-shrink-0">Outside Rep</div>}
-      {visibleColumns.has('order') && <div className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[100px] flex-shrink-0">Order</div>}
-      {visibleColumns.has('invoice') && <div className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[100px] flex-shrink-0">Invoice</div>}
-      {visibleColumns.has('note') && <div className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[120px] flex-shrink-0">Note</div>}
-      <div className="px-2 py-3 w-20 flex-shrink-0"></div>
+      {visibleColumns.has('lineNumber') && <div className={`${COL.lineNumber} px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>#</div>}
+      {visibleColumns.has('partNumber') && <div className={`${COL.partNumber} px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Part #</div>}
+      {visibleColumns.has('custPartNumber') && <div className={`${COL.custPartNumber} px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>CPN</div>}
+      {visibleColumns.has('description') && <div className={`${COL.description} px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Description</div>}
+      {visibleColumns.has('soldTo') && <div className={`${COL.soldTo} px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Sold To</div>}
+      {visibleColumns.has('endUser') && <div className={`${COL.endUser} px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>End User</div>}
+      {visibleColumns.has('quantity') && <div className={`${COL.quantity} px-3 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Qty</div>}
+      {visibleColumns.has('uom') && <div className={`${COL.uom} px-3 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>UOM</div>}
+      {visibleColumns.has('divisor') && <div className={`${COL.divisor} px-3 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Divisor</div>}
+      {visibleColumns.has('unitPrice') && <div className={`${COL.unitPrice} px-3 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Unit Price</div>}
+      {visibleColumns.has('extendedPrice') && <div className={`${COL.extendedPrice} px-3 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Ext. Price</div>}
+      {visibleColumns.has('commissionRate') && <div className={`${COL.commissionRate} px-3 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Comm %</div>}
+      {visibleColumns.has('commission') && <div className={`${COL.commission} px-3 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Commission</div>}
+      {visibleColumns.has('outsideRep') && <div className={`${COL.outsideRep} px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Outside Rep</div>}
+      {visibleColumns.has('order') && <div className={`${COL.order} px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Order</div>}
+      {visibleColumns.has('invoice') && <div className={`${COL.invoice} px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Invoice</div>}
+      {visibleColumns.has('note') && <div className={`${COL.note} px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider`}>Note</div>}
+      <div className={`${COL.actions} px-2 py-3`}></div>
     </div>
   );
 });
