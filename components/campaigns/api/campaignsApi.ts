@@ -143,7 +143,10 @@ export interface ContactSearchResult {
 export interface CompanySearchResult {
   id: string;
   name: string;
-  companySourceType: string;
+  companyType?: {
+    id: string;
+    name: string;
+  };
   phone?: string;
   website?: string;
   tags?: string;
@@ -338,7 +341,10 @@ const COMPANY_SEARCH = `
     companySearch(searchTerm: $searchTerm, limit: $limit) {
       id
       name
-      companySourceType
+      companyType {
+        id
+        name
+      }
       phone
       website
       tags
@@ -894,7 +900,11 @@ export function getContactTerritories(contacts: ContactSearchResult[]): string[]
  * Get company types from companies
  */
 export function getCompanyTypes(companies: CompanySearchResult[]): string[] {
-  return extractUniqueValues(companies, 'companySourceType');
+  return [...new Set(
+    companies
+      .map(company => company.companyType?.name)
+      .filter((name): name is string => name != null && name !== '')
+  )].sort();
 }
 
 /**

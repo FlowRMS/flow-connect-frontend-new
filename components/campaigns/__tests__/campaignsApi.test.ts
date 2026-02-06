@@ -96,9 +96,9 @@ describe('Campaigns API - Helper Functions', () => {
   describe('getCompanyTypes', () => {
     it('should extract unique company types', () => {
       const companies: CompanySearchResult[] = [
-        { id: '1', name: 'Company A', companySourceType: 'Contractor' },
-        { id: '2', name: 'Company B', companySourceType: 'Supplier' },
-        { id: '3', name: 'Company C', companySourceType: 'Contractor' },
+        { id: '1', name: 'Company A', companyType: { id: 'ct1', name: 'Contractor' } },
+        { id: '2', name: 'Company B', companyType: { id: 'ct2', name: 'Supplier' } },
+        { id: '3', name: 'Company C', companyType: { id: 'ct1', name: 'Contractor' } },
       ];
 
       const result = getCompanyTypes(companies);

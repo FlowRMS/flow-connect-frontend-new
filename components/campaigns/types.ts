@@ -215,7 +215,7 @@ export const ENTITY_FIELDS: Record<CriteriaEntityType, FieldConfig[]> = {
   ],
   COMPANY: [
     { value: 'name', label: 'Company Name', type: 'select' },
-    { value: 'company_source_type', label: 'Company Type', type: 'select', apiField: 'companySourceType' },
+    { value: 'company_type', label: 'Company Type', type: 'select', apiField: 'companyType' },
     { value: 'website', label: 'Website', type: 'text' },
     { value: 'phone', label: 'Phone', type: 'text' },
     { value: 'tags', label: 'Tags', type: 'select' },
