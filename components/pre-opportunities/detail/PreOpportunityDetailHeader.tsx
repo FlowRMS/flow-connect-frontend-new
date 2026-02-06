@@ -9,6 +9,7 @@ import { formatDate, formatCurrency, getOwnerInitials, getOwnerColor } from '../
 import { PDFBuilder } from '@/components/shared/pdf-builder';
 import { ExcelBuilder } from '@/components/shared/excel-builder';
 import { ManufacturerExcelModal } from '@/components/shared/manufacturer-excel';
+import { WatchersSection } from '@/components/shared/WatchersSection';
 
 // Status color mapping
 const STATUS_COLORS: Record<PreOpportunityStatus, { bg: string; text: string; dot: string }> = {
@@ -130,6 +131,9 @@ export function PreOpportunityDetailHeader({
 
           {/* Right Side - Actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Watchers */}
+            <WatchersSection entityType="PRE_OPPORTUNITY" entityId={preOpp.id} />
+
             {isEditing ? (
               <>
                 <button

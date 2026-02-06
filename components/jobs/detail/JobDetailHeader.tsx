@@ -7,6 +7,7 @@ import React from 'react';
 import { getStatusColor, getOwnerInitials, getOwnerColor } from '../utils';
 import type { Job, RepType } from '../types';
 import { REP_TYPE_CONFIG } from '../constants';
+import { WatchersSection } from '@/components/shared/WatchersSection';
 
 interface JobDetailHeaderProps {
   job: Job;
@@ -107,6 +108,9 @@ export function JobDetailHeader({
 
           {/* Right Side - Actions */}
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+            {/* Watchers */}
+            <WatchersSection entityType="JOB" entityId={job.id} />
+
             <button
               disabled
               className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 md:py-2.5 border border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed text-xs md:text-sm font-medium text-gray-400"

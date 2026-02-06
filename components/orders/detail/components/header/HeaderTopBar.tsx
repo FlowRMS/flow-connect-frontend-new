@@ -13,6 +13,7 @@ import { PDFBuilder } from '@/components/shared/pdf-builder';
 import { ExcelBuilder } from '@/components/shared/excel-builder';
 import { ManufacturerExcelModal } from '@/components/shared/manufacturer-excel';
 import { UnsavedChangesModal } from '@/components/shared/modals/UnsavedChangesModal';
+import { WatchersSection } from '@/components/shared/WatchersSection';
 
 interface HeaderTopBarProps {
   order: Order;
@@ -136,6 +137,9 @@ export function HeaderTopBar({
           </div>
         </div>
           <div className="flex items-center gap-2">
+            {/* Watchers */}
+            <WatchersSection entityType="ORDER" entityId={order.id} />
+
             {/* Actions Dropdown */}
             <div className="relative">
             <button

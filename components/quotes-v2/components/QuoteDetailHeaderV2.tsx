@@ -31,6 +31,7 @@ import { submittalToasts } from '@/components/lib/toast';
 import { ExcelBuilder } from '@/components/shared/excel-builder';
 import { ManufacturerExcelModal } from '@/components/shared/manufacturer-excel';
 import { UnsavedChangesModal } from '@/components/shared/modals/UnsavedChangesModal';
+import { WatchersSection } from '@/components/shared/WatchersSection';
 
 // Quote status options using API enum values
 const quoteStatusOptions: QuoteV2Status[] = [
@@ -879,6 +880,11 @@ export function QuoteDetailHeaderV2({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Watchers */}
+          {!isNew && quote.id && (
+            <WatchersSection entityType="QUOTE" entityId={quote.id} />
+          )}
+
           {/* Actions Dropdown */}
           <div className="relative">
             <button

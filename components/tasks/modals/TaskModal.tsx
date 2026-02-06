@@ -38,6 +38,7 @@ import { taskToasts } from '../../lib/toast';
 import { API_STATUS_OPTIONS, API_PRIORITY_OPTIONS, AVAILABLE_TAGS } from '../constants';
 import { StyledDatePicker, parseDateString, formatDateToString, CustomSelect } from '../components';
 import { MentionInput, MentionDisplay, type Mention, type MentionType, parseMentionsFromText } from '../components/MentionInput';
+import { WatchersSection } from '@/components/shared/WatchersSection';
 
 interface TaskModalProps {
   task: Task;
@@ -713,6 +714,9 @@ export default function TaskModal({
               </div>
               
               <div className="flex items-center gap-2">
+                {/* Watchers */}
+                <WatchersSection entityType="TASK" entityId={task.id} compact />
+
                 {!isEditMode && (
                   <>
                     <button

@@ -511,3 +511,12 @@ export {
   type AddCompanyToJobInput,
   type RemoveCompanyFromJobInput,
 } from './job-company-links';
+
+// Watchers module
+export {
+  fetchWatchersByEntity,
+  addWatcher,
+  removeWatcher,
+  type WatchableEntityType,
+  type Watcher,
+} from './watchers';
