@@ -1,6 +1,7 @@
 /**
  * Create Task Modal Component
  * Modal for creating new tasks with title, description, priority, status, and entity relations
+ * Supports @mentions for Customer, Contact, Company, Factory with auto-linking
  */
 
 'use client';
@@ -19,6 +20,7 @@ import type { TaskPriorityAPI, TaskStatusAPI } from '../types';
 import { StyledDatePicker, parseDateString, formatDateToString } from '../components';
 import { CustomSelect } from '../components';
 import { LinkSelector, type SelectedLink } from '../../notes/components/LinkSelector';
+import { MentionInput, type Mention, type MentionType } from '../components/MentionInput';
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -31,6 +33,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess, initialLinks }: Cr
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [mentions, setMentions] = useState<Mention[]>([]);
   const [status, setStatus] = useState<TaskStatusAPI>('TODO');
   const [priority, setPriority] = useState<TaskPriorityAPI>('NORMAL');
   const [dueDate, setDueDate] = useState('');
@@ -84,6 +87,34 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess, initialLinks }: Cr
       setSelectedLinks(initialLinks);
     }
   }, [isOpen, initialLinks]);
+
+  // Auto-link entities when mentions change
+  const handleMentionsChange = (newMentions: Mention[]) => {
+    setMentions(newMentions);
+
+    // Convert mention types to entity link types
+    const mentionTypeToEntityType: Record<MentionType, SelectedLink['type']> = {
+      CUSTOMER: 'CUSTOMER',
+      CONTACT: 'CONTACT',
+      COMPANY: 'COMPANY',
+      FACTORY: 'FACTORY',
+    };
+
+    // Get unique mentions that aren't already linked
+    newMentions.forEach(mention => {
+      const entityType = mentionTypeToEntityType[mention.type];
+      const alreadyLinked = selectedLinks.some(
+        link => link.id === mention.id && link.type === entityType
+      );
+
+      if (!alreadyLinked) {
+        setSelectedLinks(prev => [
+          ...prev,
+          { id: mention.id, type: entityType, name: mention.name }
+        ]);
+      }
+    });
+  };
 
   // Update dropdown position when showing
   const updateDropdownPosition = () => {
@@ -213,6 +244,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess, initialLinks }: Cr
   const resetForm = () => {
     setTitle('');
     setDescription('');
+    setMentions([]);
     setStatus('TODO');
     setPriority('NORMAL');
     setDueDate('');
@@ -308,20 +340,25 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess, initialLinks }: Cr
                 />
               </div>
 
-              {/* Description */}
+              {/* Description with @mentions */}
               <div>
                 <label className={labelClass}>
                   <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
                   </svg>
                   Description
+                  <span className="ml-auto text-xs font-normal text-gray-400">
+                    Type @ to mention
+                  </span>
                 </label>
-                <textarea
+                <MentionInput
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={setDescription}
+                  mentions={mentions}
+                  onMentionsChange={handleMentionsChange}
+                  placeholder="Describe the task... (type @ to mention customers, contacts, companies, or factories)"
                   rows={4}
-                  className={`${inputClass} resize-none`}
-                  placeholder="Describe the task..."
+                  disabled={isPending}
                 />
               </div>
 

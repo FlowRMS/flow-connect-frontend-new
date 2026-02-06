@@ -37,6 +37,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { taskToasts } from '../../lib/toast';
 import { API_STATUS_OPTIONS, API_PRIORITY_OPTIONS, AVAILABLE_TAGS } from '../constants';
 import { StyledDatePicker, parseDateString, formatDateToString, CustomSelect } from '../components';
+import { MentionInput, MentionDisplay, type Mention, type MentionType, parseMentionsFromText } from '../components/MentionInput';
 
 interface TaskModalProps {
   task: Task;
@@ -66,6 +67,7 @@ export default function TaskModal({
   const [editTags, setEditTags] = useState<string[]>(task.tags || []);
   const [customTag, setCustomTag] = useState('');
   const [editCategoryId, setEditCategoryId] = useState<string>(task.categoryId || '');
+  const [editMentions, setEditMentions] = useState<Mention[]>([]);
 
   // Local task state for immediate UI updates
   const [localTask, setLocalTask] = useState(task);
@@ -285,6 +287,55 @@ export default function TaskModal({
       } catch (error) {
         console.error('Failed to add comment:', error);
         taskToasts.commentError();
+      }
+    }
+  };
+
+  // Handle mentions change in description - auto-link mentioned entities
+  const handleEditMentionsChange = async (newMentions: Mention[]) => {
+    setEditMentions(newMentions);
+
+    // Convert mention types to entity link types
+    const mentionTypeToEntityType: Record<MentionType, 'CUSTOMER' | 'CONTACT' | 'COMPANY' | 'FACTORY'> = {
+      CUSTOMER: 'CUSTOMER',
+      CONTACT: 'CONTACT',
+      COMPANY: 'COMPANY',
+      FACTORY: 'FACTORY',
+    };
+
+    // Create links for new mentions that aren't already linked
+    for (const mention of newMentions) {
+      const entityType = mentionTypeToEntityType[mention.type];
+
+      // Check if already linked in related entities
+      const isAlreadyLinked = (() => {
+        if (!relatedEntities) return false;
+        const linkedEntities = convertRelatedEntitiesToUI(relatedEntities);
+        switch (entityType) {
+          case 'CUSTOMER':
+            return linkedEntities.customers?.some(c => c.id === mention.id);
+          case 'CONTACT':
+            return linkedEntities.contacts?.some(c => c.id === mention.id);
+          case 'COMPANY':
+            return linkedEntities.companies?.some(c => c.id === mention.id);
+          case 'FACTORY':
+            return linkedEntities.factories?.some(f => f.id === mention.id);
+          default:
+            return false;
+        }
+      })();
+
+      if (!isAlreadyLinked) {
+        try {
+          await createLinkMutation.mutateAsync({
+            sourceEntityType: 'TASK',
+            sourceEntityId: task.id,
+            targetEntityType: entityType,
+            targetEntityId: mention.id,
+          });
+        } catch (error) {
+          console.error(`Failed to create link for ${mention.name}:`, error);
+        }
       }
     }
   };
@@ -858,24 +909,36 @@ export default function TaskModal({
                 <div />
               </div>
 
-              {/* Description */}
+              {/* Description with @mentions */}
               <div>
-                <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 uppercase tracking-wider">
+                <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 uppercase tracking-wider flex items-center gap-2">
                   Description
+                  {isEditMode && (
+                    <span className="text-xs font-normal text-[var(--muted-foreground)]">
+                      Type @ to mention
+                    </span>
+                  )}
                 </h3>
                 {isEditMode ? (
-                  <textarea
+                  <MentionInput
                     value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
+                    onChange={setEditDescription}
+                    mentions={editMentions}
+                    onMentionsChange={handleEditMentionsChange}
+                    placeholder="Task description... (type @ to mention customers, contacts, companies, or factories)"
                     rows={4}
-                    className={`${inputClass} resize-none`}
-                    placeholder="Task description..."
                   />
                 ) : (
                   <div className="p-4 bg-[var(--muted)]/30 rounded-lg">
-                    <p className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-wrap">
-                      {localTask.description || 'No description'}
-                    </p>
+                    {localTask.description ? (
+                      <MentionDisplay
+                        text={localTask.description}
+                        mentions={editMentions}
+                        className="text-sm text-[var(--foreground)]"
+                      />
+                    ) : (
+                      <p className="text-sm text-[var(--muted-foreground)]">No description</p>
+                    )}
                   </div>
                 )}
               </div>
