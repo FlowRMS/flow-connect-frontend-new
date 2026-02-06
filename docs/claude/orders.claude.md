@@ -738,6 +738,20 @@ earnAmount = commissionAmount + overageAmount
 - Configurable in: Order detail Settings tab, central Settings page (Order Settings)
 - Stored in `ORDER_SETTINGS` via `saveTenantSetting`
 
+### Header Field Visibility (Tenant-Only)
+These settings hide/show specific fields on the order detail header. All default to `false` (visible).
+- `hideBillToCustomer`: Hides the Bill To Customer field (Row 1)
+- `hideShippingTerms`: Hides the Shipping Terms field (Row 2)
+- `hideMarkNumber`: Hides the Mark # field (Row 2)
+- `hideProjectedShipDate`: Hides the Projected Ship Date field (Row 2)
+- `hideJob`: Hides the Job field (Row 2)
+- `hideManufacturerSoNumber`: Hides the Manufacturer SO Number field (Row 3)
+- `hideFreightTerms`: Hides the Freight Terms field (Row 3)
+- Configurable in: Settings > Order Settings page AND Order detail Settings tab (both save to tenant)
+- Applied in: `OrderDetailsFields.tsx` — grid columns are computed dynamically based on visible field count
+- Read from tenant settings via `useOrderSettings()` hook
+- Type definition: `OrderSettingsValue` in `components/lib/graphql/settings.ts`
+
 ### Adhoc vs Catalog Products
 - **Catalog**: productId references catalog, auto-fills from product
 - **Adhoc**: productNameAdhoc/productDescriptionAdhoc, custom pricing

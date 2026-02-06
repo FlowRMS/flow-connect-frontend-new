@@ -296,6 +296,14 @@ export interface QuoteSettingsV2 {
   insideRepAtLineLevel: boolean;
   factoryPerLineItem: boolean;
   hideQuoteNameField?: boolean;
+  hideExpirationDate?: boolean;
+  hideBillToCustomer?: boolean;
+  hideJob?: boolean;
+  hidePaymentTerms?: boolean;
+  hideFreightTerms?: boolean;
+  hideRevisedDate?: boolean;
+  hideAcceptDate?: boolean;
+  expirationDateOffset?: number;
   customerPartNumberSource: 'sold_to' | 'end_user';
   outsideRepSource?: 'end_user' | 'sold_to' | 'bill_to';
   priceLevels: PriceLevelV2[];

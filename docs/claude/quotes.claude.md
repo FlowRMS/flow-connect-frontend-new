@@ -508,29 +508,48 @@ Toggle column visibility by group (Basic, Pricing, Commission)
 
 ## 10. Quote Configuration Settings
 
-### Quote Settings (UI Only, NOT persisted to API)
+### Quote Settings (persisted via UserSettingsContext)
 ```typescript
 interface QuoteSettingsV2 {
   specifyEndUserPerLine: boolean;
   outsideRepAtLineLevel: boolean;
   insideRepAtLineLevel: boolean;
   factoryPerLineItem: boolean;
+  hideQuoteNameField?: boolean;
+  hideExpirationDate?: boolean;
+  hideBillToCustomer?: boolean;
+  hideJob?: boolean;
+  hidePaymentTerms?: boolean;
+  hideFreightTerms?: boolean;
+  hideRevisedDate?: boolean;
+  hideAcceptDate?: boolean;
+  expirationDateOffset?: number;
   customerPartNumberSource: 'sold_to' | 'end_user';
   outsideRepSource?: 'end_user' | 'sold_to' | 'bill_to';
   priceLevels: PriceLevelV2[];
 }
-
-// Defaults
-{
-  specifyEndUserPerLine: false,
-  outsideRepAtLineLevel: false,
-  insideRepAtLineLevel: false,
-  factoryPerLineItem: true,
-  customerPartNumberSource: 'sold_to',
-  outsideRepSource: 'end_user',
-  priceLevels: [{ id: 'l1', name: 'L1', percent: 0, description: '' }, ...]
-}
 ```
+
+### Header Field Visibility (Tenant-Only)
+These settings hide/show specific fields on the quote detail header. All default to `false` (visible).
+- `hideQuoteNameField`: Hides the optional "Name" field (Row 1)
+- `hideExpirationDate`: Hides the Expiration Date field (Row 1)
+- `hideBillToCustomer`: Hides the Bill To Customer field (Row 2)
+- `hideJob`: Hides the Job field (Row 2)
+- `hidePaymentTerms`: Hides the Payment Terms field (Row 2)
+- `hideFreightTerms`: Hides the Freight Terms field (Row 2)
+- `hideRevisedDate`: Hides the Revised Date field (Row 2)
+- `hideAcceptDate`: Hides the Accept Date field (Row 2)
+- Configurable in: Settings > Quote Settings page (Tenant Only section)
+- Applied in: `QuoteDetailHeaderV2.tsx` — grid columns are computed dynamically based on visible field count
+- Read from tenant settings via `useQuoteSettings()` hook
+
+### Expiration Date Auto-Populate
+- `expirationDateOffset`: Number of days to add to the quote date to calculate expiration date
+- When set and > 0, changing the quote date automatically sets `expirationDate = quoteDate + offset days`
+- Configurable in: Settings > Quote Settings page ("Expiration Date Settings" section)
+- Applied in: `QuoteDetailHeaderV2.tsx` `handleDateChange` callback
+- Does NOT overwrite manually-set expiration dates (only triggers on quote date change)
 
 ### Outside Rep Population Source
 - `outsideRepSource`: Tenant-wide setting controlling which customer's outside reps auto-populate
@@ -539,9 +558,6 @@ interface QuoteSettingsV2 {
   - `'bill_to'`: Outside reps are fetched from the Bill To Customer
 - Configurable in: Quote detail Settings tab, central Settings page (Quote Settings)
 - Stored in `QUOTE_SETTINGS` via `saveTenantSetting`
-
-```
-```
 
 ### Column Configuration
 ```typescript

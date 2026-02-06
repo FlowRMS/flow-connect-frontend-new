@@ -282,6 +282,92 @@ export function OrderSettingsTab() {
         )}
       </div>
 
+      {/* Header Field Visibility - Tenant Only */}
+      <div className={`bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 ${scope === 'my' ? 'opacity-50' : ''}`}>
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Header Field Visibility</h3>
+          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Tenant Only</span>
+        </div>
+        {scope === 'my' ? (
+          <p className="text-xs text-[var(--muted-foreground)]">
+            This is a tenant-wide setting. Switch to Tenant Settings to configure.
+          </p>
+        ) : (
+          <div className="space-y-1">
+            <SettingsToggle
+              enabled={localSettings.hideBillToCustomer ?? false}
+              onChange={(enabled) => handleSettingChange('hideBillToCustomer', enabled)}
+              label="Hide bill to customer"
+              description={
+                localSettings.hideBillToCustomer
+                  ? 'Bill to customer field is hidden on order headers'
+                  : 'Bill to customer field is visible on order headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hideShippingTerms ?? false}
+              onChange={(enabled) => handleSettingChange('hideShippingTerms', enabled)}
+              label="Hide shipping terms"
+              description={
+                localSettings.hideShippingTerms
+                  ? 'Shipping terms field is hidden on order headers'
+                  : 'Shipping terms field is visible on order headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hideMarkNumber ?? false}
+              onChange={(enabled) => handleSettingChange('hideMarkNumber', enabled)}
+              label="Hide mark #"
+              description={
+                localSettings.hideMarkNumber
+                  ? 'Mark # field is hidden on order headers'
+                  : 'Mark # field is visible on order headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hideProjectedShipDate ?? false}
+              onChange={(enabled) => handleSettingChange('hideProjectedShipDate', enabled)}
+              label="Hide projected ship date"
+              description={
+                localSettings.hideProjectedShipDate
+                  ? 'Projected ship date field is hidden on order headers'
+                  : 'Projected ship date field is visible on order headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hideJob ?? false}
+              onChange={(enabled) => handleSettingChange('hideJob', enabled)}
+              label="Hide job"
+              description={
+                localSettings.hideJob
+                  ? 'Job field is hidden on order headers'
+                  : 'Job field is visible on order headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hideManufacturerSoNumber ?? false}
+              onChange={(enabled) => handleSettingChange('hideManufacturerSoNumber', enabled)}
+              label="Hide manufacturer SO number"
+              description={
+                localSettings.hideManufacturerSoNumber
+                  ? 'Manufacturer SO number field is hidden on order headers'
+                  : 'Manufacturer SO number field is visible on order headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hideFreightTerms ?? false}
+              onChange={(enabled) => handleSettingChange('hideFreightTerms', enabled)}
+              label="Hide freight terms"
+              description={
+                localSettings.hideFreightTerms
+                  ? 'Freight terms field is hidden on order headers'
+                  : 'Freight terms field is visible on order headers'
+              }
+            />
+          </div>
+        )}
+      </div>
+
       {/* Column Configuration */}
       <div>
         <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">Default Column Configuration</h3>

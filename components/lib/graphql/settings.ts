@@ -43,6 +43,14 @@ export interface QuoteSettingsValue {
   insideRepAtLineLevel: boolean;
   factoryPerLineItem: boolean;
   hideQuoteNameField?: boolean;
+  hideExpirationDate?: boolean;
+  hideBillToCustomer?: boolean;
+  hideJob?: boolean;
+  hidePaymentTerms?: boolean;
+  hideFreightTerms?: boolean;
+  hideRevisedDate?: boolean;
+  hideAcceptDate?: boolean;
+  expirationDateOffset?: number;
   customerPartNumberSource: 'sold_to' | 'end_user';
   outsideRepSource?: OutsideRepSource;
   savedView?: SavedViewState;
@@ -83,6 +91,13 @@ export interface OrderSettingsValue {
   showOutsideRepPerLine: boolean;
   showInsideRepPerLine: boolean;
   outsideRepSource?: OutsideRepSource;
+  hideBillToCustomer?: boolean;
+  hideShippingTerms?: boolean;
+  hideMarkNumber?: boolean;
+  hideProjectedShipDate?: boolean;
+  hideJob?: boolean;
+  hideManufacturerSoNumber?: boolean;
+  hideFreightTerms?: boolean;
   savedView?: SavedViewState;
 }
 

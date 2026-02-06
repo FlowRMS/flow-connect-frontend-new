@@ -6,9 +6,9 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useOrderSettings } from '@/contexts/UserSettingsContext';
-import type { OutsideRepSource } from '@/components/lib/graphql/settings';
+import type { OutsideRepSource, OrderSettingsValue } from '@/components/lib/graphql/settings';
 import { showSuccessToast, showErrorToast } from '@/components/lib/toast';
 
 interface SettingsTabProps {
@@ -49,6 +49,52 @@ export function SettingsTab({
       setOutsideRepSource(orderSettings.outsideRepSource);
     }
   }, [orderSettings, tenantSettings]);
+
+  // Header field visibility state (synced from tenant settings)
+  const [hideBillToCustomer, setHideBillToCustomer] = useState(false);
+  const [hideShippingTerms, setHideShippingTerms] = useState(false);
+  const [hideMarkNumber, setHideMarkNumber] = useState(false);
+  const [hideProjectedShipDate, setHideProjectedShipDate] = useState(false);
+  const [hideJob, setHideJob] = useState(false);
+  const [hideManufacturerSoNumber, setHideManufacturerSoNumber] = useState(false);
+  const [hideFreightTerms, setHideFreightTerms] = useState(false);
+  const [isSavingVisibility, setIsSavingVisibility] = useState(false);
+
+  // Sync header field visibility from tenant settings
+  useEffect(() => {
+    const ts = tenantSettings || orderSettings;
+    if (ts) {
+      setHideBillToCustomer(ts.hideBillToCustomer ?? false);
+      setHideShippingTerms(ts.hideShippingTerms ?? false);
+      setHideMarkNumber(ts.hideMarkNumber ?? false);
+      setHideProjectedShipDate(ts.hideProjectedShipDate ?? false);
+      setHideJob(ts.hideJob ?? false);
+      setHideManufacturerSoNumber(ts.hideManufacturerSoNumber ?? false);
+      setHideFreightTerms(ts.hideFreightTerms ?? false);
+    }
+  }, [orderSettings, tenantSettings]);
+
+  // Save a header visibility toggle to tenant settings
+  const handleVisibilityToggle = useCallback(async (key: keyof OrderSettingsValue, value: boolean, setter: (v: boolean) => void) => {
+    setter(value);
+    setIsSavingVisibility(true);
+    try {
+      const currentTenantSettings = tenantSettings || orderSettings || {};
+      const success = await saveSettings(
+        { ...currentTenantSettings, [key]: value } as any,
+        'tenant'
+      );
+      if (success) {
+        showSuccessToast('Field visibility saved');
+      } else {
+        showErrorToast('Failed to save field visibility');
+      }
+    } catch {
+      showErrorToast('Failed to save field visibility');
+    } finally {
+      setIsSavingVisibility(false);
+    }
+  }, [tenantSettings, orderSettings, saveSettings]);
 
   // Save outsideRepSource directly to tenant settings
   const handleOutsideRepSourceChange = async (value: OutsideRepSource) => {
@@ -179,6 +225,49 @@ export function SettingsTab({
               />
               <span className="text-sm text-[var(--foreground)]">Bill To Customer</span>
             </label>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-[var(--border)]"></div>
+
+        {/* Header Field Visibility - Tenant Wide */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-[var(--foreground)]">Header Field Visibility</span>
+            <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Tenant Wide</span>
+            {isSavingVisibility && (
+              <span className="text-xs text-[var(--muted-foreground)]">Saving...</span>
+            )}
+          </div>
+          <p className="text-xs text-[var(--muted-foreground)]">Toggle fields on the order header. Changes apply to all users.</p>
+          <div className="space-y-2">
+            {([
+              { key: 'hideBillToCustomer' as const, label: 'Hide bill to customer', value: hideBillToCustomer, setter: setHideBillToCustomer },
+              { key: 'hideShippingTerms' as const, label: 'Hide shipping terms', value: hideShippingTerms, setter: setHideShippingTerms },
+              { key: 'hideMarkNumber' as const, label: 'Hide mark #', value: hideMarkNumber, setter: setHideMarkNumber },
+              { key: 'hideProjectedShipDate' as const, label: 'Hide projected ship date', value: hideProjectedShipDate, setter: setHideProjectedShipDate },
+              { key: 'hideJob' as const, label: 'Hide job', value: hideJob, setter: setHideJob },
+              { key: 'hideManufacturerSoNumber' as const, label: 'Hide manufacturer SO number', value: hideManufacturerSoNumber, setter: setHideManufacturerSoNumber },
+              { key: 'hideFreightTerms' as const, label: 'Hide freight terms', value: hideFreightTerms, setter: setHideFreightTerms },
+            ]).map(({ key, label, value, setter }) => (
+              <div key={key} className="flex items-center gap-3">
+                <button
+                  onClick={() => handleVisibilityToggle(key, !value, setter)}
+                  disabled={isSavingVisibility}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
+                    value ? 'bg-[var(--primary)]' : 'bg-[var(--muted)]'
+                  } ${isSavingVisibility ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
+                      value ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+                <span className="text-sm text-[var(--foreground)]">{label}</span>
+              </div>
+            ))}
           </div>
         </div>
 

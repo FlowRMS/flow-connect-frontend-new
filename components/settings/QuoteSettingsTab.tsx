@@ -194,8 +194,105 @@ export function QuoteSettingsTab() {
                   : 'The optional "Name" field is visible on quote headers'
               }
             />
+            <SettingsToggle
+              enabled={localSettings.hideExpirationDate ?? false}
+              onChange={(enabled) => handleSettingChange('hideExpirationDate', enabled)}
+              label="Hide expiration date"
+              description={
+                localSettings.hideExpirationDate
+                  ? 'Expiration date field is hidden on quote headers'
+                  : 'Expiration date field is visible on quote headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hideBillToCustomer ?? false}
+              onChange={(enabled) => handleSettingChange('hideBillToCustomer', enabled)}
+              label="Hide bill to customer"
+              description={
+                localSettings.hideBillToCustomer
+                  ? 'Bill to customer field is hidden on quote headers'
+                  : 'Bill to customer field is visible on quote headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hideJob ?? false}
+              onChange={(enabled) => handleSettingChange('hideJob', enabled)}
+              label="Hide job"
+              description={
+                localSettings.hideJob
+                  ? 'Job field is hidden on quote headers'
+                  : 'Job field is visible on quote headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hidePaymentTerms ?? false}
+              onChange={(enabled) => handleSettingChange('hidePaymentTerms', enabled)}
+              label="Hide payment terms"
+              description={
+                localSettings.hidePaymentTerms
+                  ? 'Payment terms field is hidden on quote headers'
+                  : 'Payment terms field is visible on quote headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hideFreightTerms ?? false}
+              onChange={(enabled) => handleSettingChange('hideFreightTerms', enabled)}
+              label="Hide freight terms"
+              description={
+                localSettings.hideFreightTerms
+                  ? 'Freight terms field is hidden on quote headers'
+                  : 'Freight terms field is visible on quote headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hideRevisedDate ?? false}
+              onChange={(enabled) => handleSettingChange('hideRevisedDate', enabled)}
+              label="Hide revised date"
+              description={
+                localSettings.hideRevisedDate
+                  ? 'Revised date field is hidden on quote headers'
+                  : 'Revised date field is visible on quote headers'
+              }
+            />
+            <SettingsToggle
+              enabled={localSettings.hideAcceptDate ?? false}
+              onChange={(enabled) => handleSettingChange('hideAcceptDate', enabled)}
+              label="Hide accept date"
+              description={
+                localSettings.hideAcceptDate
+                  ? 'Accept date field is hidden on quote headers'
+                  : 'Accept date field is visible on quote headers'
+              }
+            />
           </div>
         )}
+      </div>
+
+      {/* Expiration Date Settings */}
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+        <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">Expiration Date Settings</h3>
+        <p className="text-xs text-[var(--muted-foreground)] mb-4">
+          Auto-populate the expiration date when the quote date is set or changed
+        </p>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-[var(--foreground)]">
+            Default Expiration Date Offset (Days)
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={localSettings.expirationDateOffset ?? ''}
+            placeholder="e.g. 30"
+            onChange={(e) => {
+              const value = e.target.value === '' ? undefined : parseInt(e.target.value) || 0;
+              handleSettingChange('expirationDateOffset', value);
+            }}
+            className="w-full max-w-xs px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent placeholder:text-[var(--muted-foreground)]"
+          />
+          <p className="text-xs text-[var(--muted-foreground)]">
+            Number of days to add to the quote date to calculate the expiration date. Leave empty to disable auto-population.
+          </p>
+        </div>
       </div>
 
       {/* Outside Rep Population Source - Tenant Only */}

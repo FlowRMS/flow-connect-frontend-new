@@ -204,8 +204,9 @@ function EntityMatchingContent() {
   }>>([]);
   const [isCheckingOutsideReps, setIsCheckingOutsideReps] = useState(false);
 
-  // State for document type (CHECKS, INVOICES, etc.)
+  // State for document type (CHECKS, INVOICES, etc.) and document name
   const [documentType, setDocumentType] = useState<string | null>(null);
+  const [documentName, setDocumentName] = useState<string | null>(null);
 
   // Pagination for performance - only render a limited number of items initially
   const ITEMS_PER_PAGE = 50;
@@ -228,6 +229,7 @@ function EntityMatchingContent() {
         const result = await flowrmsApolloClient.query<{
           getPendingDocument?: {
             entityType: string | null;
+            sourceName: string | null;
           };
         }>({
           query: Q_GET_PENDING,
@@ -235,10 +237,13 @@ function EntityMatchingContent() {
           fetchPolicy: 'cache-first',
         });
 
-        const entityType = result.data?.getPendingDocument?.entityType;
-        if (entityType) {
-          console.log('Document type:', entityType);
-          setDocumentType(entityType);
+        const doc = result.data?.getPendingDocument;
+        if (doc?.entityType) {
+          console.log('Document type:', doc.entityType);
+          setDocumentType(doc.entityType);
+        }
+        if (doc?.sourceName) {
+          setDocumentName(doc.sourceName);
         }
       } catch (error) {
         console.error('Error fetching document type:', error);
@@ -1387,6 +1392,12 @@ function EntityMatchingContent() {
                 </div>
                 <h1 className="text-3xl font-bold">{isDelivery ? 'Validate & Match Delivery' : 'Validate & Match Entities'}</h1>
               </div>
+              {documentName && (
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg w-fit">
+                  <FileText className="w-5 h-5 text-slate-600 flex-shrink-0" />
+                  <span className="text-sm font-semibold text-slate-800 truncate max-w-[600px]">{documentName}</span>
+                </div>
+              )}
               <p className="text-muted-foreground text-lg">
                 {isDelivery
                   ? 'Review AI-generated matches for factories, customers, end users, and products from your uploaded packing slip.'

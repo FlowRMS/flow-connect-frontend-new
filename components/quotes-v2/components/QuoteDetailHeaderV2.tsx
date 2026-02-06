@@ -295,6 +295,14 @@ export function QuoteDetailHeaderV2({
   const { tenantSettings: quoteTenantSettings } = useQuoteSettings();
   const outsideRepSource: OutsideRepSource = quoteTenantSettings?.outsideRepSource || settings?.outsideRepSource || 'end_user';
   const hideQuoteNameField = quoteTenantSettings?.hideQuoteNameField ?? settings?.hideQuoteNameField ?? false;
+  const hideExpirationDate = quoteTenantSettings?.hideExpirationDate ?? settings?.hideExpirationDate ?? false;
+  const hideBillToCustomer = quoteTenantSettings?.hideBillToCustomer ?? settings?.hideBillToCustomer ?? false;
+  const hideJob = quoteTenantSettings?.hideJob ?? settings?.hideJob ?? false;
+  const hidePaymentTerms = quoteTenantSettings?.hidePaymentTerms ?? settings?.hidePaymentTerms ?? false;
+  const hideFreightTerms = quoteTenantSettings?.hideFreightTerms ?? settings?.hideFreightTerms ?? false;
+  const hideRevisedDate = quoteTenantSettings?.hideRevisedDate ?? settings?.hideRevisedDate ?? false;
+  const hideAcceptDate = quoteTenantSettings?.hideAcceptDate ?? settings?.hideAcceptDate ?? false;
+  const expirationDateOffset = quoteTenantSettings?.expirationDateOffset ?? settings?.expirationDateOffset;
 
   // Source labels for the loading indicator
   const outsideRepSourceLabel: Record<string, string> = {
@@ -575,8 +583,21 @@ export function QuoteDetailHeaderV2({
   }, []);
 
   const handleDateChange = useCallback((field: 'quoteDate' | 'expirationDate' | 'revisedDate' | 'acceptDate', value: string) => {
+    if (field === 'quoteDate' && expirationDateOffset && expirationDateOffset > 0 && value) {
+      // Auto-populate expiration date = quoteDate + offset days
+      const date = new Date(value + 'T00:00:00');
+      if (!isNaN(date.getTime())) {
+        date.setDate(date.getDate() + expirationDateOffset);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const calculatedExpiration = `${year}-${month}-${day}`;
+        onQuoteChange({ quoteDate: value, expirationDate: calculatedExpiration });
+        return;
+      }
+    }
     onQuoteChange({ [field]: value });
-  }, [onQuoteChange]);
+  }, [onQuoteChange, expirationDateOffset]);
 
   // Customer search handlers
   const handleSoldToSearch = useCallback((term: string) => {
@@ -1328,7 +1349,7 @@ export function QuoteDetailHeaderV2({
         <div className="px-6 pb-4">
 
         {/* Row 1: Quote Number, Name (optional), Manufacturer, Quote Date, Expiration Date, Sold To Customer, End User, Outside Rep */}
-        <div className={`grid gap-4 mb-4 ${hideQuoteNameField ? 'grid-cols-7' : 'grid-cols-8'}`}>
+        <div className={`grid gap-4 mb-4`} style={{ gridTemplateColumns: `repeat(${8 - (hideQuoteNameField ? 1 : 0) - (hideExpirationDate ? 1 : 0)}, minmax(0, 1fr))` }}>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Quote Number*</label>
             <input
@@ -1453,6 +1474,7 @@ export function QuoteDetailHeaderV2({
               className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
+          {!hideExpirationDate && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Expiration Date</label>
             <StyledDatePicker
@@ -1462,6 +1484,7 @@ export function QuoteDetailHeaderV2({
               className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
+          )}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Sold To Customer*</label>
             <SearchableDropdownV2
@@ -1632,7 +1655,7 @@ export function QuoteDetailHeaderV2({
         </div>
 
         {/* Row 2: Quote Type, Bill To, Job, Payment Terms, Freight Terms, Revised Date, Accept Date, Inside Rep */}
-        <div className="grid grid-cols-8 gap-4 mb-4">
+        <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: `repeat(${8 - (hideBillToCustomer ? 1 : 0) - (hideJob ? 1 : 0) - (hidePaymentTerms ? 1 : 0) - (hideFreightTerms ? 1 : 0) - (hideRevisedDate ? 1 : 0) - (hideAcceptDate ? 1 : 0)}, minmax(0, 1fr))` }}>
           <div>
             <label className="block text-xs text-gray-500 mb-1 flex items-center gap-1">
               Quote Type
@@ -1647,6 +1670,7 @@ export function QuoteDetailHeaderV2({
               <option>RFQ</option>
             </select>
           </div>
+          {!hideBillToCustomer && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Bill To Customer</label>
             <SearchableDropdownV2
@@ -1674,6 +1698,8 @@ export function QuoteDetailHeaderV2({
               <span className="text-xs text-gray-500">Same as sold to</span>
             </label>
           </div>
+          )}
+          {!hideJob && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Job</label>
             <SearchableDropdownV2
@@ -1721,6 +1747,8 @@ export function QuoteDetailHeaderV2({
               createLabel="job"
             />
           </div>
+          )}
+          {!hidePaymentTerms && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Payment Terms</label>
             <input
@@ -1730,6 +1758,8 @@ export function QuoteDetailHeaderV2({
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
+          )}
+          {!hideFreightTerms && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Freight Terms</label>
             <input
@@ -1739,6 +1769,8 @@ export function QuoteDetailHeaderV2({
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
+          )}
+          {!hideRevisedDate && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Revised Date</label>
             <StyledDatePicker
@@ -1748,6 +1780,8 @@ export function QuoteDetailHeaderV2({
               className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
+          )}
+          {!hideAcceptDate && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Accept Date</label>
             <StyledDatePicker
@@ -1757,6 +1791,7 @@ export function QuoteDetailHeaderV2({
               className="!py-2 !px-3 !rounded-md !text-sm"
             />
           </div>
+          )}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Inside Rep</label>
             {/* Grey out and show "per line item" when settings enabled */}

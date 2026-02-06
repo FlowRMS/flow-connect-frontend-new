@@ -101,7 +101,16 @@ export function OrderDetailsFields({
   // Get outside rep source setting (tenant-wide) - read from tenant settings directly since personal settings mask it
   const { settings: orderSettings, tenantSettings: orderTenantSettings } = useOrderSettings();
   const outsideRepSource: OutsideRepSource = orderTenantSettings?.outsideRepSource || orderSettings?.outsideRepSource || 'end_user';
-  
+
+  // Header field visibility settings (tenant-only)
+  const hideBillToCustomer = orderTenantSettings?.hideBillToCustomer ?? orderSettings?.hideBillToCustomer ?? false;
+  const hideShippingTerms = orderTenantSettings?.hideShippingTerms ?? orderSettings?.hideShippingTerms ?? false;
+  const hideMarkNumber = orderTenantSettings?.hideMarkNumber ?? orderSettings?.hideMarkNumber ?? false;
+  const hideProjectedShipDate = orderTenantSettings?.hideProjectedShipDate ?? orderSettings?.hideProjectedShipDate ?? false;
+  const hideJob = orderTenantSettings?.hideJob ?? orderSettings?.hideJob ?? false;
+  const hideManufacturerSoNumber = orderTenantSettings?.hideManufacturerSoNumber ?? orderSettings?.hideManufacturerSoNumber ?? false;
+  const hideFreightTerms = orderTenantSettings?.hideFreightTerms ?? orderSettings?.hideFreightTerms ?? false;
+
   // Job creation mutation and statuses
   const createJobMutation = useCreateCRMJob();
   const { data: jobStatuses } = useCRMJobStatuses();
@@ -367,7 +376,7 @@ export function OrderDetailsFields({
       {showHeaderFields && (
         <div className="px-6 pb-4">
           {/* Row 1: Order Number, Factory, Sold To Customer, Bill To Customer, End User (if header level), Order Date */}
-          <div className="grid grid-cols-6 gap-4 mb-4">
+          <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: `repeat(${6 - (hideBillToCustomer ? 1 : 0)}, minmax(0, 1fr))` }}>
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Order Number<span className="text-red-500">*</span>
@@ -445,6 +454,7 @@ export function OrderDetailsFields({
               />
             </div>
 
+            {!hideBillToCustomer && (
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Bill To Customer
@@ -488,6 +498,7 @@ export function OrderDetailsFields({
                 <span className="text-xs text-[var(--muted-foreground)]">Same as sold to</span>
               </label>
             </div>
+            )}
 
             {/* End User - always show in header (when showEndUserPerLine is false, it's header level) */}
             <div>
@@ -559,7 +570,7 @@ export function OrderDetailsFields({
           </div>
 
           {/* Row 2: Order Type, Shipping Terms, Payment Terms, Mark #, Projected Ship Date, Job */}
-          <div className="grid grid-cols-6 gap-4 mb-4">
+          <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: `repeat(${6 - (hideShippingTerms ? 1 : 0) - (hideMarkNumber ? 1 : 0) - (hideProjectedShipDate ? 1 : 0) - (hideJob ? 1 : 0)}, minmax(0, 1fr))` }}>
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Order Type<span className="text-red-500">*</span>
@@ -572,6 +583,7 @@ export function OrderDetailsFields({
               />
             </div>
 
+            {!hideShippingTerms && (
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Shipping Terms
@@ -583,6 +595,7 @@ export function OrderDetailsFields({
                 className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
               />
             </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
@@ -596,6 +609,7 @@ export function OrderDetailsFields({
               />
             </div>
 
+            {!hideMarkNumber && (
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Mark #
@@ -607,7 +621,9 @@ export function OrderDetailsFields({
                 className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
               />
             </div>
+            )}
 
+            {!hideProjectedShipDate && (
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Projected Ship Date
@@ -619,7 +635,9 @@ export function OrderDetailsFields({
                 className="!py-2 !px-3 !rounded-md !text-sm"
               />
             </div>
+            )}
 
+            {!hideJob && (
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Job
@@ -666,10 +684,12 @@ export function OrderDetailsFields({
                 createLabel="job"
               />
             </div>
+            )}
           </div>
 
           {/* Row 3: Manufacturer SO Number, Outside Rep, Inside Rep, Quote Reference, Freight Terms, Due Date */}
-          <div className="grid grid-cols-6 gap-4">
+          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${6 - (hideManufacturerSoNumber ? 1 : 0) - (hideFreightTerms ? 1 : 0)}, minmax(0, 1fr))` }}>
+            {!hideManufacturerSoNumber && (
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Manufacturer SO Number
@@ -681,6 +701,7 @@ export function OrderDetailsFields({
                 className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
               />
             </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
@@ -861,6 +882,7 @@ export function OrderDetailsFields({
               />
             </div>
 
+            {!hideFreightTerms && (
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Freight Terms
@@ -872,6 +894,7 @@ export function OrderDetailsFields({
                 className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
               />
             </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
