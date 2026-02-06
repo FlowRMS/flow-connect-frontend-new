@@ -1275,8 +1275,8 @@ export function QuoteDetailHeaderV2({
           <span className="font-bold text-lg text-gray-900">${Number(calculatedTotals.sellPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
           {calculatedTotals.totalLineDiscount > 0 && (
             <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-400 line-through">${Number(calculatedTotals.originalSellPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded">-${Number(calculatedTotals.totalLineDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-xs text-gray-400 line-through">${Number(calculatedTotals.originalSellPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded">-${Number(calculatedTotals.totalLineDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
             </div>
           )}
         </div>
@@ -1286,8 +1286,8 @@ export function QuoteDetailHeaderV2({
           <span className="font-bold text-lg text-purple-600">${Number(calculatedTotals.commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
           {calculatedTotals.totalCommissionDiscount > 0 && (
             <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-400 line-through">${Number(calculatedTotals.originalCommission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded">-${Number(calculatedTotals.totalCommissionDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-xs text-gray-400 line-through">${Number(calculatedTotals.originalCommission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded">-${Number(calculatedTotals.totalCommissionDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
             </div>
           )}
         </div>

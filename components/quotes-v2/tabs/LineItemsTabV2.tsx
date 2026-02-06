@@ -760,9 +760,9 @@ export function LineItemsTabV2({
         const overage = item.id ? overageByLineItem[item.id] : null;
         if (overage?.success && overage.effectiveCommissionRate !== null) {
           const commAmt = (item.sellTotal || 0) * (overage.effectiveCommissionRate / 100);
-          displayValue = `$${commAmt.toFixed(2)}`;
+          displayValue = `$${commAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         } else {
-          displayValue = item.commissionAmount !== undefined ? `$${item.commissionAmount.toFixed(2)}` : '—';
+          displayValue = item.commissionAmount !== undefined ? `$${item.commissionAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
         }
         break;
       }
@@ -782,9 +782,9 @@ export function LineItemsTabV2({
         if (overage?.success && overage.overageUnitPrice !== null && overage.repShare !== null) {
           // ovgAmount = overage per unit * quantity * rep share
           const ovgAmt = overage.overageUnitPrice * (item.quantity || 1) * (overage.repShare / 100);
-          displayValue = `$${ovgAmt.toFixed(2)}`;
+          displayValue = `$${ovgAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         } else {
-          displayValue = item.ovgAmount !== undefined ? `$${item.ovgAmount.toFixed(2)}` : '—';
+          displayValue = item.ovgAmount !== undefined ? `$${item.ovgAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
         }
         break;
       }
@@ -807,9 +807,9 @@ export function LineItemsTabV2({
           // earnAmount = commission + overage share
           const commAmt = (item.sellTotal || 0) * (overage.effectiveCommissionRate / 100);
           const ovgAmt = overage.overageUnitPrice * (item.quantity || 1) * (overage.repShare / 100);
-          displayValue = `$${(commAmt + ovgAmt).toFixed(2)}`;
+          displayValue = `$${(commAmt + ovgAmt).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
         } else {
-          displayValue = item.earnAmount !== undefined ? `$${item.earnAmount.toFixed(2)}` : '—';
+          displayValue = item.earnAmount !== undefined ? `$${item.earnAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
         }
         break;
       }
@@ -841,7 +841,7 @@ export function LineItemsTabV2({
             <div className="flex flex-col items-center">
               <span>${Number(discountedSellTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
               <span className="text-xs text-gray-400 line-through">${Number(originalSellTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
-              <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded mt-0.5">-${Number(lineDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-xs text-orange-600 bg-orange-50 px-1 rounded mt-0.5">-${Number(lineDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
             </div>
           </td>
         );
@@ -861,7 +861,7 @@ export function LineItemsTabV2({
             <div className="flex flex-col items-center">
               <span className="font-medium text-purple-600">${Number(discountedCommissionTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
               <span className="text-xs text-gray-400 line-through">${Number(originalCommissionTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
-              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-${Number(commissionDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded mt-0.5">-${Number(commissionDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
             </div>
           </td>
         );

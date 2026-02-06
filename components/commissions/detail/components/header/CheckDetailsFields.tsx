@@ -595,7 +595,7 @@ export function CheckDetailsFields({
                         Check Amount
                       </span>
                       <span className="text-sm font-medium text-[var(--foreground)]">
-                        ${checkAmt.toFixed(2)}
+                        ${checkAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -603,7 +603,7 @@ export function CheckDetailsFields({
                         Stated Commissions
                       </span>
                       <span className="text-sm font-medium text-[var(--foreground)]">
-                        -${statedCommissions.toFixed(2)}
+                        -${statedCommissions.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -620,7 +620,7 @@ export function CheckDetailsFields({
                         }`}
                       >
                         {totalAdjustments < 0 ? '-' : totalAdjustments > 0 ? '+' : ''}
-                        ${Math.abs(totalAdjustments).toFixed(2)}
+                        ${Math.abs(totalAdjustments).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </span>
                     </div>
                   </div>
@@ -638,7 +638,7 @@ export function CheckDetailsFields({
                             : 'text-red-500'
                         }`}
                       >
-                        ${balance.toFixed(2)}
+                        ${balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </span>
                     </div>
                   </div>

@@ -696,11 +696,11 @@ export function ListViewV2({
                   </td>
                   {/* Quote Amount */}
                   <td className="px-3 py-3 text-sm text-gray-900">
-                    ${Number(quote.quoteAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ${Number(quote.quoteAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                   </td>
                   {/* Commission */}
                   <td className="px-3 py-3 text-sm text-green-600 font-medium">
-                    ${Number(quote.commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ${Number(quote.commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                   </td>
                   {/* Entry Date */}
                   <td className="px-3 py-3 text-sm text-gray-900">{formatDate(quote.entryDate)}</td>

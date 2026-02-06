@@ -24,7 +24,7 @@ const formatCurrency = (value: number | string | undefined | null): string => {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(num);
 };
 

@@ -543,7 +543,7 @@ export function AddLineItemModal({
                             <span> • {invoice.entityDate}</span>
                           )}
                           {invoice.balance?.commission != null && (
-                            <span className="text-green-600"> • Commission: ${Number(invoice.balance.commission).toFixed(2)}</span>
+                            <span className="text-green-600"> • Commission: ${Number(invoice.balance.commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                           )}
                         </div>
                         {invoice.salesReps && invoice.salesReps.length > 0 && (
@@ -725,7 +725,7 @@ export function AddLineItemModal({
                       >
                         <div className="font-medium text-gray-900">{adjustment.adjustmentNumber || adjustment.id}</div>
                         <div className="text-xs text-gray-500">
-                          {adjustment.amount ? `Amount: $${parseFloat(adjustment.amount).toFixed(2)}` : ''}
+                          {adjustment.amount ? `Amount: $${parseFloat(adjustment.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : ''}
                           {adjustment.entityDate ? ` • Date: ${adjustment.entityDate}` : ''}
                           {adjustment.status ? ` • Status: ${adjustment.status}` : ''}
                         </div>
@@ -814,14 +814,14 @@ export function AddLineItemModal({
                     <div>
                       <span className="text-[var(--muted-foreground)]">Total:</span>{' '}
                       <span className="font-medium">
-                        ${selectedInvoice.balance?.total?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                        ${selectedInvoice.balance?.total?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) || '0.00'}
                       </span>
                     </div>
                     <div>
                       <span className="text-[var(--muted-foreground)]">Commission Rate:</span>{' '}
                       <span className="font-medium">
                         {selectedInvoice.balance?.commissionRate != null
-                          ? `${Number(selectedInvoice.balance.commissionRate).toFixed(2)}%`
+                          ? `${Number(selectedInvoice.balance.commissionRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}%`
                           : '-'}
                       </span>
                     </div>
@@ -829,7 +829,7 @@ export function AddLineItemModal({
                       <span className="text-[var(--muted-foreground)]">Commission:</span>{' '}
                       <span className="font-medium text-green-600">
                         ${selectedInvoice.balance?.commission != null
-                          ? Number(selectedInvoice.balance.commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          ? Number(selectedInvoice.balance.commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
                           : '0.00'}
                       </span>
                     </div>
@@ -869,7 +869,7 @@ export function AddLineItemModal({
                     </div>
                     <div>
                       <span className="text-[var(--muted-foreground)]">Amount:</span>{' '}
-                      <span className="font-medium">${selectedAdjustment.amount ? parseFloat(selectedAdjustment.amount).toFixed(2) : '0.00'}</span>
+                      <span className="font-medium">${selectedAdjustment.amount ? parseFloat(selectedAdjustment.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '0.00'}</span>
                     </div>
                     <div>
                       <span className="text-[var(--muted-foreground)]">Date:</span>{' '}

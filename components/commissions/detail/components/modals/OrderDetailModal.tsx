@@ -76,7 +76,7 @@ export function OrderDetailModal({ orderId, onClose }: OrderDetailModalProps) {
     if (value === undefined || value === null) return '-';
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
     if (isNaN(numValue)) return '-';
-    return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
   };
 
   const formatPercentage = (value?: number | string) => {

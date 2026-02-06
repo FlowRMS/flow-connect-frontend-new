@@ -79,7 +79,7 @@ export function LineItemDetailModal({
     if (value === undefined || value === null) return '-';
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
     if (isNaN(numValue)) return '-';
-    return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
   };
 
   const formatPercentage = (value?: number | string) => {
@@ -343,7 +343,7 @@ export function LineItemDetailModal({
                         </span>
                       </label>
                       <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                        ${Number(item.expectedCommission).toFixed(2)}
+                        ${Number(item.expectedCommission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </p>
                     </div>
 
@@ -353,7 +353,7 @@ export function LineItemDetailModal({
                       </label>
                       {status === 'posted' ? (
                         <p className="text-lg font-semibold text-[var(--foreground)]">
-                          ${Number(item.paidCommission).toFixed(2)}
+                          ${Number(item.paidCommission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                         </p>
                       ) : (
                         <input
@@ -362,7 +362,7 @@ export function LineItemDetailModal({
                           onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
                           onBlur={handleSaveAmount}
                           className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-white"
-                          step="0.01"
+                          step="0.0001"
                         />
                       )}
                     </div>
@@ -377,7 +377,7 @@ export function LineItemDetailModal({
                         </span>
                       </label>
                       <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                        ${Number(item.balance).toFixed(2)}
+                        ${Number(item.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </p>
                     </div>
                   </div>
@@ -536,7 +536,7 @@ export function LineItemDetailModal({
                         Original Amount
                       </label>
                       <p className="text-sm text-[var(--foreground)] font-medium">
-                        ${Number(item.amount).toFixed(2)}
+                        ${Number(item.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </p>
                     </div>
                   )}
@@ -637,7 +637,7 @@ export function LineItemDetailModal({
                   </span>
                 </label>
                 <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                  ${Number(item.expectedCommission).toFixed(2)}
+                  ${Number(item.expectedCommission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                 </p>
               </div>
 
@@ -647,7 +647,7 @@ export function LineItemDetailModal({
                 </label>
                 {status === 'posted' ? (
                   <p className="text-lg font-semibold text-[var(--foreground)]">
-                    ${Number(item.paidCommission).toFixed(2)}
+                    ${Number(item.paidCommission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                   </p>
                 ) : (
                   <input
@@ -656,7 +656,7 @@ export function LineItemDetailModal({
                     onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
                     onBlur={handleSaveAmount}
                     className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-white"
-                    step="0.01"
+                    step="0.0001"
                   />
                 )}
               </div>
@@ -671,7 +671,7 @@ export function LineItemDetailModal({
                   </span>
                 </label>
                 <p className="text-lg font-semibold text-[var(--muted-foreground)]">
-                  ${Number(item.balance).toFixed(2)}
+                  ${Number(item.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                 </p>
               </div>
             </div>
