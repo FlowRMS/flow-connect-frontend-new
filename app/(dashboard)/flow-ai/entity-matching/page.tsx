@@ -72,6 +72,7 @@ function getVisibleSteps(documentType: string | null): EntityStep[] {
 import { flowrmsApolloClient, crmApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import { Q_GET_PENDING, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
 import { fetchCustomerById } from '@/components/customers/api/customersApi';
+import { FACTORY_SEARCH } from '@/app/(dashboard)/analytics/pages/product-dashboard/queries';
 
 export default function EntityMatchingPage() {
   return (
@@ -680,25 +681,27 @@ function EntityMatchingContent() {
     return handleSearchUsers(query, 'outside', 10);
   }, [handleSearchUsers]);
 
-  // Callback for searching factories - filtered to only factories confirmed in this document
+  // Callback for searching factories - uses CRM backend via crmApolloClient
   const searchFactories = useCallback(async (query: string): Promise<EntitySearchResult[]> => {
-    const confirmed = factories
-      .filter(f =>
-        (f.confirmationStatus === 'CONFIRMED' || f.confirmationStatus === 'AUTO_MATCHED') &&
-        f.bestMatchId
-      )
-      .map(f => ({
-        entityId: f.bestMatchId!,
-        name: f.bestMatchName || f.matchCandidates?.find(m => m.entityId === f.bestMatchId)?.name || 'Unknown',
+    try {
+      const { data } = await crmApolloClient.query<{ factorySearch: Array<{ id: string; title: string }> }>({
+        query: FACTORY_SEARCH,
+        variables: {
+          searchTerm: query || '',
+          limit: 50,
+          published: true,
+        },
+        fetchPolicy: 'network-only',
+      });
+      return (data?.factorySearch || []).map(f => ({
+        entityId: f.id,
+        name: f.title,
       }));
-
-    // Deduplicate by entityId (same factory may appear on multiple lines)
-    const unique = Array.from(new Map(confirmed.map(f => [f.entityId, f])).values());
-
-    if (!query) return unique;
-    const lower = query.toLowerCase();
-    return unique.filter(f => f.name.toLowerCase().includes(lower));
-  }, [factories]);
+    } catch (error) {
+      console.error('Error searching factories:', error);
+      return [];
+    }
+  }, []);
 
   // Check what rep/factory fields are needed for current entity type
   // - Customers/Bill to Customers/End Users: outsideRepId required, insideRepId optional

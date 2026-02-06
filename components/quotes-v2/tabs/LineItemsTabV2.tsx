@@ -1853,15 +1853,10 @@ export function LineItemsTabV2({
                             key={uom.id}
                             onClick={() => {
                               const newDivisor = normalizedDivisor;
-                              // Normalize oldDivisor in case it's a legacy value that wasn't normalized before
-                              const oldDivisor = normalizeDivisor(item?.divisor);
                               const quantity = item?.quantity || 1;
-                              const oldUnitPrice = item?.unitPrice || 0;
-                              // When changing UOM, adjust unit price to maintain the same extended price
-                              // This prevents the 10x pricing bug when switching between UOMs
-                              // Formula: newUnitPrice = oldUnitPrice * (newDivisor / oldDivisor)
-                              const unitPrice = oldUnitPrice * (newDivisor / oldDivisor);
+                              const unitPrice = item?.unitPrice || 0;
                               const commissionPercent = item?.commissionPercent || 0;
+                              // When changing UOM, unit price stays the same - only sell total changes
                               const sellTotal = quantity * unitPrice / newDivisor;
                               // Commission is calculated on DISCOUNTED sell total (after line discount)
                               const lineDiscountPct = item?.lineDiscountPercent || 0;
@@ -1874,7 +1869,6 @@ export function LineItemsTabV2({
                                 uomId: uom.id,
                                 uom: uom.title,
                                 divisor: newDivisor,
-                                unitPrice: unitPrice,
                                 sellTotal: sellTotal,
                                 lineDiscountAmount: lineDiscountAmount,
                                 commission: commissionBeforeDiscount,

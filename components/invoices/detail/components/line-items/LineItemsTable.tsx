@@ -294,18 +294,16 @@ export function LineItemsTable({
 
     // Normalize divisor to handle legacy data where divisionFactor < 1
     const newDivisor = normalizeDivisor(uom.divisionFactor);
-    // Normalize oldDivisor in case it's a legacy value that wasn't normalized before
-    const oldDivisor = normalizeDivisor(item.divisor);
     const quantity = item.quantity || 1;
-    const oldUnitPrice = item.unitPrice || 0;
-    const unitPrice = oldUnitPrice * (newDivisor / oldDivisor);
+    const unitPrice = item.unitPrice || 0;
+
+    // When changing UOM, unit price stays the same - only sell total changes
     const extendedPrice = quantity * unitPrice / newDivisor;
     const commissionRate = item.commissionRate ?? 8; // Stored as whole percentage
 
     updateLineItem(itemId, {
       uom: uom.title,
       divisor: newDivisor,
-      unitPrice: unitPrice,
       amount: extendedPrice,
       // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
       commissionAmount: extendedPrice * (commissionRate / 100),
