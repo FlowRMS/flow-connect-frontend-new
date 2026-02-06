@@ -21,16 +21,6 @@ import { fetchProductById } from '@/components/products/api';
 import { BulkActionsBar } from './BulkActionsBar';
 import { normalizeDivisor } from '@/components/lib/uom-utils';
 
-// Types
-// Note: custPartNumber is NOT editable - it auto-populates when product is selected
-type EditableColumnKey = 'partNumber' | 'description' | 'soldTo' | 'endUser' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionRate';
-
-interface PricingOptions {
-  productPrice: number | null;
-  cpnPrice: number | null;
-  cpnCommissionRate: number | null;
-  tiers: Array<{ quantityLow: number; quantityHigh: number; unitPrice: number | string }>;
-}
 import {
   type EditableColumnKey,
   type PricingOptions,
