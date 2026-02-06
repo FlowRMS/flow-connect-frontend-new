@@ -38,13 +38,6 @@
     ".next/dev/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "flow-crm-disc_analytics",
-    "flow-crm-orders",
-    "flow-analytics-main (1)",
-    "revogrid-pro-main",
-    "flow-crm-warehouse-additions",
-    "flow-crm-feature-analytics-integration",
-    "flow-ai-frontend"
+    "node_modules"
   ]
 }

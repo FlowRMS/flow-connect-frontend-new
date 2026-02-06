@@ -10,3 +10,18 @@ export async function requireAuth() {
   }
   return user;
 }
+
+/**
+ * Fetches the access token from the auth API endpoint.
+ * Used for authenticated GraphQL requests from client components.
+ */
+export async function getAccessToken(): Promise<string | null> {
+  try {
+    const response = await fetch('/api/auth/token');
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.accessToken || null;
+  } catch {
+    return null;
+  }
+}

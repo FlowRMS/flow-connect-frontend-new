@@ -8,9 +8,9 @@ projects:
       isolation: enabled
     services:
     - type: web
-      name: flow-crm
+      name: flow-connect-frontend
       runtime: node
-      repo: https://github.com/FlowRMSLabs/flow-crm
+      repo: https://github.com/FlowRMS/flow-connect-frontend-new
       plan: starter
       envVars:
       - key: PORT

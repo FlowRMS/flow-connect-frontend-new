@@ -1,0 +1,50 @@
+query GetManufacturerSendHistory {
+  manufacturerSendHistory {
+    id
+    period
+    dataType
+    sendMethod
+    fileName
+    totalRecords
+    sentAt
+    repFirms {
+      id
+      name
+      territories
+      status
+      recordCount
+      issues {
+        blocking
+        warnings
+        fyi
+      }
+      sentAt
+      fileName
+    }
+  }
+}
+
+query GetDistributorSendHistory {
+  distributorSendHistory {
+    id
+    period
+    dataType
+    sendMethod
+    fileName
+    totalRecords
+    sentAt
+    manufacturers {
+      id
+      name
+      status
+      recordCount
+      issues {
+        blocking
+        warnings
+        fyi
+      }
+      sentAt
+      fileName
+    }
+  }
+}

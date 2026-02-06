@@ -1,0 +1,46 @@
+query GetDistributorDashboard {
+  distributorStats {
+    totalSends
+    totalManufacturers
+    recentSends {
+      id
+      date
+      period
+      recordCount
+      manufacturers
+      status
+    }
+  }
+
+  manufacturers {
+    id
+    name
+    inviteStatus
+  }
+
+  actionIssues {
+    id
+    severity
+    title
+    description
+    context {
+      fileName
+      period
+      manufacturer
+      affectedRows
+    }
+    linkTo
+  }
+
+  messages {
+    id
+    from
+    fromType
+    companyName
+    subject
+    preview
+    receivedAt
+    read
+    fileRef
+  }
+}

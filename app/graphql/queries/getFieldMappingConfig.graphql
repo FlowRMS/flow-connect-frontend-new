@@ -1,0 +1,28 @@
+query GetFieldMappingConfig($manufacturerId: ID!) {
+  fieldMappingConfig(manufacturerId: $manufacturerId) {
+    id
+    manufacturerId
+    defaultMappings {
+      apiName
+      yourField
+    }
+    repFirmOverrides {
+      repFirmId
+      fieldMappings {
+        apiName
+        yourField
+      }
+      visibility {
+        apiName
+        isVisible
+      }
+    }
+    customColumns {
+      id
+      name
+      apiName
+      description
+      dataType
+    }
+  }
+}

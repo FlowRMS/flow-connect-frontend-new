@@ -1,0 +1,68 @@
+query GetManufacturerDashboard {
+  distributors {
+    id
+    name
+    status
+    recordCount
+    lastReceived
+  }
+
+  repFirms {
+    id
+    name
+    status
+  }
+
+  lotOrders {
+    id
+    distributor
+    orderNumber
+    orderType
+    productInfo
+    value
+    submittedAt
+  }
+
+  pendingDistributors {
+    id
+    name
+    requestedAt
+    status
+  }
+
+  pendingRepFirms {
+    id
+    name
+    territories
+    requestedAt
+    status
+  }
+
+  actionIssues {
+    id
+    severity
+    title
+    description
+    context {
+      source
+      sourceType
+      period
+      affectedRows
+      orderId
+      orderValue
+    }
+    linkTo
+  }
+
+  messages {
+    id
+    from
+    fromType
+    companyName
+    subject
+    preview
+    receivedAt
+    read
+    fileRef
+  }
+}

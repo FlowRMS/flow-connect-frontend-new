@@ -1,19 +1,8 @@
-/**
- * Shared components index
- */
-
-export { StyledDatePicker, parseDateString, formatDateToString } from './StyledDatePicker';
-export { FilesTab } from './FilesTab';
-export { PDFBuilder } from './pdf-builder';
-
-// Bulk Operations
-export { useBulkSelection, type UseBulkSelectionOptions, type UseBulkSelectionReturn } from './hooks/useBulkSelection';
-export { BulkDeleteModal } from './modals/BulkDeleteModal';
-export { BulkActionsToolbar } from './BulkActionsToolbar';
-
-// Hover Cards
-export { RelatedEntityHoverCard } from './RelatedEntityHoverCard';
-export { ListPreviewHoverCard, type ListItemType, type SalesRepItem, type ListPreviewHoverCardProps } from './ListPreviewHoverCard';
-
-// View Management
-export { SaveViewButton } from './SaveViewButton';
+export * from './tab-navigation';
+export * from './search-and-filter';
+export * from './directory-header';
+export * from './empty-state';
+export * from './modals/contacts-modal';
+export * from './modals/upload-modal';
+export * from './modals/add-entity-modal';
+export * from './modals/manufacturer-search-modal';

@@ -1,0 +1,52 @@
+query GetRepDashboard {
+  stats {
+    totalRecords
+    totalAmount
+  }
+
+  manufacturers {
+    id
+    name
+    status
+    monthsReported {
+      month
+      receivedAt
+      recordCount
+    }
+  }
+
+  actionItems {
+    id
+    severity
+    title
+    description
+    context {
+      manufacturer
+      distributor
+      month
+      daysOverdue
+    }
+    actionLabel
+    linkTo
+  }
+
+  messages {
+    id
+    from
+    fromType
+    companyName
+    subject
+    preview
+    receivedAt
+    read
+    fileRef
+  }
+
+  pendingConnections {
+    id
+    name
+    type
+    requestedAt
+    status
+  }
+}

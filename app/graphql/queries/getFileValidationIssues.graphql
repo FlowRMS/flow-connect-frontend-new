@@ -1,0 +1,28 @@
+query GetFileValidationIssues {
+  fileValidationIssues {
+    standardValidation {
+      count
+      items {
+        id
+        rowNumber
+        title
+        columnName
+        validationType
+        fileId
+        fileName
+      }
+    }
+    validationWarning {
+      count
+      items {
+        id
+        rowNumber
+        title
+        columnName
+        validationType
+        fileId
+        fileName
+      }
+    }
+  }
+}

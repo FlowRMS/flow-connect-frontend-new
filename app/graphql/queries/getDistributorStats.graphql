@@ -1,0 +1,14 @@
+query GetDistributorStats {
+  distributorStats {
+    totalSends
+    totalManufacturers
+    recentSends {
+      id
+      date
+      period
+      recordCount
+      manufacturers
+      status
+    }
+  }
+}
