@@ -53,7 +53,6 @@ const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: L
   { value: 'order_acknowledgements', label: 'Order Acknowledgement', icon: FileCheck },
   { value: 'invoices', label: 'Invoice', icon: Receipt },
   { value: 'statements', label: 'Statements', icon: DollarSign },
-  { value: 'checks', label: 'Checks', icon: Receipt },
   { value: 'products', label: 'Products', icon: Package },
   { value: 'pricing', label: 'Pricing', icon: DollarSign },
   { value: 'factories', label: 'Factories', icon: Building2 },
