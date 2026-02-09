@@ -1,15 +1,11 @@
 import { requestGraphQL } from './graphqlClient';
 
-// Enums
-export type ValidationTypeEnum = 'STANDARD_VALIDATION' | 'VALIDATION_WARNING';
-
 // Types matching GraphQL schema
 export interface FileValidationIssueLite {
   id: string;
   rowNumber: number;
   title: string;
   columnName: string | null;
-  validationType: ValidationTypeEnum;
   fileId: string;
   fileName: string;
 }
@@ -22,7 +18,6 @@ export interface FileValidationIssueDetail {
   columnName: string | null;
   validationKey: string;
   message: string;
-  validationType: ValidationTypeEnum;
   fileId: string;
   fileName: string;
   // rowData can be a JSON string or parsed object depending on the backend
@@ -59,7 +54,6 @@ const GetFileValidationIssuesQuery = `
           rowNumber
           title
           columnName
-          validationType
           fileId
           fileName
         }
@@ -71,7 +65,6 @@ const GetFileValidationIssuesQuery = `
           rowNumber
           title
           columnName
-          validationType
           fileId
           fileName
         }
@@ -83,7 +76,6 @@ const GetFileValidationIssuesQuery = `
           rowNumber
           title
           columnName
-          validationType
           fileId
           fileName
         }
@@ -101,7 +93,6 @@ const GetFileValidationIssueQuery = `
       columnName
       validationKey
       message
-      validationType
       fileId
       fileName
       rowData

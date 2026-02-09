@@ -87,9 +87,9 @@ export function ValidationIssueDetailModal({
     return issue.rowData as Record<string, unknown>;
   }, [issue?.rowData]);
 
-  // Map validation type to severity
+  // Default severity based on validationKey prefix
   const severity: IssueSeverity =
-    issue?.validationType === 'STANDARD_VALIDATION' ? 'blocking' : 'warning';
+    issue?.validationKey?.startsWith('warn') ? 'warning' : 'blocking';
   const config = severityConfig[severity];
   const Icon = config.icon;
 

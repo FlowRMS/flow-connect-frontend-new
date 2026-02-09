@@ -118,31 +118,27 @@ async function getAccessToken(): Promise<string | null> {
 
 /**
  * Transform raw API issues into grouped format for UI.
- * Groups issues by title + validationType + fileName to aggregate similar issues.
+ * Groups issues by title + severity + fileName to aggregate similar issues.
  */
 function transformIssues(
-  issues: FileValidationIssueLite[]
+  taggedIssues: { issue: FileValidationIssueLite; severity: IssueSeverity }[]
 ): TransformedValidationIssue[] {
-  // Group issues by title + validationType + fileName
-  const grouped = new Map<string, FileValidationIssueLite[]>();
+  const grouped = new Map<string, { issues: FileValidationIssueLite[]; severity: IssueSeverity }>();
 
-  for (const issue of issues) {
-    const key = `${issue.title}|${issue.validationType}|${issue.fileName}`;
+  for (const { issue, severity } of taggedIssues) {
+    const key = `${issue.title}|${severity}|${issue.fileName}`;
     const existing = grouped.get(key);
     if (existing) {
-      existing.push(issue);
+      existing.issues.push(issue);
     } else {
-      grouped.set(key, [issue]);
+      grouped.set(key, { issues: [issue], severity });
     }
   }
 
-  // Transform groups into the UI-compatible format
   const transformed: TransformedValidationIssue[] = [];
 
-  for (const [, groupIssues] of grouped) {
+  for (const [, { issues: groupIssues, severity }] of grouped) {
     const first = groupIssues[0];
-    const severity: IssueSeverity =
-      first.validationType === 'STANDARD_VALIDATION' ? 'blocking' : 'warning';
 
     // Generate a description based on the issue title
     const whyMatters = generateWhyMatters(first.title, first.columnName);
@@ -241,19 +237,28 @@ export function useValidationIssues(
     }
   }, [loadOnMount, loadIssues]);
 
-  const blocking = data?.blocking ?? emptyGroup;
-  const warning = data?.warning ?? emptyGroup;
-  const fyi = data?.fyi ?? emptyGroup;
+  const blockingGroup = data?.blocking ?? emptyGroup;
+  const warningGroup = data?.warning ?? emptyGroup;
+  const fyiGroup = data?.fyi ?? emptyGroup;
   const allIssues = useMemo(
-    () => [...blocking.items, ...warning.items, ...fyi.items],
-    [blocking.items, warning.items, fyi.items]
+    () => [...blockingGroup.items, ...warningGroup.items, ...fyiGroup.items],
+    [blockingGroup.items, warningGroup.items, fyiGroup.items]
   );
-  const totalCount = blocking.count + warning.count + fyi.count;
+  const totalCount = blockingGroup.count + warningGroup.count + fyiGroup.count;
+
+  const taggedIssues = useMemo(
+    () => [
+      ...blockingGroup.items.map((issue) => ({ issue, severity: 'blocking' as IssueSeverity })),
+      ...warningGroup.items.map((issue) => ({ issue, severity: 'warning' as IssueSeverity })),
+      ...fyiGroup.items.map((issue) => ({ issue, severity: 'warning' as IssueSeverity })),
+    ],
+    [blockingGroup.items, warningGroup.items, fyiGroup.items]
+  );
 
   // Transform issues for UI compatibility
   const transformedIssues = useMemo(
-    () => transformIssues(allIssues),
-    [allIssues]
+    () => transformIssues(taggedIssues),
+    [taggedIssues]
   );
 
   const blockingCount = useMemo(
@@ -270,9 +275,9 @@ export function useValidationIssues(
     isLoading,
     error,
     data,
-    blocking,
-    warning,
-    fyi,
+    blocking: blockingGroup,
+    warning: warningGroup,
+    fyi: fyiGroup,
     allIssues,
     totalCount,
     transformedIssues,
