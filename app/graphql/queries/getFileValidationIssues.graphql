@@ -1,6 +1,6 @@
 query GetFileValidationIssues {
   fileValidationIssues {
-    standardValidation {
+    blocking {
       count
       items {
         id
@@ -12,7 +12,19 @@ query GetFileValidationIssues {
         fileName
       }
     }
-    validationWarning {
+    warning {
+      count
+      items {
+        id
+        rowNumber
+        title
+        columnName
+        validationType
+        fileId
+        fileName
+      }
+    }
+    fyi {
       count
       items {
         id

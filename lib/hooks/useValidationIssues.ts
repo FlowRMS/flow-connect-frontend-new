@@ -56,13 +56,17 @@ export interface UseValidationIssuesReturn {
    */
   data: FileValidationIssuesResponse | null;
   /**
-   * Standard validation issues (blocking)
+   * Blocking validation issues
    */
-  standardValidation: ValidationIssueGroup;
+  blocking: ValidationIssueGroup;
   /**
    * Validation warnings
    */
-  validationWarning: ValidationIssueGroup;
+  warning: ValidationIssueGroup;
+  /**
+   * FYI validation issues
+   */
+  fyi: ValidationIssueGroup;
   /**
    * All raw issues combined
    */
@@ -237,13 +241,14 @@ export function useValidationIssues(
     }
   }, [loadOnMount, loadIssues]);
 
-  const standardValidation = data?.standardValidation ?? emptyGroup;
-  const validationWarning = data?.validationWarning ?? emptyGroup;
+  const blocking = data?.blocking ?? emptyGroup;
+  const warning = data?.warning ?? emptyGroup;
+  const fyi = data?.fyi ?? emptyGroup;
   const allIssues = useMemo(
-    () => [...standardValidation.items, ...validationWarning.items],
-    [standardValidation.items, validationWarning.items]
+    () => [...blocking.items, ...warning.items, ...fyi.items],
+    [blocking.items, warning.items, fyi.items]
   );
-  const totalCount = standardValidation.count + validationWarning.count;
+  const totalCount = blocking.count + warning.count + fyi.count;
 
   // Transform issues for UI compatibility
   const transformedIssues = useMemo(
@@ -265,8 +270,9 @@ export function useValidationIssues(
     isLoading,
     error,
     data,
-    standardValidation,
-    validationWarning,
+    blocking,
+    warning,
+    fyi,
     allIssues,
     totalCount,
     transformedIssues,

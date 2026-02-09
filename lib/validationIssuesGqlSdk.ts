@@ -39,8 +39,9 @@ export interface ValidationIssueGroup {
 }
 
 export interface FileValidationIssuesResponse {
-  standardValidation: ValidationIssueGroup;
-  validationWarning: ValidationIssueGroup;
+  blocking: ValidationIssueGroup;
+  warning: ValidationIssueGroup;
+  fyi: ValidationIssueGroup;
 }
 
 export interface GetFileValidationIssuesResult {
@@ -51,7 +52,7 @@ export interface GetFileValidationIssuesResult {
 const GetFileValidationIssuesQuery = `
   query GetFileValidationIssues {
     fileValidationIssues {
-      standardValidation {
+      blocking {
         count
         items {
           id
@@ -63,7 +64,19 @@ const GetFileValidationIssuesQuery = `
           fileName
         }
       }
-      validationWarning {
+      warning {
+        count
+        items {
+          id
+          rowNumber
+          title
+          columnName
+          validationType
+          fileId
+          fileName
+        }
+      }
+      fyi {
         count
         items {
           id
@@ -98,11 +111,15 @@ const GetFileValidationIssueQuery = `
 
 // Mock data for development/fallback
 export const mockFileValidationIssues: FileValidationIssuesResponse = {
-  standardValidation: {
+  blocking: {
     count: 0,
     items: [],
   },
-  validationWarning: {
+  warning: {
+    count: 0,
+    items: [],
+  },
+  fyi: {
     count: 0,
     items: [],
   },
